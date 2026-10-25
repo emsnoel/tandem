@@ -40,6 +40,8 @@ the last release:
 | `feat!: ...`, `fix!: ...`, or a `BREAKING CHANGE:` footer | major |
 | `refactor`, `docs`, `ci`, `test`, `chore` | none; no release on its own |
 
+The first release is 0.1.0 (`initial-version`), whatever its commits say.
+
 While the major version is 0, a breaking change bumps the minor number instead
 (`bump-minor-pre-major` in `release-please-config.json`). A `BREAKING CHANGE:` footer says
 what the user must do, because it becomes that release's changelog entry.
