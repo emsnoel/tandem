@@ -28,6 +28,28 @@ TAR_FLAGS="--no-xattrs"
 tar --version 2>/dev/null | grep -q bsdtar && TAR_FLAGS="--no-xattrs --no-mac-metadata"
 export COPYFILE_DISABLE=1
 
+# notices BIN prints the license of every module linked into BIN, and of Go
+# itself. The module list comes from the binary, so it matches each target.
+# A module with no license file stops the release.
+notices() {
+  printf 'Third-party software in the tandem binary, with its licenses.\n'
+  printf '\n== Go standard library ==\n\n'
+  cat "$(go env GOROOT)/LICENSE"
+  local mod dir f files
+  for mod in $(go version -m "$1" | awk '$1 == "dep" { print $2 "@" $3 }'); do
+    dir=$(cd "$ROOT" && go mod download -json "$mod" | sed -n 's/^[[:space:]]*"Dir": "\(.*\)",$/\1/p')
+    files=()
+    for f in "$dir"/*; do
+      case "$(basename "$f" | tr '[:upper:]' '[:lower:]')" in
+        licen[cs]e*|copying*|notice*) [ -f "$f" ] && files+=("$f") ;;
+      esac
+    done
+    [ "${#files[@]}" -gt 0 ] || { printf 'package-release: no license file for %s\n' "$mod" >&2; return 1; }
+    printf '\n== %s ==\n' "$mod"
+    for f in "${files[@]}"; do printf '\n-- %s --\n\n' "$(basename "$f")"; cat "$f"; done
+  done
+}
+
 mkdir -p "$OUT"
 OUT=$(cd "$OUT" && pwd)
 STAGE=$(mktemp -d); trap 'rm -rf "$STAGE"' EXIT
@@ -47,6 +69,8 @@ for target in "$@"; do
   done
   cp "$ROOT/config/config.toml.example" "$dir/config/"
   cp "$ROOT/LICENSE" "$dir/"
+  notices "$dir/tandem" > "$dir/THIRD_PARTY_NOTICES" \
+    || { printf 'package-release: could not collect the notices for %s\n' "$target" >&2; exit 1; }
   printf '%s\n' "$VERSION" > "$dir/VERSION"
   # shellcheck disable=SC2086
   tar $TAR_FLAGS -C "$STAGE/$goos-$goarch" -czf "$OUT/tandem-$goos-$goarch.tar.gz" tandem
