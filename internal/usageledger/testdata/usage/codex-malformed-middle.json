@@ -1,0 +1,112 @@
+{
+ "cross_check": false,
+ "description": "An undecodable record inside the log makes the stream incomplete.",
+ "events": [
+  {
+   "payload": {
+    "id": "cx-1"
+   },
+   "type": "session_meta"
+  },
+  {
+   "payload": {
+    "model": "gpt-a"
+   },
+   "type": "turn_context"
+  },
+  {
+   "payload": {
+    "info": {
+     "total_token_usage": {
+      "cached_input_tokens": 60,
+      "input_tokens": 100,
+      "output_tokens": 10,
+      "reasoning_output_tokens": 4
+     }
+    },
+    "type": "token_count"
+   },
+   "type": "event_msg"
+  },
+  "not json",
+  {
+   "payload": {
+    "info": {
+     "total_token_usage": {
+      "cached_input_tokens": 90,
+      "input_tokens": 150,
+      "output_tokens": 15,
+      "reasoning_output_tokens": 6
+     }
+    },
+    "type": "token_count"
+   },
+   "type": "event_msg"
+  },
+  {
+   "payload": {
+    "type": "task_complete"
+   },
+   "type": "event_msg"
+  }
+ ],
+ "expected": {
+  "complete": false,
+  "events": [
+   {
+    "cache_read": 60,
+    "cache_write": null,
+    "components": {
+     "cumulative": {
+      "cached_input_tokens": 60,
+      "input_tokens": 100,
+      "output_tokens": 10,
+      "reasoning_output_tokens": 4
+     },
+     "segment": 0
+    },
+    "event_id": "seg0:0",
+    "input_total": 100,
+    "model": "gpt-a",
+    "output": 10,
+    "provider": "codex",
+    "reasoning_output": 4,
+    "revision": 0,
+    "session_id": "cx-1",
+    "source_cursor": 2,
+    "source_hash": "b88c412f207c8024b172fcb70ee10fd9b9641ac73360b197db30c67c18c00ccc",
+    "terminal_evidence": true
+   },
+   {
+    "cache_read": 30,
+    "cache_write": null,
+    "components": {
+     "cumulative": {
+      "cached_input_tokens": 90,
+      "input_tokens": 150,
+      "output_tokens": 15,
+      "reasoning_output_tokens": 6
+     },
+     "segment": 0
+    },
+    "event_id": "seg0:1",
+    "input_total": 50,
+    "model": "gpt-a",
+    "output": 5,
+    "provider": "codex",
+    "reasoning_output": 2,
+    "revision": 0,
+    "session_id": "cx-1",
+    "source_cursor": 4,
+    "source_hash": "236e37d6986b6f35421854aa41ade4fe7133c0fd8cae93936c41e389ca9e791b",
+    "terminal_evidence": true
+   }
+  ],
+  "provider": "codex",
+  "reasons": [
+   "malformed_record:3"
+  ],
+  "superseded": []
+ },
+ "provider": "codex"
+}

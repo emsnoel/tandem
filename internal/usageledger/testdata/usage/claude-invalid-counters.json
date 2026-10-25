@@ -1,0 +1,55 @@
+{
+ "cross_check": false,
+ "description": "Negative, bool and float counters are unknown.",
+ "events": [
+  {
+   "message": {
+    "id": "m1",
+    "model": "claude-a",
+    "stop_reason": "end_turn",
+    "usage": {
+     "cache_creation_input_tokens": 5,
+     "cache_read_input_tokens": true,
+     "input_tokens": -1,
+     "output_tokens": 1.5
+    }
+   },
+   "sessionId": "cl-1",
+   "type": "assistant",
+   "uuid": "u1"
+  }
+ ],
+ "expected": {
+  "complete": false,
+  "events": [
+   {
+    "cache_read": null,
+    "cache_write": 5,
+    "components": {
+     "cache_write_subtypes": {},
+     "ordinary_input": null,
+     "unmapped": {}
+    },
+    "event_id": "m1",
+    "input_total": null,
+    "model": "claude-a",
+    "output": null,
+    "provider": "claude",
+    "reasoning_output": null,
+    "revision": 0,
+    "session_id": "cl-1",
+    "source_cursor": 0,
+    "source_hash": "78a4602af3f5c44a74b4caafb2e9d6e4ec7aad6205750e4d385e29a93ec89f9f",
+    "terminal_evidence": true
+   }
+  ],
+  "provider": "claude",
+  "reasons": [
+   "invalid_counter:input_tokens:0",
+   "invalid_counter:cache_read_input_tokens:0",
+   "invalid_counter:output_tokens:0"
+  ],
+  "superseded": []
+ },
+ "provider": "claude"
+}

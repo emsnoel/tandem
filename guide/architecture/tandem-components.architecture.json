@@ -1,0 +1,431 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Tandem architecture",
+    "output": "tandem-components.html",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1200,
+      640
+    ],
+    "repository": {
+      "url": "https://github.com/emsnoel/tandem",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "b6494b2c8056f6259b63fef3c4c02383bd48ccb8"
+    },
+    "views": [
+      {
+        "id": "control-path",
+        "label": "Control path",
+        "focus": [
+          "planner",
+          "scripts",
+          "gates",
+          "config",
+          "herdr"
+        ],
+        "note": "The planner runs scripts that call the Go binary and the Herdr CLI."
+      },
+      {
+        "id": "legacy-engine",
+        "label": "Legacy engine",
+        "focus": [
+          "bridge",
+          "buildloop",
+          "jev",
+          "relay",
+          "builder"
+        ],
+        "note": "Progress is one build.json. The bridge runs build advance after each handback."
+      },
+      {
+        "id": "durable-engine",
+        "label": "Durable engine (opt-in)",
+        "focus": [
+          "bridge",
+          "controller",
+          "state",
+          "herdr",
+          "builder",
+          "relay"
+        ],
+        "note": "Events and effects in SQLite. The controller sends prompts through Herdr."
+      },
+      {
+        "id": "relay-path",
+        "label": "Relay path",
+        "focus": [
+          "builder",
+          "relay",
+          "bridge"
+        ],
+        "note": "The sandboxed builder writes files. The bridge delivers them."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "planner",
+      "type": "frontend",
+      "label": "Planner",
+      "sublabel": "Claude Code pane",
+      "pos": [
+        40,
+        30
+      ],
+      "size": [
+        190,
+        64
+      ]
+    },
+    {
+      "id": "scripts",
+      "type": "backend",
+      "label": "tandem-* scripts",
+      "sublabel": "12 bash entry points",
+      "pos": [
+        40,
+        175
+      ],
+      "size": [
+        190,
+        64
+      ],
+      "sources": [
+        {
+          "path": "bin/tandem-handoff",
+          "label": "handoff"
+        },
+        {
+          "path": "bin/tandem-unpair",
+          "label": "unpair"
+        }
+      ]
+    },
+    {
+      "id": "gates",
+      "type": "security",
+      "label": "Gates",
+      "sublabel": "review, scope, teardown",
+      "pos": [
+        330,
+        90
+      ],
+      "size": [
+        190,
+        64
+      ],
+      "sources": [
+        {
+          "path": "internal/gate/teardown.go",
+          "label": "teardown gate"
+        }
+      ],
+      "tag": "Go"
+    },
+    {
+      "id": "config",
+      "type": "database",
+      "label": "Config + adapters",
+      "sublabel": ".tandem.json, per-kind flags",
+      "pos": [
+        330,
+        240
+      ],
+      "size": [
+        190,
+        64
+      ],
+      "sources": [
+        {
+          "path": "internal/agent/agent.go",
+          "label": "adapters"
+        }
+      ],
+      "tag": "Go"
+    },
+    {
+      "id": "buildloop",
+      "type": "backend",
+      "label": "Legacy build loop",
+      "sublabel": "split, check, ledger",
+      "pos": [
+        620,
+        90
+      ],
+      "size": [
+        190,
+        64
+      ],
+      "sources": [
+        {
+          "path": "internal/build/build.go",
+          "label": "build.json"
+        }
+      ],
+      "tag": "Go \u00b7 default"
+    },
+    {
+      "id": "controller",
+      "type": "backend",
+      "label": "Durable controller",
+      "sublabel": "tick, recover, review, budgets",
+      "pos": [
+        620,
+        390
+      ],
+      "size": [
+        190,
+        64
+      ],
+      "tag": "Go \u00b7 opt-in",
+      "sources": [
+        {
+          "path": "internal/controller/engine.go",
+          "label": "engine select"
+        },
+        {
+          "path": "internal/controller/tick.go",
+          "label": "tick"
+        }
+      ]
+    },
+    {
+      "id": "herdr",
+      "type": "cloud",
+      "label": "Herdr",
+      "sublabel": "panes, agents, socket",
+      "pos": [
+        620,
+        540
+      ],
+      "size": [
+        190,
+        64
+      ],
+      "sources": [
+        {
+          "path": "cmd/tandem/build_transport.go",
+          "label": "transport"
+        }
+      ]
+    },
+    {
+      "id": "builder",
+      "type": "frontend",
+      "label": "Builder",
+      "sublabel": "codex, claude, copilot, opencode",
+      "pos": [
+        910,
+        540
+      ],
+      "size": [
+        190,
+        64
+      ]
+    },
+    {
+      "id": "bridge",
+      "type": "backend",
+      "label": "tandem-bridge",
+      "sublabel": "unsandboxed watcher",
+      "pos": [
+        620,
+        240
+      ],
+      "size": [
+        190,
+        64
+      ],
+      "sources": [
+        {
+          "path": "bin/tandem-bridge"
+        }
+      ]
+    },
+    {
+      "id": "relay",
+      "type": "messagebus",
+      "label": "Relay mailbox",
+      "sublabel": ".tandem-relay q/ and a/",
+      "pos": [
+        910,
+        240
+      ],
+      "size": [
+        190,
+        64
+      ]
+    },
+    {
+      "id": "state",
+      "type": "database",
+      "label": "State store",
+      "sublabel": "SQLite + artifacts, outside the repo",
+      "pos": [
+        330,
+        390
+      ],
+      "size": [
+        190,
+        64
+      ],
+      "tag": "state home",
+      "sources": [
+        {
+          "path": "internal/state/events.go",
+          "label": "events"
+        },
+        {
+          "path": "internal/artifact/store.go",
+          "label": "artifacts"
+        }
+      ]
+    },
+    {
+      "id": "jev",
+      "type": "external",
+      "label": "Jev (TypeSafe)",
+      "sublabel": "triage and staffing judgments",
+      "pos": [
+        910,
+        90
+      ],
+      "size": [
+        190,
+        64
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "security-group",
+      "label": "Seatbelt sandbox: no Herdr socket",
+      "wraps": [
+        "builder"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "planner-scripts",
+      "from": "planner",
+      "to": "scripts",
+      "label": "runs",
+      "labelAt": [
+        135,
+        134
+      ]
+    },
+    {
+      "id": "scripts-gates",
+      "from": "scripts",
+      "to": "gates",
+      "label": "gate pre/post"
+    },
+    {
+      "id": "scripts-config",
+      "from": "scripts",
+      "to": "config",
+      "label": "config"
+    },
+    {
+      "id": "scripts-herdr",
+      "from": "scripts",
+      "to": "herdr",
+      "label": "herdr CLI",
+      "fromSide": "bottom",
+      "toSide": "left"
+    },
+    {
+      "id": "bridge-buildloop",
+      "from": "bridge",
+      "to": "buildloop",
+      "label": "build advance"
+    },
+    {
+      "id": "bridge-controller",
+      "from": "bridge",
+      "to": "controller",
+      "label": "tick, recover",
+      "variant": "emphasis",
+      "labelAt": [
+        715,
+        347
+      ]
+    },
+    {
+      "id": "buildloop-jev",
+      "from": "buildloop",
+      "to": "jev",
+      "label": "judge"
+    },
+    {
+      "id": "controller-state",
+      "from": "controller",
+      "to": "state",
+      "label": "events, effects",
+      "variant": "emphasis"
+    },
+    {
+      "id": "controller-herdr",
+      "from": "controller",
+      "to": "herdr",
+      "label": "agent prompt",
+      "labelAt": [
+        715,
+        497
+      ]
+    },
+    {
+      "id": "herdr-builder",
+      "from": "herdr",
+      "to": "builder",
+      "label": "pane, prompt"
+    },
+    {
+      "id": "builder-relay",
+      "from": "builder",
+      "to": "relay",
+      "label": "ask, handback",
+      "labelAt": [
+        1005,
+        422
+      ]
+    },
+    {
+      "id": "bridge-relay",
+      "from": "bridge",
+      "to": "relay",
+      "label": "poll q/"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Control and relay path",
+      "items": [
+        "The planner runs bash scripts that call the Go binary and the herdr CLI. Gates are pure functions",
+        "The sandboxed builder cannot reach Herdr, so it writes files to the mailbox and the bridge delivers them"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Two engines",
+      "items": [
+        "The relay decides: active-run.json is durable, build.json is legacy, both is refused. Legacy is the default; durable is opt-in at build start",
+        "Durable applies every change as one SQLite event and never retypes a prompt of unknown delivery"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Trust limits",
+      "items": [
+        "Only the user config can widen authority",
+        "The builder may reach Jev and nothing else on the network"
+      ]
+    }
+  ]
+}

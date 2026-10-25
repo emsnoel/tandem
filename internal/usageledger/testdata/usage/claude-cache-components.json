@@ -1,0 +1,64 @@
+{
+ "cross_check": true,
+ "description": "Required case: ordinary 3 + cache_write 5 + cache_read 7 gives input_total 15.",
+ "events": [
+  {
+   "message": {
+    "id": "m1",
+    "model": "claude-a",
+    "stop_reason": "end_turn",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 5
+     },
+     "cache_creation_input_tokens": 5,
+     "cache_read_input_tokens": 7,
+     "input_tokens": 3,
+     "output_tokens": 11,
+     "output_tokens_details": {
+      "thinking_tokens": 4
+     },
+     "service_tier": "standard"
+    }
+   },
+   "sessionId": "cl-1",
+   "type": "assistant",
+   "uuid": "u1"
+  }
+ ],
+ "expected": {
+  "complete": true,
+  "events": [
+   {
+    "cache_read": 7,
+    "cache_write": 5,
+    "components": {
+     "cache_write_subtypes": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 5
+     },
+     "ordinary_input": 3,
+     "unmapped": {
+      "service_tier": "standard"
+     }
+    },
+    "event_id": "m1",
+    "input_total": 15,
+    "model": "claude-a",
+    "output": 11,
+    "provider": "claude",
+    "reasoning_output": 4,
+    "revision": 0,
+    "session_id": "cl-1",
+    "source_cursor": 0,
+    "source_hash": "5a0b3f7a64cce889dc73c7562ca5ba7da2c3becca9010fbf9b87cc4d3d443232",
+    "terminal_evidence": true
+   }
+  ],
+  "provider": "claude",
+  "reasons": [],
+  "superseded": []
+ },
+ "provider": "claude"
+}

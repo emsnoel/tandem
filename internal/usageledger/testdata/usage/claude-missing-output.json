@@ -1,0 +1,52 @@
+{
+ "cross_check": false,
+ "description": "A missing output counter is unknown, not zero.",
+ "events": [
+  {
+   "message": {
+    "id": "m1",
+    "model": "claude-a",
+    "stop_reason": "end_turn",
+    "usage": {
+     "cache_creation_input_tokens": 5,
+     "cache_read_input_tokens": 7,
+     "input_tokens": 3
+    }
+   },
+   "sessionId": "cl-1",
+   "type": "assistant",
+   "uuid": "u1"
+  }
+ ],
+ "expected": {
+  "complete": false,
+  "events": [
+   {
+    "cache_read": 7,
+    "cache_write": 5,
+    "components": {
+     "cache_write_subtypes": {},
+     "ordinary_input": 3,
+     "unmapped": {}
+    },
+    "event_id": "m1",
+    "input_total": 15,
+    "model": "claude-a",
+    "output": null,
+    "provider": "claude",
+    "reasoning_output": null,
+    "revision": 0,
+    "session_id": "cl-1",
+    "source_cursor": 0,
+    "source_hash": "a1436b21296406ba605c112107d9712384b7c5bb3e79564bfb63bc39fea022c7",
+    "terminal_evidence": true
+   }
+  ],
+  "provider": "claude",
+  "reasons": [
+   "missing_counter:output_tokens:0"
+  ],
+  "superseded": []
+ },
+ "provider": "claude"
+}

@@ -1,0 +1,680 @@
+#!/usr/bin/env bash
+# tandem-pair: establish or repair the planner, builder and reviewer panes.
+#
+# Idempotent. It adopts agents that are already running, so it can repair a
+# half-set-up session. See README.md.
+set -euo pipefail
+
+# install.sh symlinks the commands, so resolve the link to find lib/.
+_self="${BASH_SOURCE[0]}"
+while [[ -L "$_self" ]]; do
+  _link=$(readlink "$_self"); [[ "$_link" == /* ]] && _self="$_link" || _self="${_self%/*}/$_link"
+done
+# shellcheck source=lib/reviewer.sh
+. "${_self%/*}/lib/reviewer.sh"
+
+PLANNER_NAME="${HERDR_PLANNER_NAME:-planner}"
+BUILDER_NAME="${HERDR_BUILDER_NAME:-builder}"
+REVIEWER_NAME="${HERDR_REVIEWER_NAME:-reviewer}"
+PLANNER_KIND="claude"
+START_TIMEOUT_MS="${HERDR_PAIR_START_TIMEOUT_MS:-60000}"
+
+DRY_RUN=0
+DIRECTION=""
+PLANNER_PANE=""
+CWD_OVERRIDE=""
+OV_BUILDER_KIND=""
+OV_BUILDER_MODEL=""
+OV_BUILDER_EFFORT=""
+OV_BUILDER_AUTONOMY=""
+# A space-separated string, because bash 3.2 treats an empty array as unset
+# under set -u.
+OV_APPROVE_KINDS=""
+OV_REVIEWER_KIND=""
+OV_REVIEWER_MODEL=""
+OV_REVIEWER_EFFORT=""
+
+usage() {
+  cat <<'USAGE'
+usage: tandem-pair [--dry-run] [--direction right|down] [--planner-pane ID]
+
+Names the Claude agent "planner", ensures a sibling Codex pane named "builder",
+and tags both panes with a role token for the Herdr sidebar.
+
+  --dry-run           print the mutating herdr calls without making them
+  --direction DIR     force split direction (default: derived from pane shape)
+  --planner-pane ID   use this pane as the planner (default: auto-detected)
+  --cwd PATH          working directory for the builder pane. Defaults to the
+                      planner's own cwd, which is not always the repo you mean.
+  --builder KIND      agent CLI for the builder (codex|claude|copilot|opencode)
+  --builder-model M   model override for the builder
+  --builder-effort E  effort override (low|medium|high|max)
+  --builder-autonomy A
+                      autonomy override (readonly|ask|auto|full)
+  --approve-kind K    approve a kind requested by this repository, then pair.
+                      Repeat it to approve the builder's and the reviewer's
+                      kinds in one run
+  --reviewer KIND     the agent CLI for the reviewer, overriding the "reviewer"
+                      block in .tandem.json. Every review is sent to
+                      the reviewer pane, never to the builder, so the builder
+                      can run a cheap model and the review a strong one. It is
+                      never the builder or the planner.
+  --reviewer-model M  model for the reviewer (overrides .tandem.json)
+  --reviewer-effort E effort for the reviewer (overrides .tandem.json)
+
+The reviewer is started when .tandem.json has a "reviewer" block
+with a kind, or --reviewer is given. With neither, the pair is made without
+one and review and build will refuse until one is configured.
+USAGE
+}
+
+die()  { printf 'tandem-pair: %s\n' "$*" >&2; exit 1; }
+info() { printf 'tandem-pair: %s\n' "$*"; }
+
+# mutate <args...>: a state-changing herdr call, skipped under --dry-run.
+MUTATE_OUT=""; MUTATE_ERR=""
+mutate() {
+  if (( DRY_RUN )); then
+    printf '  [dry-run] herdr %s\n' "$*"
+    MUTATE_OUT=""; MUTATE_ERR=""
+    return 0
+  fi
+  local rc=0
+  MUTATE_OUT=$(tandem "$@" 2>&1) || rc=$?
+  if (( rc != 0 )); then
+    MUTATE_ERR="$MUTATE_OUT"
+    MUTATE_OUT=""
+  else
+    MUTATE_ERR=""
+  fi
+  return "$rc"
+}
+
+# ensure_relay_ignored <repo-root>: keep the mailbox out of version control.
+# tandem-pair creates the mailbox, so it ignores it even when tandem-init never
+# ran. Keep this identical to the copy in tandem-init.
+ensure_relay_ignored() {
+  local root="$1" gi="$1/.gitignore" base re
+  git -C "$root" rev-parse --git-dir >/dev/null 2>&1 || return 0
+  # tandem resolves the name, so a repo with the legacy .herdr-relay gets that
+  # name ignored.
+  base=$(tandem paths relay --root "$root") || die "the installed tandem is behind these commands (no 'tandem paths'); re-run install.sh."
+  base=$(basename "$base")
+  re="^/?${base//./\\.}/?$"
+  if [[ -f "$gi" ]] && grep -qE "$re" "$gi"; then
+    return 0
+  fi
+  # The leading newline ends a final .gitignore line that lacks one.
+  if printf '\n# tandem agent relay mailbox (local IPC, never committed)\n%s/\n' "$base" >> "$gi"; then
+    info "added $base/ to $gi"
+  else
+    info "WARNING could not write $gi; $base will show up as untracked."
+  fi
+}
+
+# prelaunch_gates <kind> [role]: run and report the pre-launch gates for an
+# unattended agent. The registry decides which gates apply. Exit 23 means the
+# agent would stall at a dialog.
+prelaunch_gates() {
+  local kind="$1" role="${2:-builder}" pre pre_rc=0 dry_arg=""
+  PRE_ERR=$(mktemp)
+  (( DRY_RUN )) && dry_arg="--dry-run"
+  pre=$(tandem agent prelaunch --role "$role" --kind "$kind" \
+    --root "$ROOT" --cwd "$SPLIT_CWD" ${dry_arg:+$dry_arg} 2>"$PRE_ERR") || pre_rc=$?
+
+  # Report every gate that acted or needs something, with its remedy. Warnings
+  # are not fatal, so the stderr block below does not print them.
+  printf '%s' "$pre" | jq -r '
+    .actions[]
+    | select(.status != "current")
+    | "  \(.gate): \(.status) — \(.detail)"
+      + (if .status == "warning" and (.remedy // "") != ""
+         then "\n         \(.remedy)" else "" end)' 2>/dev/null | while IFS= read -r _l; do
+    info "$_l"
+  done
+
+  if (( pre_rc != 0 )); then
+    [[ -s "$PRE_ERR" ]] && cat "$PRE_ERR" >&2
+    if [[ "${HERDR_SKIP_HOOK_CHECK:-}" == 1 ]]; then
+      info "pre-launch gate overridden (HERDR_SKIP_HOOK_CHECK=1)."
+    else
+      exit "$pre_rc"
+    fi
+  fi
+  rm -f "$PRE_ERR"
+  return 0
+}
+
+# start_in_pane <name> <kind> <pane> [agent args...]: start an agent in a pane
+# that was just split. Sets START_RC, START_CODE and START_MSG.
+#
+# `agent start` needs the pane's shell at its prompt, which takes a moment
+# after the split, so retry "not an available shell".
+START_RC=0; START_CODE=""; START_MSG=""
+start_in_pane() {
+  local name="$1" kind="$2" pane="$3" attempt err
+  shift 3
+  tandem pane wait-shell "$pane" --timeout 10000 >/dev/null 2>&1 || true
+
+  START_RC=1
+  for attempt in $(seq 1 2); do
+    err=""; START_CODE=""; START_MSG=""; START_RC=0
+    err=$(tandem agent start "$name" --kind "$kind" --pane "$pane" \
+         --timeout "$START_TIMEOUT_MS" -- "$@" 2>&1 >/dev/null) || START_RC=$?
+    IFS=$'\t' read -r START_CODE START_MSG <<<"$err"
+    if (( START_RC == 0 )); then
+      break
+    fi
+    case "$START_MSG" in
+      *"not an available shell"*)
+        (( attempt == 1 )) && info "pane not at its prompt yet; retrying..."
+        sleep 1 ;;
+      *) break ;;
+    esac
+  done
+  return 0
+}
+
+# check_alive NAME ROLE: a CLI can exit seconds after it starts.
+# `tandem agent alive` watches it briefly and reports why it died.
+check_alive() {
+  local name="$1" role="$2" out rc=0
+  out=$(tandem agent alive "$name" 2>&1) || rc=$?
+  (( rc == 0 )) && return 0
+  printf 'tandem-pair: the %s quit right after it started, so the pair is not ready.\n\n' "$role" >&2
+  printf '%s\n' "$out" | tail -n +2 | sed 's/^/    /' >&2
+  printf '\n  Fix what the pane shows, then re-run tandem-pair.\n' >&2
+  exit 1
+}
+
+while (( $# )); do
+  case "$1" in
+    --dry-run)      DRY_RUN=1; shift ;;
+    --direction)    DIRECTION="${2:-}"; shift 2 ;;
+    --planner-pane) PLANNER_PANE="${2:-}"; shift 2 ;;
+    --cwd)          CWD_OVERRIDE="${2:-}"; shift 2 ;;
+    --builder)           OV_BUILDER_KIND="${2:-}";     shift 2 ;;
+    --builder-model)     OV_BUILDER_MODEL="${2:-}";    shift 2 ;;
+    --builder-effort)    OV_BUILDER_EFFORT="${2:-}";   shift 2 ;;
+    --builder-autonomy)  OV_BUILDER_AUTONOMY="${2:-}"; shift 2 ;;
+    --approve-kind)       OV_APPROVE_KINDS="$OV_APPROVE_KINDS ${2:-}"; shift 2 ;;
+    --reviewer)          OV_REVIEWER_KIND="${2:-}";    shift 2 ;;
+    --reviewer-model)    OV_REVIEWER_MODEL="${2:-}";   shift 2 ;;
+    --reviewer-effort)   OV_REVIEWER_EFFORT="${2:-}";  shift 2 ;;
+    -h|--help)      usage; exit 0 ;;
+    *)              usage >&2; die "unknown argument: $1" ;;
+  esac
+done
+
+[[ "${HERDR_ENV:-}" == 1 ]] || die "not running inside a Herdr-managed pane (HERDR_ENV != 1)."
+command -v herdr >/dev/null 2>&1 || die "herdr not found on PATH."
+command -v jq    >/dev/null 2>&1 || die "jq not found on PATH."
+command -v tandem >/dev/null 2>&1 || die "tandem not found on PATH."
+[[ -z "$DIRECTION" || "$DIRECTION" == right || "$DIRECTION" == down ]] \
+  || die "--direction must be right or down (got: $DIRECTION)."
+[[ -z "$CWD_OVERRIDE" || -d "$CWD_OVERRIDE" ]] || die "--cwd is not a directory: $CWD_OVERRIDE"
+[[ "$REVIEWER_NAME" != "$BUILDER_NAME" && "$REVIEWER_NAME" != "$PLANNER_NAME" ]] \
+  || die "the reviewer cannot be named '$REVIEWER_NAME': that is the builder or the planner, which would review its own work."
+
+rc=0
+AGENTS=$(tandem agent list 2>&1) || rc=$?
+if (( rc != 0 )); then
+  die "could not list agents: $(printf '%s' "$AGENTS" | cut -f2-)"
+fi
+
+# --- resolve the planner pane ---
+# Order: explicit flag, the calling pane, the only claude agent. From a popup,
+# $HERDR_PANE_ID is the popup's pane, not the planner's.
+if [[ -z "$PLANNER_PANE" ]]; then
+  PLANNER_PANE=$(printf '%s' "$AGENTS" | jq -r --arg p "${HERDR_PANE_ID:-}" --arg k "$PLANNER_KIND" '
+    .result.agents
+    | (map(select(.pane_id == $p and .agent == $k)) | .[0].pane_id)
+      // (map(select(.agent == $k)) | if length == 1 then .[0].pane_id else null end)
+      // empty')
+fi
+
+if [[ -z "$PLANNER_PANE" ]]; then
+  count=$(printf '%s' "$AGENTS" | jq -r --arg k "$PLANNER_KIND" '[.result.agents[] | select(.agent == $k)] | length')
+  if [[ "$count" == 0 ]]; then
+    die "no running $PLANNER_KIND agent found. Start Claude Code in a pane first."
+  fi
+  printf 'tandem-pair: %s %s agents are running; cannot pick one automatically:\n' "$count" "$PLANNER_KIND" >&2
+  printf '%s' "$AGENTS" | jq -r --arg k "$PLANNER_KIND" \
+    '.result.agents[] | select(.agent == $k) | "  \(.pane_id)  name=\(.name // "-")  cwd=\(.cwd // "-")"' >&2
+  die "re-run with --planner-pane <pane_id>."
+fi
+
+PLANNER_CWD=$(printf '%s' "$AGENTS" | jq -r --arg p "$PLANNER_PANE" \
+  '.result.agents[] | select(.pane_id == $p) | .cwd // empty')
+PLANNER_TAB=$(printf '%s' "$AGENTS" | jq -r --arg p "$PLANNER_PANE" \
+  '.result.agents[] | select(.pane_id == $p) | .tab_id // empty')
+PLANNER_CURRENT_NAME=$(printf '%s' "$AGENTS" | jq -r --arg p "$PLANNER_PANE" \
+  '.result.agents[] | select(.pane_id == $p) | .name // empty')
+
+info "planner pane: $PLANNER_PANE (cwd: ${PLANNER_CWD:-unknown})"
+
+SPLIT_CWD="${CWD_OVERRIDE:-${PLANNER_CWD:-$PWD}}"
+ROOT=$(git -C "$SPLIT_CWD" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$SPLIT_CWD")
+
+for _kind in $OV_APPROVE_KINDS; do
+  tandem config approve-kind --root "$ROOT" --kind "$_kind" >/dev/null \
+    || die "could not record approval for kind '$_kind'."
+done
+
+# --- resolve the launch spec ---
+# tandem maps the settings to each CLI's flags and refuses values with no
+# faithful equivalent. stdout is one JSON object; warnings go to stderr.
+trap 'rm -f "${PRE_ERR:-}"' EXIT
+
+# resolve_launch_args ROLE OUTVAR: fill array OUTVAR with ROLE's CLI args and
+# leave the spec in LAUNCH_SPEC. A refusal prints tandem's remedy and exits with
+# its code. A dry run skips the sandbox probe.
+#
+# The args are NUL-delimited so an argument may contain a newline. bash 3.2
+# has no mapfile.
+resolve_launch_args() {
+  local role="$1" outvar="$2" err rc=0 a
+  local flags=()
+  case "$role" in
+    builder)
+      flags=(${OV_BUILDER_KIND:+--kind "$OV_BUILDER_KIND"}
+             ${OV_BUILDER_MODEL:+--model "$OV_BUILDER_MODEL"}
+             ${OV_BUILDER_EFFORT:+--effort "$OV_BUILDER_EFFORT"}
+             ${OV_BUILDER_AUTONOMY:+--autonomy "$OV_BUILDER_AUTONOMY"}) ;;
+    reviewer)
+      flags=(${OV_REVIEWER_KIND:+--kind "$OV_REVIEWER_KIND"}
+             ${OV_REVIEWER_MODEL:+--model "$OV_REVIEWER_MODEL"}
+             ${OV_REVIEWER_EFFORT:+--effort "$OV_REVIEWER_EFFORT"}) ;;
+  esac
+  (( DRY_RUN )) && flags+=(--dry-run)
+  err=$(mktemp)
+  LAUNCH_SPEC=$(tandem agent launch-spec --role "$role" --root "$ROOT" --cwd "$SPLIT_CWD" \
+    ${flags[@]+"${flags[@]}"} 2>"$err") || rc=$?
+  [[ -s "$err" ]] && cat "$err" >&2
+  if (( rc != 0 )); then
+    a=$(jq -r '.error.remedy // empty' "$err" 2>/dev/null || true)
+    rm -f "$err"
+    [[ -n "$a" ]] && printf 'tandem-pair: %s\n' "$a" >&2
+    exit "$rc"
+  fi
+  rm -f "$err"
+  eval "$outvar=()"
+  while IFS= read -r -d '' a; do
+    eval "$outvar+=(\"\$a\")"
+  done < <(printf '%s' "$LAUNCH_SPEC" | jq -j '.args[] | . + "\u0000"')
+}
+
+BUILDER_ARGS=()
+resolve_launch_args builder BUILDER_ARGS
+BUILDER_KIND=$(printf '%s' "$LAUNCH_SPEC" | jq -r '.kind')
+[[ -n "$BUILDER_KIND" && "$BUILDER_KIND" != null ]] || die "launch spec carried no kind."
+
+# --- resolve the reviewer ---
+# The reviewer has its own settings and never inherits the builder's. It is
+# resolved before any pane changes, so a bad reviewer stops the pairing early.
+# `tandem config resolve` reports none, resolved or invalid, and exits 0.
+REVIEWER_PANE=""; REVIEWER_KIND=""; REVIEWER_RES=""; REVIEWER_LAUNCH=0; REVIEWER_ARGS=()
+REVIEWER_MODEL=""; REVIEWER_EFFORT=""; REVIEWER_AUTONOMY=""
+_rres=$(tandem config resolve --role reviewer --root "$ROOT" --cwd "$SPLIT_CWD" \
+  ${OV_REVIEWER_KIND:+--kind "$OV_REVIEWER_KIND"} \
+  ${OV_REVIEWER_MODEL:+--model "$OV_REVIEWER_MODEL"} \
+  ${OV_REVIEWER_EFFORT:+--effort "$OV_REVIEWER_EFFORT"} \
+  2>/dev/null) || die "could not resolve the reviewer."
+case "$(printf '%s' "$_rres" | jq -r '.status // empty' 2>/dev/null || true)" in
+  resolved)
+    REVIEWER_RES=$(printf '%s' "$_rres" | jq -c '.resolved')
+    # The unit separator is used instead of a tab, because read collapses empty
+    # tab-separated fields.
+    IFS=$'\x1f' read -r REVIEWER_KIND REVIEWER_MODEL REVIEWER_EFFORT REVIEWER_AUTONOMY < <(
+      printf '%s' "$REVIEWER_RES" | jq -r '[.kind.value, .model.value, .effort.value, .autonomy.value]
+        | map(. // "") | join("\u001f")') || true
+    [[ -n "$REVIEWER_KIND" ]] || die "the resolved reviewer carried no kind."
+    ;;
+  invalid)
+    die "$(printf '%s' "$_rres" | jq -r '.reason // "the reviewer configuration is invalid."')"
+    ;;
+  none)
+    [[ -z "$OV_REVIEWER_MODEL$OV_REVIEWER_EFFORT" ]] \
+      || die "--reviewer-model and --reviewer-effort need a reviewer. $REVIEWER_REMEDY"
+    info "WARNING no reviewer is configured, so review and build will refuse until one is. $REVIEWER_REMEDY"
+    ;;
+  *)
+    die "could not read the reviewer configuration."
+    ;;
+esac
+
+if [[ -n "$REVIEWER_KIND" ]]; then
+  rc=0
+  _snap=$(tandem agent snapshot "$REVIEWER_NAME" 2>/dev/null) || rc=$?
+  if (( rc == 0 )); then
+    IFS=$'\t' read -r REVIEWER_PANE _ _ <<<"$_snap"
+  elif (( rc != 10 )); then
+    die "could not check for an existing reviewer."
+  fi
+  if [[ -z "$REVIEWER_PANE" ]]; then
+    # Only a reviewer about to start needs a launch spec. Approval (exit 22) and
+    # refusals are handled as for the builder.
+    REVIEWER_LAUNCH=1
+    resolve_launch_args reviewer REVIEWER_ARGS
+    if (( DRY_RUN )); then
+      printf '%s' "$REVIEWER_RES" | jq -r '
+        def v: if .value == "" then "default" else .value end;
+        "  [dry-run] would start the reviewer: kind \(.kind | v) (\(.kind.from)), model \(.model | v) (\(.model.from)), effort \(.effort | v) (\(.effort.from)), autonomy \(.autonomy | v) (\(.autonomy.from))"'
+    fi
+  fi
+fi
+
+# --- name the planner ---
+if [[ "$PLANNER_CURRENT_NAME" == "$PLANNER_NAME" ]]; then
+  info "planner already named '$PLANNER_NAME'."
+else
+  clash=""; rc=0
+  _snap=$(tandem agent snapshot "$PLANNER_NAME" 2>/dev/null) || rc=$?
+  if (( rc == 0 )); then
+    IFS=$'\t' read -r clash _ _ <<<"$_snap"
+    [[ "$clash" == "$PLANNER_PANE" ]] && clash=""
+  elif (( rc != 10 )); then
+    die "could not check whether '$PLANNER_NAME' is already in use."
+  fi
+  [[ -z "$clash" ]] || die "the name '$PLANNER_NAME' is already held by pane $clash. Release it or set HERDR_PLANNER_NAME."
+  mutate agent rename "$PLANNER_PANE" "$PLANNER_NAME" \
+    || die "could not name the planner: $(printf '%s' "$MUTATE_ERR" | cut -f2-)"
+  info "named planner agent '$PLANNER_NAME'."
+fi
+
+# --- ensure the builder ---
+BUILDER_PANE=""; rc=0
+_snap=$(tandem agent snapshot "$BUILDER_NAME" 2>/dev/null) || rc=$?
+if (( rc == 0 )); then
+  IFS=$'\t' read -r BUILDER_PANE _ _ <<<"$_snap"
+elif (( rc != 10 )); then
+  die "could not check for an existing builder."
+fi
+
+if [[ -n "$BUILDER_PANE" ]]; then
+  info "builder already present in pane $BUILDER_PANE."
+else
+  # Adopt the single unnamed agent in the planner's tab, whatever its kind, so a
+  # config change does not start a second one. --builder KIND narrows it. AGENTS
+  # was read before the planner was renamed, so exclude the planner by pane id.
+  _adopt=$(printf '%s' "$AGENTS" | jq -r --arg p "$PLANNER_PANE" --arg t "$PLANNER_TAB" --arg k "$OV_BUILDER_KIND" \
+    '[.result.agents[] | select(.pane_id != $p and (.name // "") == ""
+       and ($t == "" or (.tab_id // "") == "" or .tab_id == $t)
+       and ($k == "" or .agent == $k))]
+     | if length == 1 then "\(.[0].pane_id)\t\(.[0].agent)" else "" end')
+  BUILDER_PANE="${_adopt%%$'\t'*}"
+  ADOPTED_KIND="${_adopt##*$'\t'}"
+  [[ -n "$_adopt" ]] || { BUILDER_PANE=""; ADOPTED_KIND=""; }
+
+  if [[ -n "$BUILDER_PANE" ]]; then
+    info "adopting the running $ADOPTED_KIND agent in pane $BUILDER_PANE."
+    _res=$(tandem config resolve --role builder --root "$ROOT" --adopted "$ADOPTED_KIND" 2>/dev/null || printf '{}')
+    _un=$(printf '%s' "$_res" | jq -r '(.unenforced // []) | join(" ")')
+    if [[ -n "$_un" ]]; then
+      info "         config declares $_un"
+      info "         These are UNENFORCED on an adopted agent — it keeps the"
+      info "         settings it was started with. Restart the pane to apply them."
+    fi
+    mutate agent rename "$BUILDER_PANE" "$BUILDER_NAME" \
+      || die "could not name the builder: $(printf '%s' "$MUTATE_ERR" | cut -f2-)"
+  else
+    # Split a wide pane to the right, a narrow or tall pane down.
+    if [[ -z "$DIRECTION" ]]; then
+      DIRECTION=right
+      rc=0
+      _layout=$(tandem pane layout --pane "$PLANNER_PANE" 2>/dev/null) || rc=$?
+      if (( rc == 0 )); then
+        read -r pw ph <<<"$(printf '%s' "$_layout" | jq -r --arg p "$PLANNER_PANE" \
+          '.result.layout.panes[]? | select(.pane_id == $p) | "\(.rect.width) \(.rect.height)"' | head -1)"
+        if [[ -n "${pw:-}" && -n "${ph:-}" ]] && (( pw > 0 && ph > 0 )); then
+          (( pw > ph * 2 )) && DIRECTION=right || DIRECTION=down
+          info "pane is ${pw}x${ph} cells; splitting $DIRECTION."
+        fi
+      fi
+    fi
+
+    prelaunch_gates "$BUILDER_KIND"
+    # HERDR_ROLE lets the builder find its own name in mailbox mode, where it
+    # cannot reach the socket.
+    mutate pane split "$PLANNER_PANE" --direction "$DIRECTION" --cwd "$SPLIT_CWD" \
+      --env "HERDR_ROLE=$BUILDER_NAME" --no-focus \
+      || die "could not split the planner pane: $(printf '%s' "$MUTATE_ERR" | cut -f2-)"
+
+    if (( DRY_RUN )); then
+      # Dry run does not split, so there is no real pane id.
+      BUILDER_PANE="<id assigned by the split above>"
+      printf '  [dry-run] herdr agent start %s --kind %s --pane %s --timeout %s -- %s\n' \
+        "$BUILDER_NAME" "$BUILDER_KIND" "$BUILDER_PANE" "$START_TIMEOUT_MS" "${BUILDER_ARGS[*]}"
+    else
+      BUILDER_PANE=$(printf '%s' "$MUTATE_OUT" | jq -r '.result.pane.pane_id // empty')
+      [[ -n "$BUILDER_PANE" ]] || die "split succeeded but returned no pane id."
+      info "created pane $BUILDER_PANE (cwd: $SPLIT_CWD)."
+
+      start_in_pane "$BUILDER_NAME" "$BUILDER_KIND" "$BUILDER_PANE" ${BUILDER_ARGS+"${BUILDER_ARGS[@]}"}
+
+      if (( START_RC != 0 )); then
+        # agent_not_ready means the agent is blocked during startup but its name
+        # resolves, so only warn.
+        if [[ "$START_CODE" == "agent_not_ready" ]]; then
+          info "WARNING: $BUILDER_KIND started but is not ready yet (likely an approval prompt)."
+          info "         Check pane $BUILDER_PANE before sending it work."
+        else
+          die "could not start $BUILDER_KIND: ${START_MSG:-unknown error}"
+        fi
+      else
+        check_alive "$BUILDER_NAME" builder
+        info "started $BUILDER_KIND as '$BUILDER_NAME' in pane $BUILDER_PANE."
+      fi
+    fi
+  fi
+fi
+
+# --- ensure the reviewer ---
+# Review prompts go to this pane, so the builder can run a cheap model and the
+# reviewer a strong one. It gets the builder's launch rules with its own kind,
+# model and effort, and is never reset.
+REVIEWER_STARTED=0
+if [[ -n "$REVIEWER_KIND" ]]; then
+  [[ -z "$REVIEWER_PANE" || ( "$REVIEWER_PANE" != "$PLANNER_PANE" && "$REVIEWER_PANE" != "$BUILDER_PANE" ) ]] \
+    || die "the agent named '$REVIEWER_NAME' is the planner's or the builder's pane; it cannot review."
+
+  if (( ! REVIEWER_LAUNCH )); then
+    # A running reviewer keeps the kind and model it was started with.
+    _running=$(printf '%s' "$AGENTS" | jq -r --arg p "$REVIEWER_PANE" '.result.agents[] | select(.pane_id == $p) | .agent // empty')
+    info "reviewer already present in pane $REVIEWER_PANE."
+    if [[ -n "$_running" && "$_running" != "$REVIEWER_KIND" ]]; then
+      info "         it runs $_running, not $REVIEWER_KIND. Close it and re-pair to change it."
+      REVIEWER_KIND="$_running"
+    fi
+    [[ -z "$OV_REVIEWER_MODEL$OV_REVIEWER_EFFORT" ]] \
+      || info "         --reviewer-model and --reviewer-effort are UNENFORCED on a running reviewer."
+  else
+    REVIEWER_STARTED=1
+    prelaunch_gates "$REVIEWER_KIND" reviewer
+    mutate pane split "$BUILDER_PANE" --direction down --cwd "$SPLIT_CWD" \
+      --env "HERDR_ROLE=$REVIEWER_NAME" --no-focus \
+      || die "could not split the builder pane for the reviewer: $(printf '%s' "$MUTATE_ERR" | cut -f2-)"
+    if (( DRY_RUN )); then
+      REVIEWER_PANE="<id assigned by the reviewer split above>"
+      printf '  [dry-run] herdr agent start %s --kind %s --pane %s --timeout %s -- %s\n' \
+        "$REVIEWER_NAME" "$REVIEWER_KIND" "$REVIEWER_PANE" "$START_TIMEOUT_MS" "${REVIEWER_ARGS[*]}"
+    else
+      REVIEWER_PANE=$(printf '%s' "$MUTATE_OUT" | jq -r '.result.pane.pane_id // empty')
+      [[ -n "$REVIEWER_PANE" ]] || die "split succeeded but returned no pane id for the reviewer."
+      info "created pane $REVIEWER_PANE for the reviewer."
+      start_in_pane "$REVIEWER_NAME" "$REVIEWER_KIND" "$REVIEWER_PANE" ${REVIEWER_ARGS+"${REVIEWER_ARGS[@]}"}
+      if (( START_RC != 0 )); then
+        if [[ "$START_CODE" == "agent_not_ready" ]]; then
+          info "WARNING: $REVIEWER_KIND started but is not ready yet (likely an approval prompt)."
+          info "         Check pane $REVIEWER_PANE before a review is sent to it."
+        else
+          die "could not start the $REVIEWER_KIND reviewer: ${START_MSG:-unknown error}"
+        fi
+      else
+        check_alive "$REVIEWER_NAME" reviewer
+        info "started $REVIEWER_KIND as '$REVIEWER_NAME' in pane $REVIEWER_PANE."
+      fi
+    fi
+  fi
+fi
+
+# --- role tokens for the sidebar ---
+mutate pane report-metadata "$PLANNER_PANE" --source tandem-pair --token role=PLAN  || true
+mutate pane report-metadata "$BUILDER_PANE" --source tandem-pair --token role=BUILD || true
+if [[ -n "$REVIEWER_PANE" ]]; then
+  mutate pane report-metadata "$REVIEWER_PANE" --source tandem-pair --token role=REVIEW || true
+fi
+
+# --- pane and tab labels ---
+# Best-effort. The tab is renamed only while it still has Herdr's default
+# number, so a name someone chose is kept.
+mutate pane rename "$PLANNER_PANE" "planner ($PLANNER_KIND)" || true
+mutate pane rename "$BUILDER_PANE" "builder (${ADOPTED_KIND:-$BUILDER_KIND})" || true
+if [[ -n "$REVIEWER_PANE" ]]; then
+  mutate pane rename "$REVIEWER_PANE" "reviewer ($REVIEWER_KIND)" || true
+fi
+if [[ -n "$PLANNER_TAB" ]]; then
+  _tab=$(tandem tab get "$PLANNER_TAB" 2>/dev/null | jq -r '.result.tab | "\(.label)\t\(.number)"' 2>/dev/null) || _tab=""
+  IFS=$'\t' read -r _tlabel _tnum <<<"$_tab"
+  if [[ -n "${_tlabel:-}" && "$_tlabel" == "${_tnum:-}" ]]; then
+    mutate tab rename "$PLANNER_TAB" "tandem: $(basename "$ROOT")" || true
+  fi
+fi
+
+# --- resolve the builder pane's own cwd ---
+# builder.json must be written where its readers look: tandem-handoff uses the
+# pane's cwd from `agent snapshot` and tandem-verdict uses its own $PWD. The
+# split cwd can differ, for an adopted agent or a planner in a subdirectory.
+# BCWD is not walked to the git toplevel, because neither reader walks.
+BCWD=""; MB_ROOT=""
+if ! (( DRY_RUN )); then
+  rc=0
+  _snap=$(tandem agent snapshot "$BUILDER_NAME" 2>/dev/null) || rc=$?
+  if (( rc == 0 )); then
+    IFS=$'\t' read -r _ BCWD _ <<<"$_snap"
+  fi
+  BCWD="${BCWD:-${CWD_OVERRIDE:-$PWD}}"
+  # MB_ROOT is the git toplevel, used only by the relay bridge.
+  MB_ROOT=$(git -C "$BCWD" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$BCWD")
+fi
+
+# --- record the builder's identity ---
+# One record that tandem-verdict and the gate read, so they never resolve the
+# values again and disagree. It is resolved with the same override flags as the
+# launch spec. For an adopted builder it records what tandem asked for, which
+# may differ from how the agent was started (see README.md). A dry run resolves
+# it too, to show the record a real run would write.
+_res=$(tandem config resolve --role builder --root "$ROOT" --cwd "$SPLIT_CWD" \
+  ${OV_BUILDER_KIND:+--kind "$OV_BUILDER_KIND"} \
+  ${OV_BUILDER_MODEL:+--model "$OV_BUILDER_MODEL"} \
+  ${OV_BUILDER_EFFORT:+--effort "$OV_BUILDER_EFFORT"} \
+  ${OV_BUILDER_AUTONOMY:+--autonomy "$OV_BUILDER_AUTONOMY"} \
+  ${ADOPTED_KIND:+--adopted "$ADOPTED_KIND"} \
+  2>/dev/null) || die "could not resolve the builder identity to record it."
+# `|| true`: jq fails on garbage output, and set -e would abort here after the
+# builder has started. The emptiness check below refuses instead.
+_kind=$(printf '%s' "$_res" | jq -r '.kind.value // empty') || true
+_autonomy=$(printf '%s' "$_res" | jq -r '.autonomy.value // empty') || true
+[[ -n "${_kind:-}" && -n "${_autonomy:-}" ]] \
+  || die "resolved builder kind or autonomy was empty; the gate would refuse every review."
+
+IDENTITY=$(jq -cn --arg kind "$_kind" --arg autonomy "$_autonomy" \
+      --argjson adopted "$( [[ -n "${ADOPTED_KIND:-}" ]] && echo true || echo false )" \
+   '{kind:$kind, autonomy:$autonomy, adopted:$adopted}') \
+  || die "could not compose the builder identity record."
+
+if (( DRY_RUN )); then
+  printf '  [dry-run] would record builder identity: %s\n' "$IDENTITY"
+else
+  # A separate name from MAILBOX, because the bridge's mailbox comes from the
+  # walked root and can differ.
+  IDENTITY_MAILBOX=$(tandem paths relay --root "$BCWD" 2>/dev/null) \
+    || die "could not resolve the relay mailbox to record the builder identity."
+  mkdir -p "$IDENTITY_MAILBOX" || die "could not create $IDENTITY_MAILBOX"
+  printf '%s\n' "$IDENTITY" > "$IDENTITY_MAILBOX/builder.json.tmp" \
+    && mv "$IDENTITY_MAILBOX/builder.json.tmp" "$IDENTITY_MAILBOX/builder.json" \
+    || die "could not record the builder identity in $IDENTITY_MAILBOX/builder.json"
+  info "recorded builder identity: $_kind/$_autonomy"
+fi
+
+# --- record the reviewer ---
+# Written beside builder.json. A pair with no reviewer leaves an earlier record
+# alone. model_measured says whether the launch model is known: a reviewer
+# started here has it, a running one keeps the earlier record only for the same
+# name and kind.
+if [[ -n "$REVIEWER_PANE" ]]; then
+  _rmodel=""; _rmeasured=false
+  _rautonomy="$REVIEWER_AUTONOMY"
+  if (( REVIEWER_STARTED )); then
+    _rmodel="$REVIEWER_MODEL"
+    [[ -z "$_rmodel" ]] || _rmeasured=true
+  else
+    _prev=$(tandem reviewer show --relay "${IDENTITY_MAILBOX:-$(tandem paths relay --root "${BCWD:-$SPLIT_CWD}")}" 2>/dev/null) || _prev=""
+    if [[ -n "$_prev" ]]; then
+      IFS=$'\t' read -r _pkind _pname _pmeasured _pmodel <<<"$_prev"
+      if [[ "$_pkind" == "$REVIEWER_KIND" && "$_pname" == "$REVIEWER_NAME" && "$_pmeasured" == true && -n "$_pmodel" ]]; then
+        _rmodel="$_pmodel"; _rmeasured=true
+      fi
+    fi
+    # A running reviewer keeps its settings, so warn when the resolved values
+    # differ. Effort is not recorded, so a declared effort is always reported.
+    _dmodel="$REVIEWER_MODEL"
+    _deffort="$REVIEWER_EFFORT"
+    if [[ -n "$_dmodel" && "$_dmodel" != "$_rmodel" ]]; then
+      info "         declared reviewer model '$_dmodel' is UNENFORCED on a running reviewer${_rmodel:+ (it was started with '$_rmodel')}. Close it and re-pair to apply it."
+    fi
+    if [[ -n "$_deffort" ]]; then
+      info "         declared reviewer effort '$_deffort' is UNENFORCED on a running reviewer. Close it and re-pair to apply it."
+    fi
+  fi
+  REVIEWER_REC=$(jq -cn --arg kind "$REVIEWER_KIND" --arg name "$REVIEWER_NAME" \
+      --arg model "$_rmodel" --arg autonomy "$_rautonomy" --argjson measured "$_rmeasured" \
+    '{kind:$kind, name:$name, model:$model, autonomy:$autonomy, model_measured:$measured}') \
+    || die "could not compose the reviewer record."
+  if (( DRY_RUN )); then
+    printf '  [dry-run] would record reviewer: %s\n' "$REVIEWER_REC"
+  else
+    printf '%s\n' "$REVIEWER_REC" > "$IDENTITY_MAILBOX/reviewer.json.tmp" \
+      && mv "$IDENTITY_MAILBOX/reviewer.json.tmp" "$IDENTITY_MAILBOX/reviewer.json" \
+      || die "could not record the reviewer in $IDENTITY_MAILBOX/reviewer.json"
+    info "recorded reviewer: $REVIEWER_KIND as '$REVIEWER_NAME'${_rmodel:+ on $_rmodel}"
+  fi
+fi
+
+# --- relay bridge ---
+# Codex's sandbox denies the Herdr socket, so this unsandboxed watcher
+# delivers its questions.
+if (( ! DRY_RUN )); then
+  MAILBOX=$(tandem paths relay --root "$MB_ROOT") \
+    || die "the installed tandem is behind these commands (no 'tandem paths'); re-run install.sh."
+  mkdir -p "$MAILBOX/q" "$MAILBOX/a"
+  ensure_relay_ignored "$MB_ROOT"
+
+  # Record the builder's cwd in the walked mailbox, so tandem-unpair can find the
+  # identity mailbox after the builder pane is gone. It stores the path, not the
+  # mailbox, so unpair re-resolves it before its rm -rf guard.
+  printf '%s\n' "$BCWD" > "$MAILBOX/builder-cwd.tmp" \
+    && mv "$MAILBOX/builder-cwd.tmp" "$MAILBOX/builder-cwd" \
+    || info "WARNING could not record the builder cwd in $MAILBOX/builder-cwd; tandem-unpair may leave the identity mailbox behind."
+
+  BRIDGE_PID_FILE="$MAILBOX/bridge.pid"
+  if [[ -f "$BRIDGE_PID_FILE" ]] && kill -0 "$(cat "$BRIDGE_PID_FILE" 2>/dev/null)" 2>/dev/null; then
+    info "relay bridge already running (pid $(cat "$BRIDGE_PID_FILE"))."
+  else
+    rm -f "$MAILBOX/bridge.ready"
+    nohup tandem-bridge --mailbox "$MAILBOX" --planner "$PLANNER_NAME" \
+      >>"$MAILBOX/bridge.log" 2>&1 &
+    echo $! > "$BRIDGE_PID_FILE"
+    for _ in $(seq 1 50); do [[ -f "$MAILBOX/bridge.ready" ]] && break; kill -0 "$(cat "$BRIDGE_PID_FILE")" 2>/dev/null || break; sleep 0.1; done
+    if kill -0 "$(cat "$BRIDGE_PID_FILE")" 2>/dev/null; then
+      info "relay bridge started (pid $(cat "$BRIDGE_PID_FILE")) watching $MAILBOX/q"
+    else
+      info "WARNING relay bridge failed to start; see $MAILBOX/bridge.log"
+    fi
+  fi
+fi
+
+printf '\n'
+info "pair ready — planner=$PLANNER_PANE  builder=$BUILDER_PANE${REVIEWER_PANE:+  reviewer=$REVIEWER_PANE}"
+info "hand over a plan with: tandem-handoff"
+info "close the session with:  tandem-unpair"

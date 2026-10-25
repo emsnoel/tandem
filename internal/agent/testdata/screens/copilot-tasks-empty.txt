@@ -1,0 +1,28 @@
+  Current   Sessions   Issues   Pull requests   Gists
+
+ ● The Lamplighter of Hallowmere                                                                   ┃
+                                                                                                   ┃
+ ● MCP Servers reloaded: 2 servers connected                                                       ┃
+                                                                                                   ┃
+ ● Background agent "Writing lamplighter story" (general-purpose) completed.                       ┃
+                                                                                                   ┃
+ ● Read (General-purpose agent — Writing lamplighter story)                                        ┃
+   └ idle                                                                                          ┃
+ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄ ┃
+  ❯ reply with the single word SIDEBAR-OK                                                  12:57   ┃
+                                                                                                   ┃
+    (tandem delivery eeaaa5ad-c0c7-4bc5-b8b9-9e915b06e148)                                         ┃
+ ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ┃
+ ● SIDEBAR-OK                                                                                      ┃
+                                                                                                   ┃
+╭──────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ Tasks                                                                                            │
+│ ──────────────────────────────────────────────────────────────────────────────────────────────── │
+│ Subagents                                                                                        │
+│  No subagents                                                                                    │
+│                                                                                                  │
+│ Shell Commands                                                                                   │
+│  No shell commands                                                                               │
+│                                                                                                  │
+│ a levels:all · f finished:hidden · esc close                                                     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯

@@ -1,0 +1,24 @@
+.DS_Store
+*.bak.*
+
+# tandem agent relay mailbox (local IPC, never committed)
+.tandem-relay/
+# The pre-rename name. This checkout has a live one, and internal/paths keeps
+# using an existing mailbox rather than stranding a session mid-question.
+.herdr-relay/
+/tandem
+
+# tandem-ask durable Q&A history (local, never committed)
+.tandem-log/
+
+# Go build cache, pinned in-repo so tests/run.sh works under the builder's sandbox
+.gocache/
+.gomodcache/
+.remember/
+
+# Plans, specs and other working notes stay local. Docs for users and
+# maintainers live in guide/. Anchored to the root, so a docs/ folder deeper in the tree is kept.
+/docs/
+
+# Python bytecode
+__pycache__/

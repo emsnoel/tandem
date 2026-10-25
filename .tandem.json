@@ -1,0 +1,10 @@
+{
+  "plans_dir": "docs/plans",
+  "check_command": "./tests/run.sh",
+  "conventions_file": "",
+  "builder_kind": "codex",
+  "reviewer": {
+    "kind": "codex"
+  },
+  "prompt_extra": ""
+}

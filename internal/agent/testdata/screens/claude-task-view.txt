@@ -1,0 +1,15 @@
+ ▐▛███▛█   Claude Code v2.1.302
+▝▜██████▀  Sonnet 5.5 · Claude Pro
+ ▝▝   ▝▝   /tmp/project
+
+
+❯ Use no tools. Write a 6000-word story about a harbour pilot in ten numbered chapters, then
+  return only its title.
+
+─────────────────────────────────────────────────────────────────────── Write harbour pilot story ─
+❯ Message @general-purpose…
+───────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← 1 agent · ↓ to manage               ◐ medium · /effort
+
+  ◯ main
+  ⏺ general-purpose  Write harbour pilot story                                6s · ↓ 37.3k tokens

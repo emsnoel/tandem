@@ -1,0 +1,27 @@
+
+  ┃
+  ┃  Use the task tool to launch one general subagent. Tell it: use no tools, write a 3000-word
+  ┃  story about a beekeeper, reply with only the title. When it returns, reply DONE.
+  ┃
+
+     Thought · 1ms
+
+     ✓ General Task — Write beekeeper story
+       ↳ 2.0s
+
+     ctrl+x down view subagents
+
+     DONE
+
+     ▣  Build · GPT-6 Sol · 6.6s
+
+
+
+
+  ┃
+  ┃
+  ┃
+  ┃  Build · GPT-6 Sol OpenAI
+  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+   /tmp/project 15.4K (1%ctrl+p
+                                                     commands

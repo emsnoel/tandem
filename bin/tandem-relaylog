@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# tandem-relaylog: print the Q&A history tandem-ask records.
+#
+# Read-only. tandem-ask writes each exchange to .tandem-log/<id>.json, and
+# tandem-unpair never removes that directory.
+#
+# See README.md.
+set -uo pipefail
+
+LIMIT=0
+AS_JSON=0
+
+usage() {
+  cat <<'USAGE'
+usage: tandem-relaylog [--limit N] [--json]
+
+Prints the durable Q&A history tandem-ask has recorded, oldest first.
+
+  --limit N   print only the N most recent exchanges (default: all)
+  --json      print raw JSON records, one per line, instead of formatted text
+USAGE
+}
+
+die() { printf 'tandem-relaylog: %s\n' "$*" >&2; exit 1; }
+
+while (( $# )); do
+  case "$1" in
+    --limit)   LIMIT="${2:-}"; shift 2 ;;
+    --json)    AS_JSON=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *)         usage >&2; die "unknown argument: $1" ;;
+  esac
+done
+[[ "$LIMIT" =~ ^[0-9]+$ ]] || die "--limit must be a non-negative integer."
+
+command -v jq >/dev/null 2>&1 || die "jq not found on PATH."
+
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null || printf '%s' "$PWD")
+LOG_DIR="$ROOT/.tandem-log"
+
+if [[ ! -d "$LOG_DIR" ]]; then
+  printf 'tandem-relaylog: no history yet at %s\n' "$LOG_DIR" >&2
+  exit 0
+fi
+
+# Ids sort chronologically (date+time-pid-random).
+shopt -s nullglob
+# Only tandem-ask exchanges. Review triage writes judge-<id>.json here too.
+FILES=()
+for f in "$LOG_DIR"/*.json; do
+  case "$(basename "$f")" in judge-*) continue ;; esac
+  FILES+=( "$f" )
+done
+shopt -u nullglob
+if [[ "${#FILES[@]}" -eq 0 ]]; then
+  printf 'tandem-relaylog: no history yet at %s\n' "$LOG_DIR" >&2
+  exit 0
+fi
+
+SORTED=$(printf '%s\n' "${FILES[@]}" | sort)
+if [[ "$LIMIT" -gt 0 ]]; then
+  SORTED=$(printf '%s\n' "$SORTED" | tail -n "$LIMIT")
+fi
+
+while IFS= read -r f; do
+  [[ -n "$f" ]] || continue
+  if (( AS_JSON )); then
+    # -c prints one line per record whatever the file's formatting.
+    jq -c '.' "$f"
+  else
+    jq -r '"\(.id)  \(.ts)  \(.from) -> \(.to)\n  Q: \(.question)\n  A: \(.answer)\n"' "$f"
+  fi
+done <<<"$SORTED"

@@ -1,0 +1,228 @@
+#!/usr/bin/env bash
+# tandem-verdict: hand a plan review back to the planner.
+#
+# Run by the reviewer pane at the end of a tandem-review pass. A verdict from
+# any other pane is refused. The review is a file, and delivery is confirmed,
+# as in tandem-handback.
+#
+# The verdict is given with --verdict, never parsed from the prose, so a
+# malformed review cannot pass as clean.
+#
+# See README.md.
+set -euo pipefail
+
+# install.sh symlinks the commands, so resolve the link to find lib/.
+_self="${BASH_SOURCE[0]}"
+while [[ -L "$_self" ]]; do
+  _link=$(readlink "$_self"); [[ "$_link" == /* ]] && _self="$_link" || _self="${_self%/*}/$_link"
+done
+# shellcheck source=lib/reviewer.sh
+. "${_self%/*}/lib/reviewer.sh"
+
+PLANNER_NAME="${HERDR_PLANNER_NAME:-planner}"
+PLAN=""; REVIEW=""; VERDICT=""; ROLE=""; ROLE_SET=0
+
+usage() {
+  cat <<'USAGE'
+usage: tandem-verdict --plan PATH --review FILE --verdict clean|objections [--role NAME]
+
+Stores a plan review and wakes the planner with its path.
+
+  --plan PATH      the plan that was reviewed
+  --review FILE    file holding the review; do not paste it on the command line
+  --verdict V      clean if you listed no objections, objections if you did
+  --role NAME      the pane that reviewed, which must be reviewer; tandem-review
+                   writes it into the command it asks for
+USAGE
+}
+
+die()  { printf 'tandem-verdict: %s\n' "$*" >&2; exit 1; }
+info() { printf 'tandem-verdict: %s\n' "$*"; }
+
+while (( $# )); do
+  case "$1" in
+    --plan)    PLAN="${2:-}";    shift 2 ;;
+    --review)  REVIEW="${2:-}";  shift 2 ;;
+    --verdict) VERDICT="${2:-}"; shift 2 ;;
+    --role)    ROLE="${2:-}"; ROLE_SET=1; shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    *)         usage >&2; die "unknown argument: $1" ;;
+  esac
+done
+
+[[ -n "$PLAN"   ]] || { usage >&2; die "no --plan given."; }
+[[ -f "$REVIEW" ]] || { usage >&2; die "no readable --review file given."; }
+case "$VERDICT" in
+  clean|objections) ;;
+  *) usage >&2; die "--verdict must be exactly 'clean' or 'objections'." ;;
+esac
+[[ -f "$PLAN" ]] || die "plan not found: $PLAN"
+# The claimed role: --role, then HERDR_ROLE, with no default. A CLI may not pass
+# the pane's environment to its commands. tandem checks the claim below.
+(( ROLE_SET )) || ROLE="${HERDR_ROLE:-}"
+[[ -z "$ROLE" || "$ROLE" =~ ^[A-Za-z0-9_-]+$ ]] || die "--role must be a pane name such as reviewer (got '$ROLE')."
+
+for c in jq tandem tandem-project; do
+  command -v "$c" >/dev/null 2>&1 || die "$c not found on PATH."
+done
+
+PLAN_ABS=$(cd "$(dirname "$PLAN")" && printf '%s/%s' "$(pwd)" "$(basename "$PLAN")")
+
+# $PWD is the reviewer's working directory, which the prompt set to the
+# builder's cwd. It is not walked to the git toplevel, so the review lands in
+# the same mailbox tandem-handoff reads.
+PROJ=$(tandem-project --root "$PWD") || die "could not resolve project settings for $PWD."
+# `|| true`: jq fails on garbage output, and set -e would abort before the
+# check below.
+pk() { printf '%s' "$PROJ" | jq -r --arg k "$1" '.[$k] // empty' 2>/dev/null || true; }
+ROOT=$(pk root)
+[[ -n "$ROOT" ]] || die "could not resolve a project root for $PWD."
+
+MAILBOX=$(tandem paths relay --root "$ROOT") || die "could not resolve the relay mailbox."
+
+# Same id shape as tandem-handback.
+ID="$(date +%Y%m%d-%H%M%S)-$$-$RANDOM"
+
+# Read the identity tandem-pair recorded. Resolving it here would use this
+# pane's environment, which may differ from the planner's.
+_bj="$MAILBOX/builder.json"
+[[ -f "$_bj" ]] || die "no builder identity recorded at $_bj. Run tandem-pair."
+# `|| true`: a malformed builder.json must reach the check below.
+KIND=$(jq -r '.kind // empty' "$_bj" 2>/dev/null) || true
+AUTONOMY=$(jq -r '.autonomy // empty' "$_bj" 2>/dev/null) || true
+[[ -n "${KIND:-}" && -n "${AUTONOMY:-}" ]] \
+  || die "the builder identity in $_bj is incomplete; re-run tandem-pair."
+
+# The gate also binds a review to the reviewer that wrote it.
+_rj="$MAILBOX/reviewer.json"
+rc=0
+_rrec=$(tandem reviewer show --relay "$MAILBOX" 2>/dev/null) || rc=$?
+case $rc in
+  0)  IFS=$'\t' read -r REVIEWER_KIND REVIEWER_NAME REVIEWER_MEASURED REVIEWER_MODEL <<<"$_rrec" ;;
+  28) die "no reviewer recorded at $_rj. $REVIEWER_REMEDY" ;;
+  *)  die "the reviewer record $_rj is incomplete. $REVIEWER_REMEDY" ;;
+esac
+
+# Only the reviewer pane gives a verdict. tandem decides whether this shell is
+# that pane (cmd/tandem/agent_self.go); in a Herdr pane, Herdr's name wins.
+_id=$(tandem agent self --expect "$REVIEWER_NAME" --claimed "$ROLE" 2>/dev/null) || _id=""
+explain_reviewer_self "a verdict" "NOTHING WAS RECORDED OR SENT." "$REVIEWER_NAME" "$_id"
+ROLE="$REVIEWER_NAME"
+mkdir -p "$MAILBOX/reviews"
+
+# Write to .tmp and rename, so readers never see a partial file.
+cp "$REVIEW" "$MAILBOX/reviews/$ID.md.tmp"
+mv "$MAILBOX/reviews/$ID.md.tmp" "$MAILBOX/reviews/$ID.md"
+cp "$PLAN_ABS" "$MAILBOX/reviews/$ID.plan.md.tmp"
+mv "$MAILBOX/reviews/$ID.plan.md.tmp" "$MAILBOX/reviews/$ID.plan.md"
+jq -n --arg plan "$PLAN_ABS" --arg verdict "$VERDICT" \
+      --arg kind "$KIND" --arg autonomy "$AUTONOMY" \
+      --arg rkind "$REVIEWER_KIND" --arg rmodel "${REVIEWER_MODEL:-}" \
+      --argjson rmeasured "${REVIEWER_MEASURED:-false}" \
+   '{plan:$plan, verdict:$verdict, kind:$kind, autonomy:$autonomy,
+     reviewed_by:"reviewer", reviewer_kind:$rkind, reviewer_model:$rmodel,
+     reviewer_model_measured:$rmeasured,
+     override_reason:""}' \
+   > "$MAILBOX/reviews/$ID.json.tmp"
+mv "$MAILBOX/reviews/$ID.json.tmp" "$MAILBOX/reviews/$ID.json"
+
+info "review stored as $ID ($VERDICT)."
+
+# The sidecar records the builder's identity too, so class-4 findings are
+# voided when the builder changes.
+MSG="tandem-verdict: the $ROLE reviewed $PLAN_ABS and returned: $VERDICT
+
+  review: $MAILBOX/reviews/$ID.md
+  id:     $ID
+
+Read the review. Fix the plan and hand off again, or overrule it saying why."
+
+rc=0
+_snap=$(tandem agent snapshot "$PLANNER_NAME" 2>/dev/null) || rc=$?
+
+# Exit 3 means the socket is unreachable, which is normal from a sandbox. Queue
+# the verdict for tandem-bridge, which delivers the message as written.
+if (( rc == 3 )); then
+  QFILE="$MAILBOX/q/$ID.json"
+  if mkdir -p "$MAILBOX/q" \
+     && jq -n --arg id "$ID" --arg from "$ROLE" --arg to "$PLANNER_NAME" \
+              --arg msg "$MSG" --arg plan "$PLAN_ABS" --arg review "$MAILBOX/reviews/$ID.md" \
+          '{id:$id, kind:"verdict", from:$from, to:$to, question:"verdict",
+            message:$msg, plan:$plan, review_path:$review, created:(now|todate)}' \
+          > "$QFILE.tmp" \
+     && mv "$QFILE.tmp" "$QFILE"; then
+    info "socket unreachable (sandbox) — verdict queued at $QFILE"
+    info "the bridge will deliver it to '$PLANNER_NAME'. You are done; do not wait."
+    exit 0
+  fi
+  rm -f "$QFILE.tmp"
+  cat >&2 <<WARN
+tandem-verdict: WARNING the verdict could not be queued for the planner.
+
+  The review IS stored at:
+
+    $MAILBOX/reviews/$ID.md
+    id: $ID
+
+  Do NOT resend the review. Say in your next message that the verdict was not
+  delivered, and give the human that path.
+WARN
+  exit 7
+fi
+
+if (( rc != 0 )); then
+  cat >&2 <<WARN
+tandem-verdict: WARNING the planner could not be found; the prompt was not sent.
+
+  The review IS stored at:
+
+    $MAILBOX/reviews/$ID.md
+    id: $ID
+
+  Do NOT resend the review. Say in your next message that the planner is gone,
+  and give the human that path.
+WARN
+  exit 7
+fi
+rc=0
+_perr=$(tandem agent prompt "$PLANNER_NAME" "$MSG" --as verdict 2>&1 >/dev/null) || rc=$?
+IFS=$'\t' read -r _code _msg <<<"$(printf '%s' "$_perr" | head -1)"
+unwoken() {
+  cat >&2 <<WARN
+tandem-verdict: WARNING the prompt was accepted but $PLANNER_NAME never woke up.
+
+  It is most likely sitting at a native dialog that Herdr cannot see, which
+  swallows input while still reporting idle, or its turn ended at once. Your
+  review is done and your report is safe at:
+
+    $MAILBOX/reviews/$ID.md
+    id: $ID
+
+  Do NOT resend the review. Say in your next message that the planner was not
+  woken, and give the human that path.
+WARN
+  if [[ -n "${1:-}" ]]; then
+    printf '\n  The planner pane shows:\n\n' >&2
+    printf '%s\n' "$1" | sed 's/^/    /' >&2
+  fi
+  exit 7
+}
+case "$rc" in
+  0) ;;
+  25) unwoken ;;
+  26) unwoken "$(printf '%s' "$_perr" | tail -n +2)" ;;
+  *)
+    cat >&2 <<WARN
+tandem-verdict: could not deliver the verdict to $PLANNER_NAME (${_msg:-unknown error}).
+
+  The review IS stored at:
+
+    $MAILBOX/reviews/$ID.md
+    id: $ID
+
+  Do NOT resend the review. Say in your next message that the planner could not
+  be reached, and give the human that path.
+WARN
+    exit 7 ;;
+esac
+info "planner notified."

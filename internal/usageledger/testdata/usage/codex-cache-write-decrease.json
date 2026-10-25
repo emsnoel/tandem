@@ -1,0 +1,115 @@
+{
+ "cross_check": false,
+ "description": "Only the optional cache-write total falls. That is an unexplained decrease, never a negative cache write.",
+ "events": [
+  {
+   "payload": {
+    "id": "cx-1"
+   },
+   "type": "session_meta"
+  },
+  {
+   "payload": {
+    "model": "gpt-a"
+   },
+   "type": "turn_context"
+  },
+  {
+   "payload": {
+    "info": {
+     "total_token_usage": {
+      "cache_write_input_tokens": 50,
+      "cached_input_tokens": 10,
+      "input_tokens": 100,
+      "output_tokens": 5,
+      "reasoning_output_tokens": 0
+     }
+    },
+    "type": "token_count"
+   },
+   "type": "event_msg"
+  },
+  {
+   "payload": {
+    "info": {
+     "total_token_usage": {
+      "cache_write_input_tokens": 30,
+      "cached_input_tokens": 20,
+      "input_tokens": 150,
+      "output_tokens": 6,
+      "reasoning_output_tokens": 0
+     }
+    },
+    "type": "token_count"
+   },
+   "type": "event_msg"
+  },
+  {
+   "payload": {
+    "type": "task_complete"
+   },
+   "type": "event_msg"
+  }
+ ],
+ "expected": {
+  "complete": false,
+  "events": [
+   {
+    "cache_read": 10,
+    "cache_write": 50,
+    "components": {
+     "cumulative": {
+      "cache_write_input_tokens": 50,
+      "cached_input_tokens": 10,
+      "input_tokens": 100,
+      "output_tokens": 5,
+      "reasoning_output_tokens": 0
+     },
+     "segment": 0
+    },
+    "event_id": "seg0:0",
+    "input_total": 100,
+    "model": "gpt-a",
+    "output": 5,
+    "provider": "codex",
+    "reasoning_output": 0,
+    "revision": 0,
+    "session_id": "cx-1",
+    "source_cursor": 2,
+    "source_hash": "e8b50a119d2f837c32d80cf7975777b1d70a0395ea40aa414978dc5cb8531edc",
+    "terminal_evidence": true
+   },
+   {
+    "cache_read": null,
+    "cache_write": null,
+    "components": {
+     "cumulative": {
+      "cache_write_input_tokens": 30,
+      "cached_input_tokens": 20,
+      "input_tokens": 150,
+      "output_tokens": 6,
+      "reasoning_output_tokens": 0
+     },
+     "segment": 1
+    },
+    "event_id": "seg1:0",
+    "input_total": null,
+    "model": "gpt-a",
+    "output": null,
+    "provider": "codex",
+    "reasoning_output": null,
+    "revision": 0,
+    "session_id": "cx-1",
+    "source_cursor": 3,
+    "source_hash": "362552b102de8e726767d81b6f8614f2099c949d385e596cbe54b31d2fcedda1",
+    "terminal_evidence": true
+   }
+  ],
+  "provider": "codex",
+  "reasons": [
+   "unexplained_decrease:3"
+  ],
+  "superseded": []
+ },
+ "provider": "codex"
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "adapter": "codex",
+  "model": "fixture-model",
+  "scenarios": [
+    {"id": "tiny-2", "tasks": 2, "shape": "independent", "expect": {"state": "finished", "accepted": 2, "failed": 0}},
+    {"id": "chain-20", "tasks": 20, "shape": "chain", "expect": {"state": "finished", "accepted": 20, "failed": 0}},
+    {"id": "dag-20", "tasks": 20, "shape": "sparse", "expect": {"state": "finished", "accepted": 20, "failed": 0}},
+    {"id": "shared-dirty", "tasks": 2, "shape": "independent", "dirty": true, "expect": {"state": "finished", "accepted": 2, "failed": 0}},
+    {"id": "red-repair", "tasks": 1, "shape": "independent", "red_reviews": 1, "expect": {"state": "finished", "accepted": 1, "failed": 0}},
+    {"id": "large-required", "tasks": 2, "shape": "independent", "context_limit": 300, "bulky_constraints": true, "expect": {"state": "paused", "pause_code": "context_too_large", "accepted": 0, "failed": 1}},
+    {"id": "send-crash", "tasks": 2, "shape": "independent", "crash": true, "expect": {"state": "paused", "pause_code": "writer_unknown", "accepted": 0, "failed": 1}},
+    {"id": "partial-usage", "tasks": 2, "shape": "independent", "partial_usage": true, "expect": {"state": "finished", "accepted": 2, "failed": 0, "usage": "partial"}},
+    {"id": "legacy-plan", "tasks": 3, "shape": "legacy", "expect": {"state": "finished", "accepted": 3, "failed": 0}}
+  ]
+}

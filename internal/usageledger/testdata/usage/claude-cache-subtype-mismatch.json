@@ -1,0 +1,60 @@
+{
+ "cross_check": false,
+ "description": "Cache-write subtypes that do not sum to the total are flagged.",
+ "events": [
+  {
+   "message": {
+    "id": "m1",
+    "model": "claude-a",
+    "stop_reason": "end_turn",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 2,
+      "ephemeral_5m_input_tokens": 2
+     },
+     "cache_creation_input_tokens": 5,
+     "cache_read_input_tokens": 7,
+     "input_tokens": 3,
+     "output_tokens": 11
+    }
+   },
+   "sessionId": "cl-1",
+   "type": "assistant",
+   "uuid": "u1"
+  }
+ ],
+ "expected": {
+  "complete": false,
+  "events": [
+   {
+    "cache_read": 7,
+    "cache_write": 5,
+    "components": {
+     "cache_write_subtypes": {
+      "ephemeral_1h_input_tokens": 2,
+      "ephemeral_5m_input_tokens": 2
+     },
+     "ordinary_input": 3,
+     "unmapped": {}
+    },
+    "event_id": "m1",
+    "input_total": 15,
+    "model": "claude-a",
+    "output": 11,
+    "provider": "claude",
+    "reasoning_output": null,
+    "revision": 0,
+    "session_id": "cl-1",
+    "source_cursor": 0,
+    "source_hash": "1067c87b48c0e17b0d2d109b3d31f76f039f0dfa03349ccf3bf78bf143e0b19a",
+    "terminal_evidence": true
+   }
+  ],
+  "provider": "claude",
+  "reasons": [
+   "cache_write_subtype_mismatch:0"
+  ],
+  "superseded": []
+ },
+ "provider": "claude"
+}

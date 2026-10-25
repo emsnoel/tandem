@@ -1,0 +1,105 @@
+{
+ "cross_check": false,
+ "description": "A log that omits reasoning_output_tokens leaves only reasoning unknown. Input, cache and output are differenced as usual and the source is still complete.",
+ "events": [
+  {
+   "payload": {
+    "id": "cx-1"
+   },
+   "type": "session_meta"
+  },
+  {
+   "payload": {
+    "model": "gpt-a"
+   },
+   "type": "turn_context"
+  },
+  {
+   "payload": {
+    "info": {
+     "total_token_usage": {
+      "cached_input_tokens": 60,
+      "input_tokens": 100,
+      "output_tokens": 10
+     }
+    },
+    "type": "token_count"
+   },
+   "type": "event_msg"
+  },
+  {
+   "payload": {
+    "info": {
+     "total_token_usage": {
+      "cached_input_tokens": 90,
+      "input_tokens": 150,
+      "output_tokens": 15
+     }
+    },
+    "type": "token_count"
+   },
+   "type": "event_msg"
+  },
+  {
+   "payload": {
+    "type": "task_complete"
+   },
+   "type": "event_msg"
+  }
+ ],
+ "expected": {
+  "complete": true,
+  "events": [
+   {
+    "cache_read": 60,
+    "cache_write": null,
+    "components": {
+     "cumulative": {
+      "cached_input_tokens": 60,
+      "input_tokens": 100,
+      "output_tokens": 10
+     },
+     "segment": 0
+    },
+    "event_id": "seg0:0",
+    "input_total": 100,
+    "model": "gpt-a",
+    "output": 10,
+    "provider": "codex",
+    "reasoning_output": null,
+    "revision": 0,
+    "session_id": "cx-1",
+    "source_cursor": 2,
+    "source_hash": "9697ff5bf843f3d26401c370adeab8cc2f819238dd843622320623026d1d4a3b",
+    "terminal_evidence": true
+   },
+   {
+    "cache_read": 30,
+    "cache_write": null,
+    "components": {
+     "cumulative": {
+      "cached_input_tokens": 90,
+      "input_tokens": 150,
+      "output_tokens": 15
+     },
+     "segment": 0
+    },
+    "event_id": "seg0:1",
+    "input_total": 50,
+    "model": "gpt-a",
+    "output": 5,
+    "provider": "codex",
+    "reasoning_output": null,
+    "revision": 0,
+    "session_id": "cx-1",
+    "source_cursor": 3,
+    "source_hash": "53679b542d6c1f7f22064cb53c29bf57dfb2b9a98bc7452f7946bb2d682a3763",
+    "terminal_evidence": true
+   }
+  ],
+  "provider": "codex",
+  "reasons": [],
+  "superseded": []
+ },
+ "provider": "codex"
+}

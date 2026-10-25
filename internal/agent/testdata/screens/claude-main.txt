@@ -1,0 +1,28 @@
+
+⏺ Agent "Write apprentice story" finished · 5s
+
+❯ Use the Agent tool with run_in_background true to launch one general-purpose subagent told: use
+  no tools; write a 6000-word story about a cartographer's apprentice in ten numbered chapters,
+  then return only its title. Then end your turn at once with the word LAUNCHED.
+
+⏺ Agent(Write chaptered apprentice story)
+  ⎿  Backgrounded agent (↓ to manage · ctrl+o to expand)
+
+⏺ LAUNCHED
+
+✻ Worked for 4s · done 12:40
+
+⏺ Agent "Write chaptered apprentice story" was stopped by user
+
+⏺ The chaptered apprentice story agent was stopped before it finished, so there's no title to
+  report.
+
+✻ Baked for 19m 39s · done 12:40
+
+───────────────────────────────────────────────────────────────────────────────────────────────────
+❯ Launch it again with five chapters
+───────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← 1 agent · ↓ to manage
+
+  ⏺ main
+  ◯ general-purpose  Writing cartographer apprentice story                   44s · ↑ 40.0k tokens

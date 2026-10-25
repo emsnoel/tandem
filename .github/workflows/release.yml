@@ -1,0 +1,135 @@
+# Versions and publishes tandem. See guide/releasing.md.
+#
+# On a push to main: run the check, then release-please keeps a release PR
+# open. Merging it makes release-please create the tag and release, and this
+# same job uploads the tarballs (a tag made with GITHUB_TOKEN triggers no
+# other workflow).
+#
+# On a pull request, or by hand with no tag: a dry run that uploads the
+# tarballs as a workflow artifact. By hand with prerelease_tag: a pre-release.
+# By hand with release_tag: re-package an existing release and replace its
+# assets.
+name: release
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      prerelease_tag:
+        description: "Pre-release tag to publish, e.g. v0.2.0-rc.1. Empty for a dry run."
+        type: string
+        default: ""
+      release_tag:
+        description: "Existing release to re-package and re-upload, e.g. v0.1.0."
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+  pull-requests: write
+
+# One release run at a time; a newer push to a PR replaces its older dry run.
+concurrency:
+  group: release-${{ github.event_name == 'pull_request' && github.ref || 'main' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  release:
+    # macOS is the only platform the suite has been run on.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # The suites call the installed commands from PATH, and test-staleness
+      # compares the installed binary with the tree.
+      - name: Install from source
+        run: |
+          ./install.sh --from-source "$RUNNER_TEMP/bin"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Check
+        run: ./tests/run.sh
+
+      - name: release-please
+        id: rp
+        if: github.event_name == 'push'
+        uses: googleapis/release-please-action@v4
+
+      - name: Choose the tag
+        id: tag
+        env:
+          EVENT: ${{ github.event_name }}
+          RELEASED: ${{ steps.rp.outputs.release_created }}
+          RP_TAG: ${{ steps.rp.outputs.tag_name }}
+          PRE_TAG: ${{ inputs.prerelease_tag }}
+          RE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set_tag() { echo "tag=$1" >> "$GITHUB_OUTPUT"; echo "mode=$2" >> "$GITHUB_OUTPUT"; }
+          if [ "$EVENT" = push ]; then
+            if [ "$RELEASED" = true ]; then set_tag "$RP_TAG" release; else set_tag "" none; fi
+          elif [ "$EVENT" = pull_request ] || { [ -z "$PRE_TAG" ] && [ -z "$RE_TAG" ]; }; then
+            set_tag v0.0.0 dry-run
+          elif [ -n "$PRE_TAG" ] && [ -n "$RE_TAG" ]; then
+            echo "::error::give prerelease_tag or release_tag, not both"; exit 1
+          elif [ -n "$RE_TAG" ]; then
+            printf '%s\n' "$RE_TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' \
+              || { echo "::error::$RE_TAG is not a tag like v0.1.0"; exit 1; }
+            set_tag "$RE_TAG" release
+          elif printf '%s\n' "$PRE_TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+-[0-9A-Za-z.-]+$'; then
+            set_tag "$PRE_TAG" prerelease
+          else
+            echo "::error::$PRE_TAG is not a pre-release tag like v0.2.0-rc.1"; exit 1
+          fi
+
+      # Build from the commit the tag names. It can differ from this run's commit
+      # when the merge run failed its check and a later push made the release.
+      - name: Use the released commit
+        id: commit
+        if: steps.tag.outputs.mode == 'release'
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          git fetch --depth=1 origin "refs/tags/$TAG:refs/tags/$TAG"
+          git checkout --detach "$TAG"
+          if [ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ]; then echo "moved=true" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Check the released commit
+        if: steps.commit.outputs.moved == 'true'
+        run: |
+          ./install.sh --from-source "$RUNNER_TEMP/bin"
+          ./tests/run.sh
+
+      - name: Package
+        if: steps.tag.outputs.mode != 'none'
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: tools/package-release.sh "$TAG" dist
+
+      # --clobber, so a re-run after a partial upload replaces what is there.
+      - name: Upload to the release
+        if: steps.tag.outputs.mode == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: gh release upload "$TAG" dist/* --clobber
+
+      - name: Publish a pre-release
+        if: steps.tag.outputs.mode == 'prerelease'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: gh release create "$TAG" dist/* --prerelease --target "$GITHUB_SHA" --title "$TAG" --generate-notes
+
+      - name: Keep the dry run's tarballs
+        if: steps.tag.outputs.mode == 'dry-run'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tandem-dist
+          path: dist/

@@ -1,0 +1,28 @@
+  Current   Sessions   Issues   Pull requests   Gists
+
+ Source:  All   Local   Remote  ●
+
+       Session                                            Status            Modified    Created
+ ┃ ❯ ● Start Lamplighter Story Sub-Agent                  —                 just now    1m ago
+ ┃   ○ Implement Task 1: Write Probe File (main)          —                 5d ago      5d ago
+ ┃   ○ Implement Task 1: Write Probe File (main)          —                 5d ago      5d ago
+ ┃   ○ Implement Task 1: Write Probe File (main)          —                 5d ago      5d ago
+ ┃   ○ Run Shell Command Sleep (main)                     —                 5d ago      5d ago
+ ┃   ○ Ready Response Confirmation (main)                 —                 5d ago      5d ago
+ ┃   ○ Handle Tandem Run Stop (main)                      —                 5d ago      5d ago
+ ┃   ○ Review Previous User Inquiry (fix/reject-invalid…  —                 5d ago      5d ago
+ ┃   ○ Single Word Response (fix/reject-invalid-builder…  —                 5d ago      5d ago
+ ┃   ○ [tandem] The run was stopped. Stop what you are…   —                 5d ago      5d ago
+ ┃   ○ Stop Current Run Process (main)                    —                 1w ago      1w ago
+ ┃   ○ General chat                                       —                 1w ago      1mo ago
+ ┃   ○ Reply with just the word hi. (feat/token-savings)  —                 3w ago      3w ago
+ ┃   ○ What was the previous message I sent you in this…  —                 3w ago      3w ago
+ ┃   ○ Review Implementation Plan (chore/favourites-ref…  —                 3w ago      3w ago
+ ┃   ○ (untitled) (chore/favourites-refactor)             —                 3w ago      3w ago
+ ┃   ○ (untitled) (chore/favourites-refactor)             —                 3w ago      3w ago
+ ┃   ○ Create WROTE.txt File (main)                       —                 1mo ago     1mo ago
+ ┃   ○ Send Full-Ok Response (main)                       —                 1mo ago     1mo ago
+
+
+
+ / search · ↑/↓ navigate · enter open · r refresh · s sort:relevance · n new session · esc cancel

@@ -1,0 +1,476 @@
+#!/usr/bin/env bash
+# tandem-bridge: carry messages from a sandboxed agent to the unsandboxed side.
+#
+# Codex's sandbox denies the Herdr socket but allows writes in the workspace.
+# This watcher picks up queued files and runs the `herdr agent prompt` the
+# agent cannot. Message kinds:
+#   question   expects an answer file back
+#   handback   no reply; the sender has finished
+#   verdict    no reply; the sender has finished
+#   task       the end of one build task; `tandem build advance` checks it and
+#              the bridge sends the review, the fix, the next task, or the end
+#              of the build to the planner
+#
+# Answers are written as files by the responding agent, never scraped from a
+# pane, because the terminal collapses long output.
+#
+# See README.md.
+set -euo pipefail
+
+# install.sh symlinks the commands, so resolve the link to find lib/.
+_self="${BASH_SOURCE[0]}"
+while [[ -L "$_self" ]]; do
+  _link=$(readlink "$_self"); [[ "$_link" == /* ]] && _self="$_link" || _self="${_self%/*}/$_link"
+done
+# shellcheck source=lib/reviewer.sh
+. "${_self%/*}/lib/reviewer.sh"
+
+MAILBOX=""
+PLANNER_NAME="${HERDR_PLANNER_NAME:-planner}"
+POLL_SECONDS="${HERDR_BRIDGE_POLL_SECONDS:-1}"
+BACKSTOP_SECONDS="${HERDR_BRIDGE_BACKSTOP_SECONDS:-30}"
+PROMPT_TIMEOUT_MS="${HERDR_BRIDGE_PROMPT_TIMEOUT_MS:-120000}"
+ONESHOT=0
+
+usage() {
+  cat <<'USAGE'
+usage: tandem-bridge --mailbox DIR [--planner NAME] [--once]
+
+Watches DIR/q for questions, handbacks and plan-review verdicts and delivers them
+to the named agent. A build task handed back is checked and the next task sent.
+Normally started in the background by tandem-pair; run it by hand only to debug.
+
+  --mailbox DIR   relay directory (contains q/ and a/)
+  --planner NAME  agent to deliver to (default: planner)
+  --once          process what is queued, then exit (for testing)
+USAGE
+}
+
+log() { printf '%s tandem-bridge: %s\n' "$(date +%H:%M:%S)" "$*"; }
+die() { printf 'tandem-bridge: %s\n' "$*" >&2; exit 1; }
+
+# Refuse when the relay was written by an engine or protocol this install
+# does not understand.
+engine_guard() {
+  local rc=0
+  tandem state engine --root "$1" >/dev/null || rc=$?
+  case "$rc" in
+    0) ;;
+    23) exit 23 ;;
+    *) die "the installed tandem cannot check which engine owns this relay (rc $rc); re-run install.sh." ;;
+  esac
+}
+
+while (( $# )); do
+  case "$1" in
+    --mailbox) MAILBOX="${2:-}"; shift 2 ;;
+    --planner) PLANNER_NAME="${2:-}"; shift 2 ;;
+    --once)    ONESHOT=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) usage >&2; die "unknown argument: $1" ;;
+  esac
+done
+
+[[ -n "$MAILBOX" ]] || { usage >&2; die "--mailbox is required."; }
+[[ "${HERDR_ENV:-}" == 1 ]] || die "must run inside a Herdr pane (HERDR_ENV != 1) — it needs the socket."
+command -v herdr >/dev/null 2>&1 || die "herdr not found on PATH."
+command -v jq    >/dev/null 2>&1 || die "jq not found on PATH."
+
+engine_guard "$(dirname "$MAILBOX")"
+
+mkdir -p "$MAILBOX/q" "$MAILBOX/a"
+
+# Answer a question with an error when delivery fails, so the asker stops
+# polling. Handbacks get a marker beside the report instead (see deliver).
+fail_answer() {
+  local id="$1" reason="$2"
+  cat > "$MAILBOX/a/$id.md" <<EOF
+[relay error] Your question was not delivered.
+
+Reason: $reason
+
+Do not keep waiting. Either proceed and state the assumption you are making
+explicitly in your next message, or stop and ask the human directly.
+EOF
+}
+
+deliver() {
+  local qfile="$1" id="" kind="" from="" question="" msg="" answer_path
+  # NUL-separated, because a message can hold newlines. A file with no kind is
+  # a question.
+  { IFS= read -r -d '' id; IFS= read -r -d '' kind; IFS= read -r -d '' from
+    IFS= read -r -d '' question; IFS= read -r -d '' msg; } < <(jq -j \
+    '[.id, .kind // "question", .from // "builder", .question, .message]
+     | map((. // "" | tostring) + "\u0000") | add' "$qfile" 2>/dev/null) || true
+
+  # Handbacks and verdicts carry the message their sender composed. The bridge
+  # only transports it.
+  local need="$question"
+  case "$kind" in
+    handback|verdict) need="$msg" ;;
+    task) need="$id" ;;
+  esac
+  if [[ -z "$id" || -z "$need" ]]; then
+    log "malformed $kind file $qfile — skipping"
+    return
+  fi
+  if [[ "$kind" == task ]]; then
+    advance_build "$qfile"
+    # Mark handled whatever the outcome. Startup recovery replays only .taken.
+    if [[ -f "$qfile" ]]; then mv -n "$qfile" "${qfile%.taken}.done"; fi
+    return
+  fi
+
+  answer_path="$MAILBOX/a/$id.md"
+  log "delivering $id from $from (kind: $kind)"
+
+  if [[ "$kind" != handback && "$kind" != verdict ]]; then
+    msg="[from $from] $question
+
+Reply by writing your answer to this exact path:
+  $answer_path
+
+Write the file directly. Keep it self-contained — $from cannot see this
+conversation. It is polling that path and will read whatever you write."
+  fi
+
+  send_planner "$id" "$kind" "$from" "$msg"
+}
+
+# send_planner ID KIND FROM MSG: prompt the planner. A failure answers a
+# question with an error, and leaves a marker for anything nobody polls.
+send_planner() {
+  local id="$1" kind="$2" from="$3" msg="$4" as=question
+  # Each kind's checks are one row in cmd/tandem/deliver.go.
+  case "$kind" in handback|verdict|notice) as="$kind" ;; esac
+  if tandem agent prompt "$PLANNER_NAME" "$msg" --as "$as" \
+       --wait-unblocked "$PROMPT_TIMEOUT_MS" >/dev/null 2>"$MAILBOX/.last_error"; then
+    log "$id delivered"
+  else
+    local code why
+    code=$(head -1 "$MAILBOX/.last_error" | cut -f1)
+    code=${code:-unknown}
+    why=$(head -1 "$MAILBOX/.last_error" | cut -s -f2)
+    log "$id delivery FAILED ($code)${why:+: $why}"
+    if [[ "$kind" == handback || "$kind" == verdict ]]; then
+      # Nobody polls for these, so leave a marker beside the report or the stored
+      # review. Verdict markers never go in reports/, which tandem-unpair reads for
+      # handbacks.
+      local dir=reports
+      [[ "$kind" == verdict ]] && dir=reviews
+      mkdir -p "$MAILBOX/$dir"
+      printf '%s %s from %s was never delivered to %s: tandem agent prompt failed (%s)%s\n' \
+        "$kind" "$id" "$from" "$PLANNER_NAME" "$code" "${why:+: $why}" > "$MAILBOX/$dir/$id.UNDELIVERED"
+    elif [[ "$kind" != notice ]]; then
+      # A notice has nobody waiting on it; the log records the loss.
+      fail_answer "$id" "tandem agent prompt failed: $code"
+    fi
+  fi
+}
+
+# advance_build QFILE: the builder handed back a task, or the reviewer handed
+# back its verdict on one.
+#
+# `tandem build advance` waits for the pane to settle, records the task's
+# changes and cost, runs the check, and prints one line:
+#   review N MSGFILE | fix N MSGFILE | next N | finished ID MSGFILE
+#   | stopped REASON ID MSGFILE | ignored WHY | refused WHY
+# review prompts the reviewer pane, fix prompts the builder with the findings,
+# next runs tandem-handoff --continue. A failed delivery stops the build and
+# tells the planner. The planner hears nothing until the build ends.
+#
+# durable_run prints the active durable run. A legacy task message that arrives
+# during one is set aside with its reason.
+durable_run() {
+  [[ -f "$MAILBOX/active-run.json" ]] || return 1
+  jq -er 'select(.protocol_version == 2) | .run_id' "$MAILBOX/active-run.json" 2>/dev/null
+}
+
+quarantine_v1() {
+  local f="$1" dest
+  mkdir -p "$MAILBOX/quarantine-v1"
+  dest="$MAILBOX/quarantine-v1/$(basename "$f")"
+  mv -n "$f" "$dest" 2>/dev/null || true
+  printf 'a legacy (v1) task message arrived while durable run %s is active; a v2 run rejects v1 messages\n' "$2" > "$dest.reason"
+  log "set aside $(basename "$f"): a v1 task message cannot drive durable run $2"
+}
+
+# ingest_durable TAKEN: apply one claimed protocol-2 message.
+# `tandem build event ingest` applies or quarantines it and prints one JSON
+# object. A non-zero exit means nothing was decided, so the file stays claimed
+# for the next pass. Renaming it back to *.json would wake the loop at once
+# into the same failure.
+ingest_durable() {
+  local taken="$1" root st out rc=0 settled=()
+  root=$(dirname "$MAILBOX")
+  st=$(tandem agent status "${HERDR_BUILDER_NAME:-builder}" 2>/dev/null || printf unknown)
+  case "$st" in idle|done) settled=(--session-settled) ;; esac
+  out=$(tandem build event ingest --root "$root" --claimed "$taken" ${settled[@]+"${settled[@]}"} 2>"$MAILBOX/.last_error") || rc=$?
+  if (( rc != 0 )); then
+    log "$(basename "$taken"): not applied yet (rc $rc), kept for the next pass: $(tail -1 "$MAILBOX/.last_error" 2>/dev/null)"
+    return
+  fi
+  log "$(basename "$taken"): $(printf '%s' "$out" | jq -r '.disposition + " " + (.reason // "")' 2>/dev/null)"
+}
+
+# drive_durable VERB [ARGS...]: give the durable run's controller one step (tick
+# or recover). A non-zero exit is logged and the loop goes on. Exit 3 is the
+# writer lease, which `tandem build recover` resolves.
+drive_durable() {
+  local verb="$1" root out rc=0
+  root=$(dirname "$MAILBOX")
+  out=$(tandem build "$verb" --root "$root" "${@:2}" 2>"$MAILBOX/.last_error") || rc=$?
+  if (( rc != 0 )); then
+    log "build $verb: exit $rc: $(tail -1 "$MAILBOX/.last_error" 2>/dev/null)"
+    return
+  fi
+  log "build $verb: $out"
+  report_pause "$root" "$out"
+}
+
+# report_pause ROOT TICK_OUTPUT: tell the planner once when the durable run
+# pauses, since a paused run waits for a person. The run and pause code are
+# recorded beside the queue so it is not said twice, and a running run clears
+# the mark. The mark is written before sending, so a lost notice is not resent
+# every second.
+report_pause() {
+  local root="$1" out="$2" run state code mark key reason msg
+  # None of the three fields can hold a tab or a newline.
+  IFS=$'\t' read -r run state code < <(printf '%s' "$out" |
+    jq -r '[.run_id // "", .state // "", .pause_code // ""] | @tsv' 2>/dev/null) || true
+  [[ -n "$run" && -d "$MAILBOX/durable/$run" ]] || return 0
+  mark="$MAILBOX/durable/$run/pause-reported"
+  if [[ "$state" != paused ]]; then
+    [[ "$state" == running ]] && rm -f "$mark"
+    return 0
+  fi
+  key="$run ${code:-paused}"
+  [[ "$(cat "$mark" 2>/dev/null)" == "$key" ]] && return 0
+  printf '%s\n' "$key" > "$mark"
+  reason=$(tandem build status --root "$root" --json 2>/dev/null | jq -r '.pause_reason // empty' 2>/dev/null) || reason=""
+  msg="[build] Durable run $run paused (${code:-no code}) and waits for a person.${reason:+
+
+$reason}
+
+See \`tandem build status --root $root\`."
+  if [[ "$code" == dispatch_failed ]]; then
+    msg+="
+
+The task never reached a working builder. A model the CLI rejects, an expired
+login or used-up quota looks like this. Fix the builder pane, then restart the
+run. A second tandem-handoff is refused while this run is active, so:
+
+1. \`tandem build stop --root $root\`
+2. \`tandem state recover --run $run --root $root\` (ends its open jobs)
+3. \`tandem state archive --run $run --root $root\`
+4. If the pair has no reviewer: $REVIEWER_REMEDY
+5. tandem-handoff the plan again."
+  fi
+  log "run $run paused ($code); telling $PLANNER_NAME"
+  send_planner "pause-$run-${code:-paused}" notice tandem "$msg"
+}
+
+# tell_planner LINE: send the planner the message a build's last line names,
+# `finished ID MSGFILE` or `stopped REASON ID MSGFILE`.
+tell_planner() {
+  local verb a b c
+  read -r verb a b c <<<"$1"
+  case "$verb" in
+    finished) send_planner "$a" handback builder "$(cat "$b" 2>/dev/null)" ;;
+    stopped)  send_planner "$b" handback builder "$(cat "$c" 2>/dev/null)" ;;
+  esac
+}
+
+# stop_build TASK WHAT DETAIL [--task N]: record that task TASK's next step
+# failed, stopping the build, then tell the planner.
+stop_build() {
+  local task="$1" what="$2" detail="$3" stop rc=0
+  shift 3
+  stop=$(tandem build stop --root "$(dirname "$MAILBOX")" "$@" --reason handoff \
+           --detail "$detail" 2>>"$MAILBOX/.last_error") || rc=$?
+  (( rc == 0 )) || { log "task $task: could not record the stop"; return; }
+  log "task $task $what; build stopped"
+  tell_planner "$stop"
+}
+
+advance_build() {
+  local qfile="$1" id created task report stuck review verdict from root out rc
+  local active
+  if active=$(durable_run); then
+    quarantine_v1 "$qfile" "$active"
+    return
+  fi
+  # The unit separator is used instead of a tab, because read collapses empty
+  # tab-separated fields.
+  IFS=$'\x1f' read -r id created task report stuck review verdict from < <(
+    jq -r '[(.id | tostring), (.created // ""), (.task // ""), (.report_path // ""),
+            (.stuck // false), (.review // false), (.verdict // ""), (.from // "")]
+           | map(tostring) | join("\u001f")' "$qfile" 2>/dev/null) || true
+  if [[ ! "$task" =~ ^[0-9]+$ ]]; then
+    log "malformed task file $qfile -- skipping"
+    return
+  fi
+  # The repository root is the mailbox's parent.
+  root=$(dirname "$MAILBOX")
+  local args=(--root "$root" --task "$task" --event "$id" --created "$created")
+  [[ -n "$report" ]] && args+=(--report "$report")
+  [[ "$stuck" == true ]] && args+=(--stuck)
+  if [[ "$review" == true ]]; then
+    args+=(--review --verdict "$verdict" --from "$from")
+    log "task $task: review handed back by ${from:-an unnamed pane} ($id, ${verdict:-no verdict})"
+  else
+    log "task $task handed back ($id); checking it"
+  fi
+  rc=0
+  out=$(tandem build advance "${args[@]}" 2>"$MAILBOX/.last_error") || rc=$?
+  if (( rc != 0 )); then
+    local err
+    err=$(tail -3 "$MAILBOX/.last_error" 2>/dev/null | tr '\n' ' ')
+    # A handback for a build that is gone or archived is stale. Nobody waits on
+    # it, so the planner is not told.
+    if [[ "$err" == *"no build in "* ]]; then
+      log "task $task ($id): no build to advance; dropped as stale"
+      return
+    fi
+    log "task $task: tandem build advance FAILED (rc $rc): $err"
+    send_planner "$id" handback builder "[build] Tandem could not check task $task that the builder handed back: tandem build advance exited $rc: $err
+
+The build is paused. See \`tandem build status\` and the bridge log at $MAILBOX/bridge.log, then run tandem-handoff to carry on."
+    return
+  fi
+  log "task $task: $out"
+  local verb f2 f3 f4
+  read -r verb f2 f3 f4 <<<"$out"
+  case "$verb" in
+    review)
+      local msgfile reviewer pres prc=0 detail
+      msgfile="$f3"
+      reviewer=$(jq -r '.reviewer // empty' "$MAILBOX/build/build.json" 2>/dev/null || true)
+      # build advance stops a build without a reviewer before it prints review, so
+      # one is always named here. --as proves the review started a turn that keeps
+      # running. Its result is on stdout or stderr, never both.
+      pres=$(tandem agent prompt "$reviewer" "$(cat "$msgfile")" --as review 2>&1) || prc=$?
+      if (( prc == 0 )); then
+        tandem build review-sent --root "$root" --task "$f2" >/dev/null 2>>"$MAILBOX/.last_error" || true
+        log "task $f2: review round sent to $reviewer"
+        return
+      fi
+      printf '%s\n' "$pres" >> "$MAILBOX/.last_error"
+      detail="the review prompt for task $f2 was not delivered to $reviewer"
+      if (( prc == 26 )); then
+        # A turn that ends at once: a rejected model, an expired login or no quota.
+        detail="the review prompt for task $f2 reached $reviewer, but its turn ended as soon as it started. Its pane shows:
+$(printf '%s\n' "$pres" | tail -n +2)"
+      fi
+      stop_build "$f2" "review NOT sent" "$detail" --task "$f2"
+      ;;
+    fix)
+      # The reviewer asked for changes. Its findings go to the builder's current
+      # conversation, which still holds the task.
+      local msgfile builder pres prc=0 detail
+      msgfile="$f3"
+      builder=$(jq -r '.builder // "builder"' "$MAILBOX/build/build.json" 2>/dev/null || true)
+      pres=$(tandem agent prompt "$builder" "$(cat "$msgfile")" --as task 2>&1) || prc=$?
+      if (( prc == 0 )); then
+        log "task $f2: the reviewer's findings sent to $builder to fix"
+        return
+      fi
+      printf '%s\n' "$pres" >> "$MAILBOX/.last_error"
+      detail="the reviewer's findings for task $f2 were not delivered to $builder"
+      if (( prc == 26 )); then
+        detail="the reviewer's findings for task $f2 reached $builder, but its turn ended as soon as it started. Its pane shows:
+$(printf '%s\n' "$pres" | tail -n +2)"
+      fi
+      stop_build "$f2" "fix NOT sent" "$detail" --task "$f2"
+      ;;
+    next)
+      local plan="" builder="" hout
+      { read -r plan; read -r builder; } < <(jq -r '.plan // "", .builder // "builder"' \
+        "$MAILBOX/build/build.json" 2>/dev/null) || true
+      rc=0
+      hout=$(HERDR_BUILDER_NAME="$builder" HERDR_PLANNER_NAME="$PLANNER_NAME" \
+               tandem-handoff "$plan" --continue 2>&1) || rc=$?
+      printf '%s\n' "$hout" | sed 's/^/    /'
+      if (( rc == 0 )); then
+        log "task $f2 sent"
+        return
+      fi
+      local why
+      why=$(printf '%s\n' "$hout" | grep -v '^[[:space:]]*$' | tail -2 | tr '\n' ' ')
+      stop_build "$f2" "NOT sent (handoff rc $rc)" "tandem-handoff --continue exited $rc: $why"
+      ;;
+    finished|stopped)
+      tell_planner "$out" ;;
+    *)
+      : ;; # ignored or refused: the log line above says which, and why
+  esac
+}
+
+# Recover only task events claimed before a crash. Questions, handbacks and
+# verdicts stay claimed so they are not sent twice.
+shopt -s nullglob
+for taken in "$MAILBOX"/q/*.json.taken; do
+  if [[ $(jq -r '.kind // "question"' "$taken" 2>/dev/null || true) == task ]]; then
+    mv -n "$taken" "${taken%.taken}"
+  fi
+done
+shopt -u nullglob
+
+# After a crash, recover reconciles an expired writer lease before the first
+# tick. Claimed protocol-2 messages are replayed by the first pass; ingestion
+# records a receipt first, so a replay is a duplicate.
+if durable_run >/dev/null; then
+  drive_durable recover
+fi
+
+# Tells tandem-pair the bridge is up.
+: > "$MAILBOX/bridge.ready"
+log "watching $MAILBOX/q -> $PLANNER_NAME (backstop ${BACKSTOP_SECONDS}s)"
+last_wake=""
+while :; do
+  # A run marker can appear while this runs, so check again.
+  [[ -f "$MAILBOX/active-run.json" ]] && engine_guard "$(dirname "$MAILBOX")"
+  if run=$(durable_run); then
+    shopt -s nullglob
+    for taken in "$MAILBOX/durable/$run"/q/*.json.taken; do
+      ingest_durable "$taken"
+    done
+    for qfile in "$MAILBOX/durable/$run"/q/*.json; do
+      taken="$qfile.taken"
+      if mv -n "$qfile" "$taken" 2>/dev/null && [[ -f "$taken" ]]; then
+        ingest_durable "$taken"
+      fi
+    done
+    shopt -u nullglob
+    drive_durable tick
+  fi
+  shopt -s nullglob
+  for qfile in "$MAILBOX"/q/*.json; do
+    # Claim atomically so a second bridge cannot deliver twice.
+    taken="$qfile.taken"
+    if mv -n "$qfile" "$taken" 2>/dev/null && [[ -f "$taken" ]]; then
+      deliver "$taken"
+    fi
+  done
+  shopt -u nullglob
+  (( ONESHOT )) && { log "oneshot done"; exit 0; }
+  # Wait for the first of: a queued message, a run marker change, a nudge from a
+  # state writer, or a status change of the run's agents. The backstop bounds a
+  # missed event. A failed watch falls back to the plain sleep.
+  wargs=(--mailbox "$MAILBOX" --timeout "$(( BACKSTOP_SECONDS * 1000 ))")
+  # A marker that changed since this pass wakes the watch at once.
+  [[ -n "$run" ]] && wargs+=(--root "$(dirname "$MAILBOX")")
+  wrc=0
+  why=$(tandem agent watch "${wargs[@]}" 2>/dev/null) || wrc=$?
+  case "$wrc" in
+    0)  [[ "$why" == timeout ]] || log "woke: ${why//$'\t'/ }"
+        # A wake this pass could not act on comes straight back. Pace it like a failed
+        # watch, or the loop spins.
+        if [[ "$why" == mailbox_error* || ( "$why" == queued* && "$why" == "$last_wake" ) ]]; then
+          sleep "$POLL_SECONDS"
+        fi ;;
+    27) drive_durable tick --observe-agents; sleep "$POLL_SECONDS" ;;
+    *)  sleep "$POLL_SECONDS" ;;
+  esac
+  last_wake=$why
+done

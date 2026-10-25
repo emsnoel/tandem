@@ -1,0 +1,146 @@
+{
+ "cross_check": false,
+ "description": "A replayed record is ignored; a different record with the same ordinal conflicts.",
+ "events": [
+  {
+   "ordinal": 1,
+   "payload": {
+    "id": "cx-1"
+   },
+   "type": "session_meta"
+  },
+  {
+   "ordinal": 2,
+   "payload": {
+    "model": "gpt-a"
+   },
+   "type": "turn_context"
+  },
+  {
+   "ordinal": 3,
+   "payload": {
+    "info": {
+     "total_token_usage": {
+      "cached_input_tokens": 60,
+      "input_tokens": 100,
+      "output_tokens": 10,
+      "reasoning_output_tokens": 4
+     }
+    },
+    "type": "token_count"
+   },
+   "type": "event_msg"
+  },
+  {
+   "ordinal": 3,
+   "payload": {
+    "info": {
+     "total_token_usage": {
+      "cached_input_tokens": 60,
+      "input_tokens": 100,
+      "output_tokens": 10,
+      "reasoning_output_tokens": 4
+     }
+    },
+    "type": "token_count"
+   },
+   "type": "event_msg"
+  },
+  {
+   "ordinal": 4,
+   "payload": {
+    "info": {
+     "total_token_usage": {
+      "cached_input_tokens": 90,
+      "input_tokens": 150,
+      "output_tokens": 15,
+      "reasoning_output_tokens": 6
+     }
+    },
+    "type": "token_count"
+   },
+   "type": "event_msg"
+  },
+  {
+   "ordinal": 4,
+   "payload": {
+    "info": {
+     "total_token_usage": {
+      "cached_input_tokens": 95,
+      "input_tokens": 170,
+      "output_tokens": 16,
+      "reasoning_output_tokens": 6
+     }
+    },
+    "type": "token_count"
+   },
+   "type": "event_msg"
+  },
+  {
+   "ordinal": 5,
+   "payload": {
+    "type": "task_complete"
+   },
+   "type": "event_msg"
+  }
+ ],
+ "expected": {
+  "complete": false,
+  "events": [
+   {
+    "cache_read": 60,
+    "cache_write": null,
+    "components": {
+     "cumulative": {
+      "cached_input_tokens": 60,
+      "input_tokens": 100,
+      "output_tokens": 10,
+      "reasoning_output_tokens": 4
+     },
+     "segment": 0
+    },
+    "event_id": "seg0:0",
+    "input_total": 100,
+    "model": "gpt-a",
+    "output": 10,
+    "provider": "codex",
+    "reasoning_output": 4,
+    "revision": 0,
+    "session_id": "cx-1",
+    "source_cursor": 2,
+    "source_hash": "e3f02a95f17f2ddeced2d8101fa2e5264414bd592488610533cef722dddb3a9b",
+    "terminal_evidence": true
+   },
+   {
+    "cache_read": 30,
+    "cache_write": null,
+    "components": {
+     "cumulative": {
+      "cached_input_tokens": 90,
+      "input_tokens": 150,
+      "output_tokens": 15,
+      "reasoning_output_tokens": 6
+     },
+     "segment": 0
+    },
+    "event_id": "seg0:1",
+    "input_total": 50,
+    "model": "gpt-a",
+    "output": 5,
+    "provider": "codex",
+    "reasoning_output": 2,
+    "revision": 0,
+    "session_id": "cx-1",
+    "source_cursor": 4,
+    "source_hash": "f4572f0d7e62c99a6b1746de10c752a76c17b43a9b59b9a0c57715f0027760ef",
+    "terminal_evidence": true
+   }
+  ],
+  "provider": "codex",
+  "reasons": [
+   "conflicting_record:4"
+  ],
+  "superseded": []
+ },
+ "provider": "codex"
+}

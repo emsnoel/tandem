@@ -1,0 +1,467 @@
+#!/usr/bin/env bash
+# tandem-handback: hand finished work back to the planner.
+#
+# The return leg of tandem-handoff, run by the builder. The report is written
+# to a file and the planner gets its path, because terminals collapse long
+# output. It does not wait for verification, which can take longer than the
+# builder's command timeout.
+#
+# See README.md.
+set -euo pipefail
+
+# install.sh symlinks the commands, so resolve the link to find lib/.
+_self="${BASH_SOURCE[0]}"
+while [[ -L "$_self" ]]; do
+  _link=$(readlink "$_self"); [[ "$_link" == /* ]] && _self="$_link" || _self="${_self%/*}/$_link"
+done
+# shellcheck source=lib/reviewer.sh
+. "${_self%/*}/lib/reviewer.sh"
+
+PLANNER_NAME="${HERDR_PLANNER_NAME:-planner}"
+# Bounded wait for a planner at a permission dialog.
+BLOCKED_WAIT_SECONDS="${HERDR_HANDBACK_BLOCKED_WAIT_SECONDS:-90}"
+
+DRY_RUN=0
+REPORT_FILE=""
+PLAN_PATH=""
+TASK=""
+STUCK=0
+REVIEW=0
+VERDICT=""
+ROLE=""
+STARTED=0
+REVIEW_STARTED=0
+REVIEW_RESULT=""
+RUN_ID=""; ATTEMPT_ID=""; JOB_ID=""; EFFECT_ID=""; NONCE=""
+
+usage() {
+  cat <<'USAGE'
+usage: tandem-handback [--report FILE|-] [--plan PATH] [--task N [--stuck | --review --verdict clean|changes]] [--role NAME] [--dry-run]
+
+Tells the planner the plan is implemented and hands it the completion report.
+Run this from the builder when you finish; it is how the session gets closed.
+
+With --task, hands back ONE task of a build tandem is running: the report is
+queued for the relay bridge, which checks the task and sends the next one to
+a fresh conversation. It never goes to the planner directly.
+
+  --report FILE   file holding the report. "-" or omitted reads stdin.
+  --plan PATH     the plan that was implemented, named in the message
+  --task N        the build task being handed back
+  --stuck         with --task: the task could not be finished
+  --review        with --task: the reviewer pane's review of the task. Needs
+                  --verdict. The builder never reviews, so this is refused
+                  from any pane but the build's reviewer.
+  --verdict V     with --review: clean (nothing to fix) or changes (the
+                  builder fixes what the report lists)
+  --role NAME     the pane this runs in, when the CLI does not pass
+                  HERDR_ROLE to the commands it runs
+  --started       with --task and a durable run: acknowledge that you read the
+                  task prompt, before you edit anything. Needs no report.
+  --review-started
+                  with --task and a durable run that opted in to direct review
+                  handback: acknowledge that you read the review prompt.
+  --review-result FILE
+                  with --task and such a run: hand back the review result, one
+                  JSON object in FILE. It is staged; Tandem applies it only
+                  once your turn has ended.
+  --run ID --attempt ID --job ID --effect ID --nonce ID
+                  a durable run's identity, copied from the task prompt. Only
+                  valid while a durable run is active; with one, they are
+                  required and the old form is refused.
+  --dry-run       show what would be sent without sending it
+
+The report should say: which tasks are complete, the exact state of the test
+suite, anything changed that the plan did not ask for, and anything you could
+not verify.
+USAGE
+}
+
+die()  { printf 'tandem-handback: %s\n' "$*" >&2; exit 1; }
+info() { printf 'tandem-handback: %s\n' "$*" >&2; }
+
+while (( $# )); do
+  case "$1" in
+    --report)  REPORT_FILE="${2:-}"; shift 2 ;;
+    --plan)    PLAN_PATH="${2:-}"; shift 2 ;;
+    --task)    TASK="${2:-}"; shift 2 ;;
+    --stuck)   STUCK=1; shift ;;
+    --review)  REVIEW=1; shift ;;
+    --verdict) VERDICT="${2:-}"; shift 2 ;;
+    --role)    ROLE="${2:-}"; shift 2 ;;
+    --started) STARTED=1; shift ;;
+    --review-started) REVIEW_STARTED=1; shift ;;
+    --review-result)  REVIEW_RESULT="${2:-}"; shift 2 ;;
+    --run)     RUN_ID="${2:-}"; shift 2 ;;
+    --attempt) ATTEMPT_ID="${2:-}"; shift 2 ;;
+    --job)     JOB_ID="${2:-}"; shift 2 ;;
+    --effect)  EFFECT_ID="${2:-}"; shift 2 ;;
+    --nonce)   NONCE="${2:-}"; shift 2 ;;
+    --dry-run) DRY_RUN=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *)         usage >&2; die "unknown argument: $1" ;;
+  esac
+done
+
+# Fail early if herdr is missing; tandem shells out to it.
+command -v herdr >/dev/null 2>&1 || die "herdr not found on PATH."
+command -v jq    >/dev/null 2>&1 || die "jq not found on PATH."
+command -v tandem >/dev/null 2>&1 || die "tandem not found on PATH."
+[[ "$BLOCKED_WAIT_SECONDS" =~ ^[0-9]+$ && "$BLOCKED_WAIT_SECONDS" -gt 0 ]] \
+  || die "HERDR_HANDBACK_BLOCKED_WAIT_SECONDS must be a positive integer."
+if [[ -n "$TASK" ]]; then
+  [[ "$TASK" =~ ^[1-9][0-9]*$ ]] || die "--task takes a task number, not '$TASK'."
+elif (( STUCK )); then
+  die "--stuck only means something with --task."
+elif (( STARTED )); then
+  die "--started only means something with --task."
+elif (( REVIEW )); then
+  die "--review only means something with --task."
+elif (( REVIEW_STARTED )) || [[ -n "$REVIEW_RESULT" ]]; then
+  die "--review-started and --review-result only mean something with --task."
+fi
+if [[ -n "$VERDICT" ]] && (( ! REVIEW )); then
+  die "--verdict only means something with --review."
+fi
+if (( REVIEW && STUCK )); then
+  die "--review takes no --stuck: a reviewer hands back a verdict. Nothing was sent."
+fi
+if (( REVIEW )) && [[ -z "$RUN_ID" ]]; then
+  [[ "$VERDICT" == clean || "$VERDICT" == changes ]] \
+    || die "--review needs --verdict clean or --verdict changes (got '${VERDICT}'). Nothing was sent."
+fi
+[[ -z "$ROLE" || "$ROLE" =~ ^[A-Za-z0-9_-]+$ ]] || die "--role must be a pane name such as reviewer (got '$ROLE')."
+if (( REVIEW_STARTED )) && [[ -n "$REVIEW_RESULT" ]]; then
+  die "--review-started and --review-result are two messages; send them one at a time."
+fi
+if (( REVIEW_STARTED )) || [[ -n "$REVIEW_RESULT" ]]; then
+  (( STARTED || STUCK || REVIEW )) && die "a review message cannot be combined with --started, --stuck or --review."
+  [[ -z "$REPORT_FILE" ]] || die "a review message takes no --report; the result is the file after --review-result."
+fi
+
+# --- a durable run? ---
+# Look for the run marker before any legacy build.json, in both the git
+# toplevel's relay and the builder's own directory. An unreadable marker stops
+# here rather than reading as "no durable run".
+DURABLE_RUN=""; DURABLE_ROOT=""
+detect_durable() {
+  local top cand dir found id
+  top=$(git rev-parse --show-toplevel 2>/dev/null || true); top="${top:-$PWD}"
+  for cand in "$top" "$PWD"; do
+    dir=$(tandem paths relay --root "$cand") || die "the installed tandem is behind these commands (no 'tandem paths'); re-run install.sh."
+    [[ -e "$dir/active-run.json" ]] || continue
+    id=$(jq -er 'select(.protocol_version == 2) | .run_id' "$dir/active-run.json" 2>/dev/null) \
+      || die "$dir/active-run.json exists but is not a readable durable-run marker. Nothing was sent."
+    if [[ -n "$DURABLE_RUN" && "$DURABLE_RUN" != "$id" ]]; then
+      die "two durable runs are marked ($DURABLE_RUN and $id); refusing to guess which one this handback is for."
+    fi
+    DURABLE_RUN="$id"; DURABLE_ROOT="$cand"
+  done
+}
+if [[ -n "$TASK" || -n "$RUN_ID" || -n "$ATTEMPT_ID" || -n "$JOB_ID" || -n "$EFFECT_ID" || -n "$NONCE" ]]; then
+  detect_durable
+fi
+if [[ -z "$DURABLE_RUN" && -n "$RUN_ID$ATTEMPT_ID$JOB_ID$EFFECT_ID$NONCE" ]]; then
+  die "--run/--attempt/--job/--effect/--nonce name a durable run, but none is active here. Nothing was sent."
+fi
+if [[ -n "$DURABLE_RUN" && -n "$TASK" ]]; then
+  [[ -n "$RUN_ID" ]] || die "this relay has a durable run ($DURABLE_RUN). Hand back with --run $DURABLE_RUN --attempt ID --job ID --effect ID --nonce ID, as your task prompt says; an old-style handback would be dropped."
+  [[ "$RUN_ID" == "$DURABLE_RUN" ]] || die "--run $RUN_ID is not the active run ($DURABLE_RUN). Nothing was sent."
+  [[ -n "$ATTEMPT_ID" && -n "$JOB_ID" && -n "$EFFECT_ID" && -n "$NONCE" ]] || die "a durable handback needs --attempt, --job, --effect and --nonce from the task prompt."
+  (( REVIEW )) && die "review hand backs are not supported for durable runs yet."
+  KIND=builder_submitted
+  (( STUCK ))   && KIND=builder_stuck
+  (( STARTED )) && KIND=builder_started
+  PAYLOAD=""
+  if (( REVIEW_STARTED )); then
+    KIND=review_started
+  elif [[ -n "$REVIEW_RESULT" ]]; then
+    KIND=review_result
+    [[ -f "$REVIEW_RESULT" ]] || die "review result file not found: $REVIEW_RESULT"
+    [[ -s "$REVIEW_RESULT" ]] || die "the review result is empty; nothing to hand back."
+    PAYLOAD="$REVIEW_RESULT"
+  elif (( ! STARTED )); then
+    if [[ -n "$REPORT_FILE" && "$REPORT_FILE" != "-" ]]; then
+      [[ -f "$REPORT_FILE" ]] || die "report file not found: $REPORT_FILE"
+      PAYLOAD="$REPORT_FILE"
+    else
+      [[ -t 0 ]] && die "no report given. Pass --report FILE, or pipe the report in on stdin."
+      DRELAY=$(tandem paths relay --root "$DURABLE_ROOT")
+      PAYLOAD="$DRELAY/.payload.$$"
+      cat > "$PAYLOAD"
+      trap 'rm -f "$PAYLOAD"' EXIT
+    fi
+    [[ -s "$PAYLOAD" && -n "$(tr -d '[:space:]' < "$PAYLOAD" | head -c1)" ]] || die "the report is empty; nothing to hand back."
+  fi
+  if (( DRY_RUN )); then
+    printf 'tandem-handback: durable run %s, %s for task %s\n' "$DURABLE_RUN" "$KIND" "$TASK"
+    printf '  [dry-run] tandem build event new --kind %s --task %s\n' "$KIND" "$TASK"
+    exit 0
+  fi
+  EARGS=(--root "$DURABLE_ROOT" --kind "$KIND" --task "$TASK" --attempt "$ATTEMPT_ID" --job "$JOB_ID" --effect "$EFFECT_ID" --nonce "$NONCE")
+  [[ -n "$PAYLOAD" ]] && EARGS+=(--payload "$PAYLOAD")
+  tandem build event new "${EARGS[@]}" >/dev/null || die "could not queue the durable event."
+  info "$KIND queued for task $TASK of run $DURABLE_RUN."
+  case "$KIND" in
+    review_started) ;;
+    review_result) info "tandem applies the review once your turn has ended. Stop here." ;;
+    *) (( STARTED )) || info "tandem checks it and sends what comes next. Stop here." ;;
+  esac
+  exit 0
+fi
+
+# Legacy delivery below needs the Herdr pane environment.
+[[ "${HERDR_ENV:-}" == 1 ]] || die "not running inside a Herdr-managed pane (HERDR_ENV != 1)."
+
+# --- read the report ---
+# Refuse an empty report; it gives the planner nothing to check.
+if [[ -n "$REPORT_FILE" && "$REPORT_FILE" != "-" ]]; then
+  [[ -f "$REPORT_FILE" ]] || die "report file not found: $REPORT_FILE"
+  REPORT=$(cat "$REPORT_FILE")
+else
+  if [[ -t 0 ]]; then
+    usage >&2
+    die "no report given. Pass --report FILE, or pipe the report in on stdin."
+  fi
+  REPORT=$(cat)
+fi
+[[ -n "${REPORT//[[:space:]]/}" ]] || die "the report is empty; nothing to hand back."
+
+if [[ -n "$PLAN_PATH" && -f "$PLAN_PATH" ]]; then
+  PLAN_PATH=$(cd "$(dirname "$PLAN_PATH")" && printf '%s/%s' "$(pwd)" "$(basename "$PLAN_PATH")")
+fi
+
+# --- where the report lands ---
+# Inside the relay, which is already ignored and cleared by tandem-unpair.
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
+ROOT="${ROOT:-$PWD}"
+MAILBOX=$(tandem paths relay --root "$ROOT") \
+  || die "the installed tandem is behind these commands (no 'tandem paths'); re-run install.sh."
+ID="$(date +%Y%m%d-%H%M%S)-$$-$RANDOM"
+REPORT_PATH="$MAILBOX/reports/$ID.md"
+
+# Who is handing back: --role, then HERDR_ROLE, then Herdr's name for the pane,
+# then the builder. A CLI may not pass the pane's environment to its commands.
+# For a review, tandem decides below whether this shell is the reviewer.
+SELF="${ROLE:-${HERDR_ROLE:-}}"
+if (( ! REVIEW )); then
+  [[ -n "$SELF" ]] || SELF=$(tandem agent self 2>/dev/null) || SELF=""
+  SELF="${SELF:-builder}"
+fi
+[[ "$SELF" != "$PLANNER_NAME" ]] || die "refusing to hand work back to yourself."
+
+# --- one task of a build ---
+# Always through the mailbox, so the bridge drives every build the same way.
+if [[ -n "$TASK" ]]; then
+  BUILD_DIR="$MAILBOX/build"
+  [[ -f "$BUILD_DIR/build.json" ]] \
+    || die "no build is running in $MAILBOX, so there is no task $TASK to hand back. Hand back without --task."
+  if (( REVIEW )); then
+    # The review must come from the reviewer pane the build recorded.
+    REVIEWER=$(jq -r '.reviewer // empty' "$BUILD_DIR/build.json" 2>/dev/null) || REVIEWER=""
+    [[ -n "$REVIEWER" ]] \
+      || die "this build records no reviewer pane, and the builder never reviews. NOTHING WAS SENT. $REVIEWER_REMEDY Then hand off again."
+    # tandem decides whether this shell is that pane (cmd/tandem/agent_self.go).
+    # In a Herdr pane, Herdr's name wins over a claimed role.
+    _id=$(tandem agent self --expect "$REVIEWER" --claimed "$SELF" 2>/dev/null) || _id=""
+    explain_reviewer_self "a review" "NOTHING WAS SENT." "$REVIEWER" "$_id"
+    SELF="$REVIEWER"
+    TREPORT="$BUILD_DIR/task-$TASK.review.md"
+  else
+    TREPORT="$BUILD_DIR/task-$TASK.report.md"
+  fi
+  if (( DRY_RUN )); then
+    printf 'tandem-handback: task %s from %s%s%s\n' "$TASK" "$SELF" "$( (( STUCK )) && printf ' (stuck)')" "$( (( REVIEW )) && printf ' (review: %s)' "$VERDICT")"
+    printf '  [dry-run] write report  %s\n' "$TREPORT"
+    printf '  [dry-run] queue         %s/q/%s.json for the relay bridge\n' "$MAILBOX" "$ID"
+    exit 0
+  fi
+  mkdir -p "$MAILBOX/q" || die "cannot create the relay directory $MAILBOX/q"
+  printf '%s\n' "$REPORT" > "$TREPORT.tmp" && mv "$TREPORT.tmp" "$TREPORT" \
+    || die "could not write the report file."
+  QFILE="$MAILBOX/q/$ID.json"
+  jq -n --arg id "$ID" --arg from "$SELF" --argjson task "$TASK" --argjson stuck "$( (( STUCK )) && echo true || echo false)" \
+        --argjson review "$( (( REVIEW )) && echo true || echo false)" --arg verdict "$VERDICT" \
+        --arg rp "$TREPORT" --arg plan "$PLAN_PATH" \
+     '{id:$id, kind:"task", from:$from, question:"task", task:$task, stuck:$stuck,
+       review:$review, verdict:$verdict, report_path:$rp, plan:$plan, created:(now|todate)}' > "$QFILE.tmp" \
+    && mv "$QFILE.tmp" "$QFILE" || die "could not queue the handback."
+  if (( REVIEW )); then
+    info "review of task $TASK handed back ($VERDICT); findings at $TREPORT"
+    info "tandem records it and tells the builder what to fix, if anything. Stop here."
+  else
+    info "task $TASK handed back; report at $TREPORT"
+    info "tandem checks it and sends the next task to a fresh conversation. Stop here."
+  fi
+  exit 0
+fi
+
+# ==============================================================================
+# HANDBACK_PROMPT: the contract handed to the planner when work comes back.
+#
+# A quoted heredoc like LAUNCH_PROMPT, so paths are never evaluated by the shell.
+# It tells the planner to:
+#   1. Treat the report as the builder's claim, not proof, and check the tree.
+#   2. Prefer rework, and tear down only as a deliberate last step.
+# ==============================================================================
+read -r -d '' TEMPLATE <<'TPL' || true
+[handback from {{SELF}}] The plan is implemented, or as far as {{SELF}} could take it.
+{{PLANLINE}}
+Report: {{REPORT_PATH}}
+
+Read that file. It is {{SELF}}'s own account of its own work, so treat it as a
+claim and not as evidence. Check it against the tree before you accept it:
+
+  - Run the project's check command yourself. "The suite is green" is a
+    sentence; an exit status is the proof.
+  - Read the diff, looking as hard for what the plan did not ask for as for
+    what it did.
+  - Take the report's own list of unverified or unfinished work seriously. It
+    is the most useful part of the message and the easiest part to skim past.
+
+If anything is wrong, missing, or half-done, send it back:
+
+    tandem-ask {{SELF}} "what needs fixing"
+
+{{SELF}} is idle and still holds the whole context of the work. Fixing it now
+costs a fraction of what it costs once that context is gone.
+
+When you are genuinely satisfied — not merely finished reading — close the
+session:
+
+    tandem-unpair --verified {{REPORT_ID}}
+
+That closes {{SELF}}'s pane and takes its scrollback with it. It is the last
+step, it is not reversible, and nothing else will do it for you. Leaving the
+pair open is always the safer mistake.
+
+It will refuse until this handback is signed off and the project's check command
+exits 0, and it runs that check itself before closing anything. Signing off work
+you have not read is the one way to make that refusal meaningless.
+TPL
+
+# A leading newline keeps the template's blank line when there is no plan.
+[[ -n "$PLAN_PATH" ]] && PLANLINE=$'\nPlan:   '"$PLAN_PATH" || PLANLINE=""
+
+MESSAGE="$TEMPLATE"
+MESSAGE="${MESSAGE//\{\{SELF\}\}/$SELF}"
+MESSAGE="${MESSAGE//\{\{PLANLINE\}\}/$PLANLINE}"
+MESSAGE="${MESSAGE//\{\{REPORT_PATH\}\}/$REPORT_PATH}"
+MESSAGE="${MESSAGE//\{\{REPORT_ID\}\}/$ID}"
+
+if (( DRY_RUN )); then
+  printf 'tandem-handback: from %s to %s\n' "$SELF" "$PLANNER_NAME"
+  printf '  [dry-run] write report  %s (%s lines)\n' "$REPORT_PATH" "$(printf '%s\n' "$REPORT" | wc -l | tr -d ' ')"
+  rc=0
+  tandem agent snapshot "$PLANNER_NAME" >/dev/null 2>&1 || rc=$?
+  if (( rc != 3 )); then
+    printf '  [dry-run] socket reachable -> herdr agent prompt %s\n' "$PLANNER_NAME"
+  else
+    printf '  [dry-run] socket unreachable -> mailbox %s/q/%s.json\n' "$MAILBOX" "$ID"
+  fi
+  printf '\n--- message that would be sent ---\n%s\n--- end ---\n' "$MESSAGE"
+  exit 0
+fi
+
+mkdir -p "$MAILBOX/q" "$MAILBOX/a" "$MAILBOX/reports" \
+  || die "cannot create the relay directory $MAILBOX"
+
+# Write then move, so the planner never reads a partial report.
+printf '%s\n' "$REPORT" > "$REPORT_PATH.tmp" || die "could not write the report file."
+mv "$REPORT_PATH.tmp" "$REPORT_PATH"
+info "report written to $REPORT_PATH"
+
+# --- deliver ---
+# Use the mailbox when the socket is unreachable, as tandem-ask does. Snapshot
+# exit 3 means this sandbox cannot reach the socket; other failures mean the
+# planner is gone.
+rc=0
+_snap=$(tandem agent snapshot "$PLANNER_NAME" 2>/dev/null) || rc=$?
+if (( rc == 3 )); then
+  QFILE="$MAILBOX/q/$ID.json"
+  # The bridge delivers this message as written.
+  jq -n --arg id "$ID" --arg from "$SELF" --arg to "$PLANNER_NAME" \
+        --arg msg "$MESSAGE" --arg rp "$REPORT_PATH" --arg plan "$PLAN_PATH" \
+     '{id:$id, kind:"handback", from:$from, to:$to, question:"handback",
+       message:$msg, report_path:$rp, plan:$plan, created:(now|todate)}' \
+     > "$QFILE.tmp" || die "could not write the handback file."
+  mv "$QFILE.tmp" "$QFILE"
+  info "socket unreachable (sandbox) — handback queued at $QFILE"
+  info "the bridge will deliver it to '$PLANNER_NAME'. You are done; do not wait."
+  exit 0
+fi
+
+if (( rc != 0 )); then
+  cat >&2 <<MSG
+tandem-handback: no agent named '$PLANNER_NAME'; the handback was not delivered.
+
+  Your report is safe at:
+
+    $REPORT_PATH
+
+  Tell the human it is there, and that '$PLANNER_NAME' is gone. Do not redo the work.
+MSG
+  exit 2
+fi
+IFS=$'\t' read -r PLANNER_PANE _ _ <<<"$_snap"
+
+# One confirmed delivery: wait out a dialog, type, then confirm the planner's
+# turn started (cmd/tandem/confirm_start.go).
+undelivered() {
+  cat >&2 <<MSG
+tandem-handback: WARNING the prompt was accepted but $PLANNER_NAME never woke up.
+
+  It is most likely sitting at a native dialog that Herdr cannot see, which
+  swallows input while still reporting idle, or its turn ended at once. Your work
+  is done and your report is safe at:
+
+    $REPORT_PATH
+
+  Do NOT redo the work and do NOT send it again. Say in your next message that the
+  handback was not delivered, and give the human that path.
+MSG
+  if [[ -n "${1:-}" ]]; then
+    printf '\n  The planner pane shows:\n\n' >&2
+    printf '%s\n' "$1" | sed 's/^/    /' >&2
+  fi
+  exit 7
+}
+
+rc=0
+_perr=$(tandem agent prompt "$PLANNER_NAME" "$MESSAGE" --as handback \
+          --wait-unblocked "$(( BLOCKED_WAIT_SECONDS * 1000 ))" 2>&1 >/dev/null) || rc=$?
+IFS=$'\t' read -r _code _msg <<<"$(printf '%s' "$_perr" | head -1)"
+if (( rc == 10 )) && [[ "$_code" == agent_blocked || "$_code" == agent_input_elsewhere ]]; then
+  _why="was still blocked"
+  # A pane showing a subagent would hand the report to that subagent.
+  [[ "$_code" == agent_input_elsewhere ]] && _why="still showed something other than its conversation (${_msg})"
+  cat >&2 <<MSG
+tandem-handback: $PLANNER_NAME $_why after ${BLOCKED_WAIT_SECONDS}s; nothing was sent.
+
+  Your report is safe at:
+
+    $REPORT_PATH
+
+  Ask the human to clear pane $PLANNER_PANE, then re-run this command.
+MSG
+  exit 3
+fi
+case "$rc" in
+  0) ;;
+  25) undelivered ;;
+  26) undelivered "$(printf '%s' "$_perr" | tail -n +2)" ;;
+  *)
+    cat >&2 <<MSG
+tandem-handback: could not deliver the handback to $PLANNER_NAME (${_msg:-unknown error}).
+
+  Your report is safe at:
+
+    $REPORT_PATH
+
+  Tell the human that path in your next message rather than redoing the work.
+MSG
+    exit 5 ;;
+esac
+
+info "handed back to '$PLANNER_NAME'."
+info "it will verify the work and close this pane with tandem-unpair. Stay idle."

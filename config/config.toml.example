@@ -1,0 +1,69 @@
+# Herdr — Claude Code (planner) / Codex (builder) pairing configuration
+#
+# Reference: README.md
+# Scripts:   ~/.local/bin/tandem-pair, tandem-handoff, tandem-ask
+#
+# Only purposeful changes are set here; everything else stays on Herdr defaults.
+
+[session]
+# Reattach BOTH native agent conversations after a server restart mid-plan.
+# Requires the official claude/codex integrations, which are installed.
+resume_agents_on_restore = true
+
+[ui]
+# Attention queue: a blocked agent floats to the top of the agent panel.
+# NOTE Herdr writes this file back. Toggling sidebar sort in the UI (and the
+# first-run onboarding) rewrites this value, leaving it contradicting the comment
+# above. If blocked agents stop surfacing, check here first.
+agent_panel_sort = "priority"
+
+# Distinct glyphs per state. On the default "dots", blocked/working/done are all
+# coloured dots and you cannot tell at a glance why a pane has gone quiet.
+status_indicators = "symbols"
+
+# Name the detected agent in each split pane's border.
+show_agent_labels_on_pane_borders = true
+
+[ui.toast]
+# Notify outside the terminal when a background agent goes blocked or done.
+delivery = "system"
+delay_seconds = 1
+
+[ui.sound]
+enabled = true
+
+[ui.sidebar.agents]
+rows = [["state_icon", "workspace", "tab"], ["agent"]]
+
+# Role-first rows for the two paired agents. $role is the custom token set by
+# tandem-pair via `herdr pane report-metadata --token role=PLAN|BUILD`.
+# Role colour-coding: planner blue, builder peach. The styled-token form and the
+# mandatory "$" prefix for custom tokens were both confirmed via `herdr config check`.
+[ui.sidebar.agents.rows_by_agent]
+claude = [["state_icon", { token = "$role", fg = "#89b4fa", bold = true }, "state_text"], ["terminal_title_stripped"]]
+codex = [["state_icon", { token = "$role", fg = "#fab387", bold = true }, "state_text"], ["terminal_title_stripped"]]
+
+[keys]
+# Two-agent toggle. The prefix stays ctrl+b.
+# alt+ chords are avoided deliberately: Herdr's own defaults warn they depend on
+# the terminal or tmux setup.
+next_agent = "prefix+a"
+previous_agent = "prefix+shift+a"
+
+# Set up or repair the pair. Popup-safe: tandem-pair resolves the Claude pane via
+# `agent list`, it does not assume the calling pane.
+[[keys.command]]
+key = "prefix+i"
+type = "popup"
+command = "tandem-pair"
+width = "70%"
+height = "45%"
+
+# Hand the newest plan to Codex. Resolves the builder by name, so it is likewise
+# unaffected by running inside a popup pane.
+[[keys.command]]
+key = "prefix+shift+h"
+type = "popup"
+command = "tandem-handoff"
+width = "80%"
+height = "55%"

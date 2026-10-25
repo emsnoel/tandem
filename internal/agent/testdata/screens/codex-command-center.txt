@@ -1,0 +1,28 @@
+  Agent command center  Group: Project  g
+   All 11   Needs you 0   Working 0   Ready 1   Inactive 10                        tab/⇧tab filter
+  ────────────────────────────────────────────────────────────────────────────────────────────────
+      Tasks                                               │ Task details
+  ~/work  1                                           │
+    ○ Example leave server flow plan                  │ Spawn glassblower story agent
+                                                          │ ○ Ready
+  ~/work/app  3                               │
+    ○ Implement leave server flow                         │ Model: gpt-6.1-sol
+    ○ Implement task 3                                    │ Reasoning: medium
+    ○ Implement leave flow task 2                         │
+                                                          │ Project
+  ~/work/lib  2                                    │ /tmp/project
+    ○ Fix durable handback #1                            │ 
+    ○ Plan fix for issue 71                               │ 
+                                                          │ Tokens: 53.4K in · 55 out
+  /tmp/project/scratchpad/r68  2             │
+  › ○ Spawn glassblower story agent                       │ Last message
+    ○ Spawn ferryman story agent                          │ SPAWNED
+                                                          │
+  /tmp/demo  3                          │ Prompt
+    ○ Review handback probe plan                          │ Spawn one sub-agent with spawn_agent.
+    ○ Create task-2 handback file                         │ …
+    ○ Create task-1 handback file                         │
+                                                          │
+      Show more                                           │
+                                                          │
+  ? help  esc back  ↑/↓ move  enter open  n new

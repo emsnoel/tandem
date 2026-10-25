@@ -1,0 +1,13 @@
+ ▐▛███▛█   Claude Code v2.1.302
+▝▜██████▀  Sonnet 5.5 · Claude Pro
+ ▝▝   ▝▝   /tmp/project
+
+  ⎿  Interrupted · What should Claude do instead?
+
+──────────────────────────────────────────────────────────────── Write chaptered apprentice story ─
+❯ Message @general-purpose…
+───────────────────────────────────────────────────────────────────────────────────────────────────
+  ↑/↓ to select · Enter to view
+
+❯ ◯ main
+  ⏺ general-purpose  Writing cartographer apprentice story                   44s · ↑ 40.0k tokens

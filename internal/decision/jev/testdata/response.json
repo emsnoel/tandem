@@ -1,0 +1,22 @@
+{
+  "model": "jev-1.13.0",
+  "answers": {
+    "work_shape": {
+      "type": "choice",
+      "choice": "mechanical",
+      "confidence": 1.0,
+      "probabilities": {"investigative": 0.0, "mechanical": 1.0, "integration": 0.0}
+    },
+    "touches_security": {"type": "noul", "noul": 0.98},
+    "touches_destructive": {"type": "noul", "noul": 0.06},
+    "touches_external_effects": {"type": "noul", "noul": 0.02},
+    "parallelizable": {"type": "noul", "noul": 0.4},
+    "routine_proportion": {
+      "type": "score",
+      "score": 2.98,
+      "confidence": 0.98,
+      "probabilities": {"0": 0.0, "1": 0.0, "2": 0.01, "3": 0.99}
+    }
+  },
+  "usage": {"input_tokens": 679, "output_tokens": 103}
+}

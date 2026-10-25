@@ -1,0 +1,53 @@
+{
+ "cross_check": false,
+ "description": "A turn that stops for a tool call has not finished.",
+ "events": [
+  {
+   "message": {
+    "id": "m1",
+    "model": "claude-a",
+    "stop_reason": "tool_use",
+    "usage": {
+     "cache_creation_input_tokens": 0,
+     "cache_read_input_tokens": 0,
+     "input_tokens": 3,
+     "output_tokens": 10
+    }
+   },
+   "sessionId": "cl-1",
+   "type": "assistant",
+   "uuid": "u1"
+  }
+ ],
+ "expected": {
+  "complete": false,
+  "events": [
+   {
+    "cache_read": 0,
+    "cache_write": 0,
+    "components": {
+     "cache_write_subtypes": {},
+     "ordinary_input": 3,
+     "unmapped": {}
+    },
+    "event_id": "m1",
+    "input_total": 3,
+    "model": "claude-a",
+    "output": 10,
+    "provider": "claude",
+    "reasoning_output": null,
+    "revision": 0,
+    "session_id": "cl-1",
+    "source_cursor": 0,
+    "source_hash": "23c18125e7a8210f49c96cd8665429154dba4a65f029de0b9eff8a5158a8dca6",
+    "terminal_evidence": true
+   }
+  ],
+  "provider": "claude",
+  "reasons": [
+   "no_terminal_event"
+  ],
+  "superseded": []
+ },
+ "provider": "claude"
+}

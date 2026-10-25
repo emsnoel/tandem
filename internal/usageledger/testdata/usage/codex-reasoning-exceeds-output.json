@@ -1,0 +1,73 @@
+{
+ "cross_check": false,
+ "description": "Reasoning larger than output contradicts subset semantics.",
+ "events": [
+  {
+   "payload": {
+    "id": "cx-1"
+   },
+   "type": "session_meta"
+  },
+  {
+   "payload": {
+    "model": "gpt-a"
+   },
+   "type": "turn_context"
+  },
+  {
+   "payload": {
+    "info": {
+     "total_token_usage": {
+      "cached_input_tokens": 0,
+      "input_tokens": 100,
+      "output_tokens": 10,
+      "reasoning_output_tokens": 15
+     }
+    },
+    "type": "token_count"
+   },
+   "type": "event_msg"
+  },
+  {
+   "payload": {
+    "type": "task_complete"
+   },
+   "type": "event_msg"
+  }
+ ],
+ "expected": {
+  "complete": false,
+  "events": [
+   {
+    "cache_read": 0,
+    "cache_write": null,
+    "components": {
+     "cumulative": {
+      "cached_input_tokens": 0,
+      "input_tokens": 100,
+      "output_tokens": 10,
+      "reasoning_output_tokens": 15
+     },
+     "segment": 0
+    },
+    "event_id": "seg0:0",
+    "input_total": 100,
+    "model": "gpt-a",
+    "output": 10,
+    "provider": "codex",
+    "reasoning_output": 15,
+    "revision": 0,
+    "session_id": "cx-1",
+    "source_cursor": 2,
+    "source_hash": "5c5fcfc90aaf8d5fa89cc26fa853fd7be3fe7ee7ca01f7c90a270040e52e6cad",
+    "terminal_evidence": true
+   }
+  ],
+  "provider": "codex",
+  "reasons": [
+   "reasoning_exceeds_output:2"
+  ],
+  "superseded": []
+ },
+ "provider": "codex"
+}

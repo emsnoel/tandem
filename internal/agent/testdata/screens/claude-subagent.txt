@@ -1,0 +1,14 @@
+ ▐▛███▛█   Claude Code v2.1.302
+▝▜██████▀  Sonnet 5.5 · Claude Pro
+ ▝▝   ▝▝   /tmp/project
+
+
+✽ Herding… (34s · ↓ 39.2k tokens)
+
+──────────────────────────────────────────────────────────────── Write chaptered apprentice story ─
+❯ Message @general-purpose…
+───────────────────────────────────────────────────────────────────────────────────────────────────
+  ↑/↓ to select
+
+  ◯ main
+❯ ⏺ general-purpose  Write chaptered apprentice story                        34s · ↑ 39.2k tokens

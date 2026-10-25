@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# tandem-init — make a repo ready for the Herdr planner/builder harness.
+#
+# Writes <repo>/.tandem.json from what tandem-project detects, and ignores the
+# relay mailbox. Safe to run in any repo; it changes nothing else.
+set -euo pipefail
+
+ROOT=""
+FORCE=0
+
+usage() { cat <<'USAGE'
+usage: tandem-init [--root DIR] [--force]
+
+Creates <repo>/.tandem.json from detected settings and adds .tandem-relay/ to
+.gitignore. Review the file afterwards — detection is a starting point.
+
+  --root DIR   repo to initialise (default: the current git repo, else $PWD)
+  --force      overwrite an existing .tandem.json
+USAGE
+}
+
+die()  { printf 'tandem-init: %s\n' "$*" >&2; exit 1; }
+info() { printf 'tandem-init: %s\n' "$*"; }
+
+while (( $# )); do
+  case "$1" in
+    --root)  ROOT="${2:-}"; shift 2 ;;
+    --force) FORCE=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) usage >&2; die "unknown argument: $1" ;;
+  esac
+done
+
+command -v jq >/dev/null 2>&1 || die "jq not found on PATH."
+command -v tandem-project >/dev/null 2>&1 || die "tandem-project not found on PATH."
+command -v tandem         >/dev/null 2>&1 || die "tandem not found on PATH; run install.sh."
+
+if [[ -z "$ROOT" ]]; then
+  ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
+  ROOT="${ROOT:-$PWD}"
+fi
+[[ -d "$ROOT" ]] || die "not a directory: $ROOT"
+
+PROJ=$(tandem-project --root "$ROOT")
+pk() { printf '%s' "$PROJ" | jq -r --arg k "$1" '.[$k] // empty'; }
+
+MANIFEST=$(tandem paths manifest --root "$ROOT") \
+  || die "the installed tandem is behind these commands (no 'tandem paths'); re-run install.sh."
+if [[ -f "$MANIFEST" && $FORCE -eq 0 ]]; then
+  info "$MANIFEST already exists; leaving it alone (--force to overwrite)."
+else
+  jq -n \
+    --arg plans_dir        "$(pk plans_dir)" \
+    --arg check_command    "$(pk check_command)" \
+    --arg conventions_file "$(pk conventions_file)" \
+    --arg builder_kind     "$(pk builder_kind)" \
+    '{plans_dir:$plans_dir, check_command:$check_command,
+      conventions_file:$conventions_file, builder_kind:$builder_kind,
+      prompt_extra:""}' > "$MANIFEST"
+  info "wrote $MANIFEST"
+fi
+
+# The mailbox holds in-flight relay traffic and must never be committed.
+GI="$ROOT/.gitignore"
+RELAY_BASE=$(tandem paths relay --root "$ROOT") \
+  || die "the installed tandem is behind these commands (no 'tandem paths'); re-run install.sh."
+RELAY_BASE=$(basename "$RELAY_BASE")
+RELAY_RE="^/?${RELAY_BASE//./\\.}/?$"
+if git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+  if [[ -f "$GI" ]] && grep -qE "$RELAY_RE" "$GI"; then
+    info ".gitignore already ignores $RELAY_BASE/"
+  else
+    printf '\n# tandem agent relay mailbox (local IPC, never committed)\n%s/\n' "$RELAY_BASE" >> "$GI"
+    info "added $RELAY_BASE/ to .gitignore"
+  fi
+else
+  info "not a git repo — skipped .gitignore (the relay will use $ROOT/$RELAY_BASE)"
+fi
+
+# tandem-ask's Q&A history is local and never committed.
+LOG_BASE=".tandem-log"
+LOG_RE="^/?${LOG_BASE//./\\.}/?$"
+if git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+  if [[ -f "$GI" ]] && grep -qE "$LOG_RE" "$GI"; then
+    info ".gitignore already ignores $LOG_BASE/"
+  else
+    printf '\n# tandem-ask durable Q&A history (local, never committed)\n%s/\n' "$LOG_BASE" >> "$GI"
+    info "added $LOG_BASE/ to .gitignore"
+  fi
+else
+  info "not a git repo — skipped .gitignore (the log will use $ROOT/$LOG_BASE)"
+fi
+
+printf '\n'
+info "resolved settings:"
+printf '%s\n' "$PROJ" | jq -r 'to_entries[] | "    \(.key): \(if .value == "" then "(none)" else .value end)"'
+printf '\n'
+[[ -n "$(pk plans_dir)"     ]] || info "NOTE no plans directory found — set plans_dir, or pass a path to tandem-handoff."
+[[ -n "$(pk check_command)" ]] || info "NOTE no check command detected — set check_command so the builder knows how to verify."
+[[ -n "$(pk conventions_file)" ]] || info "NOTE no AGENTS.md — the builder will start with no project conventions."

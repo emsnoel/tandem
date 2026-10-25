@@ -1,0 +1,187 @@
+{
+ "cross_check": false,
+ "description": "An unexplained decrease is unknown usage, never a negative contribution.",
+ "events": [
+  {
+   "payload": {
+    "id": "cx-1"
+   },
+   "type": "session_meta"
+  },
+  {
+   "payload": {
+    "model": "gpt-a"
+   },
+   "type": "turn_context"
+  },
+  {
+   "payload": {
+    "info": {
+     "total_token_usage": {
+      "cached_input_tokens": 60,
+      "input_tokens": 100,
+      "output_tokens": 10,
+      "reasoning_output_tokens": 4
+     }
+    },
+    "type": "token_count"
+   },
+   "type": "event_msg"
+  },
+  {
+   "payload": {
+    "info": {
+     "total_token_usage": {
+      "cached_input_tokens": 90,
+      "input_tokens": 150,
+      "output_tokens": 15,
+      "reasoning_output_tokens": 6
+     }
+    },
+    "type": "token_count"
+   },
+   "type": "event_msg"
+  },
+  {
+   "payload": {
+    "info": {
+     "total_token_usage": {
+      "cached_input_tokens": 20,
+      "input_tokens": 40,
+      "output_tokens": 5,
+      "reasoning_output_tokens": 1
+     }
+    },
+    "type": "token_count"
+   },
+   "type": "event_msg"
+  },
+  {
+   "payload": {
+    "info": {
+     "total_token_usage": {
+      "cached_input_tokens": 30,
+      "input_tokens": 60,
+      "output_tokens": 8,
+      "reasoning_output_tokens": 2
+     }
+    },
+    "type": "token_count"
+   },
+   "type": "event_msg"
+  },
+  {
+   "payload": {
+    "type": "task_complete"
+   },
+   "type": "event_msg"
+  }
+ ],
+ "expected": {
+  "complete": false,
+  "events": [
+   {
+    "cache_read": 60,
+    "cache_write": null,
+    "components": {
+     "cumulative": {
+      "cached_input_tokens": 60,
+      "input_tokens": 100,
+      "output_tokens": 10,
+      "reasoning_output_tokens": 4
+     },
+     "segment": 0
+    },
+    "event_id": "seg0:0",
+    "input_total": 100,
+    "model": "gpt-a",
+    "output": 10,
+    "provider": "codex",
+    "reasoning_output": 4,
+    "revision": 0,
+    "session_id": "cx-1",
+    "source_cursor": 2,
+    "source_hash": "b88c412f207c8024b172fcb70ee10fd9b9641ac73360b197db30c67c18c00ccc",
+    "terminal_evidence": true
+   },
+   {
+    "cache_read": 30,
+    "cache_write": null,
+    "components": {
+     "cumulative": {
+      "cached_input_tokens": 90,
+      "input_tokens": 150,
+      "output_tokens": 15,
+      "reasoning_output_tokens": 6
+     },
+     "segment": 0
+    },
+    "event_id": "seg0:1",
+    "input_total": 50,
+    "model": "gpt-a",
+    "output": 5,
+    "provider": "codex",
+    "reasoning_output": 2,
+    "revision": 0,
+    "session_id": "cx-1",
+    "source_cursor": 3,
+    "source_hash": "236e37d6986b6f35421854aa41ade4fe7133c0fd8cae93936c41e389ca9e791b",
+    "terminal_evidence": true
+   },
+   {
+    "cache_read": null,
+    "cache_write": null,
+    "components": {
+     "cumulative": {
+      "cached_input_tokens": 20,
+      "input_tokens": 40,
+      "output_tokens": 5,
+      "reasoning_output_tokens": 1
+     },
+     "segment": 1
+    },
+    "event_id": "seg1:0",
+    "input_total": null,
+    "model": "gpt-a",
+    "output": null,
+    "provider": "codex",
+    "reasoning_output": null,
+    "revision": 0,
+    "session_id": "cx-1",
+    "source_cursor": 4,
+    "source_hash": "743c286e921cc3581c3d1ec1372c7a5c39a5d4416eb6b00ae5cb6cd8cf82df5a",
+    "terminal_evidence": true
+   },
+   {
+    "cache_read": 10,
+    "cache_write": null,
+    "components": {
+     "cumulative": {
+      "cached_input_tokens": 30,
+      "input_tokens": 60,
+      "output_tokens": 8,
+      "reasoning_output_tokens": 2
+     },
+     "segment": 1
+    },
+    "event_id": "seg1:1",
+    "input_total": 20,
+    "model": "gpt-a",
+    "output": 3,
+    "provider": "codex",
+    "reasoning_output": 1,
+    "revision": 0,
+    "session_id": "cx-1",
+    "source_cursor": 5,
+    "source_hash": "d0263c557ac6e79c540df12c7e2c6ae01d354cca5a917075e609b9d08774600b",
+    "terminal_evidence": true
+   }
+  ],
+  "provider": "codex",
+  "reasons": [
+   "unexplained_decrease:4"
+  ],
+  "superseded": []
+ },
+ "provider": "codex"
+}

@@ -1,0 +1,54 @@
+{
+ "cross_check": false,
+ "description": "A cut-off final line is a pending tail.",
+ "events": [
+  {
+   "message": {
+    "id": "m1",
+    "model": "claude-a",
+    "stop_reason": "end_turn",
+    "usage": {
+     "cache_creation_input_tokens": 0,
+     "cache_read_input_tokens": 0,
+     "input_tokens": 3,
+     "output_tokens": 10
+    }
+   },
+   "sessionId": "cl-1",
+   "type": "assistant",
+   "uuid": "u1"
+  },
+  "{\"type\":\"assistant\",\"mess"
+ ],
+ "expected": {
+  "complete": false,
+  "events": [
+   {
+    "cache_read": 0,
+    "cache_write": 0,
+    "components": {
+     "cache_write_subtypes": {},
+     "ordinary_input": 3,
+     "unmapped": {}
+    },
+    "event_id": "m1",
+    "input_total": 3,
+    "model": "claude-a",
+    "output": 10,
+    "provider": "claude",
+    "reasoning_output": null,
+    "revision": 0,
+    "session_id": "cl-1",
+    "source_cursor": 0,
+    "source_hash": "3680e7d86cc12eeff7e8c531ad6b198ca2c7de0986e205d8e0f9d3d1e314875b",
+    "terminal_evidence": true
+   }
+  ],
+  "provider": "claude",
+  "reasons": [
+   "truncated_tail:1"
+  ],
+  "superseded": []
+ },
+ "provider": "claude"
+}

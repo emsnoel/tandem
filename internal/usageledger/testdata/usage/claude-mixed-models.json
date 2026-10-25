@@ -1,0 +1,87 @@
+{
+ "cross_check": true,
+ "description": "Each message keeps its own model.",
+ "events": [
+  {
+   "message": {
+    "id": "m1",
+    "model": "claude-a",
+    "stop_reason": "tool_use",
+    "usage": {
+     "cache_creation_input_tokens": 10,
+     "cache_read_input_tokens": 0,
+     "input_tokens": 2,
+     "output_tokens": 5
+    }
+   },
+   "sessionId": "cl-1",
+   "type": "assistant",
+   "uuid": "u1"
+  },
+  {
+   "message": {
+    "id": "m2",
+    "model": "claude-b",
+    "stop_reason": "end_turn",
+    "usage": {
+     "cache_creation_input_tokens": 0,
+     "cache_read_input_tokens": 10,
+     "input_tokens": 2,
+     "output_tokens": 6
+    }
+   },
+   "sessionId": "cl-1",
+   "type": "assistant",
+   "uuid": "u2"
+  }
+ ],
+ "expected": {
+  "complete": true,
+  "events": [
+   {
+    "cache_read": 0,
+    "cache_write": 10,
+    "components": {
+     "cache_write_subtypes": {},
+     "ordinary_input": 2,
+     "unmapped": {}
+    },
+    "event_id": "m1",
+    "input_total": 12,
+    "model": "claude-a",
+    "output": 5,
+    "provider": "claude",
+    "reasoning_output": null,
+    "revision": 0,
+    "session_id": "cl-1",
+    "source_cursor": 0,
+    "source_hash": "0e560b5034c9791916e41d3b0579c46fb16d5920be484540045e7e54ee5178ee",
+    "terminal_evidence": true
+   },
+   {
+    "cache_read": 10,
+    "cache_write": 0,
+    "components": {
+     "cache_write_subtypes": {},
+     "ordinary_input": 2,
+     "unmapped": {}
+    },
+    "event_id": "m2",
+    "input_total": 12,
+    "model": "claude-b",
+    "output": 6,
+    "provider": "claude",
+    "reasoning_output": null,
+    "revision": 0,
+    "session_id": "cl-1",
+    "source_cursor": 1,
+    "source_hash": "fd824ee90caafe402215762952b6461717b671c485c500cdacc92895af02cc18",
+    "terminal_evidence": true
+   }
+  ],
+  "provider": "claude",
+  "reasons": [],
+  "superseded": []
+ },
+ "provider": "claude"
+}

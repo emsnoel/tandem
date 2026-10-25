@@ -1,0 +1,324 @@
+{
+ "description": "One closed collaboration: a reused planner session (earlier and later work excluded, a streaming revision inside the segment), a builder whose log repeats a total, a reviewer and the builder's subagent. The Python observer and the Go ledger must both produce these hand-calculated totals.",
+ "expected": {
+  "collaboration": "collab-a",
+  "complete": true,
+  "outside_segments": {
+   "claude:cl-p": 2
+  },
+  "totals": {
+   "claude": {
+    "cache_read": 350,
+    "cache_write": 30,
+    "input_total": 386,
+    "output": 14,
+    "partial": false,
+    "reasoning_output": null
+   },
+   "codex": {
+    "cache_read": 115,
+    "cache_write": 0,
+    "input_total": 215,
+    "output": 20,
+    "partial": false,
+    "reasoning_output": 7
+   }
+  }
+ },
+ "logs": {
+  "builder": [
+   {
+    "payload": {
+     "id": "cx-b"
+    },
+    "type": "session_meta"
+   },
+   {
+    "payload": {
+     "model": "gpt-a"
+    },
+    "type": "turn_context"
+   },
+   {
+    "payload": {
+     "info": {
+      "total_token_usage": {
+       "cache_write_input_tokens": 0,
+       "cached_input_tokens": 60,
+       "input_tokens": 100,
+       "output_tokens": 10,
+       "reasoning_output_tokens": 4
+      }
+     },
+     "type": "token_count"
+    },
+    "type": "event_msg"
+   },
+   {
+    "payload": {
+     "info": {
+      "total_token_usage": {
+       "cache_write_input_tokens": 0,
+       "cached_input_tokens": 60,
+       "input_tokens": 100,
+       "output_tokens": 10,
+       "reasoning_output_tokens": 4
+      }
+     },
+     "type": "token_count"
+    },
+    "type": "event_msg"
+   },
+   {
+    "payload": {
+     "info": {
+      "total_token_usage": {
+       "cache_write_input_tokens": 0,
+       "cached_input_tokens": 90,
+       "input_tokens": 150,
+       "output_tokens": 15,
+       "reasoning_output_tokens": 6
+      }
+     },
+     "type": "token_count"
+    },
+    "type": "event_msg"
+   },
+   {
+    "payload": {
+     "type": "task_complete"
+    },
+    "type": "event_msg"
+   }
+  ],
+  "planner": [
+   {
+    "message": {
+     "id": "m1",
+     "model": "claude-a",
+     "stop_reason": "end_turn",
+     "usage": {
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "input_tokens": 1000,
+      "output_tokens": 100
+     }
+    },
+    "sessionId": "cl-p",
+    "type": "assistant",
+    "uuid": "u1"
+   },
+   {
+    "message": {
+     "id": "m2",
+     "model": "claude-a",
+     "stop_reason": "tool_use",
+     "usage": {
+      "cache_creation_input_tokens": 10,
+      "cache_read_input_tokens": 100,
+      "input_tokens": 2,
+      "output_tokens": 5,
+      "output_tokens_details": {
+       "thinking_tokens": 2
+      }
+     }
+    },
+    "sessionId": "cl-p",
+    "type": "assistant",
+    "uuid": "u2"
+   },
+   {
+    "message": {
+     "id": "m3",
+     "model": "claude-a",
+     "stop_reason": null,
+     "usage": {
+      "cache_creation_input_tokens": 20,
+      "cache_read_input_tokens": 110,
+      "input_tokens": 3,
+      "output_tokens": 1
+     }
+    },
+    "sessionId": "cl-p",
+    "type": "assistant",
+    "uuid": "u3"
+   },
+   {
+    "message": {
+     "id": "m3",
+     "model": "claude-a",
+     "stop_reason": "end_turn",
+     "usage": {
+      "cache_creation_input_tokens": 20,
+      "cache_read_input_tokens": 110,
+      "input_tokens": 3,
+      "output_tokens": 7,
+      "output_tokens_details": {
+       "thinking_tokens": 3
+      }
+     }
+    },
+    "sessionId": "cl-p",
+    "type": "assistant",
+    "uuid": "u3b"
+   },
+   {
+    "message": {
+     "id": "m4",
+     "model": "claude-a",
+     "stop_reason": "end_turn",
+     "usage": {
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 140,
+      "input_tokens": 1,
+      "output_tokens": 2
+     }
+    },
+    "sessionId": "cl-p",
+    "type": "assistant",
+    "uuid": "u4"
+   },
+   {
+    "message": {
+     "id": "m5",
+     "model": "claude-a",
+     "stop_reason": "end_turn",
+     "usage": {
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "input_tokens": 500,
+      "output_tokens": 50
+     }
+    },
+    "sessionId": "cl-p",
+    "type": "assistant",
+    "uuid": "u5"
+   }
+  ],
+  "reviewer": [
+   {
+    "payload": {
+     "id": "cx-r"
+    },
+    "type": "session_meta"
+   },
+   {
+    "payload": {
+     "model": "gpt-a"
+    },
+    "type": "turn_context"
+   },
+   {
+    "payload": {
+     "info": {
+      "total_token_usage": {
+       "cache_write_input_tokens": 0,
+       "cached_input_tokens": 20,
+       "input_tokens": 40,
+       "output_tokens": 3,
+       "reasoning_output_tokens": 1
+      }
+     },
+     "type": "token_count"
+    },
+    "type": "event_msg"
+   },
+   {
+    "payload": {
+     "type": "task_complete"
+    },
+    "type": "event_msg"
+   }
+  ],
+  "subagent": [
+   {
+    "payload": {
+     "id": "cx-c"
+    },
+    "type": "session_meta"
+   },
+   {
+    "payload": {
+     "model": "gpt-b"
+    },
+    "type": "turn_context"
+   },
+   {
+    "payload": {
+     "info": {
+      "total_token_usage": {
+       "cache_write_input_tokens": 0,
+       "cached_input_tokens": 5,
+       "input_tokens": 25,
+       "output_tokens": 2,
+       "reasoning_output_tokens": 0
+      }
+     },
+     "type": "token_count"
+    },
+    "type": "event_msg"
+   },
+   {
+    "payload": {
+     "type": "task_complete"
+    },
+    "type": "event_msg"
+   }
+  ]
+ },
+ "registry": {
+  "campaign_id": "camp-1",
+  "collaborations": {
+   "collab-a": {
+    "closeout": "done",
+    "state": "closed"
+   }
+  },
+  "schema_version": 2,
+  "sources": [
+   {
+    "provider": "claude",
+    "role": "planner",
+    "segments": [
+     {
+      "end_through": "m4",
+      "owner": "collab-a",
+      "start_after": "m1"
+     }
+    ],
+    "session_id": "cl-p",
+    "source_id": "planner"
+   },
+   {
+    "owner": "collab-a",
+    "provider": "codex",
+    "role": "builder",
+    "session_id": "cx-b",
+    "source_id": "builder",
+    "terminal": {
+     "through_event": "seg0:2"
+    }
+   },
+   {
+    "owner": "collab-a",
+    "provider": "codex",
+    "role": "reviewer",
+    "session_id": "cx-r",
+    "source_id": "reviewer",
+    "terminal": {
+     "through_event": "seg0:0"
+    }
+   },
+   {
+    "parent_source_id": "builder",
+    "provider": "codex",
+    "role": "subagent",
+    "session_id": "cx-c",
+    "source_id": "subagent",
+    "terminal": {
+     "through_event": "seg0:0"
+    }
+   }
+  ]
+ }
+}
