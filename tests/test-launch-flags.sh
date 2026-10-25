@@ -5,7 +5,8 @@
 # this check while a builder is live, so it must need no server or panes.
 set -uo pipefail
 . "$(cd "$(dirname "$0")" && pwd)/lib/records.sh"
-PAIR="${1:-$(cd "$(dirname "$0")/.." && pwd)/bin/tandem-pair}"
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+PAIR="${1:-$ROOT/bin/tandem-pair}"
 [ -x "$PAIR" ] || { echo "not executable: $PAIR" >&2; exit 2; }
 
 PASS=0; FAIL=0
@@ -22,8 +23,8 @@ printf '{"projects":{"%s":{"hasTrustDialogAccepted":true}}}\n' "$REPO_PHYS" \
 
 # Build from this tree into $TMP/bin; test-staleness.sh checks the installed
 # binary separately.
-GOCACHE="$TMP/go-cache" GOMODCACHE="$TMP/go-mod-cache" \
-  go build -o "$TMP/bin/tandem" ./cmd/tandem \
+GOCACHE="${GOCACHE_OVERRIDE:-$ROOT/.gocache}" GOMODCACHE="${GOMODCACHE_OVERRIDE:-$ROOT/.gocache/mod}" \
+  go -C "$ROOT" build -o "$TMP/bin/tandem" ./cmd/tandem \
   || { echo "could not build tandem for the fixture" >&2; exit 2; }
 
 # A planner-only session: one claude agent in a wide pane, so the split

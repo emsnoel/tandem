@@ -3,8 +3,8 @@
 # kinds. This catches hand-written kind lists in tandem-pair's help, README.md
 # and tests/test-cli-drift.sh that drift from it.
 #
-# Hermetic: builds tandem from this tree into a temp cache, so `tandem agent
-# kinds` reflects this checkout.
+# Hermetic: builds tandem from this tree, so `tandem agent kinds` reflects
+# this checkout.
 set -uo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT" || exit 2
@@ -14,7 +14,7 @@ ok()   { printf '  ok   %s\n' "$1"; PASS=$((PASS+1)); }
 nope() { printf '  FAIL %s\n' "$1"; FAIL=$((FAIL+1)); }
 
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
-GOCACHE="$TMP/go-cache" GOMODCACHE="$TMP/go-mod-cache" \
+GOCACHE="${GOCACHE_OVERRIDE:-$ROOT/.gocache}" GOMODCACHE="${GOMODCACHE_OVERRIDE:-$ROOT/.gocache/mod}" \
   go build -o "$TMP/tandem" ./cmd/tandem \
   || { echo "could not build tandem for the fixture" >&2; exit 2; }
 
