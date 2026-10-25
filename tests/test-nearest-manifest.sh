@@ -3,7 +3,7 @@
 # This runs the real walk: a nested git repo, the real tandem binary and the
 # real bin/tandem-project.
 #
-# Hermetic: builds tandem from this tree into a temp cache.
+# Hermetic: builds tandem from this tree.
 set -uo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT" || exit 2
@@ -16,7 +16,7 @@ command -v jq >/dev/null || { echo "need jq" >&2; exit 2; }
 
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/bin"
-GOCACHE="$TMP/go-cache" GOMODCACHE="$TMP/go-mod-cache" \
+GOCACHE="${GOCACHE_OVERRIDE:-$ROOT/.gocache}" GOMODCACHE="${GOMODCACHE_OVERRIDE:-$ROOT/.gocache/mod}" \
   go build -o "$TMP/bin/tandem" ./cmd/tandem \
   || { echo "could not build tandem for the fixture" >&2; exit 2; }
 ln -s "$ROOT/bin/tandem-project" "$TMP/bin/tandem-project"
