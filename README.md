@@ -1438,6 +1438,10 @@ Read it before changing the relay or the launch prompt.
 
 MIT — see [LICENSE](LICENSE).
 
+The `tandem` binary links Go modules under MIT and BSD-3-Clause licenses, and
+SQLite, which is public domain. Each release tarball carries their notices in
+`THIRD_PARTY_NOTICES`, generated from the binary at packaging time.
+
 ## Durable state
 
 What separates the legacy and durable build engines is in

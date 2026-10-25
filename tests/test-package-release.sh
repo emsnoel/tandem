@@ -54,6 +54,21 @@ GOT=$("$TMP/x/tandem/tandem" version --hash 2>&1)
 [ "$GOT" = "$HASH" ] && ok "the binary is stamped with the full source hash" || nope "tandem version --hash printed '$GOT'"
 [ "$(cat "$TMP/x/tandem/VERSION")" = "v9.9.9" ] && ok "VERSION names the tag" || nope "VERSION reads '$(cat "$TMP/x/tandem/VERSION")'"
 
+# Every module linked into the binary, and Go itself, has its notice shipped.
+NOTICES="$TMP/x/tandem/THIRD_PARTY_NOTICES"
+if [ -s "$NOTICES" ]; then
+  ok "the tarball holds THIRD_PARTY_NOTICES"
+  DEPS=$(go version -m "$TMP/x/tandem/tandem" | awk '$1 == "dep" { print $2 "@" $3 }')
+  [ -n "$DEPS" ] || nope "the binary lists no dependencies"
+  for dep in $DEPS; do
+    grep -qxF "== $dep ==" "$NOTICES" && ok "the notices cover $dep" || nope "the notices miss $dep"
+  done
+  grep -qx '== Go standard library ==' "$NOTICES" && grep -q 'The Go Authors' "$NOTICES" \
+    && ok "the notices cover the Go standard library" || nope "the notices miss the Go standard library"
+else
+  nope "the tarball has no THIRD_PARTY_NOTICES"
+fi
+
 for bad in 9.9.9 v9.9; do
   "$PKG" "$bad" "$TMP/bad" "$HOST" >/dev/null 2>&1; RC=$?
   [ "$RC" -eq 2 ] && ok "refuses the malformed tag $bad" || nope "tag $bad exited $RC, want 2"
