@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.0](https://github.com/emsnoel/tandem/compare/v0.1.0...v0.2.0) (2026-10-26)
+
+
+### Features
+
+* add install.sh --uninstall ([0728ee8](https://github.com/emsnoel/tandem/commit/0728ee88f3cee57be97b7eb0d62c13509057c9dc))
+* add install.sh --uninstall ([efee341](https://github.com/emsnoel/tandem/commit/efee3413fb191aa7ee55719337aa82b4c764c68d))
+
 ## 0.1.0 (2026-10-25)
 
 
