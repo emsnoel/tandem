@@ -3,6 +3,7 @@
 #
 #   install.sh [--version vX.Y.Z] [DEST]     a prebuilt release (the default)
 #   install.sh --from-source [DEST]          build this checkout; needs Go
+#   install.sh --uninstall [DEST]            remove what either install made
 #
 # A release is downloaded from GitHub, checked against its SHA256SUMS, unpacked
 # into a versioned share directory, and linked into DEST. It needs curl, not Go.
@@ -20,10 +21,56 @@ main() {
 usage() {
   printf 'usage: install.sh [--version vX.Y.Z] [DEST]\n' >&2
   printf '       install.sh --from-source [DEST]\n' >&2
+  printf '       install.sh --uninstall [DEST]\n' >&2
   exit 2
 }
 die() { printf 'install: FATAL %s\n' "$*" >&2; exit 1; }
 is_tag() { printf '%s\n' "$1" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; }
+
+# --- uninstall ---------------------------------------------------------------
+# Removes only what an install made: links into the share directory or into a
+# checkout, a tandem binary built from source, and the release directories.
+# Configs, .bak copies and other files are kept and named.
+uninstall() {
+  local f t d name removed=0
+  for f in "$DEST"/tandem "$DEST"/tandem-*; do
+    [ -e "$f" ] || [ -L "$f" ] || continue
+    name=$(basename "$f")
+    case "$name" in *.bak.*) continue ;; esac
+    if [ -L "$f" ]; then
+      t=$(readlink "$f")
+      case "$t" in
+        "$SHARE"/*) ;;
+        */bin/"$name") [ -f "${t%/bin/*}/bin/lib/source-hash.sh" ] || continue ;;
+        *) continue ;;
+      esac
+    else
+      if [ "$name" != tandem ] || ! "$f" version 2>/dev/null | grep -q '^tandem '; then continue; fi
+    fi
+    rm -f "$f"; removed=$((removed+1))
+  done
+  [ "$removed" -eq 0 ] || printf 'install: removed %d commands from %s\n' "$removed" "$DEST"
+
+  if [ -L "$SHARE/current" ]; then rm -f "$SHARE/current"; removed=$((removed+1)); fi
+  # Only release directories go: TANDEM_SHARE_DIR may hold other folders.
+  for d in "$SHARE"/v*; do
+    name=$(basename "$d")
+    if [ -d "$d" ] && [ ! -L "$d" ] && is_tag "$name"; then
+      rm -rf "$d"; removed=$((removed+1))
+      printf 'install: removed %s\n' "$d"
+    fi
+  done
+  rmdir "$SHARE" 2>/dev/null || true
+  [ "$removed" -gt 0 ] || printf 'install: nothing to remove in %s or %s.\n' "$DEST" "$SHARE"
+
+  for f in "$DEST"/tandem*.bak.*; do
+    [ -e "$f" ] && printf 'install: kept %s, a file the install moved aside; rename it to restore it.\n' "$f"
+  done
+  [ -e "$CONFIG" ] && printf 'install: kept %s; Herdr reads it.\n' "$CONFIG"
+  [ -e "$HOME/.config/herdr/tandem.json" ] && printf 'install: kept %s, your tandem settings.\n' "$HOME/.config/herdr/tandem.json"
+  printf 'install: trust entries tandem added for agent CLIs are per repo and stay.\n'
+  printf 'install: tandem-unpair --clean-trust removes them; reinstall to run it if you need to.\n'
+}
 
 # Empty when piped into bash: there is no checkout to build from or link to.
 SELF="${BASH_SOURCE[0]:-}"
@@ -33,7 +80,8 @@ SRC=""
 MODE=release; WANT=""; DEST=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --from-source) MODE=source ;;
+    --from-source) [ "$MODE" = release ] || usage; MODE=source ;;
+    --uninstall)   [ "$MODE" = release ] || usage; MODE=uninstall ;;
     --version)     [ "$#" -ge 2 ] || usage; WANT=$2; shift ;;
     -*)            usage ;;
     *)             [ -z "$DEST" ] || usage; DEST=$1 ;;
@@ -45,6 +93,10 @@ if [ -n "$WANT" ]; then
   [ "$MODE" = release ] || usage
   is_tag "$WANT" || usage
 fi
+SHARE="${TANDEM_SHARE_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/tandem}"
+CONFIG="${HERDR_CONFIG_PATH:-$HOME/.config/herdr/config.toml}"
+
+if [ "$MODE" = uninstall ]; then uninstall; return; fi
 
 command -v jq >/dev/null 2>&1 || {
   printf 'install: FATAL jq is not on PATH.\n' >&2
@@ -102,7 +154,6 @@ install_release() {
   is_tag "$v" || die "the release's VERSION file reads '$v', which is not a tag. Nothing was installed."
   [ -z "$WANT" ] || [ "$v" = "$WANT" ] || die "asked for $WANT but the release says it is $v."
 
-  SHARE="${TANDEM_SHARE_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/tandem}"
   mkdir -p "$SHARE"
   rm -rf "${SHARE:?}/$v"
   mv "$WORK/unpack/tandem" "$SHARE/$v"
@@ -176,7 +227,6 @@ esac
 
 # --- Herdr config ---
 # Never overwrite an existing config.
-CONFIG="${HERDR_CONFIG_PATH:-$HOME/.config/herdr/config.toml}"
 EXAMPLE="$PAYLOAD/config/config.toml.example"
 
 printf '\n'

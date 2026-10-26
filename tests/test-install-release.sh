@@ -147,8 +147,48 @@ for bad in .. ""; do
     || nope "VERSION '$bad' deleted folders outside the release"
 done
 
+# --- uninstall ---------------------------------------------------------------
+# Only what an install made goes; other files in DEST and the share directory,
+# the Herdr config and the .bak copies stay.
+inst -- "$DEST" >/dev/null
+mkdir -p "$SHARE/other-app"
+ln -sfn /bin/ls "$DEST/ls-link"; printf 'mine\n' > "$DEST/tandem-notes"
+printf 'old\n' > "$DEST/tandem-ask.bak.20260101000000"
+OUT=$(inst -- --uninstall "$DEST"); RC=$?
+[ "$RC" -eq 0 ] && ok "--uninstall removes a release install" || nope "--uninstall failed (rc $RC): $OUT"
+LEFT=$(find "$DEST" -name 'tandem*' -type l | tr '\n' ' ')
+[ -z "$LEFT" ] && ok "and every tandem link in DEST" || nope "links left: $LEFT"
+[ ! -e "$SHARE/current" ] && [ ! -e "$SHARE/v9.9.9" ] && ok "and the release in the share directory" \
+  || nope "the share directory holds: $(ls "$SHARE" | tr '\n' ' ')"
+[ -d "$SHARE/other-app" ] && ok "but keeps other folders in the share directory" || nope "it deleted other-app"
+[ -L "$DEST/ls-link" ] && [ -f "$DEST/tandem-notes" ] && ok "and files in DEST that are not tandem's" \
+  || nope "it deleted files that are not tandem's: $(ls "$DEST" | tr '\n' ' ')"
+[ -f "$DEST/tandem-ask.bak.20260101000000" ] && ok "and the .bak copies" || nope "it deleted a .bak copy"
+case "$OUT" in *"tandem-ask.bak.20260101000000"*) ok "naming them" ;; *) nope "the .bak copy is not named: $OUT" ;; esac
+[ -f "$TMP/herdr/config.toml" ] && ok "and the Herdr config" || nope "it deleted the Herdr config"
+case "$OUT" in *"$TMP/herdr/config.toml"*) ok "naming it" ;; *) nope "the Herdr config is not named: $OUT" ;; esac
+case "$OUT" in *"--clean-trust"*) ok "and says how to clear trust entries" ;; *) nope "no trust hint: $OUT" ;; esac
+rm -rf "$SHARE/other-app" "$DEST/ls-link" "$DEST/tandem-notes" "$DEST/tandem-ask.bak.20260101000000"
+
+OUT=$(inst -- --uninstall "$DEST"); RC=$?
+case "$RC:$OUT" in 0:*"nothing to remove"*) ok "a second --uninstall has nothing to remove" ;;
+  *) nope "a second --uninstall gave rc $RC: $OUT" ;; esac
+
+OUT=$(env TANDEM_SHARE_DIR="$SHARE" HERDR_CONFIG_PATH="$TMP/herdr/config.toml" "$ROOT/install.sh" --from-source "$DEST" 2>&1) \
+  || nope "could not build the source install to remove: $OUT"
+OUT=$(inst -- --uninstall "$DEST"); RC=$?
+[ "$RC" -eq 0 ] && [ -z "$(ls "$DEST")" ] && ok "--uninstall removes a source install" \
+  || nope "a source install left (rc $RC): $(ls "$DEST" | tr '\n' ' ') $OUT"
+[ -x "$ROOT/bin/tandem-ask" ] && ok "and leaves the checkout alone" || nope "it deleted the checkout's commands"
+
+inst -- "$DEST" >/dev/null
+OUT=$(env TANDEM_SHARE_DIR="$SHARE" HERDR_CONFIG_PATH="$TMP/herdr/config.toml" \
+      bash -s -- --uninstall "$DEST" < "$ROOT/install.sh" 2>&1); RC=$?
+[ "$RC" -eq 0 ] && [ -z "$(ls "$DEST")" ] && ok "--uninstall works piped into bash" \
+  || nope "piped --uninstall left (rc $RC): $(ls "$DEST" | tr '\n' ' ') $OUT"
+
 # --- bad arguments ----------------------------------------------------------
-for args in "--version 1.0" "--bogus" "--from-source --version v1.0.0"; do
+for args in "--version 1.0" "--bogus" "--from-source --version v1.0.0" "--uninstall --from-source" "--uninstall --version v1.0.0"; do
   # shellcheck disable=SC2086
   inst -- $args "$DEST" >/dev/null; RC=$?
   [ "$RC" -eq 2 ] && ok "refuses '$args' as usage" || nope "'$args' exited $RC, want 2"

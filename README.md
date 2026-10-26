@@ -67,6 +67,19 @@ command, which `tandem-unpair` runs before any teardown. You will be told, rathe
 quietly running yesterday's gates. `tandem version` prints `dev` for a source build and
 the tag for a release.
 
+### Uninstalling
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/emsnoel/tandem/main/install.sh | bash -s -- --uninstall
+```
+
+From a checkout, run `./install.sh --uninstall`. Pass the destination too if you installed
+somewhere other than `~/.local/bin`. It removes the command links and the release
+directory, or the source build, and nothing else in that directory. It keeps the Herdr
+config, `~/.config/herdr/tandem.json` and any `.bak` copies the install made, and names
+each one. The trust entries tandem added to agent CLIs are per repo. Run
+`tandem-unpair --clean-trust` in each paired repo first if you want them gone.
+
 Versions follow [guide/versioning.md](guide/versioning.md), and
 [guide/releasing.md](guide/releasing.md) says how a release is cut.
 
