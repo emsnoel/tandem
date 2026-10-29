@@ -562,7 +562,7 @@ fi
 # One record that tandem-verdict and the gate read, so they never resolve the
 # values again and disagree. It is resolved with the same override flags as the
 # launch spec. For an adopted builder it records what tandem asked for, which
-# may differ from how the agent was started (see README.md). A dry run resolves
+# may differ from how the agent was started (see guide/refusals.md). A dry run resolves
 # it too, to show the record a real run would write.
 _res=$(tandem config resolve --role builder --root "$ROOT" --cwd "$SPLIT_CWD" \
   ${OV_BUILDER_KIND:+--kind "$OV_BUILDER_KIND"} \

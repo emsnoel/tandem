@@ -98,7 +98,7 @@ handback being signed off must pre-date the check that verified it.**
 
 The working-tree half of that snapshot is git's own `status --porcelain`, scoped to
 `check_paths` when a repo declares one (`.tandem.json`, optional — see "Per-project
-configuration" in the README) and to the whole tree otherwise. Scoping only ever narrows
+configuration" in guide/configuration.md) and to the whole tree otherwise. Scoping only ever narrows
 what counts as a change: a repo that declares `check_paths` is trading completeness for
 accuracy on purpose, on the assumption that `check_command` only ever exercises those
 paths — an edit outside them during the check is no longer evidence the check's result is

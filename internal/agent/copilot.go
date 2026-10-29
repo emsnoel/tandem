@@ -8,7 +8,7 @@ func init() { Register(copilotAdapter{}) }
 // cannot be commanded: there is no --permission-mode, and manual approval
 // comes from `defaultPermissionMode` in ~/.copilot/settings.json. So `ask` is
 // the absence of every autonomy flag, and a machine set to allow-all runs more
-// permissively than asked. The README says so.
+// permissively than asked. guide/configuration.md says so.
 type copilotAdapter struct{}
 
 func (copilotAdapter) Kind() string { return "copilot" }
