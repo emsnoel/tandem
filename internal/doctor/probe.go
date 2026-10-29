@@ -33,7 +33,11 @@ func (RealProbe) LookPath(bin string) (string, error) { return exec.LookPath(bin
 
 // CLIVersion returns the first line of `bin --version`.
 func (RealProbe) CLIVersion(ctx context.Context, bin string) (string, error) {
-	out, err := exec.CommandContext(ctx, bin, "--version").Output()
+	cmd := exec.CommandContext(ctx, bin, "--version")
+	// A killed CLI can leave a child holding its output open; stop waiting for
+	// it a second after the kill, as internal/herdr does.
+	cmd.WaitDelay = time.Second
+	out, err := cmd.Output()
 	if err != nil {
 		return "", err
 	}

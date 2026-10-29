@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"unicode"
 
 	"github.com/emsnoel/tandem/internal/herdr"
 )
@@ -125,6 +127,13 @@ func cli(p Probe, kind, roles string) Result {
 		r.Status, r.Detail = Warn, kind+" on PATH, version unreadable: "+err.Error()+" ("+roles+")"
 		r.Fix = "check that `" + kind + " --version` runs"
 		return r
+	}
+	// Some CLIs start with the number; name the kind first so the line stands
+	// alone, unless the text before the number already names it.
+	v = strings.TrimSuffix(v, ".")
+	lead := v[:strings.IndexFunc(v+"0", unicode.IsDigit)]
+	if !strings.Contains(strings.ToLower(lead), kind) {
+		v = kind + " " + v
 	}
 	r.Status, r.Detail = OK, v+" on PATH ("+roles+")"
 	return r

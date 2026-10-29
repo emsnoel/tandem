@@ -193,3 +193,20 @@ func TestSharedKindListedOnce(t *testing.T) {
 		t.Fatalf("got %d cli:codex results, want 1", n)
 	}
 }
+
+// The version line names the CLI even when its --version output does not.
+func TestCLIDetailNamesTheKind(t *testing.T) {
+	p := healthy()
+	p.onPath["claude"] = "2.1.312 (Claude Code)"
+	if r := find(t, Machine(p, codexBuilder, inPane), "cli:claude"); !strings.HasPrefix(r.Detail, "claude 2.1.312") {
+		t.Errorf("claude: detail %q", r.Detail)
+	}
+	if r := find(t, Machine(p, codexBuilder, inPane), "cli:codex"); !strings.HasPrefix(r.Detail, "codex-cli 0.5.0") {
+		t.Errorf("codex: detail %q should not repeat the kind", r.Detail)
+	}
+	uses := Uses{"copilot": {agent.RoleBuilder}}
+	p.onPath["copilot"] = "GitHub Copilot CLI 1.0.103-0."
+	if r := find(t, Machine(p, uses, inPane), "cli:copilot"); !strings.HasPrefix(r.Detail, "GitHub Copilot CLI 1.0.103-0 on PATH") {
+		t.Errorf("copilot: detail %q", r.Detail)
+	}
+}

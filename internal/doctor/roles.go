@@ -1,6 +1,7 @@
 package doctor
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/emsnoel/tandem/internal/agent"
@@ -34,9 +35,10 @@ func ResolveRoles(root string, flags RoleFlags, getenv func(string) string) (Rol
 	if err != nil {
 		return Roles{}, err
 	}
-	user, err := config.LoadUser(config.UserConfigPath())
+	userPath := config.UserConfigPath()
+	user, err := config.LoadUser(userPath)
 	if err != nil {
-		return Roles{}, err
+		return Roles{}, fmt.Errorf("%s: %w", userPath, err)
 	}
 	if _, err := os.Stat(manifest); err != nil {
 		manifest = ""

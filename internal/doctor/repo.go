@@ -24,8 +24,8 @@ func Repo(root, cwd string, r Roles, getenv func(string) string) []Result {
 			rs = append(rs, approval(r.user, root, res))
 		}
 	}
-	for _, res := range r.launched() {
-		rs = append(rs, gates(r.user, root, cwd, res, getenv)...)
+	for _, kind := range r.Uses().kinds() {
+		rs = append(rs, gates(r, root, cwd, kind, getenv)...)
 	}
 	for _, res := range r.launched() {
 		rs = append(rs, launch(res, cwd))
@@ -56,8 +56,13 @@ func reviewer(rr config.ReviewerResolution) Result {
 		return Result{Name: "reviewer", Status: OK,
 			Detail: "reviewer: " + rr.Resolved.Kind.Value + " (" + from(rr.Resolved.Kind) + ")"}
 	}
-	return Result{Name: "reviewer", Status: Fail,
-		Detail: "reviewer is " + string(rr.Status) + ": " + rr.Reason, Fix: config.NoReviewerRemedy}
+	// The "none" reason repeats the remedy and names a flag doctor lacks, so
+	// it is not shown. An invalid reviewer's reason says what is wrong.
+	detail := "no reviewer declared"
+	if rr.Status == config.ReviewerInvalid {
+		detail = "reviewer: " + rr.Reason
+	}
+	return Result{Name: "reviewer", Status: Fail, Detail: detail, Fix: config.NoReviewerRemedy}
 }
 
 func approval(user *config.User, root string, res config.Resolved) Result {
@@ -72,33 +77,53 @@ func approval(user *config.User, root string, res config.Resolved) Result {
 	return r
 }
 
-// gates runs every trust gate for res's kind without writing, and grades each
-// finding the way `tandem agent prelaunch` does.
-func gates(user *config.User, root, cwd string, res config.Resolved, getenv func(string) string) []Result {
+// gates runs every trust gate for kind once, without writing. A gate reads
+// the kind's own config for cwd, so the role changes only the grade: the
+// strictest role using the kind decides it, as `tandem agent prelaunch` would.
+func gates(r Roles, root, cwd, kind string, getenv func(string) string) []Result {
+	role, authorised := agent.RolePlanner, true
+	for _, res := range r.launched() {
+		if res.Kind.Value != kind {
+			continue
+		}
+		if res.Role.Unattended() {
+			role = res.Role
+		}
+		if r.user.NeedsApproval(root, res) {
+			authorised = false
+		}
+	}
+	roles := r.Uses().roles(kind)
 	var rs []Result
-	actions := trust.CheckWithOptions(res.Kind.Value, cwd, res.Role, trust.Options{
+	actions := trust.CheckWithOptions(kind, cwd, role, trust.Options{
 		DryRun:      true,
-		Authorised:  !user.NeedsApproval(root, res),
+		Authorised:  authorised,
 		StrictHooks: getenv("HERDR_STRICT_HOOK_CHECK") == "1",
 	})
 	for _, a := range actions {
-		r := Result{Name: "trust:" + string(res.Role) + ":" + a.Gate,
-			Detail: res.Kind.Value + " " + a.Gate + ": " + a.Detail, Fix: a.Remedy}
+		res := Result{Name: "trust:" + kind + ":" + a.Gate,
+			Detail: kind + " " + a.Gate + ": " + a.Detail + " (" + roles + ")", Fix: a.Remedy}
 		switch {
 		case a.Status == agent.StatusAbsent:
 			// The CLI check already reports a missing tool.
 			continue
-		case trust.Blocks(res.Role, a), a.Status == agent.StatusFailed:
-			r.Status = Fail
-		case a.Status == agent.StatusManual, a.Status == agent.StatusWarning:
-			r.Status = Warn
+		case trust.Blocks(role, a) && getenv("HERDR_SKIP_HOOK_CHECK") == "1":
+			// tandem-pair launches past any gate refusal with this set.
+			res.Status = Warn
+			res.Detail += "; HERDR_SKIP_HOOK_CHECK=1 lets tandem-pair launch anyway"
+		case trust.Blocks(role, a):
+			res.Status = Fail
+		case a.Status == agent.StatusManual, a.Status == agent.StatusWarning, a.Status == agent.StatusFailed:
+			// A gate that could not read its tool's config does not stop
+			// prelaunch either.
+			res.Status = Warn
 		default:
-			r.Status, r.Fix = OK, ""
+			res.Status, res.Fix = OK, ""
 		}
-		if r.Status != OK && r.Fix == "" {
-			r.Fix = "see " + a.Target
+		if res.Status != OK && res.Fix == "" {
+			res.Fix = "see " + a.Target
 		}
-		rs = append(rs, r)
+		rs = append(rs, res)
 	}
 	return rs
 }

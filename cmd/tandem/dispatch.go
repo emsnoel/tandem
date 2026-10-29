@@ -28,7 +28,7 @@ const delegatePrefix = "tandem-"
 
 // coreSubcommands are the verbs this binary answers itself, for usage output.
 // run() is the authority.
-var coreSubcommands = []string{"agent", "artifact", "build", "check", "collaboration", "config", "decision", "gate", "hooks", "pane", "paths", "reviewer", "state", "tab", "task", "triage", "trust", "usage", "version"}
+var coreSubcommands = []string{"agent", "artifact", "build", "check", "collaboration", "config", "decision", "doctor", "gate", "hooks", "pane", "paths", "reviewer", "state", "tab", "task", "triage", "trust", "usage", "version"}
 
 // validVerb reports whether verb may be joined to delegatePrefix and looked up
 // on PATH. exec.LookPath treats anything with a separator as a path, so only a
