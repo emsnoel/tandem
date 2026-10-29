@@ -35,6 +35,15 @@ parts you want. The commands work without any of those settings. They only add
 keybindings, notifications and the role rows in the sidebar. Set `HERDR_CONFIG_PATH` if you
 keep the config somewhere else.
 
+Then check your setup from the repo you want to pair in:
+
+```bash
+tandem doctor
+```
+
+It lists anything that would stop a pairing, such as a missing Herdr integration or agent
+CLI, with the command that fixes it.
+
 ## Building from source
 
 To work on tandem itself, clone it and install from the checkout. This needs Go 1.26 or

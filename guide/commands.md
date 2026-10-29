@@ -40,12 +40,43 @@ those paths, so they skip the extra hop.
   `.tandem.json`.
 - `--approve-kind KIND` approves a kind the repository asked for. Repeat it to approve the
   builder's and the reviewer's kinds in one run.
+- `--skip-doctor` pairs without running `tandem doctor` first.
 
 You need a reviewer. Every plan review and every task review goes to the reviewer pane, on
 both build engines, so the builder can run a cheap model and the reviewer a strong one.
-With no `reviewer` block and no `--reviewer`, `tandem-pair` still pairs and prints a warning,
-but reviews and builds refuse until you declare a reviewer. See
+With no `reviewer` block and no `--reviewer`, `tandem doctor` reports a failure and
+`tandem-pair` stops before it opens a pane. `tandem-pair --skip-doctor` pairs without one, but
+reviews and builds refuse until you declare a reviewer. See
 [Choosing an agent](configuration.md#choosing-an-agent) and `guide/architecture/review-handback.md`.
+
+## Checking your setup
+
+`tandem doctor` checks this machine and the current repository for everything that would stop
+a pairing. It prints each problem with the command or step that fixes it, and it writes
+nothing. Run it from the repo you want to pair in. It uses the git toplevel as the repo, the
+same as `tandem-pair`.
+
+It checks these things:
+
+- Herdr is 0.9.3 or later, its socket answers, and this shell runs inside a Herdr pane.
+- Herdr's integration is installed for each agent kind this repo uses.
+- Each of those agent CLIs is on `PATH`, and prints a version.
+- Each kind that `.tandem.json` asks for is one you approved for this repo.
+- Each agent's trust dialog for this folder is already accepted.
+- A reviewer is declared.
+- Each role's model, effort and autonomy map to its CLI's flags.
+
+Each line reads `ok`, `warn` or `FAIL`. A warning doesn't stop a pairing. With
+`HERDR_SKIP_HOOK_CHECK=1` set, `tandem-pair` launches past a trust dialog, so doctor reports
+that dialog as a warning instead of a failure. `tandem doctor`
+exits 0 when nothing fails and 30 when something does. `--json` prints the same results as
+JSON: a `results` list with `group`, `name`, `status`, `detail` and `fix` for each check, and
+`failures` and `warnings` counts.
+
+`tandem doctor` takes the kind flags `tandem-pair` takes: `--builder`, `--builder-model`,
+`--builder-effort`, `--builder-autonomy`, `--reviewer`, `--reviewer-model` and
+`--reviewer-effort`. `--cwd DIR` checks another folder. `tandem-pair` runs `tandem doctor`
+with its own flags before it opens any pane, and stops if doctor exits 30.
 
 ## Subcommands of the binary
 
