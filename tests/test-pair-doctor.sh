@@ -40,6 +40,9 @@ STUB
 # the real binary.
 cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
+if [ "${1:-} ${2:-}" = "agent prelaunch" ]; then
+  printf '%s\n' "$*" >> "$DOCTOR_LOG.prelaunch"
+fi
 if [ "${1:-}" = doctor ]; then
   printf '%s\n' "$*" >> "$DOCTOR_LOG"
   echo "DOCTOR-OUTPUT"
@@ -56,7 +59,7 @@ DOCTOR_LOG="$TMP/doctor.log"; export DOCTOR_LOG
 # pair RC ARGS...: run tandem-pair with doctor answering RC. Sets OUT and PAIR_RC.
 pair() {
   local rc="$1"; shift
-  : > "$DOCTOR_LOG"
+  : > "$DOCTOR_LOG"; : > "$DOCTOR_LOG.prelaunch"
   PAIR_RC=0
   OUT=$(cd "$REPO" && env PATH="$TMP/bin:$PATH" DOCTOR_RC="$rc" HERDR_ENV=1 HERDR_PANE_ID=w1:p1 \
     HERDR_SKIP_HOOK_CHECK=1 "$PAIR" --dry-run "$@" 2>&1) || PAIR_RC=$?
@@ -74,6 +77,16 @@ chk "a passing doctor lets pairing continue" "$OUT" "pane split"
 chk "doctor gets the builder kind" "$(cat "$DOCTOR_LOG")" "--builder claude"
 chk "doctor gets the reviewer kind" "$(cat "$DOCTOR_LOG")" "--reviewer claude"
 chk "doctor checks the folder the agents start in" "$(cat "$DOCTOR_LOG")" "--cwd $REPO"
+chk "prelaunch hears the builder kind the user named" "$(cat "$DOCTOR_LOG.prelaunch")" "--role builder --kind claude --root"
+chk "prelaunch gets --user-kind for the builder" "$(grep -- '--role builder' "$DOCTOR_LOG.prelaunch")" "--user-kind claude"
+chk "prelaunch gets --user-kind for the reviewer" "$(grep -- '--role reviewer' "$DOCTOR_LOG.prelaunch")" "--user-kind claude"
+
+pair 0 --builder claude --builder-model m1 --builder-effort high --builder-autonomy auto \
+  --reviewer claude --reviewer-model m2 --reviewer-effort low
+for f in "--builder-model m1" "--builder-effort high" "--builder-autonomy auto" \
+         "--reviewer-model m2" "--reviewer-effort low"; do
+  chk "doctor gets $f" "$(cat "$DOCTOR_LOG")" "$f"
+done
 
 pair 30 --skip-doctor --builder claude --reviewer claude
 [ -s "$DOCTOR_LOG" ] && nope "--skip-doctor does not run doctor" || ok "--skip-doctor does not run doctor"

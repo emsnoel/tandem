@@ -24,6 +24,7 @@ func cmdPrelaunch(args []string) int {
 	cwd := fs.String("cwd", "", "directory the agent will start in")
 	root := fs.String("root", "", "repository root holding the manifest (default: --cwd)")
 	dryRun := fs.Bool("dry-run", false, "report Apply gates without writing")
+	userKind := fs.String("user-kind", "", "the kind named on tandem-pair's command line for this role, if any")
 	if err := fs.Parse(args); err != nil {
 		return exitcode.Usage
 	}
@@ -38,7 +39,7 @@ func cmdPrelaunch(args []string) int {
 
 	actions := trust.CheckWithOptions(*kind, *cwd, agent.Role(*role), trust.Options{
 		DryRun:     *dryRun,
-		Authorised: kindAuthorised(*root, *cwd, *kind, agent.Role(*role)),
+		Authorised: kindAuthorised(*root, *cwd, *kind, *userKind, agent.Role(*role)),
 		// Severity is the caller's decision, so the strict switch is read here.
 		// tandem-pair's HERDR_SKIP_HOOK_CHECK overrides the exit code further out.
 		StrictHooks: os.Getenv("HERDR_STRICT_HOOK_CHECK") == "1",
@@ -63,7 +64,7 @@ func cmdPrelaunch(args []string) int {
 // which an Apply gate needs before it writes another tool's config. It does
 // not rely on launch-spec having refused first. Only a repo-requested kind the
 // user has not approved is unauthorised; anything unreadable fails closed.
-func kindAuthorised(root, cwd, kind string, role agent.Role) bool {
+func kindAuthorised(root, cwd, kind, userKind string, role agent.Role) bool {
 	if root == "" {
 		root = cwd
 	}
@@ -79,16 +80,19 @@ func kindAuthorised(root, cwd, kind string, role agent.Role) bool {
 	if err != nil {
 		return false
 	}
+	// A kind named on the command line resolves as the user's own choice, the
+	// same way launch-spec and doctor see it.
+	flags := config.Overrides{Kind: userKind}
 	var r config.Resolved
 	if role == agent.RoleReviewer {
 		// A reviewer that does not resolve has no repo-chosen kind to challenge.
-		res := config.ResolveReviewer(repo, user, os.Getenv, config.Overrides{})
+		res := config.ResolveReviewer(repo, user, os.Getenv, flags)
 		if res.Resolved == nil {
 			return true
 		}
 		r = *res.Resolved
 	} else {
-		r = config.ResolveRole(role, repo, user, os.Getenv, config.Overrides{})
+		r = config.ResolveRole(role, repo, user, os.Getenv, flags)
 	}
 	return r.Kind.Value != kind || !user.NeedsApproval(absRoot, r)
 }

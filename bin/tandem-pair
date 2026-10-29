@@ -118,11 +118,11 @@ ensure_relay_ignored() {
 # unattended agent. The registry decides which gates apply. Exit 23 means the
 # agent would stall at a dialog.
 prelaunch_gates() {
-  local kind="$1" role="${2:-builder}" pre pre_rc=0 dry_arg=""
+  local kind="$1" role="${2:-builder}" user_kind="${3:-}" pre pre_rc=0 dry_arg=""
   PRE_ERR=$(mktemp)
   (( DRY_RUN )) && dry_arg="--dry-run"
   pre=$(tandem agent prelaunch --role "$role" --kind "$kind" \
-    --root "$ROOT" --cwd "$SPLIT_CWD" ${dry_arg:+$dry_arg} 2>"$PRE_ERR") || pre_rc=$?
+    --root "$ROOT" --cwd "$SPLIT_CWD" --user-kind "$user_kind" ${dry_arg:+$dry_arg} 2>"$PRE_ERR") || pre_rc=$?
 
   # Report every gate that acted or needs something, with its remedy. Warnings
   # are not fatal, so the stderr block below does not print them.
@@ -458,7 +458,7 @@ else
       fi
     fi
 
-    prelaunch_gates "$BUILDER_KIND"
+    prelaunch_gates "$BUILDER_KIND" builder "$OV_BUILDER_KIND"
     # HERDR_ROLE lets the builder find its own name in mailbox mode, where it
     # cannot reach the socket.
     mutate pane split "$PLANNER_PANE" --direction "$DIRECTION" --cwd "$SPLIT_CWD" \
@@ -515,7 +515,7 @@ if [[ -n "$REVIEWER_KIND" ]]; then
       || info "         --reviewer-model and --reviewer-effort are UNENFORCED on a running reviewer."
   else
     REVIEWER_STARTED=1
-    prelaunch_gates "$REVIEWER_KIND" reviewer
+    prelaunch_gates "$REVIEWER_KIND" reviewer "$OV_REVIEWER_KIND"
     mutate pane split "$BUILDER_PANE" --direction down --cwd "$SPLIT_CWD" \
       --env "HERDR_ROLE=$REVIEWER_NAME" --no-focus \
       || die "could not split the builder pane for the reviewer: $(printf '%s' "$MUTATE_ERR" | cut -f2-)"
