@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The Go kind registry (internal/agent) is the source of truth for supported
-# kinds. This catches hand-written kind lists in tandem-pair's help, README.md
-# and tests/test-cli-drift.sh that drift from it.
+# kinds. This catches hand-written kind lists in tandem-pair's help, README.md,
+# guide/configuration.md and tests/test-cli-drift.sh that drift from it.
 #
 # Hermetic: builds tandem from this tree, so `tandem agent kinds` reflects
 # this checkout.
@@ -80,16 +80,16 @@ else
   fi
 fi
 
-echo "--- README.md's 'Choosing an agent' prose ---"
-r2=$(extract_backtick_kinds "$ROOT/README.md" '`kind` selects' "kind")
+echo "--- guide/configuration.md's 'Choosing an agent' prose ---"
+r2=$(extract_backtick_kinds "$ROOT/guide/configuration.md" '`kind` selects' "kind")
 if [ "$r2" = "MISSING_ANCHOR" ]; then
-  nope "could not find README.md's '\`kind\` selects' line -- has it been reworded? update this test's anchor"
+  nope "could not find guide/configuration.md's '\`kind\` selects' line -- has it been reworded? update this test's anchor"
 else
   m=$(missing_from "$r2"); e=$(extra_in "$r2")
   if [ -z "$m" ] && [ -z "$e" ]; then
-    ok "README.md's 'Choosing an agent' prose lists exactly the registered kinds"
+    ok "guide/configuration.md's 'Choosing an agent' prose lists exactly the registered kinds"
   else
-    nope "README.md's 'Choosing an agent' prose is out of sync (missing:$m extra:$e)"
+    nope "guide/configuration.md's 'Choosing an agent' prose is out of sync (missing:$m extra:$e)"
   fi
 fi
 

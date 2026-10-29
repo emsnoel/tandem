@@ -167,8 +167,8 @@ func ResolveRole(role agent.Role, repo *Repo, user *User, getenv func(string) st
 }
 
 // legacySandboxEnv translates the pre-vocabulary HERDR_BUILDER_SANDBOX and
-// HERDR_BUILDER_APPROVAL into an autonomy value. Both are documented in the
-// README, so they keep working; they are Codex vocabulary, so they apply only
+// HERDR_BUILDER_APPROVAL into an autonomy value. Both are documented in
+// guide/launching.md, so they keep working; they are Codex vocabulary, so they apply only
 // to a Codex builder.
 func legacySandboxEnv(getenv func(string) string) (autonomy, warning string) {
 	sandbox, approval := getenv("HERDR_BUILDER_SANDBOX"), getenv("HERDR_BUILDER_APPROVAL")
