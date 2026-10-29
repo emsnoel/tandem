@@ -42,3 +42,24 @@ func TestEveryAgentKindIsAccountedFor(t *testing.T) {
 		}
 	}
 }
+
+// A gate that needs a human stops only a role that runs unattended. Anything
+// short of Manual never stops a launch.
+func TestBlocksManualOnlyForUnattendedRoles(t *testing.T) {
+	cases := []struct {
+		role   agent.Role
+		status agent.Status
+		want   bool
+	}{
+		{agent.RoleBuilder, agent.StatusManual, true},
+		{agent.RoleReviewer, agent.StatusManual, true},
+		{agent.RolePlanner, agent.StatusManual, false},
+		{agent.RoleBuilder, agent.StatusWarning, false},
+		{agent.RoleBuilder, agent.StatusCurrent, false},
+	}
+	for _, c := range cases {
+		if got := Blocks(c.role, agent.Action{Status: c.status}); got != c.want {
+			t.Errorf("Blocks(%s, %s) = %v, want %v", c.role, c.status, got, c.want)
+		}
+	}
+}

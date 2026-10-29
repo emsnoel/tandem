@@ -47,11 +47,8 @@ func cmdPrelaunch(args []string) int {
 		return rc
 	}
 
-	if !agent.Role(*role).Unattended() {
-		return exitcode.OK
-	}
 	for _, a := range actions {
-		if a.Status != agent.StatusManual {
+		if !trust.Blocks(agent.Role(*role), a) {
 			continue
 		}
 		fmt.Fprintf(os.Stderr,
@@ -93,8 +90,5 @@ func kindAuthorised(root, cwd, kind string, role agent.Role) bool {
 	} else {
 		r = config.ResolveRole(role, repo, user, os.Getenv, config.Overrides{})
 	}
-	if r.Kind.Value == kind && r.Kind.From == config.FromRepo {
-		return user.KindApproved(absRoot, kind)
-	}
-	return true
+	return r.Kind.Value != kind || !user.NeedsApproval(absRoot, r)
 }
