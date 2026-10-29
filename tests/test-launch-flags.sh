@@ -54,7 +54,7 @@ run_pair() {
   OUT=$(PATH="$TMP/bin:$PATH" HERDR_ENV=1 HERDR_PANE_ID=p1 \
     HOME="$TMP/home" CODEX_HOME="$TMP/codex" COPILOT_HOME="$TMP/copilot" \
     FAKE_CWD="$TMP/repo" \
-    "${pre[@]}" "$PAIR" --dry-run --cwd "$TMP/repo" ${1+"$@"} 2>&1); RC=$?
+    "${pre[@]}" "$PAIR" --dry-run --skip-doctor --cwd "$TMP/repo" ${1+"$@"} 2>&1); RC=$?
 }
 
 echo "--- launch flags: codex (default) ---"
@@ -226,7 +226,7 @@ rc=0
 OUT=$(PATH="$TMP/bin:$PATH" HERDR_ENV=1 HERDR_PANE_ID=p1 \
   HOME="$TMP/nohome" CODEX_HOME="$TMP/codex" FAKE_CWD="$TMP/repo" \
   env HERDR_BUILDER_KIND=claude HERDR_BUILDER_AUTONOMY=auto \
-  "$PAIR" --dry-run --cwd "$TMP/repo" 2>&1) || rc=$?
+  "$PAIR" --dry-run --skip-doctor --cwd "$TMP/repo" 2>&1) || rc=$?
 [ "$rc" -eq 23 ] && ok "refuses exit 23" || nope "refuses exit 23 (got $rc)"
 chk "names the remedy" "accept the trust dialog"
 nchk "never renders a launch line" "agent start builder"
