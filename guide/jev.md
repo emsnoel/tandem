@@ -1,30 +1,33 @@
 # Optional Jev features
 
-## Staffing advice (optional, off by default)
+Both features on this page are off by default. Each one calls Jev, a TypeSafe model, and
+needs a `TYPESAFE_API_KEY` in the environment.
 
-With `HERDR_DECISION=1` and a `TYPESAFE_API_KEY` in the environment, `tandem-handoff`
-classifies the plan before sending it and adds a short, explicitly advisory block to the
-builder's prompt: what shape the work is, whether it looks parallelisable, and — for
-builders that can select a per-subagent capability — the lowest level to delegate it at.
+## Staffing advice
 
-The builder may ignore all of it. Nothing here can change a review verdict, widen
-authority, alter a launch argument, or affect teardown. `internal/gate` is forbidden from
-importing `internal/decision` by a test, so a judgement cannot reach a gate even by
-accident.
+With `HERDR_DECISION=1` and a `TYPESAFE_API_KEY` in the environment, `tandem-handoff` asks
+Jev to classify the plan before sending it. It then adds a short block to the builder's
+prompt, marked as advice. The block says what kind of work it is and whether it looks like
+it can run in parallel. For builders that can choose a model per subagent, it also names
+the lowest level to hand the work to.
+
+The builder may ignore all of it. The advice can't change a review verdict, widen
+authority, change a launch argument or affect teardown. A test forbids `internal/gate`
+from importing `internal/decision`, so a judgement can't reach a gate even by accident.
 
 ```bash
-HERDR_DECISION=1 tandem-handoff                   # ask for advice on this handoff
-tandem decision assess --plan P --root R --dry-run  # show what would be sent, send nothing
+HERDR_DECISION=1 tandem-handoff                     # ask for advice on this handoff
+tandem decision assess --plan P --root R --dry-run  # show what would be sent, and send nothing
 ```
 
-Without the key, or if the call fails or times out, nothing is added and the prompt is
-exactly what it would have been — `tests/test-decision.sh` asserts that byte-for-byte
-against the real script. The credential is read from the environment only, never from
-`.tandem.json`, which is cloned with the repository.
+Without the key, or if the call fails or times out, tandem adds nothing, and the prompt is
+exactly what it would have been. `tests/test-decision.sh` checks that byte for byte against
+the real script. tandem reads the key only from the environment, never from `.tandem.json`,
+because `.tandem.json` is cloned with the repository.
 
-**The handoff says which it was.** Because every non-advice path leaves the prompt
-untouched, "Jev was never asked" and "Jev answered and chose not to advise" look identical
-from the prompt. So `tandem-handoff` prints one line either way, outside the prompt:
+**The handoff says what happened.** The prompt looks the same whether nobody asked Jev, or
+Jev answered and chose not to advise. So `tandem-handoff` prints one line either way,
+outside the prompt:
 
 ```
 staffing advice: added to the launch prompt (Jev).
@@ -34,106 +37,136 @@ WARNING staffing advice: HERDR_DECISION=1 but TYPESAFE_API_KEY is not set; Jev w
 WARNING staffing advice: the Jev call failed (<reason>); none added.
 ```
 
-"None" is the common answer for a plan Jev cannot classify confidently: by design, an
-uncertain assessment adds nothing rather than a guess. `tandem decision assess --status FILE`
-is what reports it. Note the shell a handoff runs in: a planner started before you exported
-`HERDR_DECISION` does not have it, and the line will say `off`.
+"None" is the usual answer for a plan Jev can't classify with confidence. An uncertain
+assessment adds nothing, on purpose, instead of a guess. `tandem decision assess --status FILE`
+reports it. Check which shell the handoff runs in. A planner started before you exported
+`HERDR_DECISION` doesn't have the variable, and the line will say `off`.
 
-Per-subagent capability selection is expressible by `claude` and `codex` builders.
-`claude` agent definitions carry a default `model:` that the dispatch-time parameter
-overrides. `codex` was verified against codex-cli 0.155.1 (`multi_agent_version` v2) by
-reading a real session's rollout log: `spawn_agent` takes `model` and `reasoning_effort`
-as well as `{task_name, fork_turns, message}`, and honours both — a parent running
-`gpt-5.6-sol` at medium spawned children that ran `gpt-5.6-luna` at medium and
-`gpt-5.6-terra` at high. Project-scoped `.codex/agents/*.toml` is still not read, so a
-named persona cannot be selected this way, only a capability.
+`claude` and `codex` builders can choose a model for each subagent. A `claude` agent
+definition has a default `model:`, and the parameter passed when the subagent starts
+overrides it. For `codex`, we checked codex-cli 0.155.1 (`multi_agent_version` v2) by
+reading a real session's rollout log. `spawn_agent` takes `model` and `reasoning_effort`,
+as well as `{task_name, fork_turns, message}`, and uses both. A parent running `gpt-5.6-sol`
+at medium started children that ran `gpt-5.6-luna` at medium and `gpt-5.6-terra` at high.
+Codex still doesn't read project-level `.codex/agents/*.toml`, so the advice can choose a
+model level, but not a named agent definition.
 
-`copilot` and `opencode` are unverified, and unverified means "cannot express it" rather
-than "probably fine" — for those the advisory still describes the shape of the work, it
-just does not name a level.
+Nobody has checked `copilot` or `opencode`, so tandem treats them as unable to choose. For
+those builders the advice still describes the work, but doesn't name a level.
 
-> An earlier version of this section said the opposite of the `codex` paragraph above,
-> citing the same CLI version. It was wrong when written rather than overtaken by a
-> release. `internal/agent/subagent_test.go` now pins the claim to the evidence.
+> An earlier version of this section said the opposite about `codex`, citing the same CLI
+> version. It was wrong when written, not made wrong by a later release.
+> `internal/agent/subagent_test.go` now ties the claim to the evidence.
 
-## Review triage (optional, off by default)
+## Review triage
 
-Set `HERDR_JUDGE=1` when running `tandem-handoff` to enable task judgments.
-Handoff stores the switch as `judge` in `.tandem-relay/build/build.json`; later
-handoffs and the bridge use that stored value. Enabling it needs a
-`TYPESAFE_API_KEY` from an active Jev subscription in Tandem's environment.
-It works with every builder kind and leaves the builder's launch permissions unchanged.
+Set `HERDR_JUDGE=1` when you run `tandem-handoff` to turn on task judgments. The handoff
+stores the switch as `judge` in `.tandem-relay/build/build.json`, and later handoffs and the
+bridge use that stored value. It needs a `TYPESAFE_API_KEY` from an active Jev subscription
+in tandem's environment. It works with every builder kind and doesn't change the builder's
+launch permissions.
 
-Tandem decides when a task gets a review. The builder implements the task and hands
-it back. `tandem build advance` runs the project's check, then asks Jev about the
-files that task changed, including new files, with Tandem's actual check result.
-The diff, brief and check output are redacted before the call, and the diff is
-size-capped with truncation recorded. The builder needs no Jev network scope or
-credential to perform the task.
+tandem decides when a task gets a review. The builder does the task and hands it back.
+`tandem build advance` runs the project's check, then asks Jev about the files the task
+changed, including new files, along with tandem's actual check result. tandem redacts the
+diff, the brief and the check output before the call. It also caps the diff's size, and
+records any truncation. The builder needs no Jev network access or key to do the task.
 
-During calibration, every judged task gets a review round, even when Jev returns
-`clean`. The builder never reviews. `tandem build start` refuses with exit 23 when
-`.tandem-relay/reviewer.json` records no reviewer pane, and the build records that
-pane's name. The bridge types the review prompt into the reviewer pane. The reviewer
-reads the brief and `git diff HEAD`, edits nothing, writes its findings and runs
-`tandem-handback --task N --review --role NAME --verdict clean|changes --report FILE`,
-where the prompt fills in NAME, the reviewer pane's recorded name. `tandem-handback`
-refuses a review from any other pane, by the rule in
-[Which pane is the reviewer](reviews.md#which-pane-is-the-reviewer). `tandem build advance` refuses a review handback from any other pane,
-or from a pane running the builder's conversation, and leaves the task in review. A
-`clean` verdict accepts the task. With `changes`, the bridge sends the findings to the
-builder's own conversation (`fix N MSGFILE`), the builder fixes them and hands back as
-before, and the next round opens. After 3 rounds of `changes` the task stops with
-`review_rounds`. A `changes` verdict on a task already over its budget stops with
-`budget`. In both cases the findings are not sent. Tandem compares the tree before and
-after each review: a reviewer that changed the task's files voids the round and stops
-with `review_edited_tree`, and any change reruns the check.
-A missing key, provider failure or malformed answer produces an `unavailable`
-record with its reason and still gets a review. A delivery failure stops the task.
+### How a judged task is reviewed
 
-Each judgment is recorded to `.tandem-log/judge-<id>.json` with its answers, contract,
-policy and model versions, the true check result, and whether it *would* have
-advised skipping. Reviewer facts record whether the reviewer pane returned a
-verdict, and whether the review changed the outcome: it asked for changes, or
-edited the tree. These measurements provide the evidence needed before skips
-can be enabled. A red check never qualifies for a skip.
+For now, while tandem collects evidence, every judged task gets a review round, even when
+Jev returns `clean`. The builder never reviews. `tandem build start` refuses with exit 23
+when `.tandem-relay/reviewer.json` records no reviewer pane, and the build records that
+pane's name. Each round goes like this:
 
-Skipping also requires `HERDR_TRIAGE_SKIP=1` in the bridge's environment,
-separately from `HERDR_JUDGE=1` at handoff. It is never read from `.tandem.json`.
-`tandem triage report` must show at least 30 reviewed would-skip pairs, at least
-10 pairs where the reviewer changed the tree, and zero misses under the current
-contract, policy and model. One miss keeps that gate closed until a version changes.
-Only a confident skip with a check that exited 0 and no stuck handback qualifies.
-Confident means implements and evidence at least .90, scope creep and destructive
-at most .10, and review priority at most .25. The diff must also be untruncated and
-known to be the attempt's complete change. The current build loop reads a
-HEAD-relative diff of a shared worktree, which cannot show that, so it still
-records `would_skip` but never acts on it. Every row names exactly what it is
-evidence about (`triage-evidence/v1`): a hash of the skip policy and its thresholds, a
-hash of the judge's model and questions, a hash of the reviewer's kind, model and review
-prompt, and the hash of the exact input the judge was shown. A change to any of them is a
-new cohort: the report counts only rows of the current cohort and lists every other row
-under the reason it was left out (`legacy_record`, `other_cohort`, `awaiting_review`,
-`not_reviewed`, `judge_unavailable`, `incomplete_identity`, `tree_unknown`,
-`tree_mismatch`, `truncated_input`). A pair needs the judgment and the review to be of
-the same tree. A row that cannot be read, names another job than its file, or refers to
-kept input that is missing or does not match its hash makes the evidence unhealthy and
-closes the gate; it is counted, never dropped.
-A deterministic one in five, selected by SHA-256 of the record ID and the policy hash,
-read as a number, modulo 5, still gets a review to detect new misses; the choice is
-settled when the judgment is recorded, before and independently of the verdict.
-Skipped tasks retain null reviewer facts and never count as pairs. The report states an
-upper bound on the true miss rate, and the rule-of-three caveat still applies: zero
-misses in 30 allows a true miss rate near 10%, and reaching the minimum count is not a
-proof of safety. Skip stays off by default whatever the report says; live calibration
-and an explicit release decision are separate gates.
+1. The bridge types the review prompt into the reviewer pane.
+2. The reviewer reads the brief and `git diff HEAD`, edits nothing, and writes its
+   findings.
+3. The reviewer runs
+   `tandem-handback --task N --review --role NAME --verdict clean|changes --report FILE`.
+   The prompt fills in NAME, the reviewer pane's recorded name.
 
-The exact input the judge was shown (the redacted brief, diff and check output, and the
-versions it was shown under) is kept in `.tandem-log/judge-input-<hash>.json`, mode 0600,
-named by its hash, so a judgment can be audited later. It is the text already sent to the
-provider; keep `.tandem-log` out of version control.
+`tandem-handback` refuses a review from any other pane, by the rule in
+[Which pane is the reviewer](reviews.md#which-pane-is-the-reviewer). `tandem build advance`
+also refuses a review handback from any other pane, or from a pane running the builder's
+conversation, and leaves the task in review.
 
-With the stored switch off, Jev is never asked and the reviewer pane reviews every
-task. Handoff prints whether Tandem calls Jev or why triage is off.
-`tests/test-handoff-jev-status.sh` and `tests/test-handoff-reset.sh` cover those
-instructions and their delivery.
+- A `clean` verdict accepts the task.
+- With `changes`, the bridge sends the findings to the builder's own conversation
+  (`fix N MSGFILE`). The builder fixes them and hands back as before, and the next round
+  starts.
+- After 3 rounds of `changes`, the task stops with `review_rounds`.
+- A `changes` verdict on a task already over its budget stops with `budget`.
+
+In the last two cases, tandem doesn't send the findings. tandem compares the tree before
+and after each review. If the reviewer changed the task's files, the round doesn't count
+and the task stops with `review_edited_tree`. Any change also runs the check again.
+
+A missing key, a provider failure or a malformed answer produces an `unavailable` record
+with its reason, and the task still gets a review. A delivery failure stops the task.
+
+### What tandem records
+
+tandem records each judgment to `.tandem-log/judge-<id>.json`. The record holds Jev's
+answers, the contract, policy and model versions, the real check result, and whether Jev
+would have advised skipping the review. Reviewer facts record whether the reviewer pane
+returned a verdict, and whether the review changed the outcome by asking for changes or
+editing the tree. tandem needs this evidence before it can allow skips. A failed check
+never qualifies for a skip.
+
+tandem keeps the exact input Jev saw in `.tandem-log/judge-input-<hash>.json`, with mode
+0600, named by its hash, so you can audit a judgment later. That input is the redacted
+brief, diff and check output, and the versions it was shown under. It is text tandem
+already sent to the provider. Keep `.tandem-log` out of version control.
+
+### When a review can be skipped
+
+Skipping needs `HERDR_TRIAGE_SKIP=1` in the bridge's environment, as well as
+`HERDR_JUDGE=1` at handoff. tandem never reads it from `.tandem.json`. `tandem triage report`
+must also show all of these, under the current contract, policy and model:
+
+- at least 30 reviewed pairs where Jev would have skipped;
+- at least 10 pairs where the reviewer changed the tree;
+- no misses. One miss keeps skipping off until a version changes.
+
+A task qualifies for a skip only when all of these are true:
+
+- Jev is confident. "Implements" and "evidence" score at least .90, "scope creep" and
+  "destructive" at most .10, and "review priority" at most .25.
+- The check exited 0, and no handback was stuck.
+- The diff is untruncated, and tandem knows it is the attempt's whole change.
+
+The current build loop reads a diff against HEAD in a shared worktree, which can't show
+that last point. So tandem still records `would_skip`, but never acts on it.
+
+Every row names exactly what it is evidence about (`triage-evidence/v1`), with four hashes:
+
+- the skip policy and its thresholds;
+- the judge's model and questions;
+- the reviewer's kind, model and review prompt;
+- the exact input the judge saw.
+
+A change to any of them starts a new group of rows. The report counts only rows in the
+current group, and lists every other row under the reason it left the row out:
+`legacy_record`, `other_cohort`, `awaiting_review`, `not_reviewed`, `judge_unavailable`,
+`incomplete_identity`, `tree_unknown`, `tree_mismatch` or `truncated_input`. A pair counts
+only when the judgment and the review are of the same tree.
+
+Some rows make the evidence unhealthy, which turns skipping off. These are rows tandem
+can't read, rows that name a different job from their file, and rows whose kept input is
+missing or doesn't match its hash. The report counts them, and never drops them.
+
+One task in five still gets a review, to catch new misses. tandem picks it with a fixed
+rule: the SHA-256 of the record ID and the policy hash, read as a number, modulo 5. It
+settles the choice when it records the judgment, before the verdict and without looking at
+it. Skipped tasks keep empty reviewer facts and never count as pairs.
+
+The report states an upper bound on the true miss rate. Zero misses in 30 still allows a
+true miss rate near 10%, by the rule of three, so reaching the minimum count doesn't prove
+skipping is safe. Skipping stays off by default whatever the report says. Live testing and
+a deliberate release decision are separate steps.
+
+With the stored switch off, tandem never asks Jev, and the reviewer pane reviews every
+task. The handoff prints whether tandem calls Jev, or why triage is off.
+`tests/test-handoff-jev-status.sh` and `tests/test-handoff-reset.sh` test those messages
+and their delivery.

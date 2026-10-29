@@ -1,17 +1,16 @@
 # How the relay works
 
-**Only a sandboxed builder needs any of this.** A `claude`, `copilot` or `opencode` builder reaches
-the Herdr socket directly, so `tandem-ask` takes the socket path and the mailbox below is
-never touched. The bridge still starts. It sleeps on file and Herdr events with a 30-second
-backstop (see [Commands](commands.md)), so it costs little, and predicting that it is unneeded
-is not worth a silent hang if the prediction is wrong. A durable run needs it whatever the
-builder kind, because the bridge is what ticks the run.
+**Only a sandboxed builder uses the mailbox.** A `claude`, `copilot` or `opencode` builder
+reaches the Herdr socket directly, so `tandem-ask` talks to the socket and never touches the
+mailbox described here. The bridge still starts. It sleeps on file and Herdr events, waking
+at least every 30 seconds (see [Commands](commands.md)), so it costs little. Guessing that it
+isn't needed would risk a silent hang if the guess were wrong. A durable run needs the
+bridge whatever the builder kind, because the bridge ticks the run.
 
-For a Codex builder, which is the default:
-
-Codex runs under a seatbelt sandbox that denies `~/.config/herdr/herdr.sock`, so every
-Herdr command that talks to the server fails for it — which is all of them that matter
-here. It can write inside its workspace. So:
+Codex is the default builder. It runs under a seatbelt sandbox that blocks
+`~/.config/herdr/herdr.sock`, so every Herdr command that talks to the server fails for it,
+and tandem needs all of those commands. Codex can write inside its workspace, so tandem
+passes messages through files there:
 
 ```
 Codex          <repo>/.tandem-relay/              Claude
@@ -20,39 +19,41 @@ tandem-ask ──►  q/<id>.json  ──►  tandem-bridge ──prompt──�
      └──── poll ◄──  a/<id>.md  ◄──── writes the answer file ──┘
 ```
 
-`tandem-ask` probes the socket and picks direct or mailbox mode automatically — the same
-command works from either agent. `tandem-handback` and `tandem-verdict` do the same, but
-nobody waits for an answer: the sender queues its finished message and exits, and the bridge
-delivers it word for word. If that delivery fails, the bridge leaves a `<id>.UNDELIVERED`
-marker beside what was sent — the report for a handback, the stored review for a verdict.
+`tandem-ask` tests the socket and picks direct or mailbox mode itself, so the same command
+works from either agent. `tandem-handback` and `tandem-verdict` pick the same way, but
+nobody waits for an answer. The sender queues its finished message and exits, and the bridge
+delivers it word for word. If delivery fails, the bridge leaves a `<id>.UNDELIVERED` marker
+beside what it tried to send: the report for a handback, or the stored review for a verdict.
 
-A handback travels the same way, with `"kind": "handback"` on the queued file. The
-difference is that nothing is polling for a reply — the builder has finished — so the
-bridge delivers the message its sender composed and leaves an `.UNDELIVERED` marker beside
-the report if it cannot. The message text lives in `tandem-handback` alone, so the sandboxed
-and direct paths cannot drift into saying different things.
+A handback travels the same way, with `"kind": "handback"` on the queued file. The builder
+has finished, so nothing polls for a reply. The bridge delivers the message the builder
+wrote, and leaves an `.UNDELIVERED` marker beside the report if it can't. Only
+`tandem-handback` holds the message text, so the sandboxed and direct paths can't drift
+into saying different things.
 
-Answers and reports are **written as files by their author**, never scraped from a pane.
-Terminal rendering collapses long output (`… +N lines`), and a scraped answer loses the
+**The author of an answer or report writes it to a file.** tandem never scrapes it from a
+pane. The terminal collapses long output (`… +N lines`), and a scraped answer would lose the
 collapsed part.
 
 ## Safety properties
 
-Worth preserving if you edit these:
+Keep these true if you edit tandem:
 
-- **Never write raw bytes to a blocked pane.** That types into another agent's approval
-  dialog. `tandem-ask` waits for the block to clear instead.
-- **`agent prompt` returning 0 is not proof of delivery.** Herdr reports `idle` for an
-  agent sitting at a native modal it cannot see, and silently swallows the input.
-  `tandem-handoff` verifies the builder actually left `idle`.
-- **Teardown is never implicit, and never unverified.** `herdr pane close` takes the
-  pane's scrollback with it. Only `tandem-unpair` closes the builder, only the planner runs
-  it, and it refuses unless the work was handed back and signed off (by report id for a
-  legacy build, by each task's recorded check and review for a durable run), and the
-  project's own check command exits 0, which it runs itself before closing anything.
-- **The launch-prompt and handback templates are quoted heredocs filled by parameter substitution.**
-  `prompt_extra` is arbitrary text from whatever repo you point this at; through an
-  unquoted heredoc a backtick in a manifest would execute on your machine.
-- **Unfaithful adapter mappings are refused, not approximated.** Widening grants more
-  authority and requires user-only `allow_widen`; narrowing withholds requested authority
-  and separately requires `allow_degrade`.
+- **Never write raw bytes to a blocked pane.** They would type into another agent's
+  approval dialog. `tandem-ask` waits for the block to clear instead.
+- **`agent prompt` returning 0 doesn't prove delivery.** Herdr reports `idle` for an agent
+  sitting at a native dialog it can't see, and the dialog swallows the input.
+  `tandem-handoff` checks that the builder actually left `idle`.
+- **Teardown is always deliberate, and always checked.** `herdr pane close` deletes the
+  pane's scrollback. Only `tandem-unpair` closes the builder, and only the planner runs it.
+  It refuses unless the work was handed back and signed off, and the project's check
+  command exits 0. A legacy build is signed off by report id, and a durable run by each
+  task's recorded check and review. `tandem-unpair` runs the check itself before it closes
+  anything.
+- **The launch prompt and handback templates are quoted heredocs, filled by parameter
+  substitution.** `prompt_extra` is any text from whatever repo you point tandem at.
+  Through an unquoted heredoc, a backtick in a manifest would run on your machine.
+- **tandem refuses an adapter mapping that doesn't match what you asked for, and never
+  approximates it.** Widening grants more authority, and needs `allow_widen`, which only
+  your user config can set. Narrowing withholds authority you asked for, and needs
+  `allow_degrade`.

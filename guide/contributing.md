@@ -4,131 +4,142 @@
 
 ```bash
 ./tests/run.sh
-./tests/run.sh --with-clis   # additionally probe installed agent CLI flags
+./tests/run.sh --with-clis   # also checks the flags of installed agent CLIs
 ```
 
-Shell-syntax checks over `bin/`, then `go build ./...` and `go test ./...`, then every
-`tests/test-*.sh`. Exit 0 means the harness is sound. This is also the `check_command` in `.tandem.json`, so `tandem-unpair` runs it
-before it will close a builder pane.
+`tests/run.sh` checks the shell syntax of `bin/`, runs `go build ./...` and
+`go test ./...`, then runs every `tests/test-*.sh`. Exit 0 means all of it passed. It is
+also the `check_command` in tandem's own `.tandem.json`, so `tandem-unpair` runs it before
+it closes a builder pane.
 
-That last point constrains what a test here may do. **`tandem-unpair` runs the check while
-the builder is still live**, so a test that wanted a free pane, a running Herdr server, or
-sole ownership of `~/.codex/config.toml` would deadlock every teardown — it would fail
-precisely because the thing it is gating on has not been torn down yet. Tests are
-therefore hermetic: `herdr` is stubbed onto `PATH` and `CODEX_HOME` is redirected into a
-temp dir, so they run with no server, no panes, no network, and no writes outside
-`mktemp` or the repo. The one in-repo exception is `.gocache/`, where `GOCACHE` and
-`GOMODCACHE` are pinned: the builder's sandbox denies `~/Library/Caches/go-build`
-outright, and a cache there would break the rule above anyway. It is gitignored, so it
-cannot trip the tree-change gate.
+That limits what a test may do. **`tandem-unpair` runs the check while the builder is
+still running.** A test that needed a free pane, a running Herdr server, or sole use of
+`~/.codex/config.toml` would block every teardown, because it would wait on the thing the
+teardown hasn't closed yet. So the tests are self-contained. They put a stub `herdr` on
+`PATH` and point `CODEX_HOME` at a temp folder. They run with no server, no panes and no
+network, and write only under `mktemp` or the repo.
 
-`test-relay-ignore.sh` lifts `ensure_relay_ignored()` out of `tandem-pair` with `sed` and
-runs that, rather than keeping its own copy of the logic — a test asserting against a
-duplicate of the code it is testing proves only that the duplicate is self-consistent.
+The one exception inside the repo is `.gocache/`, where tandem pins `GOCACHE` and
+`GOMODCACHE`. The builder's sandbox blocks `~/Library/Caches/go-build`, and a cache there
+would break the rule above anyway. `.gocache/` is in `.gitignore`, so it can't trip the
+tree-change gate.
 
-`test-staleness.sh` asserts the installed `tandem` matches the Go sources, which is what
-makes the copied binary safe.
+`test-relay-ignore.sh` copies `ensure_relay_ignored()` out of `tandem-pair` with `sed` and
+runs that copy, instead of keeping its own version of the logic. A test that checks a
+duplicate of the code proves only that the duplicate agrees with itself.
+
+`test-staleness.sh` checks that the installed `tandem` matches the Go sources, which is
+what makes the copied binary safe.
 
 **Run `./install.sh` from the branch under test before any live check.** The `bin/`
-commands are symlinks into the checkout, so they are always current, but `tandem` itself
-is a compiled copy and stays at whatever was last installed. A live pair run against a
-stale binary tests old Go code behind new scripts. `tandem version` prints the first 12
-characters of the source hash; `bin/lib/source-hash.sh .` prints the whole of the one it
-should match.
+commands link into the checkout, so they are always current. But `tandem` itself is a
+compiled copy, and stays at whatever you last installed. A live pair run with a stale binary
+tests old Go code behind new scripts. `tandem version` prints the first 12 characters of the
+source hash, and `bin/lib/source-hash.sh .` prints the full hash it should match.
 
-`test-dispatch.sh` covers `tandem <verb>`, and is bash because it cannot be Go: dispatch
-ends in `execve`, so a Go test calling it would never return to assert anything. It builds
-its own binary, invents a delegate that exits with whatever it is told, and checks each
-code in the exit-code vocabulary ([When tandem refuses](refusals.md)) arrives unchanged — a wrapper that observed a child and
-re-exited would flatten 23 to 1 and turn a gate refusal into an ordinary error. It also
-pins that a compiled subcommand is never shadowed by a stray `tandem-version` on `PATH`.
+`test-dispatch.sh` tests `tandem <verb>`. It is a bash test because it can't be a Go test.
+Dispatch ends in `execve`, so a Go test that called it would never get control back to check
+anything. The test builds its own binary and a fake delegate script that exits with
+whatever code it is told. It checks that each code in the exit-code list
+([When tandem refuses](refusals.md)) arrives unchanged. A wrapper that watched a child and
+exited after it would turn 23 into 1, and a gate refusal into an ordinary error. The test
+also checks that a stray `tandem-version` on `PATH` never hides a compiled subcommand.
 
-`test-cli-drift.sh` is opt-in through `--with-clis`. It probes flags on installed agent
-CLIs, but stays out of the default teardown check so machines without those CLIs remain
-supported.
+`test-cli-drift.sh` runs only with `--with-clis`. It checks flags on the installed agent
+CLIs. It stays out of the default check so that machines without those CLIs still pass.
 
-**Measuring token use.** `tandem usage ROLLOUT.jsonl...` reads Codex session logs and
-prints, per phase (one per prompt handed over): calls, the context size of the first call,
-peak, input, cached and output tokens, `write_stdin` polls, and the `yield_time_ms` values
-requested. Pass the review session and the build session together — the build now runs in
-its own. Logs live under `~/.codex/sessions/YYYY/MM/DD/`. Codex only; a durable run's
-`tandem build usage` also reads Claude and Copilot builders.
-
-`./tests/run.sh` unsets `HERDR_DECISION`, `HERDR_JUDGE` and `TYPESAFE_API_KEY` first: a
-machine that turned Jev on in its shell profile must not change what the suites see, since
+`./tests/run.sh` unsets `HERDR_DECISION`, `HERDR_JUDGE` and `TYPESAFE_API_KEY` first. A
+machine that turned Jev on in its shell profile must not change what the tests see, because
 `tandem-unpair` runs the same check in that environment.
 
-The Go half carries the decisions. `internal/gate` holds the teardown verdicts as
-pure functions — codes 4, 5, 6, 8 and 9; exit 7 is the project's own check command
-failing, which bash runs and reports — and is forbidden — transitively, checked with `go list -deps` — from
-reaching `os/exec` or the herdr facade, so the gates can be tested with no terminal, no
-server and no filesystem. `internal/hooks` holds the Codex hook-trust classification;
-it replaced a 20-assertion bash suite that lifted `codex_hook_trust()` the same way
-`test-relay-ignore.sh` does, and carries the same 20 assertions as `t.Run` subtests,
-plus one for a machine still holding a pre-rename baseline.
+The Go code makes the decisions. `internal/gate` holds the teardown verdicts, codes 4, 5, 6,
+8 and 9, as pure functions. Exit 7 is the project's own check failing, which bash runs and
+reports. A test runs `go list -deps` to make sure `internal/gate` never reaches `os/exec`
+or the herdr package, even indirectly. So the gates can be tested with no terminal, no
+server and no filesystem.
+
+`internal/hooks` holds the Codex hook-trust classification. It replaced a bash test file
+with 20 checks, which copied `codex_hook_trust()` out of the script the same way
+`test-relay-ignore.sh` does. The Go tests keep the same 20 checks as `t.Run` subtests, plus
+one for a machine that still has a baseline from before the rename.
+
+## Measuring token use
+
+`tandem usage ROLLOUT.jsonl...` reads Codex session logs. For each phase, meaning each
+prompt handed over, it prints:
+
+- the number of calls;
+- the context size of the first call, and the largest;
+- input, cached and output tokens;
+- `write_stdin` polls, and the `yield_time_ms` values requested.
+
+Pass the review session and the build session together, because the build runs in its own
+session. Codex keeps the logs under `~/.codex/sessions/YYYY/MM/DD/`. `tandem usage` reads
+Codex logs only. For a durable run, `tandem build usage` also reads Claude and Copilot
+builders.
 
 ## Layout
 
 ```
-bin/          the twelve commands — bash, symlinked by install.sh, live-editable
-cmd/tandem/   the compiled core's entry points: its own subcommands, the handover to
-              the bash ones (dispatch.go), and exit codes
+bin/          the twelve commands, in bash. install.sh links them, so edits take effect at once
+cmd/tandem/   the compiled binary's entry points: its own subcommands, the handover to
+              the bash commands (dispatch.go), and the exit codes
 internal/
-  agent/      the adapter seam: normalised vocabulary -> each CLI's native flags. Pure;
-              a dependency-closure test forbids exec, net and herdr in its reach
-  agent/trust/  launch-time gates that touch another tool's own config — the I/O half,
-              kept out of agent/ so that purity test stays meaningful
-  config/     repo and user config, precedence with provenance, kind approvals
-  herdr/      execs the herdr CLI for actions, and reads the socket's event stream for
-              every wait on an agent's status, session or departure
+  agent/      maps the shared settings onto each CLI's own flags. Pure: a test forbids
+              exec, net and herdr anywhere in its dependencies
+  agent/trust/  launch checks that touch another tool's config. This is the I/O half,
+              kept out of agent/ so that the purity test stays meaningful
+  config/     repo and user config, which source wins and why, and kind approvals
+  herdr/      runs the herdr CLI for actions, and reads the socket's event stream for
+              every wait on an agent's status, session or exit
   mailwatch/  wakes a waiter when a message lands in a relay queue or a named file
-              changes (fsnotify); a wake is a hint, the caller still lists the folder
-  gate/       the teardown verdicts, pure — no exec, no herdr, no terminal
-  hooks/      Codex hook-trust classification, pure
-  mailbox/    handback report snapshots; reads files, never shells out
-  vcs/        `git status --porcelain`, and the per-file hashes that tell which files a
+              changes (fsnotify). A wake is a hint, and the caller still lists the folder
+  gate/       the teardown verdicts. Pure: no exec, no herdr, no terminal
+  hooks/      Codex hook-trust classification. Pure
+  mailbox/    snapshots of handback reports. Reads files, and never runs commands
+  vcs/        `git status --porcelain`, and the per-file hashes that show which files a
               build task changed
-  plan/       splits a plan into one brief per task, pure
-  build/      the legacy engine: the per-task build record, the decision after each
-              task, and the ledger, report and planner message rendered from it
-  check/      runs the project's check with output to a log, and summarises it
+  plan/       splits a plan into one brief per task. Pure
+  build/      the legacy engine: each task's build record, the decision after each
+              task, and the ledger, report and planner message made from it
+  check/      runs the project's check with its output in a log, and summarises it
   paths/      where tandem's own files live, and the one place that knows their
-              pre-rename names. `tandem paths` exposes it so bash shares the rule
-  exitcode/   the shared exit-code vocabulary
-  rollout/    Codex rollout-log parsing for `tandem usage`, pure
-  sourcehash/ the source fingerprint install.sh stamps into the binary
-  decision/   staffing advice from Jev, pure; evidence/ builds its redacted input
-  triage/     whether a finished task still needs a review (Jev), off by default
+              old names. `tandem paths` exposes it so the bash commands use the same rule
+  exitcode/   the shared exit codes
+  rollout/    reads Codex rollout logs for `tandem usage`. Pure
+  sourcehash/ the source hash install.sh stamps into the binary
+  decision/   staffing advice from Jev. Pure. evidence/ builds its redacted input
+  triage/     whether a finished task still needs a review (Jev). Off by default
   # the durable engine, see guide/build-engines.md
-  controller/ start, tick, recover and stop; runs the check and binds it to a tree
-  workflow/   the run's pure records, transitions and errors; imports nothing else
-  state/      the versioned SQLite store per checkout, leases and fences (pure-Go driver)
-  runner/     delivers the controller's prompts under a fenced lease, and says honestly
-              whether each was sent, not sent, or may have been sent
-  snapshot/   captures the tree at a moment; a task's patch is the diff of two captures
-  artifact/   content-addressed bytes in the state home, outside the repository
-  taskcontext/ the one bounded prompt a task gets, and a manifest of what it left out
-  memory/     which remembered decisions a later task may be shown, and why
-  usageledger/ normalises provider logs into per-event usage for collaborations
-  evalrow/    the result row a scripted scenario run writes, legacy and durable alike
-tests/        bash suites; also runs go build and go test. `--with-clis` adds a probe of
-              the installed agent CLIs for flag drift, kept out of the default run
-              because check_command must pass on a machine with none of them
-tests/lib/    stubs shared by the handoff suites
-guide/        design notes, the build engines, operations, versioning and releasing
-tools/        maintainer scripts: package-release.sh builds the release tarballs
+  controller/ start, tick, recover and stop. Runs the check and ties it to a tree
+  workflow/   the run's pure records, transitions and errors. Imports nothing else
+  state/      the versioned SQLite store for each checkout, with leases and fences (Go driver)
+  runner/     delivers the controller's prompts under a fenced lease, and reports whether
+              each one was sent, not sent, or may have been sent
+  snapshot/   captures the tree at one moment. A task's patch is the diff of two captures
+  artifact/   bytes stored by content hash in the state home, outside the repository
+  taskcontext/ the one size-limited prompt a task gets, and a list of what it left out
+  memory/     which remembered decisions a later task may see, and why
+  usageledger/ turns provider logs into usage per event
+  evalrow/    the result row a scripted test run writes, for both engines
+tests/        bash test files. run.sh also runs go build and go test. `--with-clis` adds a
+              check of the installed agent CLIs' flags, kept out of the default run
+              because check_command must pass on a machine without them
+tests/lib/    stubs shared by the handoff tests
+guide/        the user guides, design notes, build engines, operations, versioning and releasing
+tools/        maintainer scripts. package-release.sh builds the release tarballs
 ```
 
-The split follows one rule: **Go decides, bash explains.** Go returns a verdict and at
-most a machine-readable token; every word a human reads stays in the bash script that
-prints it. `guide/design.md` says why. The exceptions are sentences two callers must say
-identically: the reset sentences (`tandem agent explain-reset`), and the build's report and
-planner message, which `tandem build` writes because the bridge and the tests must agree on
-every word.
+The code follows one rule: **Go decides, bash explains.** Go returns a verdict, and at most
+a token a machine reads. Every word a person reads stays in the bash script that prints it.
+`guide/design.md` explains why. The exceptions are sentences that two callers must say
+word for word the same: the reset sentences (`tandem agent explain-reset`), and the build's
+report and planner message. `tandem build` writes those, because the bridge and the tests
+must agree on every word.
 
 ## Design notes
 
-`guide/design.md` explains why the harness is shaped this way — the sandbox constraint that
-forces the mailbox, why answers are files rather than scraped panes, the invariants that
-keep it safe to edit, and the twenty-eight findings (plus four wrong predictions) behind them.
-Read it before changing the relay or the launch prompt.
+[Design notes](design.md) explains why tandem is built the way it is. It covers the sandbox
+limit that forces the mailbox, why answers are files instead of scraped panes, the rules
+that keep tandem safe to edit, and the 28 findings and 4 wrong predictions behind them.
+Read it before you change the relay or the launch prompt.
