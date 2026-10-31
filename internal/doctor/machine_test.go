@@ -19,6 +19,7 @@ type fakeProbe struct {
 	versionBlocks bool
 	socketErr     error
 	socketBlocks  bool
+	agents        []herdr.Agent
 	integrations  map[string]herdr.Integration
 	intErr        error
 	intBlocks     bool
@@ -33,12 +34,15 @@ func (f fakeProbe) HerdrVersion(ctx context.Context) (string, error) {
 	return f.version, f.versionErr
 }
 
-func (f fakeProbe) HerdrSocket(ctx context.Context) error {
+func (f fakeProbe) Agents(ctx context.Context) ([]herdr.Agent, error) {
 	if f.socketBlocks {
 		<-ctx.Done()
-		return ctx.Err()
+		return nil, ctx.Err()
 	}
-	return f.socketErr
+	if f.socketErr != nil {
+		return nil, f.socketErr
+	}
+	return f.agents, nil
 }
 
 func (f fakeProbe) Integrations(ctx context.Context) (map[string]herdr.Integration, error) {

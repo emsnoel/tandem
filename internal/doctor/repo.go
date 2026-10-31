@@ -19,8 +19,12 @@ func Repo(root, cwd string, r Roles, getenv func(string) string) []Result {
 			Detail: strings.Join(r.Warnings, "; "), Fix: "edit " + r.Manifest})
 	}
 	rs = append(rs, reviewer(r.Reviewer))
+	rs = append(rs, running(r)...)
+	// tandem-pair resolves the builder's launch spec, which checks approval and
+	// the launch settings, even when the builder runs; a running reviewer gets
+	// neither.
 	for _, res := range r.launched() {
-		if res.Role != agent.RolePlanner {
+		if res.Role == agent.RoleBuilder || (res.Role == agent.RoleReviewer && r.starts(res.Role)) {
 			rs = append(rs, approval(r.user, root, res))
 		}
 	}
@@ -28,7 +32,9 @@ func Repo(root, cwd string, r Roles, getenv func(string) string) []Result {
 		rs = append(rs, gates(r, root, cwd, kind, getenv)...)
 	}
 	for _, res := range r.launched() {
-		rs = append(rs, launch(res, cwd))
+		if res.Role != agent.RoleReviewer || r.starts(res.Role) {
+			rs = append(rs, launch(res, cwd))
+		}
 	}
 	for i := range rs {
 		rs[i].Group = "repo"
@@ -80,18 +86,23 @@ func approval(user *config.User, root string, res config.Resolved) Result {
 // gates runs every trust gate for kind once, without writing. A gate reads
 // the kind's own config for cwd, so the role changes only the grade: the
 // strictest role using the kind decides it, as `tandem agent prelaunch` would.
+// A running role has no prelaunch, so it neither grades nor needs the gates.
 func gates(r Roles, root, cwd, kind string, getenv func(string) string) []Result {
-	role, authorised := agent.RolePlanner, true
+	role, authorised, checked := agent.RolePlanner, true, false
 	for _, res := range r.launched() {
-		if res.Kind.Value != kind {
+		if res.Kind.Value != kind || !r.starts(res.Role) {
 			continue
 		}
+		checked = true
 		if res.Role.Unattended() {
 			role = res.Role
 		}
 		if r.user.NeedsApproval(root, res) {
 			authorised = false
 		}
+	}
+	if !checked {
+		return nil
 	}
 	roles := r.Uses().roles(kind)
 	var rs []Result

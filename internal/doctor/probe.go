@@ -14,15 +14,14 @@ type RealProbe struct{}
 
 func (RealProbe) HerdrVersion(ctx context.Context) (string, error) { return herdr.Version(ctx) }
 
-// HerdrSocket lists agents, which only succeeds when the server answers on its
+// Agents lists agents, which only succeeds when the server answers on its
 // socket.
-func (RealProbe) HerdrSocket(ctx context.Context) error {
+func (RealProbe) Agents(ctx context.Context) ([]herdr.Agent, error) {
 	d := probeTimeout
 	if dl, ok := ctx.Deadline(); ok {
 		d = time.Until(dl)
 	}
-	_, err := herdr.ListWithin(d)
-	return err
+	return herdr.ListWithin(d)
 }
 
 func (RealProbe) Integrations(ctx context.Context) (map[string]herdr.Integration, error) {

@@ -68,8 +68,14 @@ It checks these things:
 
 Each line reads `ok`, `warn` or `FAIL`. A warning doesn't stop a pairing. With
 `HERDR_SKIP_HOOK_CHECK=1` set, `tandem-pair` launches past a trust dialog, so doctor reports
-that dialog as a warning instead of a failure. `tandem doctor`
-exits 0 when nothing fails and 30 when something does. `--json` prints the same results as
+that dialog as a warning instead of a failure.
+
+A builder or reviewer that already runs needs no launch, so doctor skips what `tandem-pair`
+skips for it. For a running builder that is its trust checks. For a running reviewer it is
+also its approval and launch settings. Doctor finds them by the names `tandem-pair` gives
+them (`HERDR_BUILDER_NAME` and `HERDR_REVIEWER_NAME`, `builder` and `reviewer` by default).
+
+`tandem doctor` exits 0 when nothing fails and 30 when something does. `--json` prints the same results as
 JSON: a `results` list with `group`, `name`, `status`, `detail` and `fix` for each check, and
 `failures` and `warnings` counts.
 
