@@ -121,7 +121,14 @@ func readBaseline(path string) map[string]string {
 
 // Classify fails open: an unreadable or unrecognised input yields no findings.
 // It does not attempt to reproduce Codex's private trusted_hash algorithm.
-func Classify(codexHome string) []Finding {
+// When nothing is found it records the baseline that later runs compare
+// against.
+func Classify(codexHome string) []Finding { return classify(codexHome, true) }
+
+// Inspect is Classify without recording the baseline, for read-only callers.
+func Inspect(codexHome string) []Finding { return classify(codexHome, false) }
+
+func classify(codexHome string, record bool) []Finding {
 	cfgPath := filepath.Join(codexHome, "config.toml")
 	cfg, err := os.ReadFile(cfgPath)
 	if err != nil || !plausibleConfig(cfg) {
@@ -149,7 +156,7 @@ func Classify(codexHome string) []Finding {
 			findings = append(findings, Finding{Kind: "changed", Path: source.Path})
 		}
 	}
-	if len(findings) != 0 {
+	if len(findings) != 0 || !record {
 		return findings
 	}
 

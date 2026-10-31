@@ -46,4 +46,8 @@ const (
 	// The scripts explain each in their own words.
 	NoReviewer         = 28
 	ReviewerIncomplete = 29
+
+	// DoctorFailed: `tandem doctor` found at least one problem that would stop
+	// a pairing. It prints each one with its fix; warnings alone exit 0.
+	DoctorFailed = 30
 )

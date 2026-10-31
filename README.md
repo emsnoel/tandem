@@ -49,6 +49,7 @@ Add a reviewer to `.tandem.json`. Reviews and builds refuse to start without one
 Start the pair, write a plan into the plans folder, and hand it over:
 
 ```bash
+tandem doctor     # lists anything that would stop the pair, with the fix for each
 tandem-pair       # names this pane "planner" and starts the builder and reviewer panes
 tandem-review     # the reviewer checks the newest plan
 tandem-handoff    # once the review passes, the builder starts task 1

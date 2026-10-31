@@ -3,6 +3,9 @@
 Every refusal prints the command or edit that fixes it, so the message is usually all you
 need. This table lists each exit code for reference.
 
+`tandem doctor` finds the causes of exits 3, 20, 21, 22 and 23 before you pair, and
+`tandem-pair` runs it first. See [Checking your setup](commands.md#checking-your-setup).
+
 | Exit | Means | Fix |
 | ---- | ----- | --- |
 | 3 | This shell can't reach the Herdr socket, so nothing was delivered | Check the Herdr server is running, and run the command from a pane Herdr manages |
@@ -17,6 +20,7 @@ need. This table lists each exit code for reference.
 | 25 | From `tandem agent prompt --as`, the prompt never started a turn. The scripts report this as their own 7 | As for 7 |
 | 26 | From `tandem agent prompt --as`, the turn ended at once with no model work. The scripts report this as their own 8 | As for 8 |
 | 27 | From `tandem agent alive`, an agent quit right after it started: Herdr stopped listing it, or its pane is back at the shell. From `tandem agent watch`, a watched agent was released or its pane closed, or it was already gone when the watch started. `tandem-pair` runs this check after starting each agent, and stops with the pane's last lines | Fix what the pane shows, then run `tandem-pair` again |
+| 30 | `tandem doctor` found at least one problem that would stop a pairing. `tandem-pair` runs doctor first, and stops with its code | Fix each `FAIL` line as its `fix:` line says, or run `tandem-pair --skip-doctor` |
 
 ## A pane showing a subagent or a list
 

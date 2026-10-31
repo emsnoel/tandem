@@ -213,3 +213,19 @@ func TestHookClassificationPortPreservesTwentyAssertions(t *testing.T) {
 		}
 	})
 }
+
+// Inspect is Classify without the side effect: it never records a baseline,
+// so a read-only caller such as tandem doctor leaves Codex's home untouched.
+func TestInspectRecordsNoBaseline(t *testing.T) {
+	h := mkhome(t, true)
+	if got := Inspect(h); len(got) != 0 {
+		t.Fatalf("want no findings for accepted hooks, got %+v", got)
+	}
+	if _, err := os.Stat(filepath.Join(h, paths.HookBaselineName)); !os.IsNotExist(err) {
+		t.Fatalf("Inspect wrote a baseline: %v", err)
+	}
+	h = mkhome(t, false)
+	if got := Inspect(h); len(got) != 1 {
+		t.Fatalf("want the unaccepted plugin hook, got %+v", got)
+	}
+}

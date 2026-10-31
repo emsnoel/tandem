@@ -41,7 +41,7 @@ git -C "$REPO" init -q
 
 pair() {
   OUT=$(cd "$REPO" && env PATH="$TMP/bin:$PATH" TABLABEL="$1" HERDR_ENV=1 HERDR_PANE_ID=w1:p1 HERDR_SKIP_HOOK_CHECK=1 \
-    "$PAIR" --dry-run --builder claude --reviewer claude 2>&1)
+    "$PAIR" --dry-run --skip-doctor --builder claude --reviewer claude 2>&1)
 }
 
 pair 3

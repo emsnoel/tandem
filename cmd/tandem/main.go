@@ -34,6 +34,8 @@ func run(args []string) int {
 		return cmdGate(args[1:])
 	case "config":
 		return cmdConfig(args[1:])
+	case "doctor":
+		return cmdDoctor(args[1:])
 	case "decision":
 		return cmdDecision(args[1:])
 	case "triage":

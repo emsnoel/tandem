@@ -111,3 +111,28 @@ func TestApproveKindMatchesThroughSymlink(t *testing.T) {
 		t.Error("approved via the symlink, checked via the same symlink: want approved")
 	}
 }
+
+// Only a kind the repository chose, and the user has not approved, needs
+// approval. A kind from a flag, the environment or the user's own config is
+// the user's own decision.
+func TestNeedsApprovalOnlyForRepoChosenUnapprovedKind(t *testing.T) {
+	approved := &User{Approvals: map[string][]string{"/repo/a": {"codex"}}}
+	cases := []struct {
+		name string
+		user *User
+		from Source
+		want bool
+	}{
+		{"repo kind, not approved", &User{}, FromRepo, true},
+		{"repo kind, approved", approved, FromRepo, false},
+		{"user kind", &User{}, FromUser, false},
+		{"flag kind", &User{}, FromFlag, false},
+		{"repo kind, no user config", nil, FromRepo, true},
+	}
+	for _, c := range cases {
+		r := Resolved{Kind: Value{Value: "codex", From: c.from}}
+		if got := c.user.NeedsApproval("/repo/a", r); got != c.want {
+			t.Errorf("%s: got %v, want %v", c.name, got, c.want)
+		}
+	}
+}

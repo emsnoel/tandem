@@ -127,7 +127,12 @@ func (g codexHookAcceptance) Check(_ string, _ agent.Role, opts Options) agent.A
 		return set(agent.StatusAbsent, "could not locate Codex's home", "")
 	}
 
-	findings := hooks.Classify(home)
+	// A dry run must leave Codex's home untouched, baseline included.
+	classify := hooks.Classify
+	if opts.DryRun {
+		classify = hooks.Inspect
+	}
+	findings := classify(home)
 	if len(findings) == 0 {
 		return set(agent.StatusCurrent, "no unaccepted hook sources", "")
 	}

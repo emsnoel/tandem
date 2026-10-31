@@ -71,6 +71,13 @@ func CheckWithOptions(kind, cwd string, role agent.Role, opts Options) []agent.A
 	return out
 }
 
+// Blocks reports whether a gate's finding stops a launch for role. A Manual
+// status is a note for a planner, who is present, and a refusal for a role
+// that runs unattended and would otherwise sit at a dialog forever.
+func Blocks(role agent.Role, a agent.Action) bool {
+	return role.Unattended() && a.Status == agent.StatusManual
+}
+
 // Kinds lists the kinds that have gates, for diagnostics.
 func Kinds() []string {
 	out := make([]string, 0, len(registry))

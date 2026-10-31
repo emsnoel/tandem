@@ -113,3 +113,26 @@ func TestPrelaunchBuilderRefusesUnacceptedHooksUnderStrictPolicy(t *testing.T) {
 		t.Fatalf("got exit %d, want 23", rc)
 	}
 }
+
+// A kind the user named on tandem-pair's command line is their own choice,
+// even when .tandem.json asks for the same kind. launch-spec and doctor agree,
+// so prelaunch must not refuse it as unapproved.
+func TestPrelaunchUserNamedKindIsAuthorised(t *testing.T) {
+	for _, k := range []string{"HOME", "COPILOT_HOME"} {
+		t.Setenv(k, t.TempDir())
+	}
+	t.Setenv("HERDR_TANDEM_CONFIG", filepath.Join(t.TempDir(), "tandem.json"))
+	t.Setenv("HERDR_BUILDER_KIND", "")
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, ".tandem.json"), []byte(`{"builder":{"kind":"copilot"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	args := []string{"--role", "builder", "--kind", "copilot", "--root", root, "--cwd", root, "--dry-run"}
+	if _, rc := captureStdoutRC(t, func() int { return cmdPrelaunch(args) }); rc != 23 {
+		t.Fatalf("repo-chosen, unapproved: got exit %d, want 23", rc)
+	}
+	args = append(args, "--user-kind", "copilot")
+	if out, rc := captureStdoutRC(t, func() int { return cmdPrelaunch(args) }); rc != 0 {
+		t.Fatalf("user-named: got exit %d, want 0\n%s", rc, out)
+	}
+}

@@ -114,3 +114,23 @@ func TestCodexHooksWarningDegradesWhenVersionUnreadable(t *testing.T) {
 		t.Fatalf("remedy must say the version could not be read; got %q", got.Remedy)
 	}
 }
+
+// A dry run leaves Codex's home as it found it: no hook baseline is recorded.
+func TestCodexHooksDryRunRecordsNoBaseline(t *testing.T) {
+	home := t.TempDir()
+	hooksFile := filepath.Join(home, "hooks.json")
+	if err := os.WriteFile(hooksFile, []byte(`{"hooks":{"SessionStart":[]}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := `[hooks.state."` + hooksFile + `:session_start:0:0"]` + "\ntrusted_hash = \"sha256:aaa\"\n"
+	if err := os.WriteFile(filepath.Join(home, "config.toml"), []byte(cfg), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CODEX_HOME", home)
+	before, _ := os.ReadDir(home)
+	CheckWithOptions("codex", t.TempDir(), agent.RoleBuilder, Options{DryRun: true})
+	after, _ := os.ReadDir(home)
+	if len(after) != len(before) {
+		t.Fatalf("dry run changed CODEX_HOME: %d entries before, %d after", len(before), len(after))
+	}
+}

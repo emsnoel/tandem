@@ -41,6 +41,13 @@ func (u *User) KindApproved(repo, kind string) bool {
 	return false
 }
 
+// NeedsApproval reports whether r's kind is one the repository chose and the
+// user has not approved for root. A kind from a flag, the environment or the
+// user's own config is the user's decision and never needs approval.
+func (u *User) NeedsApproval(root string, r Resolved) bool {
+	return r.Kind.From == FromRepo && !u.KindApproved(root, r.Kind.Value)
+}
+
 // ApproveKind records an approval, preserving everything else in the file.
 // It reads, merges and rewrites rather than serialising a fresh struct, so a
 // key this version does not know about is not silently dropped.

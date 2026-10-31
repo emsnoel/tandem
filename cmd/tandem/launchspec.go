@@ -43,15 +43,12 @@ func cmdLaunchSpec(args []string) int {
 
 	// A kind the repository asked for is confirmed once per repository. A kind the
 	// user supplied is their own decision and is never challenged.
-	if r.Kind.From == config.FromRepo {
-		user, err := config.LoadUser(config.UserConfigPath())
-		if err == nil && !user.KindApproved(absRoot, r.Kind.Value) {
-			fmt.Fprintf(os.Stderr,
-				"tandem: %s asks for %s kind %q, which you have not approved for this repository.\n"+
-					"        Approve once with:  tandem-pair --approve-kind %s\n",
-				filepath.Base(paths.Manifest(absRoot)), r.Role, r.Kind.Value, r.Kind.Value)
-			return exitcode.KindUnapproved
-		}
+	if user, err := config.LoadUser(config.UserConfigPath()); err == nil && user.NeedsApproval(absRoot, r) {
+		fmt.Fprintf(os.Stderr,
+			"tandem: %s asks for %s kind %q, which you have not approved for this repository.\n"+
+				"        Approve once with:  tandem-pair --approve-kind %s\n",
+			filepath.Base(paths.Manifest(absRoot)), r.Role, r.Kind.Value, r.Kind.Value)
+		return exitcode.KindUnapproved
 	}
 
 	a, err := agent.Get(r.Kind.Value)
