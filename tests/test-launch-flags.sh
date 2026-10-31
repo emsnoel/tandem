@@ -189,6 +189,9 @@ manifest '{"reviewer":{"kind":"codex","model":"changed-since"}}'
 run_pair env FAKE_RUNNING="builder:codex reviewer:codex" -- --approve-kind codex
 chk  "a changed declaration does not rewrite a running reviewer's model" '"model":"gpt-6-astra","autonomy":"auto","model_measured":true'
 chk  "and says the declared model is unenforced" "declared reviewer model 'changed-since' is UNENFORCED"
+run_pair env FAKE_RUNNING="builder:codex reviewer:codex" -- --approve-kind codex --reviewer-model flag-model
+chk  "a model flag on a running reviewer is named" "declared reviewer model 'flag-model' is UNENFORCED"
+nchk "and is reported once"                     "reviewer-effort are UNENFORCED"
 rm -f "$MBX/reviewer.json"
 run_pair env FAKE_RUNNING="builder:codex reviewer:codex" -- --approve-kind codex
 chk  "a running reviewer with no record is not measured" 'would record reviewer: {"kind":"codex","name":"reviewer","model":"","autonomy":"auto","model_measured":false}'
