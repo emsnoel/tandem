@@ -42,6 +42,7 @@ cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
 if [ "${1:-} ${2:-}" = "agent prelaunch" ]; then
   printf '%s\n' "$*" >> "$DOCTOR_LOG.prelaunch"
+  [ -z "${PRELAUNCH_OUT:-}" ] || { printf '%s\n' "$PRELAUNCH_OUT"; exit 0; }
 fi
 if [ "${1:-}" = doctor ]; then
   printf '%s\n' "$*" >> "$DOCTOR_LOG"
@@ -62,7 +63,8 @@ pair() {
   local rc="$1"; shift
   : > "$DOCTOR_LOG"; : > "$DOCTOR_LOG.prelaunch"
   PAIR_RC=0
-  OUT=$(cd "$REPO" && env PATH="$TMP/bin:$PATH" DOCTOR_RC="$rc" ${DOCTOR_OUT+DOCTOR_OUT="$DOCTOR_OUT"} HERDR_ENV=1 HERDR_PANE_ID=w1:p1 \
+  OUT=$(cd "$REPO" && env PATH="$TMP/bin:$PATH" DOCTOR_RC="$rc" ${DOCTOR_OUT+DOCTOR_OUT="$DOCTOR_OUT"} \
+    PRELAUNCH_OUT="${PRELAUNCH_OUT:-}" HERDR_ENV=1 HERDR_PANE_ID=w1:p1 \
     HERDR_SKIP_HOOK_CHECK=1 "$PAIR" --dry-run "$@" 2>&1) || PAIR_RC=$?
 }
 
@@ -103,6 +105,18 @@ chk "an old binary is told to re-run install.sh" "$OUT" "re-run install.sh"
 lack "an old binary is not told to skip doctor" "$OUT" "--skip-doctor"
 lack "an old binary's usage text is not shown" "$OUT" "unknown subcommand"
 [ "$PAIR_RC" -ne 0 ] && ok "an old binary stops pairing" || nope "an old binary stops pairing"
+
+# Doctor already showed the gates that warn, so tandem-pair shows only the
+# ones that just acted, unless doctor was skipped.
+PRELAUNCH_OUT='{"actions":[{"gate":"hook-acceptance","status":"warning","detail":"GATE-WARNED","remedy":"GATE-REMEDY"},{"gate":"project-trust","status":"applied","detail":"GATE-ACTED"}]}'
+PRELAUNCH_OUT="$PRELAUNCH_OUT" pair 0 --builder claude --reviewer claude
+lack "a gate doctor reported is not shown twice" "$OUT" "GATE-WARNED"
+lack "nor is its remedy" "$OUT" "GATE-REMEDY"
+chk "a gate that just acted is shown" "$OUT" "GATE-ACTED"
+PRELAUNCH_OUT="$PRELAUNCH_OUT" pair 0 --skip-doctor --builder claude --reviewer claude
+chk "with --skip-doctor the gate warning is shown" "$OUT" "GATE-WARNED"
+chk "with its remedy" "$OUT" "GATE-REMEDY"
+unset PRELAUNCH_OUT
 
 pair 30 --skip-doctor --builder claude --reviewer claude
 [ -s "$DOCTOR_LOG" ] && nope "--skip-doctor does not run doctor" || ok "--skip-doctor does not run doctor"

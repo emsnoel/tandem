@@ -125,10 +125,12 @@ prelaunch_gates() {
     --root "$ROOT" --cwd "$SPLIT_CWD" --user-kind "$user_kind" ${dry_arg:+$dry_arg} 2>"$PRE_ERR") || pre_rc=$?
 
   # Report every gate that acted or needs something, with its remedy. Warnings
-  # are not fatal, so the stderr block below does not print them.
-  printf '%s' "$pre" | jq -r '
+  # are not fatal, so the stderr block below does not print them. Doctor already
+  # reported every gate that needs something, so after doctor only the gates
+  # that just acted are new.
+  printf '%s' "$pre" | jq -r --arg all "$SKIP_DOCTOR" '
     .actions[]
-    | select(.status != "current")
+    | select(.status != "current" and ($all == "1" or .status == "applied"))
     | "  \(.gate): \(.status) — \(.detail)"
       + (if .status == "warning" and (.remedy // "") != ""
          then "\n         \(.remedy)" else "" end)' 2>/dev/null | while IFS= read -r _l; do
