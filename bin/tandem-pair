@@ -126,11 +126,12 @@ prelaunch_gates() {
 
   # Report every gate that acted or needs something, with its remedy. Warnings
   # are not fatal, so the stderr block below does not print them. Doctor already
-  # reported every gate that needs something, so after doctor only the gates
-  # that just acted are new.
+  # reported the gates that warn, need a human or lack their tool. It runs the
+  # gates dry, so a gate that acted, or failed to write, is new.
   printf '%s' "$pre" | jq -r --arg all "$SKIP_DOCTOR" '
     .actions[]
-    | select(.status != "current" and ($all == "1" or .status == "applied"))
+    | select(.status != "current"
+             and ($all == "1" or .status == "applied" or .status == "failed"))
     | "  \(.gate): \(.status) — \(.detail)"
       + (if .status == "warning" and (.remedy // "") != ""
          then "\n         \(.remedy)" else "" end)' 2>/dev/null | while IFS= read -r _l; do

@@ -113,6 +113,10 @@ PRELAUNCH_OUT="$PRELAUNCH_OUT" pair 0 --builder claude --reviewer claude
 lack "a gate doctor reported is not shown twice" "$OUT" "GATE-WARNED"
 lack "nor is its remedy" "$OUT" "GATE-REMEDY"
 chk "a gate that just acted is shown" "$OUT" "GATE-ACTED"
+# Doctor runs the gates dry, so a write that fails only shows up here.
+PRELAUNCH_OUT='{"actions":[{"gate":"project-trust","status":"failed","detail":"GATE-WRITE-FAILED","remedy":"check its permissions"}]}' \
+  pair 0 --builder claude --reviewer claude
+chk "a gate that failed to write is shown after doctor" "$OUT" "GATE-WRITE-FAILED"
 PRELAUNCH_OUT="$PRELAUNCH_OUT" pair 0 --skip-doctor --builder claude --reviewer claude
 chk "with --skip-doctor the gate warning is shown" "$OUT" "GATE-WARNED"
 chk "with its remedy" "$OUT" "GATE-REMEDY"
