@@ -253,8 +253,8 @@ STUB2
 chmod +x "$TMP/bin/herdr"
 run_pair env HERDR_BUILDER_KIND=codex HERDR_BUILDER_MODEL=gpt-5.4
 chk  "adopts the running agent whatever its kind" "adopting the running opencode agent"
-chk  "names the axes it cannot enforce"           "UNENFORCED"
-chk  "says how to apply them"                     "Restart the pane"
+chk  "names the axes it cannot enforce"           "keeps the settings it started with"
+chk  "says how to apply them"                     "Restart its pane"
 nchk "never adopts the planner pane"              "adopting the running claude agent"
 
 echo "--- adoption stays beside the planner ---"
