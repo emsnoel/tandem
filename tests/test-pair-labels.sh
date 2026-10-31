@@ -17,11 +17,12 @@ chk()  { case "$OUT" in *"$2"*) ok "$1" ;; *) nope "$1 (missing: $2)"
            [ "$SHOWN" -eq 1 ] || { SHOWN=1; printf '%s\n' "$OUT" | sed 's/^/       | /'; } ;; esac; }
 lack() { case "$OUT" in *"$2"*) nope "$1 (found: $2)" ;; *) ok "$1" ;; esac; }
 
-command -v jq >/dev/null || { echo "need jq" >&2; exit 2; }
 
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/bin" "$TMP/labelled-repo"
-ln -s "$(command -v jq)" "$TMP/bin/jq"
+# tandem-pair calls no jq; a call fails the run.
+printf '#!/bin/sh\necho "jq was called: $*" >&2\nexit 99\n' > "$TMP/bin/jq"
+chmod +x "$TMP/bin/jq"
 cat > "$TMP/bin/herdr" <<'STUB'
 #!/usr/bin/env bash
 case "$1 $2" in

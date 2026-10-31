@@ -17,13 +17,14 @@ chk()  { case "$2" in *"$3"*) ok "$1" ;; *) nope "$1 (missing: $3)"
            [ "$SHOWN" -eq 1 ] || { SHOWN=1; printf '%s\n' "$2" | sed 's/^/       | /'; } ;; esac; }
 lack() { case "$2" in *"$3"*) nope "$1 (found: $3)" ;; *) ok "$1" ;; esac; }
 
-command -v jq >/dev/null || { echo "need jq" >&2; exit 2; }
 REAL_TANDEM=$(command -v tandem) || { echo "need tandem on PATH" >&2; exit 2; }
 export REAL_TANDEM
 
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/bin" "$TMP/doctor-repo"
-ln -s "$(command -v jq)" "$TMP/bin/jq"
+# tandem-pair calls no jq; a call fails the run.
+printf '#!/bin/sh\necho "jq was called: $*" >&2\nexit 99\n' > "$TMP/bin/jq"
+chmod +x "$TMP/bin/jq"
 cat > "$TMP/bin/herdr" <<'STUB'
 #!/usr/bin/env bash
 case "$1 $2" in
@@ -42,7 +43,8 @@ cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
 if [ "${1:-} ${2:-}" = "agent prelaunch" ]; then
   printf '%s\n' "$*" >> "$DOCTOR_LOG.prelaunch"
-  [ -z "${PRELAUNCH_OUT:-}" ] || { printf '%s\n' "$PRELAUNCH_OUT"; exit 0; }
+  # PRELAUNCH_OUT holds the NUL fields with | in place of NUL.
+  [ -z "${PRELAUNCH_OUT:-}" ] || { printf '%s' "$PRELAUNCH_OUT" | tr '|' '\000'; exit 0; }
 fi
 if [ "${1:-}" = doctor ]; then
   printf '%s\n' "$*" >> "$DOCTOR_LOG"
@@ -106,20 +108,16 @@ lack "an old binary is not told to skip doctor" "$OUT" "--skip-doctor"
 lack "an old binary's usage text is not shown" "$OUT" "unknown subcommand"
 [ "$PAIR_RC" -ne 0 ] && ok "an old binary stops pairing" || nope "an old binary stops pairing"
 
-# Doctor already showed the gates that warn, so tandem-pair shows only the
-# ones that just acted, unless doctor was skipped.
-PRELAUNCH_OUT='{"actions":[{"gate":"hook-acceptance","status":"warning","detail":"GATE-WARNED","remedy":"GATE-REMEDY"},{"gate":"project-trust","status":"applied","detail":"GATE-ACTED"}]}'
+# Doctor already showed the gates that warn, so tandem-pair asks prelaunch
+# only for the ones that just acted or failed to write, unless doctor was
+# skipped. tandem decides which gates those are (TestPrelaunchFieldsShowNew).
+PRELAUNCH_OUT='hook-acceptance|warning|GATE-WARNED|GATE-REMEDY|project-trust|applied|GATE-ACTED||'
 PRELAUNCH_OUT="$PRELAUNCH_OUT" pair 0 --builder claude --reviewer claude
-lack "a gate doctor reported is not shown twice" "$OUT" "GATE-WARNED"
-lack "nor is its remedy" "$OUT" "GATE-REMEDY"
-chk "a gate that just acted is shown" "$OUT" "GATE-ACTED"
-# Doctor runs the gates dry, so a write that fails only shows up here.
-PRELAUNCH_OUT='{"actions":[{"gate":"project-trust","status":"failed","detail":"GATE-WRITE-FAILED","remedy":"check its permissions"}]}' \
-  pair 0 --builder claude --reviewer claude
-chk "a gate that failed to write is shown after doctor" "$OUT" "GATE-WRITE-FAILED"
+chk "after doctor, prelaunch reports only new gates" "$(cat "$DOCTOR_LOG.prelaunch")" "--fields --show new"
+chk "a reported gate is shown" "$OUT" "GATE-ACTED"
+chk "a warning shows its remedy" "$OUT" "GATE-REMEDY"
 PRELAUNCH_OUT="$PRELAUNCH_OUT" pair 0 --skip-doctor --builder claude --reviewer claude
-chk "with --skip-doctor the gate warning is shown" "$OUT" "GATE-WARNED"
-chk "with its remedy" "$OUT" "GATE-REMEDY"
+chk "with --skip-doctor, prelaunch reports every gate" "$(cat "$DOCTOR_LOG.prelaunch")" "--fields --show all"
 unset PRELAUNCH_OUT
 
 pair 30 --skip-doctor --builder claude --reviewer claude
