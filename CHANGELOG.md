@@ -5,7 +5,6 @@
 
 ### Features
 
-* add tandem doctor to find setup problems before pairing ([23fad1b](https://github.com/emsnoel/tandem/commit/23fad1bb7c7f7e98a275b3ad4b1104a5839e3b88))
 * add tandem doctor to find setup problems before pairing ([ba5ad04](https://github.com/emsnoel/tandem/commit/ba5ad0491658851a5805cac45ca08c3f7a9cfd54))
 * **pair:** run tandem doctor before opening any pane ([da20a02](https://github.com/emsnoel/tandem/commit/da20a020611c36299ed50e4165a14988af657ca7))
 
