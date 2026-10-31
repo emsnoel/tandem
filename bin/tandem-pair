@@ -280,6 +280,10 @@ if (( ! SKIP_DOCTOR )); then
   [[ -n "$OV_REVIEWER_EFFORT" ]]  && doctor_args+=(--reviewer-effort "$OV_REVIEWER_EFFORT")
   doctor_rc=0
   doctor_out=$(tandem doctor "${doctor_args[@]}" 2>&1) || doctor_rc=$?
+  # Exit 2 is a usage error, which these flags never cause on a current binary:
+  # the installed tandem has no doctor, or no --problems.
+  (( doctor_rc != 2 )) \
+    || die "the installed tandem is behind these commands (no 'tandem doctor --problems'); re-run install.sh."
   if (( doctor_rc != 0 )); then
     printf '%s\n\n' "$doctor_out" >&2
     printf 'tandem-pair: fix the problems above, or run with --skip-doctor.\n' >&2
