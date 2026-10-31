@@ -44,12 +44,15 @@ func errText(err error) string {
 	return err.Error()
 }
 
+// errNoAnswer marks a probe that timed out: herdr is there but did not answer.
+var errNoAnswer = errors.New("did not answer")
+
 func bounded[T any](f func(context.Context) (T, error)) (T, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), probeTimeout)
 	defer cancel()
 	v, err := f(ctx)
 	if err != nil && ctx.Err() != nil {
-		return v, fmt.Errorf("did not answer within %s", probeTimeout)
+		return v, fmt.Errorf("%w within %s", errNoAnswer, probeTimeout)
 	}
 	return v, err
 }
@@ -59,6 +62,8 @@ func herdrVersion(p Probe) Result {
 	v, err := bounded(p.HerdrVersion)
 	fix := "install Herdr " + herdr.MinVersion + " or later"
 	switch {
+	case errors.Is(err, errNoAnswer):
+		r.Status, r.Detail, r.Fix = Fail, "herdr did not answer within "+probeTimeout.String(), socketFix
 	case err != nil:
 		r.Status, r.Detail, r.Fix = Fail, "herdr: "+errText(err), fix
 	case !herdr.VersionAtLeast(v, herdr.MinVersion):
@@ -88,6 +93,11 @@ func herdrPane(getenv func(string) string) Result {
 
 func integrations(p Probe, uses Uses) []Result {
 	got, err := bounded(p.Integrations)
+	if errors.Is(err, errNoAnswer) {
+		return []Result{{Name: "integrations", Status: Fail,
+			Detail: "herdr did not answer within " + probeTimeout.String() + " when asked for its integrations",
+			Fix:    socketFix}}
+	}
 	if err != nil {
 		return []Result{{Name: "integrations", Status: Fail,
 			Detail: "could not read herdr integration status: " + errText(err),

@@ -14,16 +14,24 @@ import (
 // fakeProbe answers every probe from fields. A nil map or empty version reads
 // as "herdr is not installed" for the call that uses it.
 type fakeProbe struct {
-	version      string
-	versionErr   error
-	socketErr    error
-	socketBlocks bool
-	integrations map[string]herdr.Integration
-	intErr       error
-	onPath       map[string]string // kind -> "--version" output; "" means unreadable
+	version       string
+	versionErr    error
+	versionBlocks bool
+	socketErr     error
+	socketBlocks  bool
+	integrations  map[string]herdr.Integration
+	intErr        error
+	intBlocks     bool
+	onPath        map[string]string // kind -> "--version" output; "" means unreadable
 }
 
-func (f fakeProbe) HerdrVersion(context.Context) (string, error) { return f.version, f.versionErr }
+func (f fakeProbe) HerdrVersion(ctx context.Context) (string, error) {
+	if f.versionBlocks {
+		<-ctx.Done()
+		return "", ctx.Err()
+	}
+	return f.version, f.versionErr
+}
 
 func (f fakeProbe) HerdrSocket(ctx context.Context) error {
 	if f.socketBlocks {
@@ -33,7 +41,11 @@ func (f fakeProbe) HerdrSocket(ctx context.Context) error {
 	return f.socketErr
 }
 
-func (f fakeProbe) Integrations(context.Context) (map[string]herdr.Integration, error) {
+func (f fakeProbe) Integrations(ctx context.Context) (map[string]herdr.Integration, error) {
+	if f.intBlocks {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
 	return f.integrations, f.intErr
 }
 
@@ -128,6 +140,29 @@ func TestHerdrHangIsBounded(t *testing.T) {
 	}
 	if d := time.Since(start); d > 3*time.Second {
 		t.Fatalf("took %s, want under 3s", d)
+	}
+}
+
+// A probe that times out is a Herdr that did not answer, not a missing one.
+func TestIntegrationTimeoutSaysHerdrDidNotAnswer(t *testing.T) {
+	p := healthy()
+	p.intBlocks = true
+	assertNoAnswer(t, find(t, Machine(p, codexBuilder, inPane), "integrations"))
+}
+
+func TestVersionTimeoutSaysHerdrDidNotAnswer(t *testing.T) {
+	p := healthy()
+	p.versionBlocks = true
+	assertNoAnswer(t, find(t, Machine(p, codexBuilder, inPane), "herdr-version"))
+}
+
+func assertNoAnswer(t *testing.T, r Result) {
+	t.Helper()
+	if r.Status != Fail || !strings.Contains(r.Detail, "did not answer") {
+		t.Errorf("got %+v, want a fail saying herdr did not answer", r)
+	}
+	if strings.Contains(r.Fix, "install Herdr") || r.Fix != socketFix {
+		t.Errorf("fix %q, want the socket fix", r.Fix)
 	}
 }
 
