@@ -267,9 +267,10 @@ done
 # --- doctor ---
 # Every setup problem at once, before any pane opens. The per-pane gates below
 # still run, because the machine can change between the two. A dry run checks
-# too: doctor writes nothing.
+# too: doctor writes nothing. --problems prints only failures and warnings, and
+# nothing when every check passes.
 if (( ! SKIP_DOCTOR )); then
-  doctor_args=(--cwd "$SPLIT_CWD")
+  doctor_args=(--problems --cwd "$SPLIT_CWD")
   [[ -n "$OV_BUILDER_KIND" ]]     && doctor_args+=(--builder "$OV_BUILDER_KIND")
   [[ -n "$OV_BUILDER_MODEL" ]]    && doctor_args+=(--builder-model "$OV_BUILDER_MODEL")
   [[ -n "$OV_BUILDER_EFFORT" ]]   && doctor_args+=(--builder-effort "$OV_BUILDER_EFFORT")
@@ -284,6 +285,7 @@ if (( ! SKIP_DOCTOR )); then
     printf 'tandem-pair: fix the problems above, or run with --skip-doctor.\n' >&2
     exit "$doctor_rc"
   fi
+  [[ -z "$doctor_out" ]] || printf '%s\n\n' "$doctor_out" >&2
 fi
 
 # --- resolve the launch spec ---
