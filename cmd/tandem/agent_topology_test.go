@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,17 +10,28 @@ import (
 	"github.com/emsnoel/tandem/internal/exitcode"
 )
 
-// stubHerdr puts a herdr on PATH that prints out for `agent list` and fails
-// every other call the way Herdr reports an unknown agent.
+// stubHerdr puts a herdr on PATH that prints list for `agent list`.
 func stubHerdr(t *testing.T, list string) {
 	t.Helper()
+	stubHerdrAnswers(t, map[string]string{"agent list": list})
+}
+
+// stubHerdrAnswers puts a herdr on PATH that prints answers["$1 $2"] and
+// fails every other call the way Herdr reports an unknown agent.
+func stubHerdrAnswers(t *testing.T, answers map[string]string) {
+	t.Helper()
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "list.json"), []byte(list), 0o600); err != nil {
-		t.Fatal(err)
+	script := "#!/bin/sh\n"
+	i := 0
+	for verb, out := range answers {
+		f := filepath.Join(dir, fmt.Sprintf("answer%d", i))
+		i++
+		if err := os.WriteFile(f, []byte(out), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		script += "if [ \"$1 $2\" = '" + verb + "' ]; then cat '" + f + "'; exit 0; fi\n"
 	}
-	script := "#!/bin/sh\n" +
-		"if [ \"$1 $2\" = \"agent list\" ]; then cat '" + filepath.Join(dir, "list.json") + "'; exit 0; fi\n" +
-		"echo '{\"error\":{\"code\":\"agent_not_found\",\"message\":\"not found\"}}' >&2; exit 1\n"
+	script += "echo '{\"error\":{\"code\":\"agent_not_found\",\"message\":\"not found\"}}' >&2; exit 1\n"
 	if err := os.WriteFile(filepath.Join(dir, "herdr"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
