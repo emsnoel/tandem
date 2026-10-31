@@ -13,7 +13,7 @@ import (
 	"github.com/emsnoel/tandem/internal/paths"
 )
 
-const reviewerUse = "usage: tandem reviewer show [--root DIR | --relay DIR] [--json]"
+const reviewerUse = "usage: tandem reviewer show [--root DIR | --relay DIR] [--json] | tandem reviewer record ..."
 
 // cmdReviewer prints the reviewer pane tandem-pair recorded, through
 // config.LoadReviewer, so no script parses reviewer.json itself. --relay names
@@ -23,6 +23,9 @@ const reviewerUse = "usage: tandem reviewer show [--root DIR | --relay DIR] [--j
 // --json prints the whole record. It exits exitcode.NoReviewer with no record
 // and exitcode.ReviewerIncomplete when the record is unreadable or incomplete.
 func cmdReviewer(args []string) int {
+	if len(args) > 0 && args[0] == "record" {
+		return cmdReviewerRecord(args[1:])
+	}
 	if len(args) == 0 || args[0] != "show" {
 		fmt.Fprintln(os.Stderr, reviewerUse)
 		return exitcode.Usage
