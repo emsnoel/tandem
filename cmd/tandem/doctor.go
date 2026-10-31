@@ -48,7 +48,7 @@ func cmdDoctor(args []string) int {
 		return exitcode.Usage
 	}
 	if fs.NArg() != 0 {
-		fmt.Fprintln(os.Stderr, "usage: tandem doctor [--json] [--cwd DIR] [--builder KIND] [--reviewer KIND] ...")
+		fmt.Fprintln(os.Stderr, "usage: tandem doctor [--json] [--problems] [--cwd DIR] [--builder KIND] [--reviewer KIND] ...")
 		return exitcode.Usage
 	}
 	dir, err := filepath.Abs(*cwd)
