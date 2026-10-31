@@ -96,6 +96,14 @@ DOCTOR_OUT="" pair 0 --builder claude --reviewer claude
 lack "a clean doctor prints nothing" "$OUT" "DOCTOR-OUTPUT"
 chk "a clean doctor lets pairing continue" "$OUT" "pane split"
 
+# An installed binary older than the scripts answers with exit 2 (usage).
+DOCTOR_OUT='tandem: unknown subcommand "doctor", and no tandem-doctor on PATH' \
+  pair 2 --builder claude --reviewer claude
+chk "an old binary is told to re-run install.sh" "$OUT" "re-run install.sh"
+lack "an old binary is not told to skip doctor" "$OUT" "--skip-doctor"
+lack "an old binary's usage text is not shown" "$OUT" "unknown subcommand"
+[ "$PAIR_RC" -ne 0 ] && ok "an old binary stops pairing" || nope "an old binary stops pairing"
+
 pair 30 --skip-doctor --builder claude --reviewer claude
 [ -s "$DOCTOR_LOG" ] && nope "--skip-doctor does not run doctor" || ok "--skip-doctor does not run doctor"
 chk "--skip-doctor pairs anyway" "$OUT" "pane split"
