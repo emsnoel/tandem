@@ -44,11 +44,16 @@ func TestRecordBuilderDryRunWritesNothing(t *testing.T) {
 func TestRecordBuilderRefusesEmptyKind(t *testing.T) {
 	dir := withFixture(t, `{"builder":{"kind":"codex","autonomy":"auto"}}`, "")
 	relay := filepath.Join(t.TempDir(), "relay")
-	out, rc := captureStdoutRC(t, func() int {
-		return cmdConfig([]string{"record-builder", "--relay", relay, "--root", dir, "--kind", " "})
+	var out string
+	var rc int
+	errOut := captureStderr(t, func() {
+		out, rc = captureStdoutRC(t, func() int {
+			return cmdConfig([]string{"record-builder", "--relay", relay, "--root", dir, "--kind", " "})
+		})
 	})
-	if rc != exitcode.Internal || out != "" {
-		t.Fatalf("rc %d, out %q", rc, out)
+	// bin/tandem-pair explains the code, so tandem prints nothing.
+	if rc != exitcode.BuilderUnresolved || out != "" || errOut != "" {
+		t.Fatalf("rc %d, out %q, stderr %q", rc, out, errOut)
 	}
 	if _, err := os.Stat(filepath.Join(relay, config.BuilderFile)); !os.IsNotExist(err) {
 		t.Fatalf("wrote a record: %v", err)
