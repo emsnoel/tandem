@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/emsnoel/tandem/internal/agent"
 	"github.com/emsnoel/tandem/internal/config"
@@ -88,18 +90,41 @@ func cmdConfig(args []string) int {
 	}
 	fs := flag.NewFlagSet("config resolve", flag.ContinueOnError)
 	adopted := fs.String("adopted", "", "running kind of an adopted agent")
+	asFields := fs.Bool("fields", false, "print NUL-separated fields for bash (resolveFields) in place of JSON")
 	l, rc := loadResolved(fs, args[1:])
 	if rc != exitcode.OK {
 		return rc
 	}
 	if l.Reviewer != nil {
+		if *asFields {
+			writeResolveFields(os.Stdout, string(l.Reviewer.Status), l.Reviewer.Reason, l.Reviewer.Resolved)
+			return exitcode.OK
+		}
 		return emitJSON(l.Reviewer)
 	}
 	r := l.Resolved
 	if *adopted != "" {
 		r = r.MarkAdopted(*adopted)
 	}
+	if *asFields {
+		writeResolveFields(os.Stdout, string(config.ReviewerResolved), "", &r)
+		return exitcode.OK
+	}
 	return emitJSON(r)
+}
+
+// writeResolveFields prints a resolution as eleven NUL fields: status, reason,
+// kind, model, effort, autonomy, the four values' sources in that order, and
+// the unenforced axes joined by spaces. r is nil for a reviewer that is none
+// or invalid, which leaves the last nine fields empty.
+func writeResolveFields(w io.Writer, status, reason string, r *config.Resolved) {
+	if r == nil {
+		r = &config.Resolved{}
+	}
+	writeFields(w, status, reason,
+		r.Kind.Value, r.Model.Value, r.Effort.Value, r.Autonomy.Value,
+		string(r.Kind.From), string(r.Model.From), string(r.Effort.From), string(r.Autonomy.From),
+		strings.Join(r.Unenforced, " "))
 }
 
 func emitJSON(v any) int {
