@@ -16,8 +16,8 @@ import (
 // okProbe is a machine where Herdr and every agent CLI are present and current.
 type okProbe struct{}
 
-func (okProbe) HerdrVersion(context.Context) (string, error) { return "0.9.3", nil }
-func (okProbe) HerdrSocket(context.Context) error            { return nil }
+func (okProbe) HerdrVersion(context.Context) (string, error)  { return "0.9.3", nil }
+func (okProbe) Agents(context.Context) ([]herdr.Agent, error) { return nil, nil }
 func (okProbe) Integrations(context.Context) (map[string]herdr.Integration, error) {
 	all := map[string]herdr.Integration{}
 	for _, k := range []string{"claude", "codex", "copilot", "opencode"} {

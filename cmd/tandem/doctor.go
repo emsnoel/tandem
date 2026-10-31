@@ -70,6 +70,7 @@ func cmdDoctor(args []string) int {
 			Detail: err.Error(), Fix: "fix the file named above, then run tandem doctor again"})
 	} else {
 		rep.Manifest = roles.Manifest
+		roles.Running = doctor.RunningRoles(doctorProbe, os.Getenv)
 		rep.Results = append(doctor.Machine(doctorProbe, roles.Uses(), os.Getenv),
 			doctor.Repo(root, dir, roles, os.Getenv)...)
 	}

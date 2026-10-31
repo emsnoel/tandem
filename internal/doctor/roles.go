@@ -24,7 +24,10 @@ type Roles struct {
 	Manifest string
 	// Warnings come from reading the manifest, such as unknown keys.
 	Warnings []string
-	user     *config.User
+	// Running maps a builder or reviewer that already runs to its pane, as
+	// RunningRoles finds them. tandem-pair skips some checks for those.
+	Running map[agent.Role]string
+	user    *config.User
 }
 
 // ResolveRoles reads both config sources and resolves all three roles. A

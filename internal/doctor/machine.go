@@ -13,7 +13,8 @@ import (
 // Probe is everything the machine checks ask of the outside world.
 type Probe interface {
 	HerdrVersion(ctx context.Context) (string, error)
-	HerdrSocket(ctx context.Context) error
+	// Agents lists the agents Herdr runs, and fails when its socket does not answer.
+	Agents(ctx context.Context) ([]herdr.Agent, error)
 	Integrations(ctx context.Context) (map[string]herdr.Integration, error)
 	LookPath(bin string) (string, error)
 	CLIVersion(ctx context.Context, bin string) (string, error)
@@ -75,7 +76,7 @@ func herdrVersion(p Probe) Result {
 }
 
 func herdrSocket(p Probe) Result {
-	_, err := bounded(func(ctx context.Context) (struct{}, error) { return struct{}{}, p.HerdrSocket(ctx) })
+	_, err := bounded(p.Agents)
 	if err != nil {
 		return Result{Name: "herdr-socket", Status: Fail, Detail: "herdr socket: " + errText(err), Fix: socketFix}
 	}
