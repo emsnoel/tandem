@@ -48,3 +48,23 @@ func LoadReviewer(relay string) (ReviewerRecord, error) {
 	}
 	return rec, nil
 }
+
+// WriteReviewer writes relay/reviewer.json, creating the relay.
+func WriteReviewer(relay string, rec ReviewerRecord) error {
+	return writeRecord(relay, ReviewerFile, rec)
+}
+
+// NextReviewer is the record for a reviewer pane bin/tandem-pair started or
+// found running. A started pane's model is known when it was launched with
+// one. A running pane keeps prev's model only when prev names the same kind
+// and name and measured it; otherwise its model is unknown.
+func NextReviewer(prev *ReviewerRecord, kind, name, model, autonomy string, started bool) ReviewerRecord {
+	rec := ReviewerRecord{Kind: kind, Name: name, Autonomy: autonomy}
+	switch {
+	case started:
+		rec.Model, rec.ModelMeasured = model, model != ""
+	case prev != nil && prev.Kind == kind && prev.Name == name && prev.ModelMeasured && prev.Model != "":
+		rec.Model, rec.ModelMeasured = prev.Model, true
+	}
+	return rec
+}
