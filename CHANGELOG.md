@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.1](https://github.com/emsnoel/tandem/compare/v0.3.0...v0.3.1) (2026-10-31)
+
+
+### Bug Fixes
+
+* keep showing a trust gate that failed to write after doctor passes ([ba8a4ff](https://github.com/emsnoel/tandem/commit/ba8a4ff315df6a238f343f66d62df23f82561103))
+* list --problems in tandem doctor's usage line ([ee686a8](https://github.com/emsnoel/tandem/commit/ee686a897bb1543d59c3d97e6f694d47069d5003))
+* say Herdr did not answer when doctor's Herdr probe times out ([fda9483](https://github.com/emsnoel/tandem/commit/fda948366aa60820cc31bfc29a8c0232d48d99c9))
+* show a trust gate warning once when doctor has already reported it ([2a52a8a](https://github.com/emsnoel/tandem/commit/2a52a8a3ad520be7e703e465860cab17da7ad47a))
+* show tandem doctor's warnings when tandem-pair passes the check ([854307b](https://github.com/emsnoel/tandem/commit/854307b54c8e7f927a7d2ca24cbb80d781f082b1))
+* skip doctor checks for roles that already run, as tandem-pair does ([21958a0](https://github.com/emsnoel/tandem/commit/21958a0858f8222cf135194c9423697122f31aa9))
+* tell the user to re-run install.sh when tandem doctor is missing ([cf6e367](https://github.com/emsnoel/tandem/commit/cf6e3678b57e938de656c3b9c45250c5d8d7919d))
+
 ## [0.3.0](https://github.com/emsnoel/tandem/compare/v0.2.0...v0.3.0) (2026-10-31)
 
 
