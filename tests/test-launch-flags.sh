@@ -233,7 +233,7 @@ nchk "never renders a launch line" "agent start builder"
 
 echo "--- fail closed ---"
 run_pair env HERDR_BUILDER_KIND=opencode HERDR_BUILDER_AUTONOMY=readonly
-chk "refuses a widening" "widening"
+chk "refuses a widening" "GRANTS authority"
 chk "names the remedy"   "allow_widen"
 
 echo "--- legacy env still works ---"
