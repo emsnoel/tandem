@@ -34,6 +34,7 @@ func cmdDoctor(args []string) int {
 	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	asJSON := fs.Bool("json", false, "print the results as JSON")
+	problems := fs.Bool("problems", false, "print only the checks that failed or warned; JSON is unchanged")
 	cwd := fs.String("cwd", ".", "folder the agents will start in; the repo is its git toplevel")
 	var flags doctor.RoleFlags
 	fs.StringVar(&flags.Builder.Kind, "builder", "", "builder kind, as tandem-pair --builder")
@@ -80,8 +81,10 @@ func cmdDoctor(args []string) int {
 		if rc := emitJSON(rep); rc != exitcode.OK {
 			return rc
 		}
-	} else {
+	} else if !*problems {
 		printDoctor(os.Stdout, rep)
+	} else if rep.Failures+rep.Warnings > 0 {
+		printDoctor(os.Stdout, onlyProblems(rep))
 	}
 	if rep.Failures > 0 {
 		return exitcode.DoctorFailed
@@ -108,6 +111,18 @@ func printDoctor(w io.Writer, rep doctorReport) {
 		}
 	}
 	fmt.Fprintf(w, "\n%s\n", doctorSummary(rep.Failures, rep.Warnings))
+}
+
+// onlyProblems keeps the results that failed or warned. The counts stay.
+func onlyProblems(rep doctorReport) doctorReport {
+	kept := rep.Results[:0:0]
+	for _, r := range rep.Results {
+		if r.Status != doctor.OK {
+			kept = append(kept, r)
+		}
+	}
+	rep.Results = kept
+	return rep
 }
 
 // doctorWidth is the widest line doctor prints. Longer text wraps at spaces

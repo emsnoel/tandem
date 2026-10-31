@@ -45,7 +45,7 @@ if [ "${1:-} ${2:-}" = "agent prelaunch" ]; then
 fi
 if [ "${1:-}" = doctor ]; then
   printf '%s\n' "$*" >> "$DOCTOR_LOG"
-  echo "DOCTOR-OUTPUT"
+  [ -z "${DOCTOR_OUT-DOCTOR-OUTPUT}" ] || echo "${DOCTOR_OUT-DOCTOR-OUTPUT}"
   exit "$DOCTOR_RC"
 fi
 exec "$REAL_TANDEM" "$@"
@@ -56,12 +56,13 @@ REPO=$(cd "$TMP/doctor-repo" && pwd -P); export REPO
 git -C "$REPO" init -q
 DOCTOR_LOG="$TMP/doctor.log"; export DOCTOR_LOG
 
-# pair RC ARGS...: run tandem-pair with doctor answering RC. Sets OUT and PAIR_RC.
+# pair RC ARGS...: run tandem-pair with doctor answering RC and printing
+# $DOCTOR_OUT (DOCTOR-OUTPUT when unset). Sets OUT and PAIR_RC.
 pair() {
   local rc="$1"; shift
   : > "$DOCTOR_LOG"; : > "$DOCTOR_LOG.prelaunch"
   PAIR_RC=0
-  OUT=$(cd "$REPO" && env PATH="$TMP/bin:$PATH" DOCTOR_RC="$rc" HERDR_ENV=1 HERDR_PANE_ID=w1:p1 \
+  OUT=$(cd "$REPO" && env PATH="$TMP/bin:$PATH" DOCTOR_RC="$rc" ${DOCTOR_OUT+DOCTOR_OUT="$DOCTOR_OUT"} HERDR_ENV=1 HERDR_PANE_ID=w1:p1 \
     HERDR_SKIP_HOOK_CHECK=1 "$PAIR" --dry-run "$@" 2>&1) || PAIR_RC=$?
 }
 
@@ -87,6 +88,13 @@ for f in "--builder-model m1" "--builder-effort high" "--builder-autonomy auto" 
          "--reviewer-model m2" "--reviewer-effort low"; do
   chk "doctor gets $f" "$(cat "$DOCTOR_LOG")" "$f"
 done
+
+DOCTOR_OUT="WARN-LINE" pair 0 --builder claude --reviewer claude
+chk "a passing doctor's warnings are shown" "$OUT" "WARN-LINE"
+chk "tandem-pair asks doctor for problems only" "$(cat "$DOCTOR_LOG")" "--problems"
+DOCTOR_OUT="" pair 0 --builder claude --reviewer claude
+lack "a clean doctor prints nothing" "$OUT" "DOCTOR-OUTPUT"
+chk "a clean doctor lets pairing continue" "$OUT" "pane split"
 
 pair 30 --skip-doctor --builder claude --reviewer claude
 [ -s "$DOCTOR_LOG" ] && nope "--skip-doctor does not run doctor" || ok "--skip-doctor does not run doctor"

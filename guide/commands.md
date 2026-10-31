@@ -77,12 +77,14 @@ them (`HERDR_BUILDER_NAME` and `HERDR_REVIEWER_NAME`, `builder` and `reviewer` b
 
 `tandem doctor` exits 0 when nothing fails and 30 when something does. `--json` prints the same results as
 JSON: a `results` list with `group`, `name`, `status`, `detail` and `fix` for each check, and
-`failures` and `warnings` counts.
+`failures` and `warnings` counts. `--problems` prints only the checks that failed or warned,
+and nothing when all of them pass. It leaves `--json` output unchanged.
 
 `tandem doctor` takes the kind flags `tandem-pair` takes: `--builder`, `--builder-model`,
 `--builder-effort`, `--builder-autonomy`, `--reviewer`, `--reviewer-model` and
 `--reviewer-effort`. `--cwd DIR` checks another folder. `tandem-pair` runs `tandem doctor`
-with its own flags before it opens any pane, and stops if doctor exits 30.
+with `--problems` and its own flags before it opens any pane. It stops if doctor exits 30, and
+otherwise shows any warnings and carries on.
 
 ## Subcommands of the binary
 
