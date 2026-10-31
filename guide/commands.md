@@ -105,7 +105,7 @@ process info.
 | `tandem pane split ...` | Splits a pane through Herdr and prints the new pane's id |
 | `tandem pane split-direction PANE` | Prints `right` for a pane wider than twice its height and `down` otherwise, then its width and height, as NUL-separated fields. Exits 10 when Herdr gives no size |
 | `tandem tab label TAB` | Prints `default` while the tab still has Herdr's numbered label, and `named` once a person has named it |
-| `tandem config record-builder --relay DIR ...` | Resolves the builder with `config resolve`'s flags and writes `builder.json`. Prints its kind, autonomy and JSON as NUL-separated fields. `--dry-run` writes nothing |
+| `tandem config record-builder --relay DIR ...` | Resolves the builder with `config resolve`'s flags and writes `builder.json`. Prints its kind, autonomy and JSON as NUL-separated fields. `--dry-run` writes nothing. Exits 33, writing nothing, when the builder resolves with no kind or no autonomy |
 | `tandem reviewer record --relay DIR --kind K --name N --autonomy A ...` | Writes `reviewer.json`. A running reviewer keeps the earlier record's model only for the same kind and name. Prints the model and the JSON as NUL-separated fields |
 | `tandem pane wait-shell PANE --timeout MS` | Waits until the pane's foreground process is its shell. Exits 23 at the timeout and 3 when Herdr is unreachable |
 

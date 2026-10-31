@@ -42,6 +42,7 @@ record_builder() {
       || die "could not resolve the relay mailbox to record the builder identity."
   fi
   _dry=""; (( DRY_RUN )) && _dry=--dry-run
+  _rc=0
   tandem config record-builder ${IDENTITY_MAILBOX:+--relay "$IDENTITY_MAILBOX"} ${_dry:+$_dry} \
     --root "$ROOT" --cwd "$SPLIT_CWD" \
     ${OV_BUILDER_KIND:+--kind "$OV_BUILDER_KIND"} \
@@ -49,7 +50,12 @@ record_builder() {
     ${OV_BUILDER_EFFORT:+--effort "$OV_BUILDER_EFFORT"} \
     ${OV_BUILDER_AUTONOMY:+--autonomy "$OV_BUILDER_AUTONOMY"} \
     ${ADOPTED_KIND:+--adopted "$ADOPTED_KIND"} \
-    >"$FIELDS" || die "could not record the builder identity${IDENTITY_MAILBOX:+ in $IDENTITY_MAILBOX}."
+    >"$FIELDS" || _rc=$?
+  case "$_rc" in
+    0) ;;
+    33) die "the builder resolved with no kind or no autonomy, so the review gate would refuse every review. Check the builder settings in .tandem.json." ;;
+    *) die "could not record the builder identity${IDENTITY_MAILBOX:+ in $IDENTITY_MAILBOX}." ;;
+  esac
   { IFS= read -r -d '' _kind; IFS= read -r -d '' _autonomy; IFS= read -r -d '' IDENTITY; } < "$FIELDS" || true
 
   if (( DRY_RUN )); then

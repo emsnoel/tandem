@@ -56,4 +56,9 @@ const (
 	// both.
 	NoPlanner    = 31
 	ManyPlanners = 32
+
+	// BuilderUnresolved: `tandem config record-builder` resolved no kind or no
+	// autonomy, so the review gate would refuse every review against the
+	// record. It writes nothing; bin/tandem-pair explains it.
+	BuilderUnresolved = 33
 )

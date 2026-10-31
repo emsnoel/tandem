@@ -13,8 +13,8 @@ import (
 
 // cmdRecordBuilder resolves the builder as `config resolve` does and writes
 // builder.json in --relay, unless --dry-run. It prints kind, autonomy and the
-// record's JSON as NUL fields. An empty kind or autonomy refuses, since the
-// review gate would refuse every review against that record.
+// record's JSON as NUL fields. An empty kind or autonomy exits
+// BuilderUnresolved with nothing printed.
 func cmdRecordBuilder(args []string) int {
 	fs := flag.NewFlagSet("config record-builder", flag.ContinueOnError)
 	relay := fs.String("relay", "", "the relay directory to write builder.json in")
@@ -34,8 +34,7 @@ func cmdRecordBuilder(args []string) int {
 	}
 	rec := config.BuilderRecord{Kind: r.Kind.Value, Autonomy: r.Autonomy.Value, Adopted: *adopted != ""}
 	if strings.TrimSpace(rec.Kind) == "" || strings.TrimSpace(rec.Autonomy) == "" {
-		fmt.Fprintln(os.Stderr, "tandem: the resolved builder has no kind or no autonomy")
-		return exitcode.Internal
+		return exitcode.BuilderUnresolved
 	}
 	return printRecord(rec, *dryRun, func() error { return config.WriteBuilder(*relay, rec) }, rec.Kind, rec.Autonomy)
 }
