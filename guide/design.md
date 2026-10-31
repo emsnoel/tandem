@@ -521,12 +521,13 @@ error never reaches — and handback delivery from the builder silently failed u
 builder's own handback failed to arrive and exposed it. The bash it replaced was broader
 on purpose: `if ! herdr agent list >/dev/null 2>&1; then ask_via_mailbox; fi`.
 
-Two gaps are known and deliberate. `tandem-bridge` keeps its own `jq` and its
+One gap is known and deliberate. `tandem-bridge` keeps its own `jq` and its
 `// "unknown"` defaults, because it must keep working when everything else is broken.
-And `tandem-pair` still parses herdr JSON with `jq` in nine places: it makes topology
-decisions — find the calling pane, count agents of a kind, adopt an unnamed one, read
-pane geometry — that the facade's by-name snapshot does not model. Its *decision* logic,
-`codex_hook_trust`, did move, and is now twenty-one table-driven subtests.
+`tandem-pair` used to parse herdr JSON with `jq` too, for topology decisions the by-name
+snapshot does not model. Those moved into `tandem agent planner`, `tandem agent adoptable`,
+`tandem pane split-direction` and `tandem tab label`, each a function in `internal/herdr`
+with its own tests. Its `codex_hook_trust` logic had already moved, and is twenty-one
+table-driven subtests.
 
 One thing the Go version does that the bash could not: `tree_fingerprint` swallowed git
 errors with `|| true`, so an empty result meant both "clean tree" and "git unreadable",

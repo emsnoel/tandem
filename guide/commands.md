@@ -99,7 +99,19 @@ process info.
 | `tandem agent prompt NAME TEXT --as KIND [--wait-unblocked MS]` | Sends the prompt the way KIND is delivered and confirms the turn ran. KIND is task, review, handback, verdict, question or notice, and `cmd/tandem/deliver.go` has one row of checks for each. The planner's kinds wait up to 2 minutes for a blocked agent, or for a pane showing a subagent or a list, before typing. `--wait-unblocked` sets that wait in milliseconds and needs `--as`. Every `tandem agent prompt` refuses such a pane with `agent_input_elsewhere` (see [A pane showing a subagent or a list](refusals.md#a-pane-showing-a-subagent-or-a-list)) |
 | `tandem build wait --root DIR (--until STATE)... \| --until-not STATE --timeout MS [--tick]` | Prints the run's status and exits 0 once it reaches a wanted state, or 23 at the timeout. `sent` matches once the current attempt's prompt went out. `--tick` runs a tick before each check |
 | `tandem build tick --root DIR --observe-agents` | After the tick, pauses the run with code `agent_exited` if Herdr reports its builder or reviewer gone. `tandem build recover` resumes it once the agent is back |
+| `tandem agent planner [--pane ID] [--kind KIND]` | Picks the planner's pane: the one named, else the calling pane if it runs KIND (default `claude`), else the only agent of KIND. Prints its pane, cwd, tab and name as NUL-separated fields. Exits 31 when no agent of KIND runs, and 32 when several do, printing pane, name and cwd for each |
+| `tandem agent adoptable --exclude-pane PANE [--tab TAB] [--kind KIND]` | Prints the pane and kind of the one unnamed agent `tandem-pair` may adopt as the builder, as NUL-separated fields, or nothing when there is none or more than one |
+| `tandem agent kind NAME` | Prints the kind Herdr detected for the agent called NAME. Exits 10 when no agent has that name |
+| `tandem pane split ...` | Splits a pane through Herdr and prints the new pane's id |
+| `tandem pane split-direction PANE` | Prints `right` for a pane wider than twice its height and `down` otherwise, then its width and height, as NUL-separated fields. Exits 10 when Herdr gives no size |
+| `tandem tab label TAB` | Prints `default` while the tab still has Herdr's numbered label, and `named` once a person has named it |
+| `tandem config record-builder --relay DIR ...` | Resolves the builder with `config resolve`'s flags and writes `builder.json`. Prints its kind, autonomy and JSON as NUL-separated fields. `--dry-run` writes nothing |
+| `tandem reviewer record --relay DIR --kind K --name N --autonomy A ...` | Writes `reviewer.json`. A running reviewer keeps the earlier record's model only for the same kind and name. Prints the model and the JSON as NUL-separated fields |
 | `tandem pane wait-shell PANE --timeout MS` | Waits until the pane's foreground process is its shell. Exits 23 at the timeout and 3 when Herdr is unreachable |
+
+`tandem config resolve`, `tandem agent launch-spec` and `tandem agent prelaunch` print JSON.
+With `--fields` they print NUL-separated fields for bash instead, in the order each verb's
+help text names. `tandem-pair` reads them that way, so it needs no `jq`.
 
 Between passes the bridge waits on `tandem agent watch --mailbox`, and adds `--root` while a
 durable run is active. A command that changes rows in the run's state leaves a `nudge` file

@@ -2,9 +2,9 @@
 # The relay mailbox must never reach version control.
 #
 # tandem-pair creates the mailbox, so it ignores it. The test runs the real
-# ensure_relay_ignored() lifted from the script.
+# ensure_relay_ignored() lifted from bin/lib/relay.sh.
 set -uo pipefail
-SRC="${1:-$(cd "$(dirname "$0")/.." && pwd)/bin/tandem-pair}"
+SRC="${1:-$(cd "$(dirname "$0")/.." && pwd)/bin/lib/relay.sh}"
 [ -r "$SRC" ] || { echo "not readable: $SRC" >&2; exit 2; }
 
 PASS=0; FAIL=0

@@ -36,6 +36,8 @@ FILES=$(ls "$OUT" | sort | tr '\n' ' ')
 
 LIST=$(tar -tzf "$OUT/$ASSET")
 for want in tandem/tandem tandem/bin/tandem-pair tandem/bin/lib/reviewer.sh \
+            tandem/bin/lib/relay.sh tandem/bin/lib/pair-launch.sh \
+            tandem/bin/lib/pair-panes.sh tandem/bin/lib/pair-records.sh \
             tandem/config/config.toml.example tandem/VERSION tandem/LICENSE; do
   printf '%s\n' "$LIST" | grep -qx "$want" && ok "the tarball holds $want" || nope "the tarball is missing $want"
 done
