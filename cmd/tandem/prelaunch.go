@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -25,7 +26,15 @@ func cmdPrelaunch(args []string) int {
 	root := fs.String("root", "", "repository root holding the manifest (default: --cwd)")
 	dryRun := fs.Bool("dry-run", false, "report Apply gates without writing")
 	userKind := fs.String("user-kind", "", "the kind named on tandem-pair's command line for this role, if any")
+	asFields := fs.Bool("fields", false, "print the gates to report as NUL fields (writeGateFields) in place of JSON")
+	show := fs.String("show", "all", "with --fields: all reports every gate not current, new only applied and failed")
 	if err := fs.Parse(args); err != nil {
+		return exitcode.Usage
+	}
+	showSet := false
+	fs.Visit(func(f *flag.Flag) { showSet = showSet || f.Name == "show" })
+	if (showSet && !*asFields) || (*show != "all" && *show != "new") {
+		fmt.Fprintln(os.Stderr, "tandem: --show takes all or new, and needs --fields")
 		return exitcode.Usage
 	}
 	if *role != "planner" && *role != "builder" && *role != "reviewer" {
@@ -44,7 +53,9 @@ func cmdPrelaunch(args []string) int {
 		// tandem-pair's HERDR_SKIP_HOOK_CHECK overrides the exit code further out.
 		StrictHooks: os.Getenv("HERDR_STRICT_HOOK_CHECK") == "1",
 	})
-	if rc := emitJSON(map[string]any{"actions": actions}); rc != exitcode.OK {
+	if *asFields {
+		writeGateFields(os.Stdout, actions, *show)
+	} else if rc := emitJSON(map[string]any{"actions": actions}); rc != exitcode.OK {
 		return rc
 	}
 
@@ -58,6 +69,27 @@ func cmdPrelaunch(args []string) int {
 		return exitcode.ManualGate
 	}
 	return exitcode.OK
+}
+
+// writeGateFields prints gate, status, detail and remedy as NUL fields for each
+// gate bin/tandem-pair reports. show "all" reports every gate that is not
+// current. show "new" reports only gates that acted or failed to write: doctor
+// runs the gates dry, so it has already reported the rest. The remedy is
+// filled only for a warning; a blocking gate's remedy goes to stderr.
+func writeGateFields(w io.Writer, actions []agent.Action, show string) {
+	for _, a := range actions {
+		if a.Status == agent.StatusCurrent {
+			continue
+		}
+		if show == "new" && a.Status != agent.StatusApplied && a.Status != agent.StatusFailed {
+			continue
+		}
+		remedy := ""
+		if a.Status == agent.StatusWarning {
+			remedy = a.Remedy
+		}
+		writeFields(w, a.Gate, a.StatusS, a.Detail, remedy)
+	}
 }
 
 // kindAuthorised reports whether the user chose this kind for this repository,
