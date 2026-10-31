@@ -11,6 +11,8 @@ type Agent struct {
 	Kind   string  `json:"agent"`
 	CWD    string  `json:"cwd"`
 	Status *string `json:"agent_status"`
+	// TabID is the tab holding the pane. Empty when Herdr leaves it out.
+	TabID string `json:"tab_id"`
 	// Session is what the agent's Herdr integration last reported as its
 	// conversation. Optional: absent until an integration reports one.
 	Session *AgentSession `json:"agent_session"`

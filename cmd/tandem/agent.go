@@ -94,7 +94,7 @@ func passthrough(args ...string) int {
 
 func cmdAgent(args []string) int {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: tandem agent <snapshot|status|session|reset|explain-reset|prompt|read|wait|alive|watch|self|start|launch-spec|prelaunch|kinds|instruction-files> ...")
+		fmt.Fprintln(os.Stderr, "usage: tandem agent <snapshot|status|session|reset|explain-reset|prompt|read|wait|alive|watch|self|start|launch-spec|prelaunch|kinds|instruction-files|planner|adoptable|kind> ...")
 		return exitcode.Usage
 	}
 	sub, rest := args[0], args[1:]
@@ -109,6 +109,14 @@ func cmdAgent(args []string) int {
 	}
 	if sub == "session" {
 		return cmdAgentSession(rest)
+	}
+	switch sub {
+	case "planner":
+		return cmdAgentPlanner(rest)
+	case "adoptable":
+		return cmdAgentAdoptable(rest)
+	case "kind":
+		return cmdAgentKind(rest)
 	}
 	if sub == "launch-spec" {
 		return cmdLaunchSpec(rest)

@@ -50,4 +50,10 @@ const (
 	// DoctorFailed: `tandem doctor` found at least one problem that would stop
 	// a pairing. It prints each one with its fix; warnings alone exit 0.
 	DoctorFailed = 30
+
+	// NoPlanner and ManyPlanners: `tandem agent planner` found no agent of the
+	// planner's kind, or several and no way to choose. bin/tandem-pair explains
+	// both.
+	NoPlanner    = 31
+	ManyPlanners = 32
 )
