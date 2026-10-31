@@ -107,8 +107,7 @@ ensure_reviewer() {
         info "         it runs $_running, not $REVIEWER_KIND. Close it and re-pair to change it."
         REVIEWER_KIND="$_running"
       fi
-      [[ -z "$OV_REVIEWER_MODEL$OV_REVIEWER_EFFORT" ]] \
-        || info "         --reviewer-model and --reviewer-effort are UNENFORCED on a running reviewer."
+      # record_reviewer names a declared model or effort it cannot apply.
     else
       REVIEWER_STARTED=1
       prelaunch_gates "$REVIEWER_KIND" reviewer "$OV_REVIEWER_KIND"
