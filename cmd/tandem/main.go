@@ -42,6 +42,8 @@ func run(args []string) int {
 		return cmdTriage(args[1:])
 	case "paths":
 		return cmdPaths(args[1:])
+	case "relay":
+		return cmdRelay(args[1:])
 	case "reviewer":
 		return cmdReviewer(args[1:])
 	case "trust":
