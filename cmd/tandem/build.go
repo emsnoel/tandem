@@ -24,7 +24,7 @@ import (
 	"github.com/emsnoel/tandem/internal/vcs"
 )
 
-const buildUse = "usage: tandem build <start|sent|review-sent|advance|accept|stop|status|archive|event|tick|recover|review-record|usage|budget> --root DIR ..."
+const buildUse = "usage: tandem build <start|roles|sent|review-sent|advance|accept|stop|status|archive|event|tick|recover|review-record|usage|budget> --root DIR ..."
 
 func cmdBuild(args []string) int {
 	if len(args) == 0 {
@@ -40,6 +40,8 @@ func cmdBuild(args []string) int {
 		return rc
 	}
 	switch args[0] {
+	case "roles":
+		return cmdBuildRoles(args[1:])
 	case "start":
 		return cmdBuildStart(args[1:])
 	case "sent":
