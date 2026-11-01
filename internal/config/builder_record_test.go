@@ -19,3 +19,17 @@ func TestWriteBuilderAtomicAndShape(t *testing.T) {
 		t.Fatalf("the .tmp file is left behind: %v", err)
 	}
 }
+
+func TestLoadBuilderReadsWhatWriteBuilderWrote(t *testing.T) {
+	relay := t.TempDir()
+	want := BuilderRecord{Kind: "codex", Autonomy: "auto", Adopted: true}
+	if err := WriteBuilder(relay, want); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := LoadBuilder(relay); err != nil || got != want {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+	if _, err := LoadBuilder(t.TempDir()); err == nil {
+		t.Fatal("a missing record must be an error")
+	}
+}

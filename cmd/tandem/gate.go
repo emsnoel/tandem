@@ -26,7 +26,7 @@ type snapshotFile struct {
 
 func cmdGate(args []string) int {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: tandem gate <teardown|review|scope|latest-plan> ...")
+		fmt.Fprintln(os.Stderr, "usage: tandem gate <teardown|review|scope|latest-plan|ruling|rule> ...")
 		return exitcode.Usage
 	}
 	if args[0] == "review" {
@@ -38,8 +38,14 @@ func cmdGate(args []string) int {
 	if args[0] == "latest-plan" {
 		return cmdGateLatestPlan(args[1:])
 	}
+	if args[0] == "ruling" {
+		return cmdGateRuling(args[1:])
+	}
+	if args[0] == "rule" {
+		return cmdGateRule(args[1:])
+	}
 	if args[0] != "teardown" {
-		fmt.Fprintln(os.Stderr, "usage: tandem gate <teardown|review|scope|latest-plan> ...")
+		fmt.Fprintln(os.Stderr, "usage: tandem gate <teardown|review|scope|latest-plan|ruling|rule> ...")
 		return exitcode.Usage
 	}
 
