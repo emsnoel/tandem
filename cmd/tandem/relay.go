@@ -79,7 +79,8 @@ const relayUse = "usage: tandem relay write task --mailbox DIR --id ID --from NA
 	"       tandem relay write verdict --mailbox DIR --id ID --from NAME --to NAME --message TEXT --plan PATH --review-path PATH\n" +
 	"       tandem relay write question --mailbox DIR --id ID --from NAME --to NAME --question TEXT\n" +
 	"       tandem relay log --dir DIR --id ID --from NAME --to NAME --question TEXT --answer TEXT\n" +
-	"       tandem relay read --file F"
+	"       tandem relay read --file F\n" +
+	"       tandem relay history --dir DIR [--limit N]"
 
 // cmdRelay writes the relay's messages for bin/tandem-handback and
 // bin/tandem-ask, and the queued verdict for bin/tandem-verdict: the mailbox
@@ -90,6 +91,8 @@ func cmdRelay(args []string) int {
 	switch {
 	case len(args) >= 1 && args[0] == "read":
 		return cmdRelayRead(args[1:])
+	case len(args) >= 1 && args[0] == "history":
+		return cmdRelayHistory(args[1:])
 	case len(args) >= 2 && args[0] == "write":
 		name, args = "write "+args[1], args[2:]
 	case len(args) >= 1 && args[0] == "log":
