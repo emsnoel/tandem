@@ -6,7 +6,7 @@
 #   q/, a/, bridge.pid       the git toplevel (walked)
 # A stale review left behind could pass the gate for the next pair.
 #
-# Hermetic: tandem, herdr and tandem-project are stubbed.
+# Hermetic: tandem and herdr are stubbed, and jq fails if called.
 set -uo pipefail
 . "$(cd "$(dirname "$0")" && pwd)/lib/records.sh"
 UNPAIR="${1:-$(cd "$(dirname "$0")/.." && pwd)/bin/tandem-unpair}"
@@ -21,8 +21,8 @@ command -v jq >/dev/null || { echo "need jq" >&2; exit 2; }
 
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/bin"
-# Symlink, not copy: macOS kills a copied /usr/bin/jq on exec.
-ln -s "$(command -v jq)" "$TMP/bin/jq"
+# A stub jq that fails: tandem-unpair asks tandem, so any jq call is a bug.
+printf '#!/bin/sh\necho "jq was called: $*" >&2\nexit 99\n' > "$TMP/bin/jq"
 printf '#!/usr/bin/env bash\nexit 0\n' > "$TMP/bin/herdr"
 # `paths relay` answers from its --root flag, so the test sees the script's own
 # choice of root. The real binary answers `reviewer show`.
@@ -43,6 +43,7 @@ case "$1 $2" in
     fi
     [[ -n "${DEAD:-}" ]] && exit 10; printf '%%2\t%s\tidle\n' "$BCWD"; exit 0 ;;
   "pane close") printf '%s\n' "$3" >> "$PANE_LOG"; exit 0 ;;
+  "config check-command") printf 'true\0'; exit 0 ;;
 esac
 case "$1" in
   paths)
@@ -55,10 +56,6 @@ case "$1" in
   pane) exit 0 ;;
 esac
 exit 0
-STUB
-cat > "$TMP/bin/tandem-project" <<'STUB'
-#!/usr/bin/env bash
-printf '{"root":"%s","check_command":"true"}\n' "$2"
 STUB
 chmod +x "$TMP/bin"/*
 
