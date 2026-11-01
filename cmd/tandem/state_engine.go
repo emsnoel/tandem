@@ -19,6 +19,7 @@ func cmdStateEngine(args []string) int {
 	fs := flag.NewFlagSet("state engine", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	root := fs.String("root", "", "a directory inside the checkout (default: the current directory)")
+	asFields := fs.Bool("fields", false, "print engine and because as NUL-separated fields for bash")
 	if err := fs.Parse(args); err != nil || fs.NArg() != 0 {
 		fmt.Fprintln(os.Stderr, stateUse)
 		return exitcode.Usage
@@ -43,6 +44,10 @@ func cmdStateEngine(args []string) int {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "tandem state engine: %v\n  Nothing was changed. If this relay was written by a newer tandem, update this install:\n  re-run install.sh from a current checkout. Otherwise inspect %s by hand.\n", err, relay)
 		return exitcode.ManualGate
+	}
+	if *asFields {
+		writeFields(os.Stdout, string(engine), why)
+		return exitcode.OK
 	}
 	return printJSON(map[string]any{"engine": string(engine), "because": why, "relay": relay})
 }
