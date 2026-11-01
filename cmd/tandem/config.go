@@ -78,7 +78,7 @@ func loadResolved(fs *flag.FlagSet, args []string) (loaded, int) {
 
 func cmdConfig(args []string) int {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: tandem config <resolve|approve-kind|record-builder> ...")
+		fmt.Fprintln(os.Stderr, "usage: tandem config <resolve|approve-kind|record-builder|check-command> ...")
 		return exitcode.Usage
 	}
 	if args[0] == "approve-kind" {
@@ -87,8 +87,11 @@ func cmdConfig(args []string) int {
 	if args[0] == "record-builder" {
 		return cmdRecordBuilder(args[1:])
 	}
+	if args[0] == "check-command" {
+		return cmdConfigCheckCommand(args[1:])
+	}
 	if args[0] != "resolve" {
-		fmt.Fprintln(os.Stderr, "usage: tandem config <resolve|approve-kind|record-builder> ...")
+		fmt.Fprintln(os.Stderr, "usage: tandem config <resolve|approve-kind|record-builder|check-command> ...")
 		return exitcode.Usage
 	}
 	fs := flag.NewFlagSet("config resolve", flag.ContinueOnError)

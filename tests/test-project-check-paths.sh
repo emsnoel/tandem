@@ -2,7 +2,8 @@
 # tandem-project emits an optional check_paths array from .tandem.json, which
 # limits gate 4's staleness check. Absent or wrong-typed gives [].
 #
-# Hermetic: tandem is stubbed for `paths manifest`.
+# Hermetic: tandem is stubbed for `paths manifest`. The real binary answers
+# `config check-command`.
 set -uo pipefail
 PROJECT="${1:-$(cd "$(dirname "$0")/.." && pwd)/bin/tandem-project}"
 [ -x "$PROJECT" ] || { echo "not executable: $PROJECT" >&2; exit 2; }
@@ -12,6 +13,8 @@ ok()   { printf '  ok   %s\n' "$1"; PASS=$((PASS+1)); }
 nope() { printf '  FAIL %s\n' "$1"; FAIL=$((FAIL+1)); }
 
 command -v jq >/dev/null || { echo "need jq" >&2; exit 2; }
+
+export REAL_TANDEM; REAL_TANDEM=$(command -v tandem) || { echo "need an installed tandem" >&2; exit 2; }
 
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/bin" "$TMP/repo"
@@ -29,6 +32,7 @@ if [[ "$1" == "paths" && "$2" == "manifest" ]]; then
   done
   exit 1
 fi
+[[ "$1 $2" == "config check-command" ]] && exec "$REAL_TANDEM" "$@"
 exit 1
 STUB
 chmod +x "$TMP/bin"/*

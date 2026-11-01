@@ -56,33 +56,6 @@ detect_plans_dir() {
   printf ''
 }
 
-# Prefer a target the repo actually declares over a guess that will not run.
-detect_check_command() {
-  if [[ -f "$ROOT/package.json" ]]; then
-    local k
-    for k in check verify ci test; do
-      if jq -e --arg k "$k" '.scripts[$k] // empty' "$ROOT/package.json" >/dev/null 2>&1; then
-        [[ "$k" == test ]] && printf 'npm test' || printf 'npm run %s' "$k"
-        return
-      fi
-    done
-  fi
-  [[ -f "$ROOT/Cargo.toml"      ]] && { printf 'cargo test'; return; }
-  [[ -f "$ROOT/go.mod"          ]] && { printf 'go test ./...'; return; }
-  [[ -f "$ROOT/pyproject.toml"  ]] && { printf 'pytest'; return; }
-  local f t
-  for f in justfile Justfile Makefile makefile; do
-    [[ -f "$ROOT/$f" ]] || continue
-    for t in check test; do
-      if grep -qE "^$t:" "$ROOT/$f" 2>/dev/null; then
-        [[ "$f" == [jJ]ustfile ]] && printf 'just %s' "$t" || printf 'make %s' "$t"
-        return
-      fi
-    done
-  done
-  printf ''
-}
-
 detect_conventions_file() {
   local f
   for f in AGENTS.md CONTRIBUTING.md; do
@@ -92,12 +65,9 @@ detect_conventions_file() {
 }
 
 PLANS_DIR=$(detect_plans_dir)
-CHECK_COMMAND=$(detect_check_command)
 CONVENTIONS_FILE=$(detect_conventions_file)
 BUILDER_KIND="codex"
 PROMPT_EXTRA=""
-# check_paths comes only from the manifest. Empty means the whole tree.
-CHECK_PATHS_JSON="[]"
 # Input tokens one build task may use before tandem stops the build for a
 # human to look. 0 turns it off.
 TASK_INPUT_BUDGET=3000000
@@ -125,13 +95,9 @@ if [[ -f "$MANIFEST" ]]; then
     SOURCE="manifest"
     read_key() { jq -r --arg k "$1" '.[$k] // empty' "$MANIFEST"; }
     v=$(read_key plans_dir);        [[ -n "$v" ]] && PLANS_DIR="$v"
-    v=$(read_key check_command);    [[ -n "$v" ]] && CHECK_COMMAND="$v"
     v=$(read_key conventions_file); [[ -n "$v" ]] && CONVENTIONS_FILE="$v"
     v=$(read_key builder_kind);     [[ -n "$v" ]] && BUILDER_KIND="$v"
     v=$(read_key prompt_extra);     [[ -n "$v" ]] && PROMPT_EXTRA="$v"
-    # check_paths must be a JSON array; anything else falls back to the whole tree.
-    v=$(jq -c '.check_paths // empty' "$MANIFEST" 2>/dev/null || true)
-    [[ "$v" == \[*\] ]] && CHECK_PATHS_JSON="$v"
     # Only a number replaces the default, so a typo cannot turn the budget off.
     v=$(jq -r '.task_input_budget // empty | numbers | floor' "$MANIFEST" 2>/dev/null || true)
     [[ "$v" =~ ^[0-9]+$ ]] && TASK_INPUT_BUDGET="$v"
@@ -143,6 +109,13 @@ if [[ -f "$MANIFEST" ]]; then
     COLLABORATION=$(read_key collaboration)
   fi
 fi
+
+# tandem resolves check_command (manifest, else detection) and check_paths
+# (manifest only; empty means the whole tree), so tandem-unpair shares the rule.
+CHECK_JSON=$(tandem config check-command --root "$ROOT" --from "$SEARCH_FROM") \
+  || { echo "tandem-project: the installed tandem is behind these commands (no 'tandem config check-command'); re-run install.sh." >&2; exit 1; }
+CHECK_COMMAND=$(jq -r '.check_command' <<<"$CHECK_JSON")
+CHECK_PATHS_JSON=$(jq -c '.check_paths' <<<"$CHECK_JSON")
 
 jq -n \
   --arg root "$ROOT" \

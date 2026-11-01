@@ -8,7 +8,6 @@ import (
 
 	"github.com/emsnoel/tandem/internal/exitcode"
 	"github.com/emsnoel/tandem/internal/paths"
-	"github.com/emsnoel/tandem/internal/vcs"
 )
 
 // cmdPaths prints where tandem keeps one of its files, so the bash entry points
@@ -63,18 +62,12 @@ func cmdPaths(args []string) int {
 			fmt.Println(paths.Manifest(absRoot))
 			break
 		}
-		absFrom, err := filepath.Abs(*from)
+		m, err := nearestManifest(*from)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "tandem: %v\n", err)
 			return exitcode.Internal
 		}
-		// Not in a git repository: look in this one directory only.
-		boundary, err := vcs.Toplevel(absFrom)
-		if err != nil {
-			fmt.Println(paths.Manifest(absFrom))
-			break
-		}
-		fmt.Println(paths.NearestManifest(absFrom, boundary))
+		fmt.Println(m)
 	case "relay":
 		fmt.Println(paths.Relay(absRoot))
 	case "hook-baseline":

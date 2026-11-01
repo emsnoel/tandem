@@ -20,6 +20,7 @@ case "$1 $2" in
   'paths manifest') printf '%s/.tandem.json\n' "$REPO"; exit 0 ;;
   'paths relay') printf '%s\n' "$RELAY"; exit 0 ;;
   'agent snapshot') printf '%%1\t%s\tidle\n' "$REPO"; exit 0 ;;
+  'config check-command') exec "$TANDEM_REAL" "$@" ;;
   'build start')
     printf '%s\n' "$@" | jq -Rn '[inputs]' > "$CALLS"
     [[ "${REAL_START:-0}" == 1 ]] && exec "$TANDEM_REAL" "$@"
