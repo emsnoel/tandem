@@ -33,7 +33,7 @@ cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
 case "$1 $2" in
   "relay log")   [ "${RELAY_LOG_FAIL:-0}" = 1 ] && exit 1; exec "$REAL_TANDEM" "$@" ;;
-  "relay write"|"config project"|"config write-manifest") exec "$REAL_TANDEM" "$@" ;;
+  "relay write"|"relay history"|"config project"|"config write-manifest") exec "$REAL_TANDEM" "$@" ;;
   "agent snapshot")
     case "${SNAP_MODE:-direct}" in
       direct) printf 'p9\t/repo\tidle\n'; exit 0 ;;
@@ -174,7 +174,7 @@ for i in 1 2 3; do
      '{id:$id, ts:$ts, from:$from, to:$to, question:$q, answer:$a}' \
      > "$REPO/.tandem-log/2026091912000$i-1-1.json"
 done
-OUT=$(cd "$REPO" && "$RELAYLOG" 2>&1)
+OUT=$(cd "$REPO" && PATH="$TMP/bin:$PATH" "$RELAYLOG" 2>&1)
 chk "prints the first record"  "question 1"
 chk "prints the last record"   "question 3"
 FIRSTLINE=$(printf '%s\n' "$OUT" | head -1)
@@ -183,14 +183,14 @@ case "$FIRSTLINE" in
   *) nope "expected the oldest record first, got: $FIRSTLINE" ;;
 esac
 
-OUT=$(cd "$REPO" && "$RELAYLOG" --limit 2 2>&1)
+OUT=$(cd "$REPO" && PATH="$TMP/bin:$PATH" "$RELAYLOG" --limit 2 2>&1)
 case "$OUT" in
   *"question 1"*) nope "--limit 2 should drop the oldest record" ;;
   *) ok "--limit 2 drops the oldest record" ;;
 esac
 chk "--limit 2 keeps the most recent" "question 3"
 
-OUT=$(cd "$REPO" && "$RELAYLOG" --json 2>&1)
+OUT=$(cd "$REPO" && PATH="$TMP/bin:$PATH" "$RELAYLOG" --json 2>&1)
 chk "--json prints raw records" '"question":"question 2"'
 JSONLINES=$(printf '%s\n' "$OUT" | grep -c .)
 [ "$JSONLINES" = 3 ] && ok "--json prints exactly one line per record" \
@@ -205,17 +205,35 @@ done <<<"$OUT"
 [ "$ALL_VALID" = 1 ] && ok "every --json line parses as one JSON object" \
                       || nope "every --json line must parse as one JSON object"
 
+case "$OUT" in *"jq was called"*) nope "tandem-relaylog calls no jq: $OUT" ;; *) ok "tandem-relaylog calls no jq" ;; esac
+OUT=$(cd "$REPO" && PATH="$TMP/bin:$PATH" "$RELAYLOG" --limit 9 2>&1)
+case "$OUT" in *"question 1"*"question 3"*) ok "--limit 9 of 3 prints all three" ;; *) nope "--limit 9 of 3 prints all three: $OUT" ;; esac
+
+echo "--- broken and partial records ---"
+printf '{not json' > "$REPO/.tandem-log/20260919120002-5-5.json"
+printf '{"id":"20260919120004-1-1","ts":"t","from":"builder","to":"planner","question":"q4","answer":null}\n' \
+  > "$REPO/.tandem-log/20260919120004-1-1.json"
+OUT=$(cd "$REPO" && PATH="$TMP/bin:$PATH" "$RELAYLOG" 2>&1); RC=$?
+[ "$RC" -eq 0 ] && ok "a broken file still exits 0" || nope "a broken file still exits 0 (got $RC)"
+chk "a broken file is skipped and says so" "/.tandem-log/20260919120002-5-5.json, it is not a JSON record."
+chk "the records before the broken file print" "question 1"
+chk "the records after the broken file print" "question 3"
+chk "a null answer prints empty" "$(printf '  Q: q4\n  A: \n')"
+case "$OUT" in *"A: null"*) nope "a null answer printed as null" ;; *) ok "a null answer does not print null" ;; esac
+ERR=$(cd "$REPO" && PATH="$TMP/bin:$PATH" "$RELAYLOG" --json 2>&1 >/dev/null)
+case "$ERR" in *"skipped"*"20260919120002-5-5.json"*) ok "--json also says it skipped the broken file" ;; *) nope "--json also says it skipped the broken file: $ERR" ;; esac
+
 echo "--- judge records are not Q&A ---"
 JREPO="$TMP/judge-repo"
 mkdir -p "$JREPO/.tandem-log"
 git -C "$JREPO" init -q
 printf '{"id":"20260929-002126-1-1","task_id":"1","answers":{}}\n' > "$JREPO/.tandem-log/judge-20260929-002126-1-1.json"
-OUT=$(cd "$JREPO" && "$RELAYLOG" 2>&1)
+OUT=$(cd "$JREPO" && PATH="$TMP/bin:$PATH" "$RELAYLOG" 2>&1)
 chk "only judge records: says there is no history" "no history yet"
 case "$OUT" in *"Q: null"*) nope "a judge record printed as Q: null" ;; *) ok "no judge record printed as Q&A" ;; esac
 printf '{"id":"20260929-002222-2-2","ts":"t","from":"planner","to":"builder","question":"q1","answer":"a1"}\n' \
   > "$JREPO/.tandem-log/20260929-002222-2-2.json"
-OUT=$(cd "$JREPO" && "$RELAYLOG" 2>&1)
+OUT=$(cd "$JREPO" && PATH="$TMP/bin:$PATH" "$RELAYLOG" 2>&1)
 chk "the ask record is printed" "Q: q1"
 case "$OUT" in *"Q: null"*) nope "a judge record printed beside the ask" ;; *) ok "the judge record stays out" ;; esac
 
