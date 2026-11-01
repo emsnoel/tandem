@@ -78,7 +78,6 @@ fi
 [[ "${HERDR_ENV:-}" == 1 ]] || die "not running inside a Herdr-managed pane (HERDR_ENV != 1)."
 # Fail early if herdr is missing; tandem shells out to it.
 command -v herdr >/dev/null 2>&1 || die "herdr not found on PATH."
-command -v jq    >/dev/null 2>&1 || die "jq not found on PATH."
 command -v tandem >/dev/null 2>&1 || die "tandem not found on PATH."
 
 TIMEOUT_MS=$(( TIMEOUT_SECONDS * 1000 ))
@@ -110,11 +109,9 @@ log_exchange() {
     fi
   fi
 
-  jq -n --arg id "$ID" --arg from "$from" --arg to "$to" \
-        --arg q "$question" --arg a "$answer" \
-     '{id:$id, ts:(now|todate), from:$from, to:$to, question:$q, answer:$a}' \
-     > "$log_dir/$ID.json.tmp" 2>/dev/null \
-    && mv "$log_dir/$ID.json.tmp" "$log_dir/$ID.json" 2>/dev/null
+  # Best effort: a failed write never fails the question.
+  tandem relay log --dir "$log_dir" --id "$ID" --from "$from" --to "$to" \
+    --question "$question" --answer "$answer" >/dev/null 2>&1 || true
   return 0
 }
 
@@ -151,11 +148,10 @@ ask_via_mailbox() {
     exit 0
   fi
 
-  # Write to a temp name and move, so the bridge never reads a partial file.
-  jq -n --arg id "$ID" --arg from "$self" --arg to "$TARGET" --arg q "$QUESTION" \
-     '{id:$id, from:$from, to:$to, question:$q, created:(now|todate)}' > "$qfile.tmp" \
-     || die "could not write the question file."
-  mv "$qfile.tmp" "$qfile"
+  # tandem writes it to a temp name and moves it, so the bridge never reads a
+  # partial file.
+  tandem relay write question --mailbox "$mb" --id "$ID" --from "$self" --to "$TARGET" \
+    --question "$QUESTION" || die "could not write the question file."
 
   info "socket unreachable (sandbox) — relayed via mailbox; waiting up to ${TIMEOUT_SECONDS}s..."
 

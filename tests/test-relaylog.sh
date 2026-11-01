@@ -26,9 +26,13 @@ REPO="$TMP/repo"
 
 # SNAP_MODE=direct: snapshot exits 0. mailbox: exits 3. timeout: exits 3 and
 # nothing answers. PROMPT_FAIL=1 makes the direct `agent prompt` fail.
+# RELAY_LOG_FAIL=1 makes `relay log` fail; otherwise the real binary writes.
+export REAL_TANDEM; REAL_TANDEM=$(command -v tandem) || { echo "need an installed tandem" >&2; exit 2; }
 cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
 case "$1 $2" in
+  "relay log")   [ "${RELAY_LOG_FAIL:-0}" = 1 ] && exit 1; exec "$REAL_TANDEM" "$@" ;;
+  "relay write") exec "$REAL_TANDEM" "$@" ;;
   "agent snapshot")
     case "${SNAP_MODE:-direct}" in
       direct) printf 'p9\t/repo\tidle\n'; exit 0 ;;
@@ -72,6 +76,7 @@ newrepo() { rm -rf "$REPO"; mkdir -p "$REPO"; git -C "$REPO" init -q; }
 run_ask() {
   OUT=$(cd "$REPO" && PATH="$TMP/bin:$PATH" HERDR_ENV=1 HERDR_PANE_ID=pX HERDR_ROLE=builder \
     SNAP_MODE="${SNAP_MODE:-direct}" PROMPT_FAIL="${PROMPT_FAIL:-0}" DIRECT_ANSWER="${DIRECT_ANSWER:-}" \
+    RELAY_LOG_FAIL="${RELAY_LOG_FAIL:-0}" \
     "$ASK" "$@" 2>&1); RC=$?
 }
 log_count() { find "$REPO/.tandem-log" -maxdepth 1 -name '*.json' 2>/dev/null | wc -l | tr -d ' '; }
@@ -88,6 +93,13 @@ chk "record names the sender"      '"from": "peer"'
 chk "record names the target"      '"to": "planner"'
 grep -q '"ts":' "$REC" 2>/dev/null && ok "record has a timestamp" || nope "record missing a timestamp"
 grep -q '"id":' "$REC" 2>/dev/null && ok "record has an id" || nope "record missing an id"
+
+echo "--- the log is best effort: a failed write changes nothing ---"
+newrepo
+RELAY_LOG_FAIL=1 SNAP_MODE=direct run_ask planner "is the log optional?"
+[ "$RC" -eq 0 ] && ok "the question still exits 0" || nope "a failed log write failed the question (rc $RC)"
+chk "and the answer still prints" "the answer is 42"
+[ "$(log_count)" = 0 ] && ok "and no record was written" || nope "found $(log_count) records"
 
 echo "--- direct mode: a failed exchange logs nothing ---"
 newrepo

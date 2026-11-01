@@ -32,11 +32,11 @@ CALLS="$TMP/calls"; SENT="$TMP/sent"
 # the reviewer pane.
 (cd "$(dirname "$0")/.." && go build -o "$TMP/tandem-real" ./cmd/tandem) || { echo "could not build tandem" >&2; exit 2; }
 export TANDEM_REAL="$TMP/tandem-real"
-# tandem-review and tandem-handback still call jq until roadmap item 5's PR 4.
+# tandem-review still calls jq until roadmap item 5's PR 4b.
 ln -sf "$(command -v jq)" "$TMP/bin/jq"
 cat > "$TMP/bin/tandem.extra" <<'EXTRA'
 case "$1 $2" in
-  "agent self")    exec "$TANDEM_REAL" "$@" ;;
+  "agent self"|"build roles"|"relay write"|"state active-run") exec "$TANDEM_REAL" "$@" ;;
   "gate scope")    [ -n "${STUB_SCOPE:-}" ] && printf '%b\n' "$STUB_SCOPE"; exit 0 ;;
   "agent snapshot") printf '%%1\t%s\t%s\n' "$REPO" "${STUB_SNAP:-done}"; exit 0 ;;
   "agent reset")

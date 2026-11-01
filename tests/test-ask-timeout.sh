@@ -33,7 +33,9 @@ case "$1 $2" in
   *) printf '{}' ;;
 esac
 STUB
-chmod +x "$TMP/bin/tandem" "$TMP/bin/herdr"
+# A jq that fails: tandem-ask asks tandem, so any jq call is a bug.
+printf '#!/bin/sh\necho "jq was called: $*" >&2\nexit 99\n' > "$TMP/bin/jq"
+chmod +x "$TMP/bin/tandem" "$TMP/bin/herdr" "$TMP/bin/jq"
 
 run_ask() { OUT=$(PATH="$TMP/bin:$PATH" HERDR_ENV=1 HERDR_PANE_ID=pX \
   "$@" "$ASK" --dry-run "${TARGET}" "q" 2>&1); }

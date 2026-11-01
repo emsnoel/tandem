@@ -18,7 +18,8 @@ command -v jq >/dev/null || { echo "need jq" >&2; exit 2; }
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 (cd "$ROOT_DIR" && go build -o "$TMP/tandem-real" ./cmd/tandem) || { echo "could not build tandem"; exit 1; }
 mkdir -p "$TMP/bin"
-ln -s "$(command -v jq)" "$TMP/bin/jq"
+# A jq that fails: tandem-handback asks tandem, so any jq call is a bug.
+printf '#!/bin/sh\necho "jq was called: $*" >&2\nexit 99\n' > "$TMP/bin/jq"
 
 RUN=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; ATT=cccccccccccccccccccccccccccccccc; JOB=dddddddddddddddddddddddddddddddd
 EFF=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee; NONCE=ffffffffffffffffffffffffffffffff
@@ -33,7 +34,8 @@ cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
 case "$1" in
   paths) shift; while (( $# )); do [[ "$1" == --root ]] && { printf '%s/.tandem-relay\n' "$2"; exit 0; }; shift; done; exit 1 ;;
-  build) [[ "$2 $3" == "event new" ]] && exec "$TANDEM_REAL" "$@" ;;
+  build) [[ "$2 $3" == "event new" || "$2" == roles ]] && exec "$TANDEM_REAL" "$@" ;;
+  relay|state) exec "$TANDEM_REAL" "$@" ;;
 esac
 exit 0
 STUB
