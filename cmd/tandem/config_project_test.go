@@ -32,7 +32,8 @@ func TestConfigProjectFields(t *testing.T) {
 	}
 	out := captureStdout(t, func() int { return cmdConfig([]string{"project", "--root", dir, "--fields"}) })
 	got := strings.Split(out, "\x00")
-	want := []string{dir, "", "true", "", "codex", "line one\nline two\n", "3000000", "0", "", "", "", "",
+	// The trailing newline goes, as $(...) dropped it on main; the inner one stays.
+	want := []string{dir, "", "true", "", "codex", "line one\nline two", "3000000", "0", "", "", "", "",
 		"manifest", "", "src dir", ""}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("fields %q\nwant   %q", got, want)
@@ -45,5 +46,17 @@ func TestConfigProjectRootEchoed(t *testing.T) {
 	out := captureStdout(t, func() int { return cmdConfig([]string{"project", "--root", ".", "--fields"}) })
 	if root := strings.SplitN(out, "\x00", 2)[0]; root != "." {
 		t.Errorf("root %q, want it echoed as given", root)
+	}
+}
+
+// json.MarshalIndent would print & < > as \u escapes; tandem-project never did.
+func TestConfigProjectJSONKeepsHTMLCharacters(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".tandem.json"), []byte(`{"check_command":"make a && make b <x>"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := captureStdout(t, func() int { return cmdConfig([]string{"project", "--root", dir}) })
+	if !strings.Contains(out, `"check_command": "make a && make b <x>"`) {
+		t.Errorf("got %s", out)
 	}
 }

@@ -94,3 +94,14 @@ func TestResolveProjectMissingManifestIsNotInvalid(t *testing.T) {
 		t.Errorf("a missing manifest is not invalid: %+v", got)
 	}
 }
+
+// tandem-project read each key through $(...), which stripped trailing
+// newlines before the empty test.
+func TestResolveProjectStripsTrailingNewlines(t *testing.T) {
+	root := writeFiles(t, map[string]string{".tandem.json": `{"prompt_extra":"hi\n\n","plans_dir":"\n","check_command":"make\n"}`})
+	mkdirs(t, root, "plans")
+	got := ResolveProject(root, filepath.Join(root, ".tandem.json"))
+	if got.PromptExtra != "hi" || got.PlansDir != "plans" || got.CheckCommand != "make" {
+		t.Errorf("got extra %q, plans %q, check %q", got.PromptExtra, got.PlansDir, got.CheckCommand)
+	}
+}

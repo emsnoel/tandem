@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 
@@ -27,6 +28,15 @@ type projectJSON struct {
 	AcceptancePolicy string   `json:"acceptance_policy"`
 	Collaboration    string   `json:"collaboration"`
 	Source           string   `json:"source"`
+}
+
+// writeIndentedJSON writes v as jq prints it: two-space indent, and & < >
+// left as they are rather than escaped.
+func writeIndentedJSON(w io.Writer, v any) error {
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", "  ")
+	return enc.Encode(v)
 }
 
 // resolveProjectFlags parses --root and --from and resolves the project.
@@ -75,11 +85,9 @@ func cmdConfigProject(args []string) int {
 	if out.CheckPaths == nil {
 		out.CheckPaths = []string{}
 	}
-	b, err := json.MarshalIndent(out, "", "  ")
-	if err != nil {
+	if err := writeIndentedJSON(os.Stdout, out); err != nil {
 		fmt.Fprintf(os.Stderr, "tandem: %v\n", err)
 		return exitcode.Internal
 	}
-	fmt.Println(string(b))
 	return exitcode.OK
 }

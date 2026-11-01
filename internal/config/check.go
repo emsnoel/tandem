@@ -25,6 +25,8 @@ func ResolveCheck(root, manifest string) Check {
 	var raw map[string]json.RawMessage
 	if b, err := os.ReadFile(manifest); err == nil && json.Unmarshal(b, &raw) == nil {
 		_ = json.Unmarshal(raw["check_command"], &c.Command)
+		// tandem-project read it through $(...), which stripped trailing newlines.
+		c.Command = strings.TrimRight(c.Command, "\n")
 		var items []json.RawMessage
 		if json.Unmarshal(raw["check_paths"], &items) == nil {
 			for _, it := range items {
