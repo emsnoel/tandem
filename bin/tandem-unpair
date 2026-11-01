@@ -11,6 +11,20 @@
 # See README.md.
 set -euo pipefail
 
+# install.sh symlinks the commands, so resolve the link to find lib/.
+_self="${BASH_SOURCE[0]}"
+while [[ -L "$_self" ]]; do
+  _link=$(readlink "$_self"); [[ "$_link" == /* ]] && _self="$_link" || _self="${_self%/*}/$_link"
+done
+# shellcheck source=lib/unpair-find.sh
+. "${_self%/*}/lib/unpair-find.sh"
+# shellcheck source=lib/unpair-gates.sh
+. "${_self%/*}/lib/unpair-gates.sh"
+# shellcheck source=lib/unpair-refusals.sh
+. "${_self%/*}/lib/unpair-refusals.sh"
+# shellcheck source=lib/unpair-close.sh
+. "${_self%/*}/lib/unpair-close.sh"
+
 BUILDER_NAME="${HERDR_BUILDER_NAME:-builder}"
 PLANNER_NAME="${HERDR_PLANNER_NAME:-planner}"
 
@@ -29,7 +43,7 @@ usage: tandem-unpair [--verified ID]... [--dry-run] [--force] [--keep-relay]
 Closes the builder's pane and the reviewer pane recorded in reviewer.json
 (from the reviewer block or --reviewer), stops the relay bridge and removes
 the mailbox.
-Run it from the planner, after verifying the work — not before.
+Run it from the planner, after you have checked the work.
 
   --verified ID  sign off the handback with this report id (repeatable).
                  Accepts the id, the filename or the full path.
@@ -41,9 +55,9 @@ Run it from the planner, after verifying the work — not before.
 
 It refuses unless all of these hold:
 
-  - the builder is neither working nor blocked — a pane closed mid-write takes
-    the unfinished work with it
-  - a reviewer pane is neither working nor blocked — its review would be lost
+  - the builder is neither working nor blocked. Closing its pane mid-write
+    loses the unfinished work.
+  - a reviewer pane is neither working nor blocked. Closing it loses the review.
   - the builder has handed back at least once; an idle builder may simply have
     crashed, or never have been given a plan
   - every handback is signed off with --verified; for a durable run, every
@@ -70,21 +84,6 @@ engine_guard() {
 }
 info() { printf 'tandem-unpair: %s\n' "$*"; }
 
-# remove_mailbox <dir> <root>: rm -rf a mailbox only when tandem resolves the
-# same full path for <root>, since <dir> comes from a cwd read over a socket.
-remove_mailbox() {
-  local dir="$1" root="$2"
-  if [[ ! -d "$dir" ]]; then
-    return 0
-  fi
-  if [[ "$dir" == "$(tandem paths relay --root "$root")" ]]; then
-    rm -rf "$dir"
-    info "removed $dir."
-  else
-    info "WARNING refusing to remove $dir — not the mailbox for $root."
-  fi
-}
-
 SNAP="$(mktemp)"
 # tandem answers in NUL-separated fields, which bash reads from a file.
 FIELDS="$(mktemp)"
@@ -110,567 +109,35 @@ for c in herdr tandem; do
   command -v "$c" >/dev/null 2>&1 || die "$c not found on PATH."
 done
 
-BUILDER_PANE=""; BUILDER_CWD=""; BUILDER_STATUS="unknown"; rc=0
-_snap=$(tandem agent snapshot "$BUILDER_NAME" 2>&1) || rc=$?
-case "$rc" in
-  0) IFS=$'\t' read -r BUILDER_PANE BUILDER_CWD BUILDER_STATUS <<<"$_snap" ;;
-  10) ;;
-  *)  die "could not find '$BUILDER_NAME': $(printf '%s' "$_snap" | cut -f2-)" ;;
-esac
+find_builder
+resolve_mailboxes
+find_reviewer
+find_bridge
+read_durable_id
+report_pair
 
-# Never close the pane running this command.
-SELF_PANE="${HERDR_PANE_ID:-}"
-if [[ -n "$BUILDER_PANE" && -n "$SELF_PANE" && "$BUILDER_PANE" == "$SELF_PANE" ]]; then
-  die "'$BUILDER_NAME' is this pane. Run tandem-unpair from the $PLANNER_NAME pane."
-fi
+reviewer_gate
+read_check_settings
+pre_gate
+check_gate
+post_gate
 
-# --- resolve the mailbox before anything is closed ---
-# It comes from the builder's cwd, which is unreadable once the pane is gone.
-# $PWD may be a popup's directory.
-ROOT="${BUILDER_CWD:-$PWD}"
-ROOT=$(cd "$ROOT" && pwd -P)
-MB_ROOT=$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$ROOT")
-MAILBOX=$(tandem paths relay --root "$MB_ROOT") \
-  || die "the installed tandem is behind these commands (no 'tandem paths'); re-run install.sh."
-engine_guard "$MB_ROOT"
-
-# A pair writes to two mailboxes. $MAILBOX is the relay one at the git
-# toplevel (q/, a/, bridge.pid). builder.json and reviews/ sit at the builder's
-# own cwd, unwalked (see BCWD in bin/tandem-pair). They differ when the builder
-# works in a subdirectory, and a stale review left behind could pass the gate
-# for the next pair. ID_MAILBOX is emptied when both are the same directory.
-#
-# Once the builder pane is gone, $ROOT falls back to $PWD, so prefer the cwd
-# tandem-pair recorded in the relay mailbox.
-ID_ROOT="$ROOT"
-if [[ -z "$BUILDER_CWD" ]]; then
-  _ptr=$(cat "$MAILBOX/builder-cwd" 2>/dev/null) || true
-  if [[ -n "${_ptr:-}" && -d "$_ptr" ]]; then
-    ID_ROOT=$(cd "$_ptr" && pwd -P)
-  else
-    info "WARNING the builder pane is gone and no builder cwd was recorded; if it"
-    info "        was paired from a subdirectory, its identity mailbox may remain."
-  fi
-fi
-ID_MAILBOX=$(tandem paths relay --root "$ID_ROOT") \
-  || die "the installed tandem is behind these commands (no 'tandem paths'); re-run install.sh."
-if [[ "$ID_MAILBOX" == "$MAILBOX" ]]; then
-  ID_MAILBOX=""
-fi
-
-# --- the reviewer pane ---
-# Only the pane recorded in reviewer.json is closed.
-REVIEWER_NAME=""
-rc=0
-_rrec=$(tandem reviewer show --relay "${ID_MAILBOX:-$MAILBOX}" 2>/dev/null) || rc=$?
-case $rc in
-  0)  IFS=$'\t' read -r _ REVIEWER_NAME _ _ <<<"$_rrec" ;;
-  28) ;;
-  *)  info "WARNING the reviewer record in ${ID_MAILBOX:-$MAILBOX} cannot be read, so no reviewer pane is closed." ;;
-esac
-REVIEWER_PANE=""; REVIEWER_STATUS="unknown"
-if [[ -n "$REVIEWER_NAME" ]]; then
-  rc=0
-  _snap=$(tandem agent snapshot "$REVIEWER_NAME" 2>&1) || rc=$?
-  case "$rc" in
-    0) IFS=$'\t' read -r REVIEWER_PANE _ REVIEWER_STATUS <<<"$_snap" ;;
-    10) ;;
-    *)  die "could not find the reviewer '$REVIEWER_NAME': $(printf '%s' "$_snap" | cut -f2-)" ;;
-  esac
-  if [[ -n "$REVIEWER_PANE" && ( "$REVIEWER_PANE" == "$SELF_PANE" || "$REVIEWER_PANE" == "$BUILDER_PANE" ) ]]; then
-    die "the reviewer '$REVIEWER_NAME' is this pane or the builder's pane, so nothing was closed."
-  fi
-fi
-
-BRIDGE_PID_FILE="$MAILBOX/bridge.pid"
-BRIDGE_PID=""
-if [[ -f "$BRIDGE_PID_FILE" ]]; then
-  BRIDGE_PID=$(cat "$BRIDGE_PID_FILE" 2>/dev/null || true)
-  [[ "$BRIDGE_PID" =~ ^[0-9]+$ ]] || BRIDGE_PID=""
-fi
-
-# The OS reuses pids, so confirm the pid is still a tandem-bridge before
-# signalling it.
-bridge_is_ours() {
-  local pid="$1" cmd
-  [[ -n "$pid" ]] || return 1
-  cmd=$(ps -p "$pid" -o command= 2>/dev/null || true)
-  [[ "$cmd" == *tandem-bridge* ]]
-}
-
-REPORTS_OK=()
-REPORTS_PENDING=()
-# A durable run is signed off on its own evidence from the state home, not on
-# handback reports. Reports beside it come from an earlier legacy build.
-DURABLE_ID=""
-if [[ -f "$MAILBOX/active-run.json" ]]; then
-  DURABLE_ID=$(tandem state active-run --relay "$MAILBOX" 2>/dev/null) || DURABLE_ID=""
-  [[ -n "$DURABLE_ID" ]] || DURABLE_ID="(unreadable marker)"
-fi
-
-if [[ -n "$BUILDER_PANE" ]]; then
-  info "agent    $BUILDER_NAME  pane $BUILDER_PANE  status: $BUILDER_STATUS"
-else
-  info "agent    no agent named '$BUILDER_NAME' — nothing to close."
-fi
-if [[ -n "$REVIEWER_PANE" ]]; then
-  info "agent    $REVIEWER_NAME  pane $REVIEWER_PANE  status: $REVIEWER_STATUS"
-elif [[ -n "$REVIEWER_NAME" ]]; then
-  info "agent    no agent named '$REVIEWER_NAME' — no reviewer to close."
-fi
-if [[ -n "$BRIDGE_PID" ]] && kill -0 "$BRIDGE_PID" 2>/dev/null; then
-  if bridge_is_ours "$BRIDGE_PID"; then
-    info "bridge   pid $BRIDGE_PID"
-  else
-    info "bridge   pid $BRIDGE_PID in $BRIDGE_PID_FILE is not a tandem-bridge — leaving it alone."
-    BRIDGE_PID=""
-  fi
-else
-  info "bridge   not running"
-  BRIDGE_PID=""
-fi
-if [[ -d "$MAILBOX" ]]; then
-  # Globs, not `find | wc -l`: find fails on a missing reports/ under pipefail.
-  shopt -s nullglob
-  _q=( "$MAILBOX"/q/*.json )
-  _r=( "$MAILBOX"/reports/*.md )
-  shopt -u nullglob
-  pending=${#_q[@]}
-  reports=${#_r[@]}
-  info "mailbox  $MAILBOX ($pending queued, $reports reports)"
-
-  # Sign-off is per run and does not persist across a refusal, because the tree
-  # may have changed since. ${arr+"${arr[@]}"} avoids bash 3.2's unbound-variable
-  # error on an empty array under set -u.
-  for _f in ${_r+"${_r[@]}"}; do
-    _id=$(basename "$_f" .md)
-    _ack="no"
-    for _v in ${VERIFIED+"${VERIFIED[@]}"}; do
-      [[ "$_v" == "$_id" ]] && { _ack="yes"; break; }
-    done
-    [[ -f "$MAILBOX/reports/$_id.verified" ]] && _ack="yes"
-    if [[ -n "$DURABLE_ID" ]]; then
-      info "handback $_id  left by an earlier legacy build; not part of durable run $DURABLE_ID, so not gated"
-    elif [[ "$_ack" == yes ]]; then
-      info "handback $_id  signed off"
-      REPORTS_OK+=( "$_id" )
-    else
-      info "handback $_id  NOT signed off"
-      REPORTS_PENDING+=( "$_id" )
-    fi
-  done
-  # Do not delete unread reports without saying so.
-  if (( ! KEEP_RELAY )) && (( reports > 0 )); then
-    info "         removing it deletes those reports; --keep-relay keeps them."
-  fi
-else
-  info "mailbox  none at $MAILBOX"
-fi
-
-# A reviewer mid-review loses its review when its pane closes. Checked before
-# the project's check, which would be wasted.
-if [[ -n "$REVIEWER_PANE" ]] && (( ! FORCE )); then
-  case "$REVIEWER_STATUS" in
-    working) printf '%s\n' "tandem-unpair: reviewer is still working; its review would be lost. Wait for it, or pass --force to close it anyway." >&2; exit 9 ;;
-    blocked) printf '%s\n' "tandem-unpair: reviewer is blocked at a dialog. Clear pane $REVIEWER_PANE, or pass --force." >&2; exit 9 ;;
-  esac
-fi
-
-# --- gates 1, 2 and 6: pre-check verdict ---
-CHECK_COMMAND=""
-CHECK_PATHS=()
-if [[ -n "$BUILDER_PANE" && $FORCE -eq 0 && $SKIP_CHECKS -eq 0 ]]; then
-  # The command, then each check path. A failure leaves both empty, so gate 6
-  # refuses.
-  if tandem config check-command --root "$ROOT" --fields >"$FIELDS" 2>/dev/null; then
-    IFS= read -r -d '' CHECK_COMMAND <"$FIELDS" || true
-    { IFS= read -r -d '' _; while IFS= read -r -d '' _p; do
-        [[ -n "$_p" ]] && CHECK_PATHS+=( "$_p" )
-      done; } <"$FIELDS"
-  fi
-fi
-
-# The builder pane is passed even when empty: cleanup after a builder that is
-# already gone skips the sign-off gates.
-GATEARGS=( --builder-pane "$BUILDER_PANE"
-           --mailbox "$MAILBOX" --root "$ROOT" --status "$BUILDER_STATUS"
-           --snapshot "$SNAP" )
-(( FORCE ))       && GATEARGS+=( --force )
-(( SKIP_CHECKS )) && GATEARGS+=( --skip-checks )
-[[ -n "$CHECK_COMMAND" ]] && GATEARGS+=( --has-check-command )
-for _v in ${VERIFIED[@]+"${VERIFIED[@]}"}; do GATEARGS+=( --verified "$_v" ); done
-# check_paths limits gate 4's tree fingerprint to these pathspecs, so
-# unrelated changes in a monorepo do not read as stale. Empty means the whole
-# tree. The +-expansion avoids bash 3.2's empty-array error.
-for _p in ${CHECK_PATHS[@]+"${CHECK_PATHS[@]}"}; do GATEARGS+=( --check-paths "$_p" ); done
-
-rc=0
-detail=$(tandem gate teardown --phase pre "${GATEARGS[@]}") || rc=$?
-case "$rc" in
-  0) ;;
-  9)
-    case "$detail" in
-      working) printf '%s\n' "tandem-unpair: builder is still working. Wait for its handback, or pass --force to close it anyway." >&2 ;;
-      blocked) printf '%s\n' "tandem-unpair: builder is blocked at a dialog — it may be waiting to write. Clear pane $BUILDER_PANE, or pass --force." >&2 ;;
-    esac
-    exit 9 ;;
-  4)
-    if [[ -n "$DURABLE_ID" ]]; then
-      cat >&2 <<MSG
-tandem-unpair: durable run $DURABLE_ID has no task accepted; there is nothing to verify, so nothing was closed.
-
-  See where it got to:   tandem build status --root $MB_ROOT
-  Close it anyway:       tandem-unpair --force
-MSG
-      exit 4
-    fi
-    cat >&2 <<MSG
-tandem-unpair: '$BUILDER_NAME' has never handed back; there is nothing to verify.
-
-  An idle builder is not a finished one. It may have crashed, hit an error it
-  could not report, or never have been given a plan at all. Check pane
-  $BUILDER_PANE before closing it — whatever it was doing is still on screen,
-  and closing the pane is what destroys it.
-
-  Ask it directly:   tandem-ask $BUILDER_NAME "where did you get to?"
-  Close it anyway:   tandem-unpair --force
-MSG
-    exit 4 ;;
-  5)
-    if [[ -n "$DURABLE_ID" ]]; then
-      printf 'tandem-unpair: durable run %s has tasks without the evidence to sign them off; nothing was closed.\n\n' "$DURABLE_ID" >&2
-      # Each detail line is a task id, then what it lacks.
-      while read -r _task _lacks; do
-        [[ -n "$_task" ]] && printf '    %s  lacks: %s\n' "$_task" "$_lacks" >&2
-      done <<<"$detail"
-      cat >&2 <<MSG
-
-  A task is signed off when it is accepted with a passed check and a recorded
-  review for its final tree, or a waiver of either. See each task with:
-
-    tandem build status --root $MB_ROOT
-
-  Finish the run, or overrule a requirement you have checked yourself:
-
-    tandem build accept --root $MB_ROOT --task N --waive check|review|implementation --because "why"
-
-  Or close anyway with --force, which keeps the run's state.
-MSG
-      exit 5
-    fi
-    _pending_count=$(printf '%s\n' "$detail" | awk 'NF { n++ } END { print n+0 }')
-    printf 'tandem-unpair: %s handback(s) not signed off; nothing was closed.\n\n' "$_pending_count" >&2
-    while IFS= read -r _id; do
-      [[ -n "$_id" ]] && printf '    %s\n' "$MAILBOX/reports/$_id.md" >&2
-    done <<<"$detail"
-    cat >&2 <<MSG
-
-  Read each of those against the working tree — the report is the builder's
-  claim about its own work, not evidence of it. Then sign off what you have
-  actually checked:
-
-MSG
-    printf '    tandem-unpair' >&2
-    while IFS= read -r _id; do
-      [[ -n "$_id" ]] && printf -- ' --verified %s' "$_id" >&2
-    done <<<"$detail"
-    printf '\n\n  If the work is not right, do not sign it off. Send it back instead —\n' >&2
-    printf '  %s is idle and still holds the context:\n\n' "$BUILDER_NAME" >&2
-    printf '    tandem-ask %s "what needs fixing"\n' "$BUILDER_NAME" >&2
-    exit 5 ;;
-  6)
-    cat >&2 <<MSG
-tandem-unpair: no check_command for $ROOT, so the work cannot be verified here.
-
-  Sign-off without it is an assertion, not evidence. Set check_command in
-  $ROOT/.tandem.json (tandem-init detects one), or say plainly that you are
-  closing without a check:
-
-    tandem-unpair${VERIFIED[0]:+ --verified ${VERIFIED[0]}} --skip-checks
-MSG
-    exit 6 ;;
-  *) die "teardown pre-check failed (exit $rc)." ;;
-esac
-
-# --- gate 3: the project's own check passes ---
-# The only gate that is evidence rather than an assertion. It runs before
-# anything is closed, so a failure leaves the pair as it was.
-run_check() {
-  local root="$1" cmd="$2" log rc=0
-  log=$(mktemp)
-  info "running check: $cmd"
-  # `eval` is deliberate: check_command is a shell string from .tandem.json, as
-  # trusted as the code the builder just edited.
-  ( cd "$root" && eval "$cmd" ) >"$log" 2>&1 || rc=$?
-  if (( rc == 0 )); then
-    info "check passed."
-    rm -f "$log"
-    return 0
-  fi
-  printf 'tandem-unpair: check FAILED (exit %s); nothing was closed.\n\n' "$rc" >&2
-  tail -25 "$log" | sed 's/^/    /' >&2
-  rm -f "$log"
-  return "$rc"
-}
-
-if [[ -n "$BUILDER_PANE" && $FORCE -eq 0 && $SKIP_CHECKS -eq 0 ]]; then
-  if (( DRY_RUN )); then
-    info "would run check: $CHECK_COMMAND"
-  else
-    run_check "$ROOT" "$CHECK_COMMAND" || {
-      printf '\n  %s is still up and still holds its context. Send it back:\n\n' "$BUILDER_NAME" >&2
-      printf '    tandem-ask %s "the check is failing: <what you saw>"\n\n' "$BUILDER_NAME" >&2
-      printf '  Or close anyway with --force. Do not sign off a red check.\n' >&2
-      exit 7
-    }
-    CHECK_VALIDATED=1
-  fi
-fi
-
-# --- gate 4: the green result covers the work being signed off ---
-# The builder can hand back again or change the tree while the check runs.
-# Every handback signed off must predate the check.
-if [[ -n "$BUILDER_PANE" && $FORCE -eq 0 && ${CHECK_VALIDATED:-0} -eq 1 ]]; then
-  # Re-read the builder's status after the check. internal/gate makes no herdr
-  # calls, so it is passed in as --status-now.
-  NOW_STATUS=$(tandem agent status "$BUILDER_NAME" 2>/dev/null) || NOW_STATUS=""
-  [[ -n "$NOW_STATUS" ]] \
-    || info "WARNING could not re-read $BUILDER_NAME's status after the check; proceeding on the earlier read."
-
-  POSTARGS=( "${GATEARGS[@]}" )
-  [[ -n "$NOW_STATUS" ]] && POSTARGS+=( --status-now "$NOW_STATUS" )
-
-  rc=0
-  detail=$(tandem gate teardown --phase post "${POSTARGS[@]}") || rc=$?
-  case "$rc" in
-    0) ;;
-    8)
-      # The first detail line names what moved.
-      _kind=$(printf '%s\n' "$detail" | head -1)
-      _rest=$(printf '%s\n' "$detail" | tail -n +2)
-      case "$_kind" in
-        reports)
-          cat >&2 <<MSG
-tandem-unpair: a handback arrived or changed while the check was running; nothing was closed.
-
-MSG
-          while IFS= read -r _id; do
-            [[ -n "$_id" ]] && printf '    %s\n' "$MAILBOX/reports/$_id.md" >&2
-          done <<<"$_rest"
-          cat >&2 <<MSG
-
-  The check began before that existed, so its green result says nothing about the
-  work in it. Read it, then start again:
-
-MSG
-          printf '    tandem-unpair' >&2
-          while IFS= read -r _id; do
-            [[ -n "$_id" ]] && printf -- ' --verified %s' "$_id" >&2
-          done <<<"$_rest"
-          printf '\n' >&2 ;;
-        status)
-          printf 'tandem-unpair: builder went %s while the check ran; nothing was closed.\n\n' "$_rest" >&2
-          printf '  It is touching the tree the check just passed on, so that result no longer\n' >&2
-          printf '  describes what you would be closing. Wait for it to settle and run this again.\n' >&2 ;;
-        tree)
-          cat >&2 <<MSG
-tandem-unpair: the working tree changed while the check ran; nothing was closed.
-
-  The check passed against a tree that no longer exists, so it is not evidence
-  about what you are closing on. Re-run this command to check again, or use
-  --force if you know the change is irrelevant.
-MSG
-          ;;
-      esac
-      exit 8 ;;
-    *) die "teardown post-check failed (exit $rc)." ;;
-  esac
-  info "check covers the signed-off work: no handback, tree or agent change since it began."
-fi
-
-# clean_trust_kind KIND: remove the trust entry tandem added for KIND, unless
-# another agent of that kind still runs in the repo.
-clean_trust_kind() {
-  local _k="$1" others _ex=()
-  # Only another running agent of the same kind needs the entry. The builder
-  # and reviewer are left out because this unpair closes them.
-  [[ -n "$BUILDER_PANE" ]] && _ex+=( --exclude-pane "$BUILDER_PANE" )
-  [[ -n "$REVIEWER_PANE" ]] && _ex+=( --exclude-pane "$REVIEWER_PANE" )
-  others=$(tandem agent count --kind "$_k" --under "$ROOT" ${_ex[@]+"${_ex[@]}"} 2>/dev/null) || others=""
-
-  # Empty means the query failed. Fail closed before a destructive action.
-  if [[ -z "$others" ]]; then
-    info "skipping --clean-trust for $_k: could not determine whether other $_k agents are active."
-  elif (( others > 0 )); then
-    info "skipping --clean-trust for $_k: $others other $_k agent(s) still working in $ROOT."
-  elif (( DRY_RUN )); then
-    info "would remove any $_k trust entry tandem added for $ROOT."
-  else
-    if [[ "$(tandem trust clean --kind "$_k" --cwd "$ROOT" 2>/dev/null)" == removed ]]; then
-      info "removed the $_k trust entry tandem added for $ROOT."
-    else
-      info "no tandem $_k trust entry to remove (entries you wrote are never touched)."
-    fi
-  fi
-}
-
-# Trust cleanup runs after verification and before the builder closes. A dry
-# run reports it without touching the trust store.
+# Trust cleanup runs after verification and before the builder closes.
 if (( CLEAN_TRUST )); then
-  # Use the kind read from the running pane. A --builder flag is not persisted,
-  # so the configured kind may be wrong.
-  BUILDER_KIND=""
-  if [[ -n "$BUILDER_PANE" ]]; then
-    BUILDER_KIND=$(tandem agent kind --pane "$BUILDER_PANE" 2>/dev/null) || BUILDER_KIND=""
-  fi
-  # Fall back to the configured kind (field 3) when the pane is gone.
-  if [[ -z "$BUILDER_KIND" ]] \
-     && tandem config resolve --role builder --root "$ROOT" --fields >"$FIELDS" 2>/dev/null; then
-    { IFS= read -r -d '' _; IFS= read -r -d '' _; IFS= read -r -d '' BUILDER_KIND; } <"$FIELDS" || true
-  fi
-
-  # The reviewer's trust entry is cleaned the same way.
-  REVIEWER_KIND=""
-  if [[ -n "$REVIEWER_PANE" ]]; then
-    REVIEWER_KIND=$(tandem agent kind --pane "$REVIEWER_PANE" 2>/dev/null) || REVIEWER_KIND=""
-  fi
-
-  if [[ -z "$BUILDER_KIND" ]]; then
-    info "skipping --clean-trust: could not determine the builder kind."
-  else
-    clean_trust_kind "$BUILDER_KIND"
-    if [[ -n "$REVIEWER_KIND" && "$REVIEWER_KIND" != "$BUILDER_KIND" ]]; then
-      clean_trust_kind "$REVIEWER_KIND"
-    fi
-  fi
+  clean_trust
 fi
-
 if (( DRY_RUN )); then
-  printf '\n'
-  [[ -n "$REVIEWER_PANE" ]] && printf '  [dry-run] herdr pane close %s\n' "$REVIEWER_PANE"
-  [[ -n "$BUILDER_PANE" ]] && printf '  [dry-run] herdr pane close %s\n' "$BUILDER_PANE"
-  [[ -n "$BRIDGE_PID"   ]] && printf '  [dry-run] kill %s\n' "$BRIDGE_PID"
-  if [[ -f "$MAILBOX/active-run.json" ]]; then
-    printf '  [dry-run] tandem build stop --root %s   (then wait for the durable run to settle)\n' "$MB_ROOT"
-    _run=$(tandem state active-run --relay "$MAILBOX" 2>/dev/null) || _run=""
-    printf '  [dry-run] tandem state archive --run %s --root %s\n' "${_run:-?}" "$MB_ROOT"
-  fi
-  if (( KEEP_RELAY )); then
-    if [[ -d "$MAILBOX" ]]; then
-      printf '  [dry-run] keeping %s\n' "$MAILBOX"
-    fi
-    if [[ -n "$ID_MAILBOX" && -d "$ID_MAILBOX" ]]; then
-      printf '  [dry-run] keeping %s\n' "$ID_MAILBOX"
-    fi
-  else
-    if [[ -f "$MAILBOX/build/build.json" ]]; then
-      printf '  [dry-run] tandem build archive --root %s\n' "$MB_ROOT"
-    fi
-    if [[ -d "$MAILBOX" ]]; then
-      printf '  [dry-run] rm -rf %s\n' "$MAILBOX"
-    fi
-    if [[ -n "$ID_MAILBOX" && -d "$ID_MAILBOX" ]]; then
-      printf '  [dry-run] rm -rf %s\n' "$ID_MAILBOX"
-    fi
-  fi
+  print_dry_run
   exit 0
 fi
 
 printf '\n'
-
-# Record sign-off before anything is destroyed. Reached only when every gate
-# passed.
-for _id in ${VERIFIED+"${VERIFIED[@]}"}; do
-  if [[ -f "$MAILBOX/reports/$_id.md" && ! -f "$MAILBOX/reports/$_id.verified" ]]; then
-    printf 'verified by %s at %s\n' "$PLANNER_NAME" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-      > "$MAILBOX/reports/$_id.verified"
-  fi
-done
-
-# A durable run keeps its history in the state home. Stop it, confirm it is
-# settled and archive it before the pane closes, so no lease or delivery is
-# left open. Only the panes, the bridge and the mailbox are removed.
-DURABLE_RUN=""
-if [[ -f "$MAILBOX/active-run.json" ]]; then
-  DURABLE_RUN=$(tandem state active-run --relay "$MAILBOX" 2>/dev/null) || DURABLE_RUN=""
-  [[ -n "$DURABLE_RUN" ]] \
-    || die "$MAILBOX/active-run.json is not a readable durable-run marker, so nothing was closed or deleted."
-  _tries="${TANDEM_UNPAIR_SETTLE_POLLS:-10}"
-  _state=""
-  if tandem build stop --root "$MB_ROOT" >/dev/null 2>&1; then
-    # The state is printed on a timeout too, so read it whatever the exit code.
-    tandem build wait --root "$MB_ROOT" --until finished --until paused --until archived \
-      --timeout "$(( _tries * 1000 ))" --tick --fields >"$FIELDS" 2>/dev/null || true
-    IFS= read -r -d '' _state <"$FIELDS" || true
-  fi
-  case "$_state" in
-    finished|paused|archived) ;;
-    *)
-      if (( FORCE )); then
-        info "WARNING durable run $DURABLE_RUN is ${_state:-in an unknown state}; closing anyway. Its state is kept: tandem state recover --run $DURABLE_RUN."
-      else
-        die "durable run $DURABLE_RUN is ${_state:-in an unknown state}, not settled, so nothing was closed or deleted. Wait for its builder to go idle and run this again, or pass --force."
-      fi ;;
-  esac
-  if [[ "$_state" == finished || "$_state" == paused ]]; then
-    if _arch=$(tandem state archive --run "$DURABLE_RUN" --root "$MB_ROOT" 2>&1); then
-      info "archived durable run $DURABLE_RUN; its state and artifacts are kept."
-    elif (( FORCE )); then
-      info "WARNING durable run $DURABLE_RUN was not archived (${_arch:-no output}); closing anyway. Its state is kept: tandem state recover --run $DURABLE_RUN."
-    else
-      die "durable run $DURABLE_RUN could not be archived, so nothing was closed or deleted: ${_arch:-no output}. A job or delivery is still open; see tandem build status --root $MB_ROOT."
-    fi
-  fi
-fi
-
-# Archive the build record and its evidence first. If the copy cannot be
-# verified, stop with the pair intact.
-if (( ! KEEP_RELAY )) && [[ -f "$MAILBOX/build/build.json" ]]; then
-  _arch=$(tandem build archive --root "$MB_ROOT" 2>&1) \
-    || die "could not archive the build in $MAILBOX before removing it, so nothing was closed or deleted: ${_arch:-no output}. If 'tandem build archive' is unknown, re-run install.sh."
-  [[ -n "$_arch" ]] && info "$_arch"
-fi
-
-# Close panes before stopping the bridge: if a close fails, the builder still
-# has its relay. The reviewer closes first, so a failure leaves a working pair.
-if [[ -n "$REVIEWER_PANE" ]]; then
-  if tandem pane close "$REVIEWER_PANE" >/dev/null; then
-    info "closed the reviewer pane $REVIEWER_PANE."
-  else
-    die "could not close the reviewer pane $REVIEWER_PANE. The builder and the relay are untouched, so the pair still works."
-  fi
-fi
-if [[ -n "$BUILDER_PANE" ]]; then
-  if tandem pane close "$BUILDER_PANE" >/dev/null; then
-    info "closed the builder pane $BUILDER_PANE."
-  else
-    die "could not close pane $BUILDER_PANE. The relay is untouched, so the pair still works."
-  fi
-fi
-
-if [[ -n "$BRIDGE_PID" ]]; then
-  if kill "$BRIDGE_PID" 2>/dev/null; then
-    info "stopped the relay bridge (pid $BRIDGE_PID)."
-  else
-    info "WARNING could not stop the relay bridge (pid $BRIDGE_PID); stop it by hand."
-  fi
-fi
-
-rm -f "$MAILBOX/bridge.ready"
-if (( KEEP_RELAY )); then
-  if [[ -d "$MAILBOX" ]]; then
-    info "kept $MAILBOX."
-  fi
-  # With --keep-relay, keep the identity mailbox too, since the reviews live there.
-  if [[ -n "$ID_MAILBOX" && -d "$ID_MAILBOX" ]]; then
-    info "kept $ID_MAILBOX."
-  fi
-else
-  remove_mailbox "$MAILBOX" "$MB_ROOT"
-  if [[ -n "$ID_MAILBOX" ]]; then
-    remove_mailbox "$ID_MAILBOX" "$ID_ROOT"
-  fi
-fi
+record_signoff
+settle_durable_run
+archive_build
+close_panes
+stop_bridge
+remove_mailboxes
 
 printf '\n'
 info "unpaired. '$PLANNER_NAME' is on its own; tandem-pair starts a builder again."

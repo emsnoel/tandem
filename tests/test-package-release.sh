@@ -38,6 +38,9 @@ LIST=$(tar -tzf "$OUT/$ASSET")
 for want in tandem/tandem tandem/bin/tandem-pair tandem/bin/lib/reviewer.sh \
             tandem/bin/lib/relay.sh tandem/bin/lib/pair-launch.sh \
             tandem/bin/lib/pair-panes.sh tandem/bin/lib/pair-records.sh \
+            tandem/bin/tandem-unpair tandem/bin/lib/unpair-find.sh \
+            tandem/bin/lib/unpair-gates.sh tandem/bin/lib/unpair-refusals.sh \
+            tandem/bin/lib/unpair-close.sh \
             tandem/config/config.toml.example tandem/VERSION tandem/LICENSE; do
   printf '%s\n' "$LIST" | grep -qx "$want" && ok "the tarball holds $want" || nope "the tarball is missing $want"
 done
