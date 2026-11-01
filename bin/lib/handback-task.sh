@@ -93,7 +93,9 @@ task_handback() {
       # Field 3 of `build roles` is the reviewer. A record tandem cannot read
       # leaves it empty.
       REVIEWER=$(tandem build roles --relay "$MAILBOX" 2>/dev/null \
-        | { IFS= read -r -d '' _; IFS= read -r -d '' _; IFS= read -r -d '' r; printf '%s' "${r:-}"; }) || REVIEWER=""
+        | { IFS= read -r -d '' _; IFS= read -r -d '' _; IFS= read -r -d '' r
+          # Read the last field too, so tandem never writes to a closed pipe.
+          IFS= read -r -d '' _ || true; printf '%s' "${r:-}"; }) || REVIEWER=""
       [[ -n "$REVIEWER" ]] \
         || die "this build records no reviewer pane, and the builder never reviews. NOTHING WAS SENT. $REVIEWER_REMEDY Then hand off again."
       # tandem decides whether this shell is that pane (cmd/tandem/agent_self.go).

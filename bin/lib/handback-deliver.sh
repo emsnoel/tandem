@@ -38,6 +38,8 @@ MSG
 # ==============================================================================
 # build_message: fill MESSAGE from bin/lib/handback-prompt.txt.
 build_message() {
+  [[ -r "$HANDBACK_LIB/handback-prompt.txt" ]] \
+    || die "the prompt template $HANDBACK_LIB/handback-prompt.txt is missing; re-run install.sh. Nothing was sent."
   read -r -d '' TEMPLATE < "$HANDBACK_LIB/handback-prompt.txt" || true
 
   # A leading newline keeps the template's blank line when there is no plan.

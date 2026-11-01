@@ -33,7 +33,12 @@ cat > "$TMP/bin/tandem" <<'STUB'
 printf '%s\n' "$*" >> "$MARKER"
 case "$1 $2" in
   # The real binary writes the messages and reads the run marker and the build.
-  "relay write"|"build roles"|"state active-run") exec "$TANDEM_REAL" "$@" ;;
+  # ROLES_SLOW pauses before the last field, so a reader that stops early
+  # makes this writer die of SIGPIPE.
+  "build roles")
+    [ -z "${ROLES_SLOW:-}" ] && exec "$TANDEM_REAL" "$@"
+    printf '%s\0' /p.md builder reviewer; sleep 1; printf '%s\0' planner; exit 0 ;;
+  "relay write"|"state active-run") exec "$TANDEM_REAL" "$@" ;;
   "agent snapshot")
     rc="${AGENT_SNAPSHOT_RC:-0}"
     [[ "$rc" == 0 ]] || exit "$rc"
@@ -127,6 +132,15 @@ run "$HANDBACK_BIN" --report "$REPORT"
 chk "whole-plan call still names the pane guard" "HERDR_ENV != 1"
 [ -z "$(find "$TMP/mailbox" -type f ! -name build.json ! -name active-run.json)" ] && ok "whole-plan refusal writes no queue or report" || nope "whole-plan refusal wrote files"
 rm -rf "$TMP/mailbox"; mkdir -p "$TMP/mailbox"
+
+# --- a missing prompt template is refused, not sent empty ------------------
+NOTPL="$TMP/notpl"; mkdir -p "$NOTPL"
+cp "$HANDBACK_BIN" "$NOTPL/tandem-handback"; cp -R "$(dirname "$HANDBACK_BIN")/lib" "$NOTPL/lib"
+rm -f "$NOTPL/lib/handback-prompt.txt"
+ENV=(HERDR_ROLE=builder)
+run "$NOTPL/tandem-handback" --report "$REPORT" --dry-run
+[[ "$RC" != 0 ]] && ok "a missing prompt template fails" || nope "a missing prompt template was not refused"
+chk "and says which file is missing" "prompt template"
 
 # --- missing prerequisites ---------------------------------------------------
 TRIMMED="$TMP/trimmed-bin"; mkdir -p "$TRIMMED"
@@ -355,6 +369,11 @@ fi
   && ok "--review preserves the first report" || nope "--review preserves the first report"
 [[ "$(cat "$TB/task-2.review.md" 2>/dev/null)" == "review found a bug" ]] \
   && ok "--review writes the second report" || nope "--review writes the second report"
+# Reading only the fields it needs must not cut build roles off mid-answer.
+rm -rf "$TMP/mailbox/q"
+ENV=(HERDR_ROLE=reviewer ROLES_SLOW=1)
+run "$HANDBACK_BIN" --task 2 --review --verdict clean --report "$REVIEW_REPORT"
+[[ "$RC" == 0 ]] && ok "a slow build roles answer still names the reviewer" || nope "a slow build roles answer lost the reviewer (rc $RC): $OUT"
 # --role names the pane when the CLI does not pass HERDR_ROLE to its commands.
 rm -rf "$TMP/mailbox/q"
 ENV=()
