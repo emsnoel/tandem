@@ -88,8 +88,9 @@ func routeBuild(sub string, args []string) (int, bool) {
 		var f durableFlags
 		f.register(fs)
 		fs.Bool("observe-agents", false, "")
+		fs.Bool("fields", false, "")
 		if err := fs.Parse(args); err != nil || fs.NArg() != 0 || f.root == "" {
-			fmt.Fprintf(os.Stderr, "usage: tandem build %s --root DIR [--state-home DIR] [--observe-agents]\n", sub)
+			fmt.Fprintf(os.Stderr, "usage: tandem build %s --root DIR [--state-home DIR] [--observe-agents] [--fields]\n", sub)
 			return exitcode.Usage, true
 		}
 	}

@@ -117,6 +117,7 @@ func cmdBuildStatusDurable(args []string) int {
 	var f durableFlags
 	f.register(fs)
 	asJSON := fs.Bool("json", false, "print the status as one JSON object")
+	asFields := fs.Bool("fields", false, "print NUL-separated fields for bash (state, pause_code, dispatch, pause_reason)")
 	if err := fs.Parse(args); err != nil {
 		return exitcode.Usage
 	}
@@ -134,6 +135,9 @@ func cmdBuildStatusDurable(args []string) int {
 	out, err := durableStatus(d)
 	if err != nil {
 		return fail(err)
+	}
+	if *asFields {
+		return writeStatusFields(os.Stdout, out)
 	}
 	if *asJSON {
 		return printJSON(out)

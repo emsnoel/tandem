@@ -33,8 +33,9 @@ func cmdBuildTick(args []string, recoverRun bool) int {
 	var f durableFlags
 	f.register(fs)
 	observe := fs.Bool("observe-agents", false, "after the tick, pause the run if its builder or reviewer is gone")
+	asFields := fs.Bool("fields", false, "print NUL-separated fields for bash (run_id, state, pause_code, skipped) in place of JSON")
 	if err := fs.Parse(args); err != nil || fs.NArg() != 0 || f.root == "" {
-		fmt.Fprintf(os.Stderr, "usage: tandem build %s --root DIR [--state-home DIR] [--observe-agents]\n", verb)
+		fmt.Fprintf(os.Stderr, "usage: tandem build %s --root DIR [--state-home DIR] [--observe-agents] [--fields]\n", verb)
 		return exitcode.Usage
 	}
 	out, code, err := tickRun(f, recoverRun, *observe)
@@ -44,7 +45,9 @@ func cmdBuildTick(args []string, recoverRun bool) int {
 	case err != nil:
 		fmt.Fprintln(os.Stderr, "tandem build:", err)
 	}
-	if out != nil {
+	if out != nil && *asFields {
+		writeFields(os.Stdout, out.RunID, out.State, out.PauseCode, out.Skipped)
+	} else if out != nil {
 		if rc := printJSON(*out); rc != exitcode.OK {
 			return rc
 		}

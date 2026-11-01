@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -42,6 +43,21 @@ func (v statusView) dispatch() string {
 		return ""
 	}
 	return ""
+}
+
+// writeStatusFields prints a run's status as the NUL fields `build status` and
+// `build wait` share: state, pause_code, dispatch, pause_reason.
+func writeStatusFields(w io.Writer, out statusDurableOut) int {
+	raw, err := json.Marshal(out)
+	if err != nil {
+		return fail(err)
+	}
+	var v statusView
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return fail(err)
+	}
+	writeFields(w, out.State, out.PauseCode, v.dispatch(), out.PauseReason)
+	return exitcode.OK
 }
 
 func (v statusView) matches(until []string, untilNot string) bool {
@@ -138,13 +154,15 @@ func cmdBuildWait(args []string) int {
 			return err
 		}
 	}
-	v, ok, err := waitForRun(read, tk, until, *untilNot, time.Duration(*timeoutMS)*time.Millisecond, time.Now, time.Sleep)
+	_, ok, err := waitForRun(read, tk, until, *untilNot, time.Duration(*timeoutMS)*time.Millisecond, time.Now, time.Sleep)
 	if err != nil {
 		return fail(err)
 	}
 	if *asFields {
 		// Printed on a timeout too: the caller names where the run is stuck.
-		writeFields(os.Stdout, last.State, last.PauseCode, v.dispatch(), last.PauseReason)
+		if rc := writeStatusFields(os.Stdout, last); rc != exitcode.OK {
+			return rc
+		}
 	} else if rc := printJSON(last); rc != exitcode.OK {
 		return rc
 	}
