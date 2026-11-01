@@ -32,13 +32,18 @@ case "$1 $2" in
   # root plans_dir check_command conventions_file builder_kind prompt_extra
   # task_input_budget context_limit build_engine review_delivery
   # acceptance_policy collaboration source invalid_manifest
-  # The JSON is what bin/tandem-project prints, for tandem-review.
+  # The JSON is what bin/tandem-project prints.
   "config project")
     case " $* " in
       *" --fields "*) nul "$REPO" docs/plans "${STUB_CHECK-true}" "" "" "${STUB_PROMPT_EXTRA-}" "" "" "" "" "" "" stub "" ;;
       *) printf '{"root":"%s","plans_dir":"docs/plans","check_command":"%s","conventions_file":"","prompt_extra":"%s","source":"stub"}\n' \
            "$REPO" "${STUB_CHECK-true}" "${STUB_PROMPT_EXTRA-}" ;;
     esac
+    exit 0 ;;
+  # kind autonomy, from the fixture's builder.json, for tandem-review.
+  "config builder")
+    f="$REPO/.tandem-relay/builder.json"
+    nul "$(sed -n 's/.*"kind":"\([^"]*\)".*/\1/p' "$f" 2>/dev/null)" "$(sed -n 's/.*"autonomy":"\([^"]*\)".*/\1/p' "$f" 2>/dev/null)"
     exit 0 ;;
   "agent snapshot") printf '%%1\t%s\tidle\n' "$REPO"; exit 0 ;;
   "gate review")    exit 0 ;;
@@ -49,7 +54,8 @@ esac
 exit 0
 STUB
   chmod +x "$dir/bin/herdr" "$dir/bin/tandem-review" "$dir/bin/tandem"
-  # A jq that fails: tandem-handoff asks tandem, so any jq call is a bug.
+  # A jq that fails: tandem-handoff and tandem-review ask tandem, so any jq
+  # call is a bug.
   printf '#!/bin/sh\necho "jq was called: $*" >&2\nexit 99\n' > "$dir/bin/jq"
   chmod +x "$dir/bin/jq"
 }

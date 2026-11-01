@@ -14,7 +14,7 @@ nope() { printf '  FAIL %s\n' "$1"; FAIL=$((FAIL+1)); }
 for f in bin/tandem-pair bin/lib/pair-*.sh bin/lib/relay.sh bin/tandem-unpair bin/lib/unpair-*.sh \
          bin/tandem-handoff bin/lib/handoff-*.sh bin/lib/handoff-prompt.txt bin/tandem-project \
          bin/tandem-handback bin/lib/handback-*.sh bin/lib/handback-prompt.txt \
-         bin/tandem-ask bin/lib/ask-mailbox.sh; do
+         bin/tandem-ask bin/lib/ask-mailbox.sh bin/tandem-review; do
   # A jq word on a line that is not a comment.
   hits=$(grep -nE '(^|[^[:alnum:]_-])jq([^[:alnum:]_-]|$)' "$ROOT/$f" | grep -vE '^[0-9]+:[[:space:]]*#')
   if [ -z "$hits" ]; then

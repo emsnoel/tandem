@@ -48,6 +48,22 @@ fake_herdr_install() {
 # partial write.
 put() { printf '%s\n' "$2" > "$1.$$" && mv -f "$1.$$" "$1"; }
 put_state() { put "$FAKE/state" "$1 $2"; }
+# json_str TEXT: TEXT as a JSON string, quotes included.
+json_str() {
+  local LC_ALL=C s="$1" out="" c i
+  s=${s//\\/\\\\}; s=${s//\"/\\\"}
+  for (( i=0; i<${#s}; i++ )); do
+    c=${s:i:1}
+    case "$c" in
+      $'\n') out+='\n' ;;
+      $'\t') out+='\t' ;;
+      $'\r') out+='\r' ;;
+      [$'\001'-$'\037']) out+=$(printf '\\u%04x' "'$c") ;;
+      *) out+=$c ;;
+    esac
+  done
+  printf '"%s"' "$out"
+}
 # bump_gets: count a read toward end_after, under an mkdir lock.
 lock() { until mkdir "$FAKE/gets.lock" 2>/dev/null; do sleep 0.01; done; }
 unlock() { rmdir "$FAKE/gets.lock"; }
@@ -118,7 +134,7 @@ case "$1 $2" in
       day="$CODEX_HOME/sessions/$(date +%Y/%m/%d)"; mkdir -p "$day"
       log="$day/rollout-fake-$sess.jsonl"
       [ -f "$log" ] || printf '{"type":"session_meta","payload":{"id":"%s"}}\n' "$sess" > "$log"
-      jq -cn --arg text "$4" '{type:"response_item",payload:{type:"message",role:"user",content:[{type:"input_text",text:$text}]}}' >> "$log"
+      printf '{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":%s}]}}\n' "$(json_str "$4")" >> "$log"
     fi
     printf '%s\t%s\n' "$3" "$(printf '%s' "$4" | tr '\n' ' ')" >> "$FAKE/prompts"
     printf '%s' "$4" > "$FAKE/prompt.$(wc -l < "$FAKE/prompts" | tr -d ' ').txt"

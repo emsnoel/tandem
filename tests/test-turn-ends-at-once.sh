@@ -20,23 +20,21 @@ command -v jq >/dev/null || { echo "need jq" >&2; exit 2; }
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/bin" "$TMP/hbin"
 (cd "$ROOT_DIR" && go build -o "$TMP/bin/tandem" ./cmd/tandem) || { echo "could not build tandem"; exit 1; }
-ln -s "$(command -v jq)" "$TMP/bin/jq"
+# A jq that fails: tandem-review, tandem-handoff and the fake Herdr make no jq
+# call, so any call is a bug.
+printf '#!/bin/sh\necho "jq was called: $*" >&2\nexit 99\n' > "$TMP/bin/jq"
+chmod +x "$TMP/bin/jq"
 . "$ROOT_DIR/tests/lib/fake-herdr.sh"
 . "$ROOT_DIR/tests/lib/fake-socket.sh"
 FAKE="$TMP/fake"
 fake_herdr_install "$TMP/bin" "$FAKE"
 FAKE="$FAKE" PATH="$TMP/bin:$PATH" fake_socket_start "$TMP" || exit 1
-cat > "$TMP/bin/tandem-project" <<'STUB'
-#!/usr/bin/env bash
-jq -n --arg root "$REPO" '{root:$root, plans_dir:"docs/plans", check_command:"true",
-  conventions_file:"", prompt_extra:"", task_input_budget:3000000, source:"stub"}'
-STUB
-chmod +x "$TMP/bin/tandem-project"
 
 REPO="$TMP/repo"
 mkdir -p "$REPO/docs/plans" "$REPO/.tandem-relay"; git -C "$REPO" init -q
 REPO=$(cd "$REPO" && pwd -P); MB="$REPO/.tandem-relay"
 printf '.tandem-relay/\n' > "$REPO/.gitignore"
+printf '{"plans_dir":"docs/plans","check_command":"true","task_input_budget":3000000}\n' > "$REPO/.tandem.json"
 PLAN="$REPO/docs/plans/p.md"
 printf '# plan\n\n### Task 1: one\n\nstep\n\n### Task 2: two\n\nstep\n' > "$PLAN"
 write_builder "$MB" claude
@@ -80,8 +78,6 @@ has "shows what the pane shows" "$OUT" "$MODEL_ERROR"
 # tandem-handoff with the gate, the reset and the session lookup stubbed. Other
 # calls go to the real binary and the fake Herdr. STUB_BUILD_FIELDS is a legacy
 # build paused at a task's review, as build start's fields separated by "|".
-# The fake Herdr writes the Codex log with jq, so jq stays real here; the
-# stub-based handoff tests put a jq that fails on PATH instead.
 cat > "$TMP/hbin/tandem" <<'STUB'
 #!/usr/bin/env bash
 case "$1 $2" in
