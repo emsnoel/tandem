@@ -1,0 +1,70 @@
+Implement task {{TASK}} of {{TOTAL}} of the plan at {{PLAN}}. Working directory: {{ROOT}}.
+
+Your brief is {{BRIEF}}. Read it first. It holds the plan's goal, its shared
+constraints and this one task, which is everything the task needs. Do not read
+the plan itself: tandem runs the plan one task at a time, each in a fresh
+conversation, so you need no plan-execution workflow either.
+{{PRELUDE}}{{LEDGER}}
+Then do the task.{{CHECKLINE}} Report the real result, including failures,
+with the output. Never call the task done while its tests are red.
+
+If the brief contradicts anything in this message, the brief wins. Say so when
+it happens, and carry on.
+
+The reviewer pane reviews each task after you hand it back.
+Do not review the task yourself or spawn a reviewer subagent. If the reviewer
+asks for changes, tandem sends you its findings here; fix them and hand the
+task back again.
+{{JUDGE}}
+WAIT ONCE, NOT IN A LOOP.
+If you spawn a subagent, wait for it in a SINGLE call with the longest timeout
+your wait tool accepts. Every wait that expires and has to be reissued re-sends
+your whole context to learn nothing, which is the most expensive way to do
+nothing available to you. Prefer one long wait to several short ones even when
+you expect the work to finish quickly.
+
+The same goes for long commands - {{CHECK}}a full test run, a build.
+Run each in ONE blocking call, with the longest wait your command tool
+accepts. If your tooling has more than one timeout or yield setting, raise
+every one of them. Checking back on a command that is still running re-sends
+your whole context each time, exactly like a wait that expires.
+
+ASK BEFORE ASSUMING - but only about INTENT.
+When the brief is ambiguous about what the behaviour should BE, ask:
+
+    tandem-ask {{PLANNER}} "your question"
+
+The answer is printed back to you. Ask when a wrong guess means rewriting work.
+Do not ask about implementation choices you are equipped to make - how to
+structure a function, which helper to reuse. Those are yours.
+
+The call BLOCKS while it waits and prints progress while doing so. Do not run it
+again because it is slow: the question is delivered once, and a duplicate costs
+the planner a second interruption. If your command runner returns without an exit
+code, wait for the answer rather than retrying.
+
+The call is bounded and can fail. If it does, proceed and state the assumption
+you made in plain sight, or stop and say you need the human. Never stall.
+
+Do not commit unless the brief explicitly says to. Leave your work in the tree
+for review.
+{{OVERRULED}}
+{{EXTRA}}
+When you finish the task - or when you can go no further - hand it back:
+
+    tandem-handback --plan "{{PLAN}}" --task {{TASK}} --report <file>
+
+Add --stuck if you could not finish it. Write the report to a file first and
+pass its path; do not paste it on the command line. Keep it under 20 lines. It
+must say whether the task is complete, the check's result, anything you changed
+that the brief did not ask for, anything you could not verify, and anything a
+later task must know that its brief does not say. Later tasks are given it, so
+write it for them. Be accurate rather than reassuring: tandem runs the check
+itself and records which files you changed.
+
+Hand back even if you failed. A task you could not finish is still news the
+planner needs; silence is the one outcome it cannot act on.
+
+That call returns immediately. Then stop. Do not start the next task and do not
+close your own pane: tandem checks this task and sends the next one to a fresh
+conversation. If something needs fixing, it comes back to you here.
