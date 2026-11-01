@@ -62,20 +62,34 @@ esac
 (( ROLE_SET )) || ROLE="${HERDR_ROLE:-}"
 [[ -z "$ROLE" || "$ROLE" =~ ^[A-Za-z0-9_-]+$ ]] || die "--role must be a pane name such as reviewer (got '$ROLE')."
 
-for c in jq tandem tandem-project; do
-  command -v "$c" >/dev/null 2>&1 || die "$c not found on PATH."
-done
+command -v tandem >/dev/null 2>&1 || die "tandem not found on PATH."
+
+# tandem answers in NUL-separated fields, read from this file.
+FIELDS=$(mktemp)
+trap 'rm -f "$FIELDS"' EXIT
+# read_field VAR reads the next field into VAR, dropping trailing newlines as
+# command substitution did.
+read_field() {
+  local __v=""
+  IFS= read -r -d '' __v || true
+  while [[ "$__v" == *$'\n' ]]; do __v="${__v%$'\n'}"; done
+  printf -v "$1" '%s' "$__v"
+}
 
 PLAN_ABS=$(cd "$(dirname "$PLAN")" && printf '%s/%s' "$(pwd)" "$(basename "$PLAN")")
 
 # $PWD is the reviewer's working directory, which the prompt set to the
 # builder's cwd. It is not walked to the git toplevel, so the review lands in
 # the same mailbox tandem-handoff reads.
-PROJ=$(tandem-project --root "$PWD") || die "could not resolve project settings for $PWD."
-# `|| true`: jq fails on garbage output, and set -e would abort before the
-# check below.
-pk() { printf '%s' "$PROJ" | jq -r --arg k "$1" '.[$k] // empty' 2>/dev/null || true; }
-ROOT=$(pk root)
+tandem config project --root "$PWD" --fields >"$FIELDS" 2>/dev/null \
+  || die "could not resolve project settings for $PWD."
+# Field 1 is the root; 14 names a manifest that is not a JSON object.
+{ read_field ROOT
+  for _ in 2 3 4 5 6 7 8 9 10 11 12 13; do read_field _; done
+  read_field _invalid_manifest; } <"$FIELDS"
+if [[ -n "$_invalid_manifest" ]]; then
+  printf 'tandem-verdict: %s is not a JSON object, so its settings were ignored.\n' "$_invalid_manifest" >&2
+fi
 [[ -n "$ROOT" ]] || die "could not resolve a project root for $PWD."
 
 MAILBOX=$(tandem paths relay --root "$ROOT") || die "could not resolve the relay mailbox."
@@ -87,11 +101,13 @@ ID="$(date +%Y%m%d-%H%M%S)-$$-$RANDOM"
 # pane's environment, which may differ from the planner's.
 _bj="$MAILBOX/builder.json"
 [[ -f "$_bj" ]] || die "no builder identity recorded at $_bj. Run tandem-pair."
-# `|| true`: a malformed builder.json must reach the check below.
-KIND=$(jq -r '.kind // empty' "$_bj" 2>/dev/null) || true
-AUTONOMY=$(jq -r '.autonomy // empty' "$_bj" 2>/dev/null) || true
-[[ -n "${KIND:-}" && -n "${AUTONOMY:-}" ]] \
-  || die "the builder identity in $_bj is incomplete; re-run tandem-pair."
+# An unreadable builder.json gives empty fields, so the check below fires.
+KIND=""; AUTONOMY=""
+if tandem config builder --relay "$MAILBOX" >"$FIELDS" 2>/dev/null; then
+  { read_field KIND; read_field AUTONOMY; } <"$FIELDS"
+fi
+[[ -n "$KIND" && -n "$AUTONOMY" ]] \
+  || die "the builder identity in $_bj is incomplete. Re-run tandem-pair."
 
 # The gate also binds a review to the reviewer that wrote it.
 _rj="$MAILBOX/reviewer.json"
@@ -115,16 +131,12 @@ cp "$REVIEW" "$MAILBOX/reviews/$ID.md.tmp"
 mv "$MAILBOX/reviews/$ID.md.tmp" "$MAILBOX/reviews/$ID.md"
 cp "$PLAN_ABS" "$MAILBOX/reviews/$ID.plan.md.tmp"
 mv "$MAILBOX/reviews/$ID.plan.md.tmp" "$MAILBOX/reviews/$ID.plan.md"
-jq -n --arg plan "$PLAN_ABS" --arg verdict "$VERDICT" \
-      --arg kind "$KIND" --arg autonomy "$AUTONOMY" \
-      --arg rkind "$REVIEWER_KIND" --arg rmodel "${REVIEWER_MODEL:-}" \
-      --argjson rmeasured "${REVIEWER_MEASURED:-false}" \
-   '{plan:$plan, verdict:$verdict, kind:$kind, autonomy:$autonomy,
-     reviewed_by:"reviewer", reviewer_kind:$rkind, reviewer_model:$rmodel,
-     reviewer_model_measured:$rmeasured,
-     override_reason:""}' \
-   > "$MAILBOX/reviews/$ID.json.tmp"
-mv "$MAILBOX/reviews/$ID.json.tmp" "$MAILBOX/reviews/$ID.json"
+if ! tandem gate record --relay "$MAILBOX" --id "$ID" --plan "$PLAN_ABS" --verdict "$VERDICT" \
+       --kind "$KIND" --autonomy "$AUTONOMY" --reviewer-kind "$REVIEWER_KIND" \
+       --reviewer-model "${REVIEWER_MODEL:-}" --reviewer-measured="${REVIEWER_MEASURED:-false}"; then
+  rm -f "$MAILBOX/reviews/$ID.md" "$MAILBOX/reviews/$ID.plan.md"
+  die "could not store the review. Nothing was sent."
+fi
 
 info "review stored as $ID ($VERDICT)."
 
@@ -144,15 +156,10 @@ _snap=$(tandem agent snapshot "$PLANNER_NAME" 2>/dev/null) || rc=$?
 # the verdict for tandem-bridge, which delivers the message as written.
 if (( rc == 3 )); then
   QFILE="$MAILBOX/q/$ID.json"
-  if mkdir -p "$MAILBOX/q" \
-     && jq -n --arg id "$ID" --arg from "$ROLE" --arg to "$PLANNER_NAME" \
-              --arg msg "$MSG" --arg plan "$PLAN_ABS" --arg review "$MAILBOX/reviews/$ID.md" \
-          '{id:$id, kind:"verdict", from:$from, to:$to, question:"verdict",
-            message:$msg, plan:$plan, review_path:$review, created:(now|todate)}' \
-          > "$QFILE.tmp" \
-     && mv "$QFILE.tmp" "$QFILE"; then
-    info "socket unreachable (sandbox) — verdict queued at $QFILE"
-    info "the bridge will deliver it to '$PLANNER_NAME'. You are done; do not wait."
+  if tandem relay write verdict --mailbox "$MAILBOX" --id "$ID" --from "$ROLE" --to "$PLANNER_NAME" \
+       --message "$MSG" --plan "$PLAN_ABS" --review-path "$MAILBOX/reviews/$ID.md"; then
+    info "the Herdr socket is unreachable from here, as in a sandbox. The verdict is queued at $QFILE."
+    info "The bridge will deliver it to '$PLANNER_NAME'. You are done, so do not wait."
     exit 0
   fi
   rm -f "$QFILE.tmp"
@@ -172,7 +179,7 @@ fi
 
 if (( rc != 0 )); then
   cat >&2 <<WARN
-tandem-verdict: WARNING the planner could not be found; the prompt was not sent.
+tandem-verdict: WARNING the planner could not be found, so the prompt was not sent.
 
   The review IS stored at:
 
@@ -191,9 +198,9 @@ unwoken() {
   cat >&2 <<WARN
 tandem-verdict: WARNING the prompt was accepted but $PLANNER_NAME never woke up.
 
-  It is most likely sitting at a native dialog that Herdr cannot see, which
-  swallows input while still reporting idle, or its turn ended at once. Your
-  review is done and your report is safe at:
+  It is most likely at a native dialog that Herdr cannot see. Such a dialog
+  takes the input and still reports idle. Or its turn ended at once. Your
+  review is done, and it is stored at:
 
     $MAILBOX/reviews/$ID.md
     id: $ID

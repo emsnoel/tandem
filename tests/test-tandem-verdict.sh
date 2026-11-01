@@ -31,7 +31,7 @@ run "$VERDICT_BIN" --plan "$TMP/no-such-plan.md" --review "$REVIEW" --verdict cl
 chk "missing plan file names the path" "plan not found"
 
 # --- missing prerequisites ---
-# The trimmed PATH keeps bash and jq and leaves out tandem.
+# The trimmed PATH holds bash and the failing jq, and leaves out tandem.
 TRIMMED="$TMP/trimmed-bin"; mkdir -p "$TRIMMED"
 ln -s "$TMP/bin/jq" "$TRIMMED/jq"
 ln -s "$(command -v bash)" "$TRIMMED/bash"
@@ -50,7 +50,11 @@ chk "no builder.json names the remedy" "Run tandem-pair"
 printf '{"kind":"codex"}\n' > "$TMP/mailbox/builder.json"   # autonomy missing
 run "$VERDICT_BIN" --plan "$PLAN" --review "$REVIEW" --verdict clean
 [[ "$RC" == 1 ]] && ok "incomplete builder.json exits 1" || nope "incomplete builder.json exits 1 (got $RC)"
-chk "incomplete builder.json names the remedy" "incomplete; re-run tandem-pair"
+chk "incomplete builder.json names the remedy" "is incomplete. Re-run tandem-pair."
+printf '{not json' > "$TMP/mailbox/builder.json"
+run "$VERDICT_BIN" --plan "$PLAN" --review "$REVIEW" --verdict clean
+[[ "$RC" == 1 ]] && ok "builder.json that is not JSON exits 1" || nope "builder.json that is not JSON exits 1 (got $RC)"
+chk "builder.json that is not JSON names the remedy" "is incomplete. Re-run tandem-pair."
 
 # From here on, a complete builder identity is present for every case.
 write_builder "$TMP/mailbox"
@@ -70,6 +74,12 @@ chk "incomplete reviewer.json names the remedy" "is incomplete. Declare a \"revi
 
 # From here on, a complete reviewer is present too, measured on opus.
 write_reviewer "$TMP/mailbox" claude reviewer opus
+
+# --- a manifest that is not a JSON object ---
+rm -rf "$TMP/mailbox/reviews" "$TMP/mailbox/q"
+run env INVALID_MANIFEST="$TMP/repo/.tandem.json" "$VERDICT_BIN" --plan "$PLAN" --review "$REVIEW" --verdict clean
+[[ "$RC" == 0 ]] && ok "an invalid manifest still stores the verdict" || nope "an invalid manifest still stores the verdict (rc $RC): $OUT"
+chk "an invalid manifest warns" "tandem-verdict: $TMP/repo/.tandem.json is not a JSON object, so its settings were ignored."
 
 # --- only the reviewer gives a verdict -------------------------------------------
 # The builder never reviews. A verdict from any other role, or from a shell

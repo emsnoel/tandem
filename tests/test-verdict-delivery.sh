@@ -36,6 +36,16 @@ JSON=$(cat "$TMP/mailbox/reviews/$ID.json" 2>/dev/null)
 [[ "$(jq -r '.reviewer_model' <<<"$JSON")" == "opus" ]] && ok "the json records the reviewer model" || nope "the json records the reviewer model"
 [[ "$(jq -r '.reviewer_model_measured' <<<"$JSON")" == "true" ]] && ok "the json records that the reviewer model was measured" || nope "the json records that the reviewer model was measured"
 chk "it reports the id and verdict" "review stored as $ID (clean)"
+case "$OUT" in *"jq was called"*) nope "it calls no jq: $OUT" ;; *) ok "it calls no jq" ;; esac
+
+# --- the review cannot be stored: nothing is left and nothing is sent ---
+rm -rf "$TMP/mailbox/reviews" "$TMP/mailbox/q"
+run env GATE_RECORD_RC=1 "$VERDICT_BIN" --plan "$PLAN" --review "$REVIEW" --verdict clean
+[[ "$RC" == 1 ]] && ok "a failed gate record exits 1" || nope "a failed gate record exits 1 (got $RC)"
+chk "a failed gate record says so" "could not store the review. Nothing was sent."
+[[ -z "$(ls "$TMP/mailbox/reviews" 2>/dev/null)" ]] && ok "a failed gate record leaves no review files" \
+  || nope "a failed gate record leaves no review files: $(ls "$TMP/mailbox/reviews")"
+grep -q '^agent prompt' "$MARKER" && nope "a failed gate record still prompted the planner" || ok "a failed gate record sends nothing"
 
 # --- planner not found: review is still stored, warns rather than dying --------
 rm -rf "$TMP/mailbox/reviews"
@@ -59,7 +69,8 @@ OUT=$(PATH="$TMP/bin:$PATH" MAILBOX="$TMP/mailbox" REPO="$TMP/repo" MARKER="$MAR
         "$VERDICT_BIN" --plan "$PLAN" --review "$REVIEW" --verdict objections 2>&1); RC=$?
 [[ "$RC" == 0 ]] && ok "an unreachable socket queues the verdict and exits 0" \
                  || nope "an unreachable socket queues the verdict and exits 0 (got $RC)"
-chk "it says the bridge will deliver it" "the bridge will deliver it"
+chk "it says the bridge will deliver it" "The bridge will deliver it to 'planner'. You are done, so do not wait."
+chk "it says where the verdict is queued" "the Herdr socket is unreachable from here, as in a sandbox. The verdict is queued at"
 case "$OUT" in *"could not be found"*) nope "it must not report a live planner as gone" ;;
                *) ok "it does not report the planner as gone" ;; esac
 Q=$(ls "$TMP/mailbox/q/"*.json 2>/dev/null | head -1)
@@ -75,6 +86,10 @@ if [[ -n "$Q" ]]; then
     && ok "the message names the reviewer" \
     || nope "the message names the reviewer (got: $(jq -r '.message' "$Q" | head -1))"
   QID=$(jq -r '.id' "$Q")
+  "$TANDEM_REAL" relay read --file "$Q" > "$TMP/read" 2>/dev/null
+  { IFS= read -r -d '' _f1; IFS= read -r -d '' _f2; } < "$TMP/read"
+  [[ "$_f1" == "$QID" && "$_f2" == verdict ]] && ok "the queued verdict reads back with kind verdict" \
+    || nope "the queued verdict reads back with kind verdict (got '$_f1' '$_f2')"
   [[ -f "$TMP/mailbox/reviews/$QID.json" ]] && ok "the request id is the stored review's id" \
                                              || nope "the request id is the stored review's id"
 else
