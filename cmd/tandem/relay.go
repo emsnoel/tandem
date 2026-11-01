@@ -63,13 +63,17 @@ type relayLog struct {
 const relayUse = "usage: tandem relay write task --mailbox DIR --id ID --from NAME --task N --report PATH --plan PATH [--stuck] [--review --verdict V]\n" +
 	"       tandem relay write handback --mailbox DIR --id ID --from NAME --to NAME --message TEXT --report PATH --plan PATH\n" +
 	"       tandem relay write question --mailbox DIR --id ID --from NAME --to NAME --question TEXT\n" +
-	"       tandem relay log --dir DIR --id ID --from NAME --to NAME --question TEXT --answer TEXT"
+	"       tandem relay log --dir DIR --id ID --from NAME --to NAME --question TEXT --answer TEXT\n" +
+	"       tandem relay read --file F"
 
 // cmdRelay writes the relay's messages for bin/tandem-handback and
 // bin/tandem-ask: the mailbox files tandem-bridge delivers, and the Q&A log.
+// `relay read` is the bridge's side: it reads one of those files back.
 func cmdRelay(args []string) int {
 	var name string
 	switch {
+	case len(args) >= 1 && args[0] == "read":
+		return cmdRelayRead(args[1:])
 	case len(args) >= 2 && args[0] == "write":
 		name, args = "write "+args[1], args[2:]
 	case len(args) >= 1 && args[0] == "log":
