@@ -42,10 +42,22 @@ while (( $# )); do
   esac
 done
 
-[[ "${HERDR_ENV:-}" == 1 ]] || die "not running inside a Herdr-managed pane (HERDR_ENV != 1)."
-for c in herdr jq tandem tandem-project; do
+[[ "${HERDR_ENV:-}" == 1 ]] || die "run this from a Herdr pane. HERDR_ENV is not 1 here."
+for c in herdr tandem; do
   command -v "$c" >/dev/null 2>&1 || die "$c not found on PATH."
 done
+
+# tandem answers in NUL-separated fields, read from this file.
+FIELDS=$(mktemp)
+trap 'rm -f "$FIELDS"' EXIT
+# read_field VAR reads the next field into VAR, dropping trailing newlines as
+# command substitution did.
+read_field() {
+  local __v=""
+  IFS= read -r -d '' __v || true
+  while [[ "$__v" == *$'\n' ]]; do __v="${__v%$'\n'}"; done
+  printf -v "$1" '%s' "$__v"
+}
 
 # --- builder identity and live pane status ---
 # Exit 0 means paired, 3 means the socket is unreachable (stop here), and
@@ -68,10 +80,17 @@ else
   ROOT="${ROOT:-$PWD}"
 fi
 
-PROJ=$(tandem-project --root "$ROOT") || die "could not resolve project settings for $ROOT"
-pk() { printf '%s' "$PROJ" | jq -r --arg k "$1" '.[$k] // empty' 2>/dev/null || true; }
-ROOT=$(pk root)
-PLANS_DIR="${HERDR_PLANS_SUBDIR:-$(pk plans_dir)}"
+tandem config project --root "$ROOT" --fields >"$FIELDS" 2>/dev/null \
+  || die "could not resolve project settings for $ROOT."
+# Fields 1 and 2 are root and plans dir; 14 names a manifest that is not a
+# JSON object.
+{ read_field ROOT; read_field _plans_dir
+  for _ in 3 4 5 6 7 8 9 10 11 12 13; do read_field _; done
+  read_field _invalid_manifest; } <"$FIELDS"
+if [[ -n "$_invalid_manifest" ]]; then
+  printf 'tandem-status: %s is not a JSON object, so its settings were ignored.\n' "$_invalid_manifest" >&2
+fi
+PLANS_DIR="${HERDR_PLANS_SUBDIR:-$_plans_dir}"
 
 # A pair writes to two mailboxes (see bin/tandem-unpair): the relay one at the
 # git toplevel and the identity one at the builder's own cwd. They differ only
@@ -84,16 +103,14 @@ if (( PAIRED )); then
   ID_MAILBOX=$(tandem paths relay --root "$ROOT") \
     || die "the installed tandem is behind these commands (no 'tandem paths'); re-run install.sh."
 
+  # An unreadable record gives empty fields, reported as no identity.
   BJ_KIND=""; BJ_AUTONOMY=""; BJ_ADOPTED=""
-  if [[ -f "$ID_MAILBOX/builder.json" ]]; then
-    _bj=$(cat "$ID_MAILBOX/builder.json")
-    BJ_KIND=$(printf '%s' "$_bj" | jq -r '.kind // empty')
-    BJ_AUTONOMY=$(printf '%s' "$_bj" | jq -r '.autonomy // empty')
-    BJ_ADOPTED=$(printf '%s' "$_bj" | jq -r '.adopted // false')
+  if tandem config builder --relay "$ID_MAILBOX" >"$FIELDS" 2>/dev/null; then
+    { read_field BJ_KIND; read_field BJ_AUTONOMY; read_field BJ_ADOPTED; } <"$FIELDS"
   fi
   if [[ -n "$BJ_KIND" ]]; then
     _adoptedNote=""
-    [[ "$BJ_ADOPTED" == "true" ]] && _adoptedNote=" (adopted -- launch settings unenforced)"
+    [[ "$BJ_ADOPTED" == "true" ]] && _adoptedNote=" (adopted, so tandem cannot enforce its launch settings)"
     info "builder  $BUILDER_NAME  pane $BUILDER_PANE  status: $BUILDER_STATUS  [$BJ_KIND/$BJ_AUTONOMY]$_adoptedNote"
   else
     info "builder  $BUILDER_NAME  pane $BUILDER_PANE  status: $BUILDER_STATUS  (no recorded identity)"
@@ -103,10 +120,10 @@ if (( PAIRED )); then
   _mbPhys=$(cd "$MB_ROOT" 2>/dev/null && pwd -P || printf '%s' "$MB_ROOT")
   _idPhys=$(cd "$ROOT" 2>/dev/null && pwd -P || printf '%s' "$ROOT")
   if [[ "$_idPhys" != "$_mbPhys" ]]; then
-    info "         paired from a subdirectory -- identity mailbox: $ID_MAILBOX"
+    info "         paired from a subdirectory, so its identity is in $ID_MAILBOX"
   fi
 else
-  info "builder  not paired -- tandem-pair starts one"
+  info "builder  not paired. Run tandem-pair to start one."
   MAILBOX=$(tandem paths relay --root "$ROOT" 2>/dev/null || true)
 fi
 
@@ -120,8 +137,8 @@ case $rc in
     IFS=$'\t' read -r _rkind _rname _rmeasured _rmodel <<<"$_rrec"
     [[ "$_rmeasured" == true && -n "$_rmodel" ]] || _rmodel="not recorded"
     info "reviewer $_rname  kind: $_rkind  model: $_rmodel" ;;
-  28) info "reviewer none recorded -- review and build will refuse until tandem-pair starts one" ;;
-  *)  info "reviewer record cannot be read -- review and build will refuse until tandem-pair records one" ;;
+  28) info "reviewer none recorded. Review and build refuse until tandem-pair starts one." ;;
+  *)  info "reviewer record cannot be read. Review and build refuse until tandem-pair records one." ;;
 esac
 
 # --- review state for the active plan ---
@@ -149,39 +166,46 @@ if [[ -n "$PLAN" ]]; then
   PLAN_ABS=$(cd "$(dirname "$PLAN")" && printf '%s/%s' "$(pwd)" "$(basename "$PLAN")")
   rc=0
   _gv=$(tandem gate review --plan "$PLAN_ABS" --root "$ROOT" 2>/dev/null) || rc=$?
+  # The line is "STATE (id ID). FIX", with the id and the fix only when there
+  # is one.
+  _fix=""
   if [[ "$rc" -eq 0 ]]; then
     _id=$(printf '%s' "$_gv" | sed -n '1p')
-    info "review   clean (id $_id) -- ready for tandem-handoff"
+    _msg="clean"; _fix="Ready for tandem-handoff."
   else
     # The reason first and the review id last, with the compared sides between.
     _reason=$(printf '%s\n' "$_gv" | sed -n '1p')
     _id=$(printf '%s\n' "$_gv" | sed -n '2,$p' | tail -n 1)
     case "$_reason" in
-      absent)     _msg="no review yet -- run tandem-review" ;;
+      absent)     _msg="no review yet"; _fix="Run tandem-review." ;;
       superseded) _msg="a newer review exists" ;;
-      plan)       _msg="plan changed since it was reviewed -- re-run tandem-review" ;;
-      builder)    _msg="builder identity changed since the review -- re-run tandem-review" ;;
-      objections) _msg="objections stand -- fix the plan or tandem-handoff --override-review" ;;
-      no_reviewer) _msg="no reviewer is recorded, and the builder never reviews -- $REVIEWER_REMEDY" ;;
-      builder_review) _msg="the builder wrote this review, and the builder never reviews -- re-run tandem-review for the reviewer pane" ;;
-      reviewer)   _msg="reviewer changed since the review (kind, or model) -- re-run tandem-review" ;;
+      plan)       _msg="the plan changed since its review"; _fix="Run tandem-review again." ;;
+      builder)    _msg="the builder changed since the review"; _fix="Run tandem-review again." ;;
+      reviewer)   _msg="the reviewer's kind or model changed since the review"; _fix="Run tandem-review again." ;;
+      objections) _msg="objections stand"; _fix="Fix the plan, or run tandem-handoff --override-review." ;;
+      no_reviewer) _msg="no reviewer is recorded, and the builder never reviews"; _fix="$REVIEWER_REMEDY" ;;
+      builder_review) _msg="the builder wrote this review, and the builder never reviews"
+                      _fix="Run tandem-review again so the reviewer pane reviews." ;;
       *)          _msg="$_reason" ;;
     esac
-    if [[ -n "$_id" ]]; then
-      info "review   $_msg (id $_id)"
-    else
-      info "review   $_msg"
-    fi
   fi
+  info "review   $_msg${_id:+ (id $_id)}.${_fix:+ $_fix}"
   info "plan     $PLAN_ABS"
 else
-  info "plan     none found in ${PLANS_DIR:-<no plans_dir configured>}"
+  if [[ -n "$PLANS_DIR" ]]; then
+    info "plan     none found in $PLANS_DIR"
+  else
+    info "plan     none found, and no plans_dir is set"
+  fi
 fi
 
 # --- build engine --------------------------------------------------------------
 # Which engine the next build here would use, and what decided it.
-_eng=$(tandem state engine --root "$ROOT" 2>/dev/null) || _eng=""
-[[ -z "$_eng" ]] || info "engine   $(printf '%s' "$_eng" | jq -r '"\(.engine) (\(.because))"')"
+_engine=""; _because=""
+if tandem state engine --root "$ROOT" --fields >"$FIELDS" 2>/dev/null; then
+  { read_field _engine; read_field _because; } <"$FIELDS"
+fi
+[[ -z "$_engine" ]] || info "engine   $_engine ($_because)"
 
 # --- mailbox activity ----------------------------------------------------------
 if [[ -n "$MAILBOX" && -d "$MAILBOX" ]]; then
@@ -191,7 +215,7 @@ if [[ -n "$MAILBOX" && -d "$MAILBOX" ]]; then
   shopt -u nullglob
   info "mailbox  ${#_r[@]} handback report(s), ${#_q[@]} question(s) queued unanswered"
 else
-  info "mailbox  none (no session has paired here yet, or it was already closed)"
+  info "mailbox  none. Nobody has paired here yet, or the pair was closed."
 fi
 
 # --- relay bridge liveness ---
@@ -208,7 +232,7 @@ if [[ -n "$MAILBOX" && -f "$MAILBOX/bridge.pid" ]]; then
   if [[ "$_bpid" =~ ^[0-9]+$ ]] && kill -0 "$_bpid" 2>/dev/null && bridge_is_ours "$_bpid"; then
     info "bridge   running (pid $_bpid)"
   else
-    info "bridge   not running (stale pid file)"
+    info "bridge   not running. Its pid file is left from an earlier run."
   fi
 else
   info "bridge   not running"
