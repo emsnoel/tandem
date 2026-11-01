@@ -39,11 +39,14 @@ func cmdRelayHistory(args []string) int {
 		fmt.Fprintln(os.Stderr, relayUse)
 		return exitcode.Usage
 	}
-	files, _ := filepath.Glob(filepath.Join(*dir, "*.json"))
+	// ReadDir, not Glob, so a directory path holding [ * or ? is read as a
+	// path. Dot files stay out, as bash's "$LOG_DIR"/*.json left them out.
+	entries, _ := os.ReadDir(*dir)
 	var names []string
-	for _, f := range files {
-		if !strings.HasPrefix(filepath.Base(f), "judge-") {
-			names = append(names, f)
+	for _, e := range entries {
+		n := e.Name()
+		if !e.IsDir() && strings.HasSuffix(n, ".json") && !strings.HasPrefix(n, "judge-") && !strings.HasPrefix(n, ".") {
+			names = append(names, filepath.Join(*dir, n))
 		}
 	}
 	sort.Strings(names)
