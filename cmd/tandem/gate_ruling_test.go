@@ -93,18 +93,30 @@ func TestGateRuleRefusesNonObject(t *testing.T) {
 
 func TestConfigBuilder(t *testing.T) {
 	relay := t.TempDir()
-	if err := os.WriteFile(filepath.Join(relay, "builder.json"), []byte(`{"kind":"codex","autonomy":"auto"}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(relay, "builder.json"), []byte(`{"kind":"codex","autonomy":"auto","adopted":true}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if out := captureStdout(t, func() int { return cmdConfig([]string{"builder", "--relay", relay}) }); out != "codex\x00auto\x00" {
+	if out := captureStdout(t, func() int { return cmdConfig([]string{"builder", "--relay", relay}) }); out != "codex\x00auto\x00true\x00" {
 		t.Errorf("got %q", out)
 	}
 }
 
-// No readable record prints two empty fields, so the caller's own check fires.
+// No readable record prints empty kind and autonomy, so the caller's own
+// check fires, and adopted false.
 func TestConfigBuilderMissing(t *testing.T) {
 	out, rc := captureStdoutRC(t, func() int { return cmdConfig([]string{"builder", "--relay", t.TempDir()}) })
-	if rc != exitcode.OK || out != "\x00\x00" {
+	if rc != exitcode.OK || out != "\x00\x00false\x00" {
+		t.Errorf("rc %d, got %q", rc, out)
+	}
+}
+
+func TestConfigBuilderNotJSON(t *testing.T) {
+	relay := t.TempDir()
+	if err := os.WriteFile(filepath.Join(relay, "builder.json"), []byte(`{not json`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, rc := captureStdoutRC(t, func() int { return cmdConfig([]string{"builder", "--relay", relay}) })
+	if rc != exitcode.OK || out != "\x00\x00false\x00" {
 		t.Errorf("rc %d, got %q", rc, out)
 	}
 }
