@@ -263,6 +263,20 @@ jq -n '{id:"nf1", from:null, question:"who?"}' > "$MB/q/nf1.json"
 run_bridge
 grep -q '^\[from builder\] who?' "$PROMPT_LOG" && ok "a null sender reads as builder" || nope "sender: $(head -1 "$PROMPT_LOG")"
 
+echo "--- each bridge keeps its own fields file, and leaves none behind ---"
+reset_mb; mkdir -p "$MB/q"
+# A file left by a bridge that is gone, and one held by a live process.
+sleep 30 & LIVE=$!
+: > "$MB/.fields.99999999"; : > "$MB/.fields.$LIVE"
+jq -n '{id:"ff1", from:"builder", question:"fields"}' > "$MB/q/ff1.json"
+run_bridge
+chk "it delivers the question" "ff1 delivered"
+[ ! -e "$MB/.fields" ] && ok "no fields file is shared between bridges" || nope "a shared $MB/.fields exists"
+[ ! -e "$MB/.fields.99999999" ] && ok "a dead bridge's fields file is swept at start" || nope "a dead bridge's fields file was left"
+[ -e "$MB/.fields.$LIVE" ] && ok "a live bridge's fields file is left alone" || nope "a live bridge's fields file was removed"
+[ "$(ls -a "$MB" | grep -c '^\.fields')" -eq 1 ] && ok "the bridge removes its own fields file on exit" || nope "fields files left: $(ls -a "$MB" | grep '^\.fields' | tr '\n' ' ')"
+kill "$LIVE" 2>/dev/null; wait "$LIVE" 2>/dev/null
+
 echo "--- --once with an empty mailbox does nothing and exits cleanly ---"
 reset_mb; mkdir -p "$MB/q"
 run_bridge

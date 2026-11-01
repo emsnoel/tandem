@@ -85,11 +85,18 @@ engine_guard "$(dirname "$MAILBOX")"
 
 mkdir -p "$MAILBOX/q" "$MAILBOX/a"
 
-# tandem answers in NUL-separated fields, written here. A fixed file in the
-# mailbox, like .last_error: a mktemp file would need a TERM trap to be
-# removed, and bash runs one only after the foreground `tandem agent watch`
-# returns, which would hold up tandem-unpair's stop.
-FIELDS="$MAILBOX/.fields"
+# tandem answers in NUL-separated fields, written to this bridge's own file in
+# the mailbox, so a second bridge on the same mailbox cannot overwrite it. It
+# is not a mktemp file because removing one on kill needs a TERM trap, and bash
+# runs that only after the foreground `tandem agent watch` returns, which would
+# hold up tandem-unpair's stop. A killed bridge's file is swept by the next
+# bridge, and tandem-unpair removes the mailbox.
+FIELDS="$MAILBOX/.fields.$$"
+for _f in "$MAILBOX"/.fields.*; do
+  [[ -e "$_f" ]] || continue
+  kill -0 "${_f##*.}" 2>/dev/null || rm -f "$_f"
+done
+trap 'rm -f "$FIELDS"' EXIT
 # read_field VAR: the next field into VAR, empty at the end of the input.
 read_field() { IFS= read -r -d '' "$1" || true; }
 # read_message FILE: run `tandem relay read`. A failure, as for a file that is
