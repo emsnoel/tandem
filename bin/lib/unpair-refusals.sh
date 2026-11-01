@@ -22,9 +22,8 @@ MSG
 tandem-unpair: '$BUILDER_NAME' has never handed back; there is nothing to verify.
 
   An idle builder may not be done. It may have crashed, hit an error it could
-  not report, or never had a plan. Check pane $BUILDER_PANE before you close
-  it. Its screen still shows what it was doing, and closing the pane deletes
-  that.
+  not report, or never had a plan. Its screen still shows what it was doing,
+  and closing the pane deletes that. Check pane $BUILDER_PANE first.
 
   Ask it directly:   tandem-ask $BUILDER_NAME "where did you get to?"
   Close it anyway:   tandem-unpair --force
