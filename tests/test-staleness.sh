@@ -32,15 +32,15 @@ fi
 
 # --- a stale binary must say so clearly ---
 # The scripts are symlinked and always current, while the binary can lag, so
-# the scripts must name the remedy when `tandem paths` is missing.
+# the scripts must name the remedy when a verb they need is missing.
 STUB=$(mktemp -d); trap 'rm -rf "$STUB"' EXIT
 if command -v tandem >/dev/null 2>&1 && command -v tandem-project >/dev/null 2>&1; then
   REAL=$(command -v tandem)
   cat > "$STUB/tandem" <<STUBEOF
 #!/usr/bin/env bash
-# Stands in for a tandem built before \`tandem paths\` existed.
-if [ "\$1" = "paths" ]; then
-  echo 'tandem: unknown subcommand "paths"' >&2
+# Stands in for a tandem built before \`tandem config project\` existed.
+if [ "\$1 \$2" = "config project" ]; then
+  echo 'tandem config: unknown subcommand "project"' >&2
   exit 2
 fi
 exec "$REAL" "\$@"
@@ -49,8 +49,8 @@ STUBEOF
   REPO=$(mktemp -d); git -C "$REPO" init -q
   OUT=$(cd "$REPO" && PATH="$STUB:$PATH" tandem-project --root . 2>&1); RC=$?
 
-  [ "$RC" -ne 0 ] && ok "a tandem without \`paths\` refuses instead of guessing a filename" \
-    || nope "a tandem without \`paths\` refuses instead of guessing a filename (exit $RC)"
+  [ "$RC" -ne 0 ] && ok "a tandem without \`config project\` refuses instead of guessing settings" \
+    || nope "a tandem without \`config project\` refuses instead of guessing settings (exit $RC)"
   case "$OUT" in
     *install.sh*) ok "and names install.sh as the remedy" ;;
     *)            nope "and names install.sh as the remedy (got: $OUT)" ;;
