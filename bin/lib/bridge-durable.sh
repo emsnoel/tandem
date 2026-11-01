@@ -39,7 +39,7 @@ ingest_durable() {
     return
   fi
   { read_field disp; read_field why; } <"$FIELDS"
-  log "$(basename "$taken"): $disp $why"
+  log "$(basename "$taken"): $disp${why:+ $why}"
 }
 
 # drive_durable VERB [ARGS...]: give the durable run's controller one step (tick
