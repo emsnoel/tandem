@@ -163,5 +163,16 @@ case "$OUT5" in
 esac
 case "$OUT5" in *"jq was called"*) nope "handoff called jq" ;; *) ok "handoff called no jq" ;; esac
 
+# A missing prompt template is refused, not sent as an empty prompt.
+NOTPL="$TMP/notpl"; mkdir -p "$NOTPL"
+cp "$HANDOFF" "$NOTPL/tandem-handoff"; cp -R "$(dirname "$HANDOFF")/lib" "$NOTPL/lib"
+rm -f "$NOTPL/lib/handoff-prompt.txt"
+OUT6=$(PATH="$TMP/bin:$PATH" HERDR_ENV=1 REPO="$TMP/repo" "$NOTPL/tandem-handoff" "$PLAN" --dry-run 2>&1); RC6=$?
+case "$RC6:$OUT6" in
+  0:*) nope "a missing prompt template was not refused" ;;
+  *"prompt template"*handoff-prompt.txt*) ok "a missing prompt template is refused and named" ;;
+  *) nope "a missing prompt template failed without naming the file: $OUT6" ;;
+esac
+
 printf '\nprompt-injection: passed %d, failed %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
