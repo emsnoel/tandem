@@ -20,11 +20,13 @@ REPO="$TMP/repo"
 git -C "$REPO" init -q
 
 # Forces mailbox mode: agent snapshot exits 3, and paths relay echoes back its
-# --root.
+# --root. The real binary writes the question.
+export REAL_TANDEM; REAL_TANDEM=$(command -v tandem) || { echo "need an installed tandem" >&2; exit 2; }
 cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
 case "$1 $2" in
   "agent snapshot") exit 3 ;;
+  "relay write") exec "$REAL_TANDEM" "$@" ;;
 esac
 if [ "$1" = "paths" ] && [ "$2" = "relay" ]; then
   shift 2
@@ -37,7 +39,9 @@ if [ "$1" = "paths" ] && [ "$2" = "relay" ]; then
 fi
 exit 0
 STUB
-chmod +x "$TMP/bin/tandem"
+# A jq that fails: tandem-ask asks tandem, so any jq call is a bug.
+printf '#!/bin/sh\necho "jq was called: $*" >&2\nexit 99\n' > "$TMP/bin/jq"
+chmod +x "$TMP/bin/tandem" "$TMP/bin/jq"
 printf '#!/usr/bin/env bash\nprintf "{}"\n' > "$TMP/bin/herdr"
 chmod +x "$TMP/bin/herdr"
 

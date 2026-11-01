@@ -16,7 +16,9 @@ command -v jq >/dev/null || { echo "need jq" >&2; exit 2; }
 
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/bin" "$TMP/mailbox"
-ln -s "$(command -v jq)" "$TMP/bin/jq"
+# A jq that fails: tandem-handback asks tandem, so any jq call is a bug. The
+# test reads the queued messages with the real jq.
+printf '#!/bin/sh\necho "jq was called: $*" >&2\nexit 99\n' > "$TMP/bin/jq"
 (cd "$(dirname "$0")/.." && go build -o "$TMP/tandem-real" ./cmd/tandem) || { echo "could not build tandem" >&2; exit 2; }
 
 PLAN="$TMP/p.md"; printf '# plan\n' > "$PLAN"
@@ -30,6 +32,8 @@ cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$MARKER"
 case "$1 $2" in
+  # The real binary writes the messages and reads the run marker and the build.
+  "relay write"|"build roles"|"state active-run") exec "$TANDEM_REAL" "$@" ;;
   "agent snapshot")
     rc="${AGENT_SNAPSHOT_RC:-0}"
     [[ "$rc" == 0 ]] || exit "$rc"
@@ -316,7 +320,8 @@ mkdir -p "$TB"; printf '{"state":"running"}\n' > "$TB/build.json"
 run "$HANDBACK_BIN" --task 2 --report "$REPORT" --plan "$PLAN"
 [[ "$RC" == 0 ]] && ok "--task exits 0" || nope "--task exits 0 (got $RC): $OUT"
 Q=$(ls "$TMP/mailbox/q"/*.json 2>/dev/null | head -1)
-if [[ -n "$Q" ]] && jq -e '.kind=="task" and .task==2 and .stuck==false and (.report_path|endswith("build/task-2.report.md"))' "$Q" >/dev/null; then
+# The bridge tests task with ^[0-9]+$ and stuck with == true, so the types matter.
+if [[ -n "$Q" ]] && jq -e '.kind=="task" and .task==2 and (.task|type)=="number" and .stuck==false and (.review|type)=="boolean" and (.report_path|endswith("build/task-2.report.md"))' "$Q" >/dev/null; then
   ok "--task queues a task event for the bridge"
 else
   nope "--task queues a task event for the bridge ($(cat "$Q" 2>/dev/null))"

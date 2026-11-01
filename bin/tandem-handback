@@ -105,7 +105,6 @@ done
 
 # Fail early if herdr is missing; tandem shells out to it.
 command -v herdr >/dev/null 2>&1 || die "herdr not found on PATH."
-command -v jq    >/dev/null 2>&1 || die "jq not found on PATH."
 command -v tandem >/dev/null 2>&1 || die "tandem not found on PATH."
 [[ "$BLOCKED_WAIT_SECONDS" =~ ^[0-9]+$ && "$BLOCKED_WAIT_SECONDS" -gt 0 ]] \
   || die "HERDR_HANDBACK_BLOCKED_WAIT_SECONDS must be a positive integer."
@@ -150,7 +149,7 @@ detect_durable() {
   for cand in "$top" "$PWD"; do
     dir=$(tandem paths relay --root "$cand") || die "the installed tandem is behind these commands (no 'tandem paths'); re-run install.sh."
     [[ -e "$dir/active-run.json" ]] || continue
-    id=$(jq -er 'select(.protocol_version == 2) | .run_id' "$dir/active-run.json" 2>/dev/null) \
+    id=$(tandem state active-run --relay "$dir" 2>/dev/null) && [[ -n "$id" ]] \
       || die "$dir/active-run.json exists but is not a readable durable-run marker. Nothing was sent."
     if [[ -n "$DURABLE_RUN" && "$DURABLE_RUN" != "$id" ]]; then
       die "two durable runs are marked ($DURABLE_RUN and $id); refusing to guess which one this handback is for."
@@ -258,7 +257,10 @@ if [[ -n "$TASK" ]]; then
     || die "no build is running in $MAILBOX, so there is no task $TASK to hand back. Hand back without --task."
   if (( REVIEW )); then
     # The review must come from the reviewer pane the build recorded.
-    REVIEWER=$(jq -r '.reviewer // empty' "$BUILD_DIR/build.json" 2>/dev/null) || REVIEWER=""
+    # Field 3 of `build roles` is the reviewer. A record tandem cannot read
+    # leaves it empty.
+    REVIEWER=$(tandem build roles --relay "$MAILBOX" 2>/dev/null \
+      | { IFS= read -r -d '' _; IFS= read -r -d '' _; IFS= read -r -d '' r; printf '%s' "${r:-}"; }) || REVIEWER=""
     [[ -n "$REVIEWER" ]] \
       || die "this build records no reviewer pane, and the builder never reviews. NOTHING WAS SENT. $REVIEWER_REMEDY Then hand off again."
     # tandem decides whether this shell is that pane (cmd/tandem/agent_self.go).
@@ -279,13 +281,12 @@ if [[ -n "$TASK" ]]; then
   mkdir -p "$MAILBOX/q" || die "cannot create the relay directory $MAILBOX/q"
   printf '%s\n' "$REPORT" > "$TREPORT.tmp" && mv "$TREPORT.tmp" "$TREPORT" \
     || die "could not write the report file."
-  QFILE="$MAILBOX/q/$ID.json"
-  jq -n --arg id "$ID" --arg from "$SELF" --argjson task "$TASK" --argjson stuck "$( (( STUCK )) && echo true || echo false)" \
-        --argjson review "$( (( REVIEW )) && echo true || echo false)" --arg verdict "$VERDICT" \
-        --arg rp "$TREPORT" --arg plan "$PLAN_PATH" \
-     '{id:$id, kind:"task", from:$from, question:"task", task:$task, stuck:$stuck,
-       review:$review, verdict:$verdict, report_path:$rp, plan:$plan, created:(now|todate)}' > "$QFILE.tmp" \
-    && mv "$QFILE.tmp" "$QFILE" || die "could not queue the handback."
+  _qflags=()
+  (( STUCK )) && _qflags+=(--stuck)
+  (( REVIEW )) && _qflags+=(--review)
+  tandem relay write task --mailbox "$MAILBOX" --id "$ID" --from "$SELF" --task "$TASK" \
+    --verdict "$VERDICT" --report "$TREPORT" --plan "$PLAN_PATH" ${_qflags[@]+"${_qflags[@]}"} \
+    || die "could not queue the handback."
   if (( REVIEW )); then
     info "review of task $TASK handed back ($VERDICT); findings at $TREPORT"
     info "tandem records it and tells the builder what to fix, if anything. Stop here."
@@ -380,12 +381,9 @@ _snap=$(tandem agent snapshot "$PLANNER_NAME" 2>/dev/null) || rc=$?
 if (( rc == 3 )); then
   QFILE="$MAILBOX/q/$ID.json"
   # The bridge delivers this message as written.
-  jq -n --arg id "$ID" --arg from "$SELF" --arg to "$PLANNER_NAME" \
-        --arg msg "$MESSAGE" --arg rp "$REPORT_PATH" --arg plan "$PLAN_PATH" \
-     '{id:$id, kind:"handback", from:$from, to:$to, question:"handback",
-       message:$msg, report_path:$rp, plan:$plan, created:(now|todate)}' \
-     > "$QFILE.tmp" || die "could not write the handback file."
-  mv "$QFILE.tmp" "$QFILE"
+  tandem relay write handback --mailbox "$MAILBOX" --id "$ID" --from "$SELF" --to "$PLANNER_NAME" \
+    --message "$MESSAGE" --report "$REPORT_PATH" --plan "$PLAN_PATH" \
+    || die "could not write the handback file."
   info "socket unreachable (sandbox) — handback queued at $QFILE"
   info "the bridge will deliver it to '$PLANNER_NAME'. You are done; do not wait."
   exit 0

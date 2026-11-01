@@ -43,10 +43,12 @@ case "$1" in
       tick|recover) printf '%s\n' "${TICK_OUT:-{\"run_id\":\"x\"\}}"; exit "${TICK_RC:-0}" ;;
       status) printf '%s\n' "${STATUS_OUT:-}"; exit 0 ;;
     esac
+    [[ "$2" == roles ]] && exec "$TANDEM_REAL" "$@"
     case "$2 $3" in
       "event new") exec "$TANDEM_REAL" "$@" ;;
       "event ingest") printf '{"disposition":"committed","event_id":"x","version":2}\n'; exit "${INGEST_RC:-0}" ;;
     esac ;;
+  relay|state) exec "$TANDEM_REAL" "$@" ;;
   agent)
     [[ "$2" == status ]] && { printf '%s\n' "${BUILDER_STATUS:-idle}"; exit 0; }
     # What reaches the planner, one message per file.
