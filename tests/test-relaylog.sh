@@ -3,8 +3,9 @@
 # failed or timed-out one leaves none. tandem-relaylog reads them back, and
 # tandem-init ignores the directory.
 #
-# Hermetic: tandem and herdr are stubs (SNAP_MODE picks the transport), jq is
-# real, and a real temp git repo supplies the toplevel.
+# Hermetic: tandem and herdr are stubs (SNAP_MODE picks the transport), and a
+# real temp git repo supplies the toplevel. jq fails: the scripts ask tandem,
+# so any jq call is a bug. The tests read the records with the real jq.
 set -uo pipefail
 ASK="${1:-$(cd "$(dirname "$0")/.." && pwd)/bin/tandem-ask}"
 [ -x "$ASK" ] || { echo "not executable: $ASK" >&2; exit 2; }
@@ -32,7 +33,7 @@ cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
 case "$1 $2" in
   "relay log")   [ "${RELAY_LOG_FAIL:-0}" = 1 ] && exit 1; exec "$REAL_TANDEM" "$@" ;;
-  "relay write") exec "$REAL_TANDEM" "$@" ;;
+  "relay write"|"config project"|"config write-manifest") exec "$REAL_TANDEM" "$@" ;;
   "agent snapshot")
     case "${SNAP_MODE:-direct}" in
       direct) printf 'p9\t/repo\tidle\n'; exit 0 ;;
@@ -62,6 +63,9 @@ fi
 exit 0
 STUB
 chmod +x "$TMP/bin/tandem"
+rm -f "$TMP/bin/jq"
+printf '#!/bin/sh\necho "jq was called: $*" >&2\nexit 99\n' > "$TMP/bin/jq"
+chmod +x "$TMP/bin/jq"
 
 cat > "$TMP/bin/herdr" <<'STUB'
 #!/usr/bin/env bash
@@ -220,6 +224,7 @@ echo "--- tandem-init also ignores .tandem-log ---"
 newrepo
 OUT=$(cd "$REPO" && PATH="$BINDIR:$TMP/bin:$PATH" "$INIT" 2>&1); RC=$?
 [ "$RC" -eq 0 ] && ok "tandem-init exits 0" || nope "tandem-init exits 0 (got $RC): $OUT"
+case "$OUT" in *"jq was called"*) nope "tandem-init calls no jq: $OUT" ;; *) ok "tandem-init calls no jq" ;; esac
 grep -qE '^/?\.tandem-log/?$' "$REPO/.gitignore" 2>/dev/null && ok "tandem-init adds .tandem-log/ to .gitignore" \
                                                                || nope "tandem-init did not add .tandem-log/"
 OUT=$(cd "$REPO" && PATH="$BINDIR:$TMP/bin:$PATH" "$INIT" --force 2>&1)
