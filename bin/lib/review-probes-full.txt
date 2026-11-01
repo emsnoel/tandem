@@ -1,0 +1,2 @@
+       - if any task commits, run: git -C {{ROOT}} commit --dry-run --allow-empty -m probe
+       - confirm every path the plan names actually exists{{CHECKLINE}}

@@ -1,0 +1,16 @@
+  1. ORDERING - a task requires something a LATER task introduces.
+  2. CONTRADICTION - two tasks state incompatible expectations of the same
+     file, command output, or state.
+  3. IMPOSSIBLE STEP - a step cannot execute as written. This includes a
+     task whose last step expects the check or its tests to fail: tandem
+     runs the check after every task and stops the build on red, so failing
+     tests belong in the same task as the code that makes them pass.
+  4. INFEASIBLE FOR THE BUILDER - a step needs authority the builder
+     ({{BKIND}}, autonomy {{BAUTONOMY}}, from builder.json) does not have.
+     You are not the builder, and your sandbox is not its sandbox. A probe
+     your own sandbox refuses proves nothing about the builder:
+     report it as "could not verify", not as an objection. PROVE THIS
+     RATHER THAN REASONING ABOUT IT:
+{{PROBES}}
+  5. PLAN CONTRADICTS ITS OWN EVIDENCE - a test, command or example the plan
+     supplies would not produce the result the plan claims for it.

@@ -22,8 +22,11 @@ _self="${BASH_SOURCE[0]}"
 while [[ -L "$_self" ]]; do
   _link=$(readlink "$_self"); [[ "$_link" == /* ]] && _self="$_link" || _self="${_self%/*}/$_link"
 done
+REVIEW_LIB="${_self%/*}/lib"
 # shellcheck source=lib/reviewer.sh
-. "${_self%/*}/lib/reviewer.sh"
+. "$REVIEW_LIB/reviewer.sh"
+# shellcheck source=lib/review-deliver.sh
+. "$REVIEW_LIB/review-deliver.sh"
 
 # The builder gives the project root and mailbox. It never reviews.
 BUILDER_NAME="${HERDR_BUILDER_NAME:-builder}"
@@ -39,10 +42,9 @@ usage: tandem-review [plan-path] [--dry-run]
 Asks the reviewer pane for a review of a plan without changing anything. The
 pair needs a reviewer: declare a "reviewer" block in .tandem.json and re-run
 tandem-pair, or run tandem-pair --reviewer KIND. The builder never reviews.
-With no plan-path, picks the most recently reviewed plan, else the most
-recently modified file in the project's plans directory -- the same
-rule tandem-handoff uses. A plan
-reviewed before is re-reviewed from the change alone, in a fresh
+With no plan-path, it picks the most recently reviewed plan, else the newest
+file in the project's plans directory. tandem-handoff picks the same way. A
+plan reviewed before is reviewed again from the change alone, in a fresh
 conversation.
 
   --dry-run   print the target pane, plan and prompt without sending anything
@@ -186,118 +188,25 @@ if [[ "$MODE" == diff ]]; then
 fi
 
 # --- the prompt ---
-# Quoted heredocs, filled by parameter substitution, so nothing is evaluated.
-# Constant blocks go in first, then tandem's own values, then repo-controlled
-# values last, so no later pass rescans repo text.
+# Templates in bin/lib/review-*.txt, filled by parameter substitution, so
+# nothing is evaluated. Constant blocks go in first, then tandem's own values,
+# then repo-controlled values last, so no later pass rescans repo text.
 #
-# tpl VAR reads a heredoc into VAR verbatim, keeping leading spaces and dropping
-# the final newline.
-tpl() { IFS= read -r -d '' "$1" || true; printf -v "$1" '%s' "${!1%$'\n'}"; }
-tpl CLASSES <<'TPL'
-  1. ORDERING - a task requires something a LATER task introduces.
-  2. CONTRADICTION - two tasks state incompatible expectations of the same
-     file, command output, or state.
-  3. IMPOSSIBLE STEP - a step cannot execute as written. This includes a
-     task whose last step expects the check or its tests to fail: tandem
-     runs the check after every task and stops the build on red, so failing
-     tests belong in the same task as the code that makes them pass.
-  4. INFEASIBLE FOR THE BUILDER - a step needs authority the builder
-     ({{BKIND}}, autonomy {{BAUTONOMY}}, from builder.json) does not have.
-     You are not the builder, and your sandbox is not its sandbox. A probe
-     your own sandbox refuses proves nothing about the builder:
-     report it as "could not verify", not as an objection. PROVE THIS
-     RATHER THAN REASONING ABOUT IT:
-{{PROBES}}
-  5. PLAN CONTRADICTS ITS OWN EVIDENCE - a test, command or example the plan
-     supplies would not produce the result the plan claims for it.
-TPL
-
-tpl PROBES_FULL <<'TPL'
-       - if any task commits, run: git -C {{ROOT}} commit --dry-run --allow-empty -m probe
-       - confirm every path the plan names actually exists{{CHECKLINE}}
-TPL
-
-tpl PROBES_DIFF <<'TPL'
-       - if a changed hunk adds or alters a commit step, run:
-         git -C {{ROOT}} commit --dry-run --allow-empty -m probe
-       - confirm every path a changed hunk names actually exists
-       - do not run the check command: the earlier review already ran it,
-         and a plan edit does not change its result
-TPL
-
-tpl RULES <<'TPL'
-DO NOT RAISE: design preferences, naming, alternative approaches, or anything
-about HOW to implement a task. Those are decided when the plan is built, and
-raising them here costs the planner an interruption for nothing.
-
-If you find nothing in those five classes, say so plainly. A clean review is
-the common case and is worth more than a manufactured objection.
-
-Write your review to a file, then hand it back:
-
-    tandem-verdict --plan "{{PLAN}}" --role {{ROLE}} --review <file> --verdict clean|objections
-
-Number each objection, name its class, and quote the exact plan text it is
-about together with the exact evidence. For class 4, include the command you
-ran and its output. The planner acts on this without reading your pane, so an
-objection it cannot locate in the plan is one it cannot fix.
-
-Pass --verdict objections if and only if you listed at least one objection.
-Pass --verdict clean otherwise. Do not summarise the verdict in prose instead;
-the flag is what is read.
-
-You may ask about intent while reviewing:
-
-    tandem-ask {{PLANNER}} "your question"
-TPL
-
-tpl FULL <<'TPL'
-Review the plan at {{PLAN}}. Another agent will implement it. Working directory: {{ROOT}}.
-
-DO NOT CHANGE ANY FILE. This is a read-and-probe pass only. Do not start
-task 1. The planner decides what happens after your review.
-
-Read the whole plan, then read the code it touches. You are looking for
-exactly five kinds of defect, and nothing else:
-
-{{CLASSES}}
-
-{{RULES}}
-TPL
-
-tpl DIFF <<'TPL'
-Re-review the plan at {{PLAN}}. Working directory: {{ROOT}}.
-
-DO NOT CHANGE ANY FILE. This is a read-and-probe pass only. Do not start
-task 1. The planner decides what happens after your review.
-
-An earlier version of this plan was reviewed. That review is:
-
-    {{PREVMD}}
-
-The planner has changed the plan since. The whole change, as a unified diff
-of the reviewed version against the plan now, with five lines of context, is:
-
-    {{DIFF}}
-
-Read those two files. DO NOT read the whole plan again: the parts the diff
-does not touch were already reviewed, and re-reading them re-sends their text
-on every call you make after. Open the plan or the code only where a changed
-hunk depends on them, and only the lines you need.
-
-Answer two questions, and nothing else:
-
-  A. For each objection in the earlier review, is it resolved? Name each
-     one as {{PREV}}#N, N being its number there, and say
-     "resolved" or "still open", quoting the hunk that shows it. List every
-     still-open objection again in full, as an objection of this review: the
-     planner reads this review, not the earlier one.
-  B. Does the changed text introduce a defect of these five kinds?
-
-{{CLASSES}}
-
-{{RULES}}
-TPL
+# tpl VAR NAME reads bin/lib/review-NAME.txt into VAR verbatim, keeping leading
+# spaces and dropping the final newline. A missing or empty template stops the
+# review, so an empty prompt is never sent.
+tpl() {
+  local f="$REVIEW_LIB/review-$2.txt"
+  [[ -s "$f" ]] || die "the prompt template $f is missing or empty; re-run install.sh. NOTHING WAS SENT."
+  IFS= read -r -d '' "$1" <"$f" || true
+  printf -v "$1" '%s' "${!1%$'\n'}"
+}
+tpl CLASSES classes
+tpl PROBES_FULL probes-full
+tpl PROBES_DIFF probes-diff
+tpl RULES rules
+tpl FULL full
+tpl DIFF diff
 
 if [[ "$MODE" == diff ]]; then
   REVIEW_PROMPT="$DIFF"
@@ -354,63 +263,4 @@ if [[ "$MODE" == diff ]]; then
   [[ -s "$DIFF_FILE" ]] || die "could not write $DIFF_FILE. NOTHING WAS SENT."
 fi
 
-# The previous round's findings are in its review file, so the review starts
-# from an empty conversation. A skipped reset only costs tokens. The reset uses
-# the reviewer's own kind.
-RESET=$(tandem agent reset "$TARGET_NAME" --root "$ROOT" 2>/dev/null) || RESET=""
-say_reset "$RESET"
-# `unconfirmed`: nothing visible followed the reset. The pane may be at a
-# dialog that would swallow the prompt, so send nothing.
-if [[ "$RESET" == unconfirmed ]]; then
-  cat >&2 <<MSG
-tandem-review: WARNING the $TARGET_ROLE's reset could not be confirmed, so NOTHING WAS SENT.
-
-  $TARGET_NAME may be at a native dialog Herdr cannot see, or still busy.
-  Check pane $TARGET_PANE, clear any dialog, then re-run this command.
-MSG
-  exit 7
-fi
-
-# `agent prompt` returning 0 does not prove delivery. --as watches the pane
-# (cmd/tandem/confirm_start.go): 25 means a dialog swallowed the prompt, 26
-# means the turn ended at once. The result is on stdout or stderr, never both.
-rc=0
-_pres=$(tandem agent prompt "$TARGET_NAME" "$REVIEW_PROMPT" --as review 2>&1) || rc=$?
-IFS=$'\t' read -r _code _msg <<<"$_pres"
-case "$rc" in
-  0)
-    if [[ "$_code" == queued ]]; then
-      info "review prompt accepted, but $TARGET_NAME was already $_msg -- delivery could not be confirmed."
-    else
-      info "review requested ($TARGET_ROLE now $_msg)."
-    fi
-    info "the verdict arrives as a message in this pane; no polling needed."
-    info "to check by hand: tandem-status $PLAN_ABS"
-    exit 0 ;;
-  25)
-    cat >&2 <<MSG
-tandem-review: WARNING the prompt was accepted but $TARGET_NAME never started.
-
-  It is most likely at a native dialog Herdr cannot see, which swallows input
-  while still reporting settled. Check pane $TARGET_PANE, clear it, and re-run.
-MSG
-    exit 7 ;;
-  26)
-    cat >&2 <<MSG
-tandem-review: WARNING the $TARGET_ROLE's turn ended as soon as it started, so nothing is reviewing the plan.
-
-  Pane $TARGET_PANE shows:
-
-$(printf '%s\n' "$_pres" | tail -n +2 | sed 's/^/    /')
-
-  A model the CLI rejects, an expired login or used-up quota looks like this.
-  Fix it in that pane (or re-run tandem-pair), then re-run this command.
-MSG
-    exit 8 ;;
-esac
-case "$_code" in
-  agent_blocked)        die "$TARGET_ROLE is waiting at an approval or question dialog; nothing was sent. Inspect pane $TARGET_PANE." ;;
-  agent_input_elsewhere) die "$_msg. Return pane $TARGET_PANE to its main conversation, then re-run this command." ;;
-  agent_prompt_stalled) die "prompt sent but the $TARGET_ROLE showed no lifecycle change. Inspect pane $TARGET_PANE." ;;
-  *)                    die "could not prompt the $TARGET_ROLE: ${_msg:-unknown error}. NOTHING WAS SENT." ;;
-esac
+send_review

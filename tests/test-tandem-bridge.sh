@@ -103,6 +103,9 @@ grep -q "^\[from builder\] what now?" "$PROMPT_LOG" && ok "the prompt names the 
                                                      || nope "the prompt text is wrong: $(cat "$PROMPT_LOG")"
 grep -q "$MB/a/q1.md" "$PROMPT_LOG" && ok "the prompt tells the planner exactly where to write its answer" \
                                      || nope "the prompt does not name the answer path"
+grep -q "builder cannot see this conversation, so put" "$PROMPT_LOG" && ok "the prompt says the asker cannot see the conversation" \
+  || nope "the prompt lost its self-contained line: $(cat "$PROMPT_LOG")"
+grep -q '—' "$PROMPT_LOG" && nope "the prompt has an em dash" || ok "the prompt has no em dash"
 
 echo "--- a question that fails delivery gets a fail_answer, not silence ---"
 reset_mb; mkdir -p "$MB/q"
@@ -225,7 +228,7 @@ reset_mb; mkdir -p "$MB/q"
 jq -n --arg id bad1 '{id:$id}' > "$MB/q/bad1.json"
 run_bridge
 [ "$RC" -eq 0 ] && ok "a malformed file does not crash the bridge" || nope "bridge exited $RC on a malformed file"
-chk "it logs the file as malformed" "malformed question file"
+chk "it logs the file as malformed" "malformed question file $MB/q/bad1.json.taken, skipped"
 nchk "it does not claim to have delivered a malformed file" "delivered"
 
 echo "--- a queued file that is not a JSON object is skipped, and the next is delivered ---"
@@ -570,7 +573,7 @@ chk "it names --mailbox as required" "--mailbox is required"
 echo "--- refuses outside a Herdr pane ---"
 OUT=$(env -u HERDR_ENV PATH="$TMP/bin:$PATH" "$BRIDGE" --mailbox "$MB" --once 2>&1); RC=$?
 [ "$RC" -ne 0 ] && ok "refuses without HERDR_ENV" || nope "should refuse without HERDR_ENV"
-chk "it names HERDR_ENV as the reason" "HERDR_ENV"
+chk "it names HERDR_ENV as the reason" "must run inside a Herdr pane (HERDR_ENV != 1), because it needs the Herdr socket."
 
 printf '\ntandem-bridge: passed %d, failed %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
