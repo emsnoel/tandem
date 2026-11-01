@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.4](https://github.com/emsnoel/tandem/compare/v0.3.3...v0.3.4) (2026-11-01)
+
+
+### Bug Fixes
+
+* stop calling each next task of a build a resume after a stop ([8f91976](https://github.com/emsnoel/tandem/commit/8f91976cb50a3f7634833af49207553580619bec))
+
 ## [0.3.3](https://github.com/emsnoel/tandem/compare/v0.3.2...v0.3.3) (2026-11-01)
 
 
