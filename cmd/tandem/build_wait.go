@@ -104,8 +104,9 @@ func cmdBuildWait(args []string) int {
 	timeoutMS := fs.Int("timeout", 0, "milliseconds to wait")
 	untilNot := fs.String("until-not", "", "return once the run's state is not this one")
 	tick := fs.Bool("tick", false, "run a tick before each check")
+	asFields := fs.Bool("fields", false, "print NUL-separated fields for bash (the run's state) in place of JSON")
 	if err := fs.Parse(args); err != nil || fs.NArg() != 0 || f.root == "" || (len(until) == 0 && *untilNot == "") || *timeoutMS < 0 {
-		fmt.Fprintln(os.Stderr, "usage: tandem build wait --root DIR --until STATE... [--until-not STATE] --timeout MS [--tick] [--state-home DIR]")
+		fmt.Fprintln(os.Stderr, "usage: tandem build wait --root DIR --until STATE... [--until-not STATE] --timeout MS [--tick] [--fields] [--state-home DIR]")
 		return exitcode.Usage
 	}
 	var last statusDurableOut
@@ -141,7 +142,10 @@ func cmdBuildWait(args []string) int {
 	if err != nil {
 		return fail(err)
 	}
-	if rc := printJSON(last); rc != exitcode.OK {
+	if *asFields {
+		// Printed on a timeout too: the caller names the state the run is stuck in.
+		writeFields(os.Stdout, last.State)
+	} else if rc := printJSON(last); rc != exitcode.OK {
 		return rc
 	}
 	if !ok {

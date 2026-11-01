@@ -30,5 +30,11 @@ func cmdTrust(args []string) int {
 		fmt.Fprintf(os.Stderr, "tandem: %v\n", err)
 		return exitcode.Internal
 	}
-	return emitJSON(map[string]any{"removed": removed})
+	// A token, since bin/tandem-unpair is the only caller.
+	if removed {
+		fmt.Println("removed")
+	} else {
+		fmt.Println("none")
+	}
+	return exitcode.OK
 }

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,14 +27,8 @@ func TestTrustCleanRemovesOnlyMarkedEntries(t *testing.T) {
 	out := captureStdout(t, func() int {
 		return cmdTrust([]string{"clean", "--kind", "codex", "--cwd", repo})
 	})
-	var doc struct {
-		Removed bool `json:"removed"`
-	}
-	if err := json.Unmarshal([]byte(out), &doc); err != nil {
-		t.Fatalf("not JSON: %v\n%s", err, out)
-	}
-	if !doc.Removed {
-		t.Fatal("a marked entry must be reported as removed")
+	if out != "removed\n" {
+		t.Fatalf("a marked entry must be reported as removed; got %q", out)
 	}
 	after, _ := os.ReadFile(cfg)
 	if strings.Contains(string(after), repo) || strings.Contains(string(after), key) {
@@ -62,8 +55,8 @@ func TestTrustCleanLeavesUnmarkedEntry(t *testing.T) {
 	out := captureStdout(t, func() int {
 		return cmdTrust([]string{"clean", "--kind", "codex", "--cwd", repo})
 	})
-	if strings.Contains(out, "true") {
-		t.Error("an unmarked entry must not be removed")
+	if out != "none\n" {
+		t.Errorf("an unmarked entry must be reported as none; got %q", out)
 	}
 	after, _ := os.ReadFile(cfg)
 	if string(after) != body {
