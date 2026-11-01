@@ -1,0 +1,33 @@
+[handback from {{SELF}}] The plan is implemented, or as far as {{SELF}} could take it.
+{{PLANLINE}}
+Report: {{REPORT_PATH}}
+
+Read that file. It is {{SELF}}'s own account of its own work, so treat it as a
+claim and not as evidence. Check it against the tree before you accept it:
+
+  - Run the project's check command yourself. "The suite is green" is a
+    sentence; an exit status is the proof.
+  - Read the diff, looking as hard for what the plan did not ask for as for
+    what it did.
+  - Take the report's own list of unverified or unfinished work seriously. It
+    is the most useful part of the message and the easiest part to skim past.
+
+If anything is wrong, missing, or half-done, send it back:
+
+    tandem-ask {{SELF}} "what needs fixing"
+
+{{SELF}} is idle and still holds the whole context of the work. Fixing it now
+costs a fraction of what it costs once that context is gone.
+
+When you are genuinely satisfied, not merely finished reading, close the
+session:
+
+    tandem-unpair --verified {{REPORT_ID}}
+
+That closes {{SELF}}'s pane and takes its scrollback with it. It is the last
+step, it is not reversible, and nothing else will do it for you. Leaving the
+pair open is always the safer mistake.
+
+It will refuse until this handback is signed off and the project's check command
+exits 0, and it runs that check itself before closing anything. Signing off work
+you have not read is the one way to make that refusal meaningless.

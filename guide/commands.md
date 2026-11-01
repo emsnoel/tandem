@@ -114,6 +114,9 @@ process info.
 | `tandem gate ruling --relay DIR --id ID` | Prints a review's verdict and the ruling that stands on it, as NUL-separated fields. A ruling never stands on a clean review |
 | `tandem gate rule --relay DIR --id ID --because TEXT` | Records the planner's ruling in the review's sidecar and keeps every other key |
 | `tandem build start ... --fields` | Prints the start's answer from either engine as 14 NUL-separated fields, on a refusal too. A missing value, `null` and `false` print empty |
+| `tandem relay write task\|handback\|question --mailbox DIR --id ID ...` | Writes one message to the relay's queue for `tandem-bridge`, through a temporary file and a rename. `tandem-handback` and `tandem-ask` use it |
+| `tandem relay log --dir DIR --id ID ...` | Writes one `tandem-ask` question and answer to the Q&A history |
+| `tandem build roles --relay DIR` | Prints the legacy build's plan, builder, reviewer and planner as NUL-separated fields. Exits 1 when there is no readable build record |
 | `tandem state active-run --relay DIR` | Prints the id of the durable run in the relay's `active-run.json`, or nothing when there is none. Exits 23 when the file cannot be read |
 | `tandem trust clean --kind KIND --cwd DIR` | Removes the trust entry tandem added for DIR. Prints `removed`, or `none` when there was no tandem entry |
 | `tandem pane wait-shell PANE --timeout MS` | Waits until the pane's foreground process is its shell. Exits 23 at the timeout and 3 when Herdr is unreachable |
