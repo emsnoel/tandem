@@ -43,6 +43,7 @@ case "$1 $2" in
     exit 0 ;;
   "agent status") printf 'idle\n'; exit 0 ;;
   "agent read")   printf '%s\n' "${DIRECT_ANSWER:-the answer is 42}"; exit 0 ;;
+  "config check-command") printf '{"check_command":"","check_paths":[]}\n'; exit 0 ;;
 esac
 if [ "$1" = "paths" ] && { [ "$2" = "relay" ] || [ "$2" = "manifest" ]; }; then
   which="$2"; shift 2
