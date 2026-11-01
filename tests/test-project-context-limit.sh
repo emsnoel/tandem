@@ -4,7 +4,7 @@
 # gives 0, the engine default.
 #
 # Hermetic: tandem is stubbed for `paths manifest`. The real binary answers
-# `config check-command`.
+# `config project`.
 set -uo pipefail
 PROJECT="${1:-$(cd "$(dirname "$0")/.." && pwd)/bin/tandem-project}"
 [ -x "$PROJECT" ] || { echo "not executable: $PROJECT" >&2; exit 2; }
@@ -33,7 +33,7 @@ if [[ "$1" == "paths" && "$2" == "manifest" ]]; then
   done
   exit 1
 fi
-[[ "$1 $2" == "config check-command" ]] && exec "$REAL_TANDEM" "$@"
+[[ "$1 $2" == "config project" ]] && exec "$REAL_TANDEM" "$@"
 exit 1
 STUB
 chmod +x "$TMP/bin"/*

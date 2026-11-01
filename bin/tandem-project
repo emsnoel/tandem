@@ -2,7 +2,8 @@
 # tandem-project: resolve per-project settings and print them as JSON.
 #
 # Settings come from <repo>/.tandem.json or are detected from the repo's build
-# files, so the same scripts drive any repo.
+# files, so the same scripts drive any repo. tandem resolves them
+# (internal/config/project.go); this script only reports a bad manifest.
 #
 # Keys: root, plans_dir, check_command, check_paths, conventions_file,
 #       builder_kind, prompt_extra, task_input_budget, context_limit,
@@ -29,7 +30,6 @@ while (( $# )); do
   esac
 done
 
-command -v jq     >/dev/null 2>&1 || { echo "tandem-project: jq not found on PATH." >&2; exit 1; }
 command -v tandem >/dev/null 2>&1 || { echo "tandem-project: tandem not found on PATH; run install.sh." >&2; exit 1; }
 
 if [[ -z "$ROOT" ]]; then
@@ -47,94 +47,16 @@ else
   SEARCH_FROM="$PWD"
 fi
 
-# --- detection ---
-detect_plans_dir() {
-  local d
-  for d in docs/superpowers/plans docs/plans plans .plans; do
-    [[ -d "$ROOT/$d" ]] && { printf '%s' "$d"; return; }
-  done
-  printf ''
-}
-
-detect_conventions_file() {
-  local f
-  for f in AGENTS.md CONTRIBUTING.md; do
-    [[ -f "$ROOT/$f" ]] && { printf '%s' "$f"; return; }
-  done
-  printf ''
-}
-
-PLANS_DIR=$(detect_plans_dir)
-CONVENTIONS_FILE=$(detect_conventions_file)
-BUILDER_KIND="codex"
-PROMPT_EXTRA=""
-# Input tokens one build task may use before tandem stops the build for a
-# human to look. 0 turns it off.
-TASK_INPUT_BUDGET=3000000
-# Most bytes of prompt a durable run gives the builder for one task. 0 leaves
-# `tandem build start` its own default.
-CONTEXT_LIMIT=0
-# "legacy", "durable" or empty for the default. Only a new build reads it, and
-# TANDEM_BUILD_ENGINE overrides it. `tandem build start` validates the value.
-BUILD_ENGINE=""
-REVIEW_DELIVERY=""
-ACCEPTANCE_POLICY=""
-COLLABORATION=""
-
-# --- manifest overlay ---
-# tandem finds the nearest manifest, up to SEARCH_FROM's git toplevel, so a
-# monorepo package's own .tandem.json wins. It also accepts the legacy
-# .herdr.json name.
-MANIFEST=$(tandem paths manifest --from "$SEARCH_FROM") \
-  || { echo "tandem-project: the installed tandem is behind these commands (no 'tandem paths'); re-run install.sh." >&2; exit 1; }
-SOURCE="detected"
-if [[ -f "$MANIFEST" ]]; then
-  if ! jq -e . "$MANIFEST" >/dev/null 2>&1; then
-    printf 'tandem-project: %s is not valid JSON; ignoring it.\n' "$MANIFEST" >&2
-  else
-    SOURCE="manifest"
-    read_key() { jq -r --arg k "$1" '.[$k] // empty' "$MANIFEST"; }
-    v=$(read_key plans_dir);        [[ -n "$v" ]] && PLANS_DIR="$v"
-    v=$(read_key conventions_file); [[ -n "$v" ]] && CONVENTIONS_FILE="$v"
-    v=$(read_key builder_kind);     [[ -n "$v" ]] && BUILDER_KIND="$v"
-    v=$(read_key prompt_extra);     [[ -n "$v" ]] && PROMPT_EXTRA="$v"
-    # Only a number replaces the default, so a typo cannot turn the budget off.
-    v=$(jq -r '.task_input_budget // empty | numbers | floor' "$MANIFEST" 2>/dev/null || true)
-    [[ "$v" =~ ^[0-9]+$ ]] && TASK_INPUT_BUDGET="$v"
-    v=$(jq -r '.context_limit // empty | numbers | floor' "$MANIFEST" 2>/dev/null || true)
-    [[ "$v" =~ ^[0-9]+$ ]] && CONTEXT_LIMIT="$v"
-    BUILD_ENGINE=$(read_key build_engine)
-    REVIEW_DELIVERY=$(read_key review_delivery)
-    ACCEPTANCE_POLICY=$(read_key acceptance_policy)
-    COLLABORATION=$(read_key collaboration)
-  fi
+BEHIND="tandem-project: the installed tandem is behind these commands (no 'tandem config project'); re-run install.sh."
+FIELDS=$(mktemp)
+trap 'rm -f "$FIELDS"' EXIT
+tandem config project --root "$ROOT" --from "$SEARCH_FROM" --fields >"$FIELDS" 2>/dev/null \
+  || { echo "$BEHIND" >&2; exit 1; }
+# Field 14 names a manifest that is not a JSON object, which tandem ignored.
+INVALID=""
+{ for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13; do IFS= read -r -d '' _ || true; done
+  IFS= read -r -d '' INVALID || true; } <"$FIELDS"
+if [[ -n "$INVALID" ]]; then
+  printf 'tandem-project: %s is not a JSON object, so its settings were ignored.\n' "$INVALID" >&2
 fi
-
-# tandem resolves check_command (manifest, else detection) and check_paths
-# (manifest only; empty means the whole tree), so tandem-unpair shares the rule.
-CHECK_JSON=$(tandem config check-command --root "$ROOT" --from "$SEARCH_FROM") \
-  || { echo "tandem-project: the installed tandem is behind these commands (no 'tandem config check-command'); re-run install.sh." >&2; exit 1; }
-CHECK_COMMAND=$(jq -r '.check_command' <<<"$CHECK_JSON")
-CHECK_PATHS_JSON=$(jq -c '.check_paths' <<<"$CHECK_JSON")
-
-jq -n \
-  --arg root "$ROOT" \
-  --arg plans_dir "$PLANS_DIR" \
-  --arg check_command "$CHECK_COMMAND" \
-  --arg conventions_file "$CONVENTIONS_FILE" \
-  --arg builder_kind "$BUILDER_KIND" \
-  --arg prompt_extra "$PROMPT_EXTRA" \
-  --arg source "$SOURCE" \
-  --argjson check_paths "$CHECK_PATHS_JSON" \
-  --argjson task_input_budget "$TASK_INPUT_BUDGET" \
-  --argjson context_limit "$CONTEXT_LIMIT" \
-  --arg build_engine "$BUILD_ENGINE" \
-  --arg review_delivery "$REVIEW_DELIVERY" \
-  --arg acceptance_policy "$ACCEPTANCE_POLICY" \
-  --arg collaboration "$COLLABORATION" \
-  '{root:$root, plans_dir:$plans_dir, check_command:$check_command,
-    conventions_file:$conventions_file, builder_kind:$builder_kind,
-    prompt_extra:$prompt_extra, check_paths:$check_paths,
-    task_input_budget:$task_input_budget, context_limit:$context_limit,
-    build_engine:$build_engine, review_delivery:$review_delivery,
-    acceptance_policy:$acceptance_policy, collaboration:$collaboration, source:$source}'
+tandem config project --root "$ROOT" --from "$SEARCH_FROM" || { echo "$BEHIND" >&2; exit 1; }
