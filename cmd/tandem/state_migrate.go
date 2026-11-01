@@ -19,13 +19,11 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/emsnoel/tandem/internal/artifact"
 	"github.com/emsnoel/tandem/internal/controller"
 	"github.com/emsnoel/tandem/internal/exitcode"
 	"github.com/emsnoel/tandem/internal/herdr"
-	"github.com/emsnoel/tandem/internal/paths"
 	"github.com/emsnoel/tandem/internal/runner"
 	"github.com/emsnoel/tandem/internal/state"
 	"github.com/emsnoel/tandem/internal/workflow"
@@ -261,95 +259,4 @@ func cmdStateGC(args []string) int {
 		return refusal("gc", err)
 	}
 	return printJSON(rep)
-}
-
-// cmdStateArchive makes a finished or paused run history, keeps all of it, and
-// sets the relay's marker aside so a later build starts clean. tandem-unpair
-// calls it before it removes the relay.
-func cmdStateArchive(args []string) int {
-	fs := flag.NewFlagSet("state archive", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
-	var f stateFlags
-	f.register(fs)
-	runID := fs.String("run", "", "the run to archive")
-	if err := fs.Parse(args); err != nil || fs.NArg() != 0 || *runID == "" {
-		fmt.Fprintln(os.Stderr, stateUse)
-		return exitcode.Usage
-	}
-	id, st, art, err := openCheckout(f)
-	if err != nil {
-		return refusal("archive", err)
-	}
-	defer st.Close()
-	ctx := context.Background()
-	run, err := st.GetRun(ctx, *runID)
-	if err != nil {
-		return refusal("archive", err)
-	}
-	if run.CheckoutID != id.CheckoutID {
-		return refusal("archive", fmt.Errorf("%w: run %s belongs to another checkout", workflow.ErrConflict, *runID))
-	}
-	if err := st.ArchiveRun(ctx, *runID); err != nil {
-		return refusal("archive", err)
-	}
-	// An archive is a collection point for the run's collaboration. The
-	// snapshot stays provisional: closing the collaboration is separate. A
-	// failed collection is reported and leaves the archive in place.
-	collected := "none"
-	if c, err := controller.New(controller.Dependencies{State: st, Artifacts: art, Transport: noSend{}, CheckExecutor: controller.NewCheckExecutor(art),
-		Owner: cliOwner, SessionLogs: controller.DefaultProviderLogs()}); err != nil {
-		collected = "failed: " + err.Error()
-	} else if err := c.CollectRun(ctx, *runID); err != nil {
-		collected = "failed: " + err.Error()
-	} else {
-		collected = "collected"
-	}
-	marker := "none"
-	relay := paths.Relay(id.CanonicalRoot)
-	if ar, err := controller.ReadActiveRun(relay); err == nil && ar != nil && ar.RunID == *runID {
-		// Named by the run, so archiving one run never overwrites the marker an
-		// earlier archive set aside.
-		aside := filepath.Join(relay, "active-run."+*runID+".archived.json")
-		if err := os.Rename(filepath.Join(relay, controller.ActiveRunFile), aside); err != nil {
-			return refusal("archive", fmt.Errorf("the run is archived but its marker could not be set aside: %w", err))
-		}
-		marker = "archived"
-	}
-	return printJSON(map[string]any{"run_id": *runID, "state": "archived", "marker": marker, "collaboration_usage": collected})
-}
-
-// cmdStateEngine says which engine owns a relay, and refuses, writing nothing,
-// when the relay was written by an engine or protocol this tandem does not
-// speak. The shell entrypoints call it before they read or touch anything, so
-// an older install cannot drive a newer run into a state it would misread.
-func cmdStateEngine(args []string) int {
-	fs := flag.NewFlagSet("state engine", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
-	root := fs.String("root", "", "a directory inside the checkout (default: the current directory)")
-	if err := fs.Parse(args); err != nil || fs.NArg() != 0 {
-		fmt.Fprintln(os.Stderr, stateUse)
-		return exitcode.Usage
-	}
-	dir := *root
-	if dir == "" {
-		var err error
-		if dir, err = os.Getwd(); err != nil {
-			return fail(err)
-		}
-	}
-	if top, _, err := state.GitIdentity(dir); err == nil {
-		dir = top
-	}
-	relay := paths.Relay(dir)
-	env, repo, err := engineSettings(dir)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "tandem state engine: %v\n", err)
-		return exitcode.ManualGate
-	}
-	engine, why, err := controller.SelectEngineWhy(relay, env, repo)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "tandem state engine: %v\n  Nothing was changed. If this relay was written by a newer tandem, update this install:\n  re-run install.sh from a current checkout. Otherwise inspect %s by hand.\n", err, relay)
-		return exitcode.ManualGate
-	}
-	return printJSON(map[string]any{"engine": string(engine), "because": why, "relay": relay})
 }
