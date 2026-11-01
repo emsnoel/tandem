@@ -15,7 +15,7 @@ for f in bin/tandem-pair bin/lib/pair-*.sh bin/lib/relay.sh bin/tandem-unpair bi
          bin/tandem-handoff bin/lib/handoff-*.sh bin/lib/handoff-prompt.txt bin/tandem-project \
          bin/tandem-handback bin/lib/handback-*.sh bin/lib/handback-prompt.txt \
          bin/tandem-ask bin/lib/ask-mailbox.sh bin/tandem-review bin/lib/review-*.sh bin/lib/review-*.txt \
-         bin/tandem-bridge bin/lib/bridge-*.sh; do
+         bin/tandem-bridge bin/lib/bridge-*.sh bin/tandem-status; do
   # A jq word on a line that is not a comment.
   hits=$(grep -nE '(^|[^[:alnum:]_-])jq([^[:alnum:]_-]|$)' "$ROOT/$f" | grep -vE '^[0-9]+:[[:space:]]*#')
   if [ -z "$hits" ]; then
@@ -26,7 +26,7 @@ for f in bin/tandem-pair bin/lib/pair-*.sh bin/lib/relay.sh bin/tandem-unpair bi
 done
 
 for f in bin/tandem-pair bin/tandem-unpair bin/tandem-handoff bin/tandem-project bin/tandem-handback bin/tandem-ask \
-         bin/tandem-review bin/tandem-bridge bin/lib/*.sh bin/lib/*.txt; do
+         bin/tandem-review bin/tandem-bridge bin/tandem-status bin/lib/*.sh bin/lib/*.txt; do
   n=$(wc -l < "$ROOT/$f" | tr -d ' ')
   [ "$n" -lt 300 ] && ok "$f is under 300 lines" || nope "$f has $n lines"
 done
@@ -34,7 +34,8 @@ done
 for f in bin/tandem-pair bin/lib/pair-*.sh bin/lib/relay.sh bin/tandem-unpair bin/lib/unpair-*.sh \
          bin/tandem-handoff bin/lib/handoff-*.sh bin/lib/handoff-prompt.txt \
          bin/tandem-handback bin/lib/handback-*.sh bin/lib/handback-prompt.txt bin/tandem-ask bin/lib/ask-mailbox.sh \
-         bin/tandem-review bin/lib/review-*.sh bin/lib/review-*.txt bin/tandem-bridge bin/lib/bridge-*.sh; do
+         bin/tandem-review bin/lib/review-*.sh bin/lib/review-*.txt bin/tandem-bridge bin/lib/bridge-*.sh \
+         bin/tandem-status; do
   [ -f "$ROOT/$f" ] || continue
   hits=$(grep -n '—' "$ROOT/$f" | grep -vE '^[0-9]+:[[:space:]]*#')
   [ -z "$hits" ] && ok "$f prints no em dash" \

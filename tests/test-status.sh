@@ -3,8 +3,9 @@
 # mailbox activity and bridge liveness, including a builder paired from a
 # subdirectory, where the relay and identity mailboxes differ.
 #
-# Hermetic: tandem, tandem-project and herdr are stubbed and jq is symlinked.
-# The stubs echo back the --root they receive, as the real commands do.
+# Hermetic: tandem and herdr are stubbed. The stubs echo back the --root they
+# receive, as the real commands do. jq fails: tandem-status asks tandem, so any
+# jq call is a bug. This file's own fixtures use the real jq.
 set -uo pipefail
 . "$(cd "$(dirname "$0")" && pwd)/lib/records.sh"
 STATUS="${1:-$(cd "$(dirname "$0")/.." && pwd)/bin/tandem-status}"
@@ -27,7 +28,16 @@ export REAL_TANDEM; REAL_TANDEM=$(command -v tandem) || { echo "need an installe
 cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
 case "$1 $2" in
-  "reviewer show") exec "$REAL_TANDEM" "$@" ;;
+  "reviewer show"|"config builder"|"state engine") exec "$REAL_TANDEM" "$@" ;;
+  "config project")
+    root=""; shift 2
+    while [ $# -gt 0 ]; do
+      case "$1" in --root) root="$2"; shift 2 ;; *) shift ;; esac
+    done
+    printf '%s\0docs/plans\0' "$root"
+    for _ in 1 2 3 4 5 6 7 8 9 10 11; do printf '\0'; done
+    printf '%s\0' "${INVALID_MANIFEST:-}"
+    exit 0 ;;
   "agent snapshot")
     [ "$SNAP_MODE" = unreachable ] && exit 3
     [ "$SNAP_MODE" = not-found ] && exit 10
@@ -56,16 +66,9 @@ exit 0
 STUB
 chmod +x "$TMP/bin/tandem"
 
-cat > "$TMP/bin/tandem-project" <<'STUB'
-#!/usr/bin/env bash
-root=""
-while [ $# -gt 0 ]; do
-  case "$1" in --root) root="$2"; shift 2 ;; *) shift ;; esac
-done
-printf '{"root":"%s","plans_dir":"docs/plans","check_command":"","conventions_file":"","prompt_extra":"","source":"stub"}\n' "$root"
-STUB
-chmod +x "$TMP/bin/tandem-project"
-ln -s "$(command -v jq)" "$TMP/bin/jq"
+rm -f "$TMP/bin/jq"
+printf '#!/bin/sh\necho "jq was called: $*" >&2\nexit 99\n' > "$TMP/bin/jq"
+chmod +x "$TMP/bin/jq"
 printf '#!/usr/bin/env bash\nexit 0\n' > "$TMP/bin/herdr"
 chmod +x "$TMP/bin/herdr"
 
@@ -82,8 +85,8 @@ chmod +x "$TMP/bin/ps"
 write_builder "$REPO/.tandem-relay"
 
 # Run from $REPO: the not-paired branch uses the git toplevel of the cwd.
-run() { OUT=$(cd "$REPO" && PATH="$TMP/bin:$PATH" HERDR_ENV=1 REPO="$REPO" \
-                LATEST_PLAN="${LATEST_PLAN:-}" SNAP_MODE="${SNAP_MODE:-ok}" GATE_MODE="${GATE_MODE:-clean}" SNAP_CWD="${SNAP_CWD:-}" \
+run() { OUT=$(cd "$REPO" && PATH="$TMP/bin:$PATH" HERDR_ENV=1 REPO="$REPO" TANDEM_BUILD_ENGINE= \
+                LATEST_PLAN="${LATEST_PLAN:-}" SNAP_MODE="${SNAP_MODE:-ok}" GATE_MODE="${GATE_MODE:-clean}" SNAP_CWD="${SNAP_CWD:-}" INVALID_MANIFEST="${INVALID_MANIFEST:-}" \
                 "$STATUS" "$@" 2>&1); RC=$?; }
 
 # --- paired, clean review, at the repo root -----------------------------------
@@ -95,12 +98,14 @@ chk "it shows a clean review"       "clean (id 20260918-000001-1-1)"
 chk "it names the plan"             "docs/plans/p.md"
 chk "it shows zero mailbox activity" "0 handback report(s), 0 question(s)"
 chk "it shows the bridge not running" "bridge   not running"
+chk "it shows the engine and why" "engine   legacy (the default)"
+nchk "it calls no jq" "jq was called"
 nchk "it does not claim a subdirectory pairing at the repo root" "paired from a subdirectory"
 
 # --- the reviewer ---
 # With no record, say so and what it means.
 chk "with no reviewer.json it says none is recorded" "reviewer none recorded"
-chk "and that review and build will refuse"          "review and build will refuse"
+chk "and that review and build will refuse"          "Review and build refuse until tandem-pair starts one."
 write_reviewer "$REPO/.tandem-relay" codex reviewer gpt-6-astra
 SNAP_MODE=ok GATE_MODE=clean run
 chk  "with a record it names the reviewer"  "reviewer reviewer"
@@ -117,11 +122,12 @@ SNAP_MODE=ok GATE_MODE=objections run
 [ "$RC" -eq 0 ] && ok "paired+objections still exits 0 -- this is a report, not a gate" \
                  || nope "paired+objections exits 0 (got $RC)"
 chk "it shows objections stand" "objections stand"
-chk "it names the review id"    "20260918-000002-1-1"
+chk "it names the review id"    "objections stand (id 20260918-000002-1-1). Fix the plan, or run tandem-handoff --override-review."
 
 # --- paired, no review yet ----------------------------------------------------
 SNAP_MODE=ok GATE_MODE=absent run
-chk "it shows no review yet" "no review yet"
+chk "it shows no review yet" "review   no review yet. Run tandem-review."
+nchk "with no id it prints no id" "(id"
 
 # --- the reviewer gate reasons are explained, never printed raw ---------------
 SNAP_MODE=ok GATE_MODE=no_reviewer run
@@ -130,11 +136,11 @@ chk "no_reviewer names the block remedy" 'a "reviewer" block in .tandem.json'
 chk "no_reviewer names the flag remedy" "tandem-pair --reviewer KIND"
 SNAP_MODE=ok GATE_MODE=builder_review run
 chk "builder_review says the builder wrote the review" "the builder wrote this review"
-chk "builder_review says to re-review" "re-run tandem-review"
+chk "builder_review says to re-review" "Run tandem-review again so the reviewer pane reviews."
 case "$OUT" in *"review   builder_review"*) nope "builder_review is printed raw" ;; *) ok "builder_review is not printed raw" ;; esac
 SNAP_MODE=ok GATE_MODE=reviewer run
-chk "reviewer says the reviewer changed" "reviewer changed since the review"
-chk "reviewer says to re-review" "re-run tandem-review"
+chk "reviewer says the reviewer changed" "the reviewer's kind or model changed since the review"
+chk "reviewer says to re-review" "Run tandem-review again."
 
 # --- mailbox activity: questions queued, reports waiting ---------------------
 echo '{}' > "$REPO/.tandem-relay/q/1.json"
@@ -159,7 +165,7 @@ kill "$BRIDGE_PID" 2>/dev/null; wait "$BRIDGE_PID" 2>/dev/null
 
 # --- bridge liveness: a stale pid file (process no longer exists) ------------
 SNAP_MODE=ok GATE_MODE=clean run
-chk "it reports a stale bridge pid as not running" "not running (stale pid file)"
+chk "it reports a stale bridge pid as not running" "bridge   not running. Its pid file is left from an earlier run."
 rm -f "$REPO/.tandem-relay/bridge.pid"
 
 # --- paired from a subdirectory: the two mailboxes differ ---
@@ -171,11 +177,28 @@ echo '{}' > "$REPO/.tandem-relay/q/1.json"
 echo 'report' > "$REPO/.tandem-relay/reports/r1.md"
 SNAP_MODE=ok GATE_MODE=clean SNAP_CWD="$SUB" run
 chk "it reads identity from the subdirectory's own mailbox" "claude/ask"
-chk "it names the divergent identity mailbox" "paired from a subdirectory"
+chk "it names the divergent identity mailbox" "paired from a subdirectory, so its identity is in $SUB/.tandem-relay"
+chk "it says an adopted builder's settings are not enforced" "(adopted, so tandem cannot enforce its launch settings)"
 chk "it still counts mailbox activity from the walked repo-root relay" "1 handback report(s), 1 question(s)"
 nchk "it does not show the wrong builder identity" "codex/auto"
 rm -rf "$SUB"
 rm -f "$REPO/.tandem-relay/q"/*.json "$REPO/.tandem-relay/reports"/*.md
+
+# --- a builder.json tandem cannot read ---
+# On main a builder.json that was not JSON stopped the script with jq's error.
+printf '{not json' > "$REPO/.tandem-relay/builder.json"
+SNAP_MODE=ok GATE_MODE=clean run
+[ "$RC" -eq 0 ] && ok "builder.json that is not JSON still exits 0" || nope "builder.json that is not JSON exits 0 (got $RC)"
+chk "builder.json that is not JSON prints no recorded identity" "(no recorded identity)"
+printf '{"kind":"codex","autonomy":"auto","adopted":"yes"}' > "$REPO/.tandem-relay/builder.json"
+SNAP_MODE=ok GATE_MODE=clean run
+[ "$RC" -eq 0 ] && ok "adopted as a string still exits 0" || nope "adopted as a string exits 0 (got $RC)"
+nchk "adopted as a string is not adopted" "adopted,"
+write_builder "$REPO/.tandem-relay"
+
+# --- a manifest that is not a JSON object ---
+SNAP_MODE=ok GATE_MODE=clean INVALID_MANIFEST="$REPO/.tandem.json" run
+chk "an invalid manifest warns" "tandem-status: $REPO/.tandem.json is not a JSON object, so its settings were ignored."
 
 # --- a real stored review is found through a symlinked builder cwd ---
 # The stubbed gate ignores --plan and --root, so this uses the real tandem for
@@ -219,13 +242,8 @@ fi
 exec "$REAL_TANDEM" "\$@"
 REALSTUB
   chmod +x "$RTMP/bin/tandem"
-  ln -s "$(command -v jq)" "$RTMP/bin/jq"
+  printf '#!/bin/sh\necho "jq was called: $*" >&2\nexit 99\n' > "$RTMP/bin/jq"; chmod +x "$RTMP/bin/jq"
   printf '#!/usr/bin/env bash\nexit 0\n' > "$RTMP/bin/herdr"; chmod +x "$RTMP/bin/herdr"
-  cat > "$RTMP/bin/tandem-project" <<PROJSTUB
-#!/usr/bin/env bash
-printf '{"root":"%s","plans_dir":"docs/plans","check_command":"","conventions_file":"","prompt_extra":"","source":"stub"}\n' "$LINKREPO"
-PROJSTUB
-  chmod +x "$RTMP/bin/tandem-project"
 
   # An isolated PATH with this scenario's own stubs.
   OUT=$(PATH="$RTMP/bin:$PATH" HERDR_ENV=1 "$STATUS" 2>&1); RC=$?
@@ -247,7 +265,7 @@ nchk "it does not fall back to the newest file in plans_dir"  "docs/plans/p.md"
 # --- not paired: no agent named 'builder' -------------------------------------
 SNAP_MODE=not-found GATE_MODE=absent run
 [ "$RC" -eq 0 ] && ok "not paired still exits 0" || nope "not paired exits 0 (got $RC)"
-chk "it says not paired" "not paired"
+chk "it says not paired" "builder  not paired. Run tandem-pair to start one."
 chk "it still resolves the plan" "docs/plans/p.md"
 
 # --- Herdr socket unreachable ---
