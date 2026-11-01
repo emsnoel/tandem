@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tandem-handback hands finished work from the builder back to the planner.
 #
-# Hermetic: tandem, herdr and jq (symlinked) are stubbed. `tandem agent self
+# Hermetic: tandem, herdr and jq are stubbed, and jq fails. `tandem agent self
 # --expect` is the real command, run against the stubbed herdr.
 set -uo pipefail
 HANDBACK_BIN="${1:-$(cd "$(dirname "$0")/.." && pwd)/bin/tandem-handback}"

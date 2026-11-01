@@ -131,7 +131,7 @@ process info.
 
 `tandem config resolve`, `tandem agent launch-spec` and `tandem agent prelaunch` print JSON.
 With `--fields` they print NUL-separated fields for bash instead, in the order each verb's
-help text names. `tandem-pair`, `tandem-unpair`, `tandem-handoff`, `tandem-handback` and `tandem-ask` read or write through them, so they need no `jq`.
+help text names. Every script in `bin/` reads and writes through them, so none needs `jq`.
 
 Between passes the bridge waits on `tandem agent watch --mailbox`, and adds `--root` while a
 durable run is active. A command that changes rows in the run's state leaves a `nudge` file

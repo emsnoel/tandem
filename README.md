@@ -18,7 +18,7 @@ check command, or reads it from that repo's `.tandem.json`.
 curl -fsSL https://raw.githubusercontent.com/emsnoel/tandem/main/install.sh | bash
 ```
 
-This installs the latest release into `~/.local/bin`. You need `curl`, `tar`, `jq` and
+This installs the latest release into `~/.local/bin`. You need `curl`, `tar` and
 `shasum` (or `sha256sum`). You don't need Go. Run the same line again to upgrade. The
 installer never overwrites an existing Herdr config.
 

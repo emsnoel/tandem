@@ -24,6 +24,11 @@ The one exception inside the repo is `.gocache/`, where tandem pins `GOCACHE` an
 would break the rule above anyway. `.gocache/` is in `.gitignore`, so it can't trip the
 tree-change gate.
 
+The tests need Go 1.26 or later and `jq`, which they use to write fixtures and to read
+what the scripts wrote. tandem itself never needs `jq`. `test-script-limits.sh` fails if a
+file in `bin/` or `install.sh` calls it, and `test-install-no-jq.sh` installs on a `PATH`
+without it.
+
 `test-relay-ignore.sh` copies `ensure_relay_ignored()` out of `tandem-pair` with `sed` and
 runs that copy, instead of keeping its own version of the logic. A test that checks a
 duplicate of the code proves only that the duplicate agrees with itself.
