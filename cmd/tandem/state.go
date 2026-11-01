@@ -23,7 +23,8 @@ import (
 )
 
 const stateUse = "usage: tandem state status --json [--root DIR] [--state-home DIR]\n" +
-	"       tandem state import-legacy --archive PATH [--root DIR] [--state-home DIR]\n" + stateMigrateUse
+	"       tandem state import-legacy --archive PATH [--root DIR] [--state-home DIR]\n" +
+	"       tandem state active-run --relay DIR\n" + stateMigrateUse
 
 func cmdState(args []string) int {
 	if len(args) == 0 {
@@ -47,6 +48,8 @@ func cmdState(args []string) int {
 		return cmdStateArchive(args[1:])
 	case "engine":
 		return cmdStateEngine(args[1:])
+	case "active-run":
+		return cmdStateActiveRun(args[1:])
 	}
 	fmt.Fprintf(os.Stderr, "tandem state: unknown subcommand %q\n%s\n", args[0], stateUse)
 	return exitcode.Usage

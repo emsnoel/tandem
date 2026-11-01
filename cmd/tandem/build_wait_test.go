@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"github.com/emsnoel/tandem/internal/exitcode"
 	"testing"
 	"time"
 )
@@ -95,5 +96,27 @@ func TestWaitForRunReturnsTheReadErrorOnlyAtTheDeadline(t *testing.T) {
 	}
 	if reads < 2 || now().Sub(start) < 2*time.Second {
 		t.Fatalf("gave up after %d reads at %v, before the deadline", reads, now().Sub(start))
+	}
+}
+
+func TestBuildWaitFieldsSettled(t *testing.T) {
+	d := durableRepo(t)
+	out, rc := captureStdoutRC(t, func() int {
+		return cmdBuild([]string{"wait", "--root", d.root, "--state-home", d.home, "--until", "running", "--timeout", "1000", "--fields"})
+	})
+	if rc != exitcode.OK || out != "running\x00" {
+		t.Fatalf("rc %d, out %q", rc, out)
+	}
+}
+
+// Review focus 3: a timeout still prints the last state, so unpair can say
+// which state the run was stuck in.
+func TestBuildWaitFieldsTimeout(t *testing.T) {
+	d := durableRepo(t)
+	out, rc := captureStdoutRC(t, func() int {
+		return cmdBuild([]string{"wait", "--root", d.root, "--state-home", d.home, "--until", "finished", "--timeout", "0", "--fields"})
+	})
+	if rc != exitcode.ManualGate || out != "running\x00" {
+		t.Fatalf("rc %d, out %q", rc, out)
 	}
 }
