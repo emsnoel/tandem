@@ -48,7 +48,7 @@ EOF
 printf '#!/bin/sh\necho "jq was called: $*" >&2\nexit 99\n' > "$TMP/bin/jq"
 printf '#!/usr/bin/env bash\nexit 0\n' > "$TMP/bin/herdr"
 printf '#!/usr/bin/env bash\nexit 0\n' > "$TMP/bin/tandem-review"
-# Herdr calls are answered here; build, instruction-files and builder-kind go
+# Herdr calls are answered here; build, instruction-files and config builder go
 # to the real binary. CALLS records every prompt sent.
 cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
@@ -57,7 +57,7 @@ case "$1" in
   paths) printf '%s\n' "$RELAY"; exit 0 ;;
 esac
 case "$1 $2" in
-  "agent instruction-files"|"config builder-kind") exec "$TANDEM_REAL" "$@" ;;
+  "agent instruction-files"|"config builder") exec "$TANDEM_REAL" "$@" ;;
   # root plans_dir check_command conventions_file builder_kind prompt_extra
   # task_input_budget context_limit build_engine review_delivery
   # acceptance_policy collaboration source invalid_manifest

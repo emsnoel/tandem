@@ -37,7 +37,7 @@ case "$1 $2" in
   # task_input_budget context_limit build_engine review_delivery
   # acceptance_policy collaboration source invalid_manifest
   "config project")   nul "$REPO" docs/plans true "" "" "" "" "" "" "" "" "" stub ""; exit 0 ;;
-  "config builder-kind") printf 'codex\n'; exit 0 ;;
+  "config builder")   nul codex auto; exit 0 ;;
 esac
 case "$1" in
   paths) printf '%s/.tandem-relay\n' "$REPO"; exit 0 ;;

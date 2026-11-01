@@ -91,19 +91,27 @@ func TestGateRuleRefusesNonObject(t *testing.T) {
 	}
 }
 
-func TestConfigBuilderKind(t *testing.T) {
+func TestConfigBuilder(t *testing.T) {
 	relay := t.TempDir()
 	if err := os.WriteFile(filepath.Join(relay, "builder.json"), []byte(`{"kind":"codex","autonomy":"auto"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if out := captureStdout(t, func() int { return cmdConfig([]string{"builder-kind", "--relay", relay}) }); out != "codex\n" {
+	if out := captureStdout(t, func() int { return cmdConfig([]string{"builder", "--relay", relay}) }); out != "codex\x00auto\x00" {
 		t.Errorf("got %q", out)
 	}
 }
 
-func TestConfigBuilderKindMissing(t *testing.T) {
-	if out := captureStdout(t, func() int { return cmdConfig([]string{"builder-kind", "--relay", t.TempDir()}) }); out != "" {
-		t.Errorf("got %q", out)
+// No readable record prints two empty fields, so the caller's own check fires.
+func TestConfigBuilderMissing(t *testing.T) {
+	out, rc := captureStdoutRC(t, func() int { return cmdConfig([]string{"builder", "--relay", t.TempDir()}) })
+	if rc != exitcode.OK || out != "\x00\x00" {
+		t.Errorf("rc %d, got %q", rc, out)
+	}
+}
+
+func TestConfigBuilderKindIsGone(t *testing.T) {
+	if _, rc := captureStdoutRC(t, func() int { return cmdConfig([]string{"builder-kind", "--relay", t.TempDir()}) }); rc != exitcode.Usage {
+		t.Errorf("rc %d, want usage", rc)
 	}
 }
 
