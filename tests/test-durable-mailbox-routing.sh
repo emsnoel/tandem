@@ -19,7 +19,10 @@ command -v jq >/dev/null || { echo "need jq" >&2; exit 2; }
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 (cd "$ROOT_DIR" && go build -o "$TMP/tandem-real" ./cmd/tandem) || { echo "could not build tandem"; exit 1; }
 mkdir -p "$TMP/bin"
-ln -s "$(command -v jq)" "$TMP/bin/jq"
+# A jq that fails: tandem-handback and tandem-bridge ask tandem, so any jq
+# call is a bug. This file's own checks use the real jq.
+printf '#!/bin/sh\necho "jq was called: $*" >&2\nexit 99\n' > "$TMP/bin/jq"
+chmod +x "$TMP/bin/jq"
 
 RUN=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; ATT=cccccccccccccccccccccccccccccccc; JOB=dddddddddddddddddddddddddddddddd
 EFF=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee; NONCE=ffffffffffffffffffffffffffffffff
@@ -40,13 +43,14 @@ case "$1" in
   paths) shift; while (( $# )); do [[ "$1" == --root ]] && { printf '%s/.tandem-relay\n' "$2"; exit 0; }; shift; done; exit 1 ;;
   build)
     case "$2" in
-      tick|recover) printf '%s\n' "${TICK_OUT:-{\"run_id\":\"x\"\}}"; exit "${TICK_RC:-0}" ;;
-      status) printf '%s\n' "${STATUS_OUT:-}"; exit 0 ;;
+      # TICK_OUT and STATUS_OUT are the --fields answers, separated by "|".
+      tick|recover) printf '%s|' "${TICK_OUT:-x}" | tr '|' '\000'; exit "${TICK_RC:-0}" ;;
+      status) [ -n "${STATUS_OUT:-}" ] && printf '%s|' "$STATUS_OUT" | tr '|' '\000'; exit 0 ;;
     esac
     [[ "$2" == roles ]] && exec "$TANDEM_REAL" "$@"
     case "$2 $3" in
       "event new") exec "$TANDEM_REAL" "$@" ;;
-      "event ingest") printf '{"disposition":"committed","event_id":"x","version":2}\n'; exit "${INGEST_RC:-0}" ;;
+      "event ingest") printf 'committed\0\0'; exit "${INGEST_RC:-0}" ;;
     esac ;;
   relay|state) exec "$TANDEM_REAL" "$@" ;;
   agent)
@@ -214,6 +218,7 @@ BUILDER_STATUS=idle br "$REL"
 grep -q -- "build event ingest --root $B --claimed $RD/q/e1.json.taken --session-settled" "$CALLS" \
   && ok "a queued v2 message is claimed and ingested, with the settled flag when the builder is idle" || nope "ingest call ($(cat "$CALLS"))"
 [ -f "$RD/q/e1.json.taken" ] && [ ! -f "$RD/q/e1.json" ] && ok "it stays claimed until ingestion removes it" || nope "claim state"
+has "the log names what ingest did" "$OUT" "e1.json.taken: committed"
 
 printf '{"schema_version":2,"kind":"builder_submitted"}\n' > "$RD/q/e2.json"
 BUILDER_STATUS=working br "$REL"
@@ -256,12 +261,13 @@ printf '\n== the bridge tells the planner once when a run pauses ==\n'
 PROMPTS="$TMP/prompts"; rm -rf "$PROMPTS" "$RD/pause-reported"; rm -f "$RD"/q/*
 sent() { ls "$PROMPTS" 2>/dev/null | wc -l | tr -d ' '; }
 last() { cat "$PROMPTS/$(( $(sent) - 1 ))" 2>/dev/null; }
-PAUSED="{\"run_id\":\"$RUN\",\"state\":\"paused\",\"pause_code\":\"dispatch_failed\"}"
-RUNNING="{\"run_id\":\"$RUN\",\"state\":\"running\"}"
-STATUS_OUT='{"state":"paused","pause_code":"dispatch_failed","pause_reason":"builder'"'"'s turn ended as soon as it started. Its pane shows:\nThere'"'"'s an issue with the selected model (sonnet-5.5)."}'
+PAUSED="$RUN|paused|dispatch_failed"
+RUNNING="$RUN|running"
+STATUS_OUT=$'paused|dispatch_failed||builder\'s turn ended as soon as it started. Its pane shows:\nThere\'s an issue with the selected model (sonnet-5.5).'
 export PROMPTS STATUS_OUT
 TICK_OUT="$PAUSED" br "$REL"
 [ "$(sent)" = 1 ] && ok "a run that paused is reported to the planner once, though recover and tick both saw it" || nope "messages sent: $(sent) ($OUT)"
+has "the tick is logged with its run, state and code" "$OUT" "build tick: run $RUN paused (dispatch_failed)"
 has "the message names the pause" "$(last)" "paused (dispatch_failed)"
 has "it carries the reason" "$(last)" "There's an issue with the selected model (sonnet-5.5)."
 has "and the way on" "$(last)" "tandem build stop --root $B"
@@ -273,8 +279,8 @@ TICK_OUT="$PAUSED" br "$REL"
 TICK_OUT="$RUNNING" br "$REL"
 TICK_OUT="$PAUSED" br "$REL"
 [ "$(sent)" = 2 ] && ok "a run that resumed and paused again is reported again" || nope "messages sent: $(sent)"
-STATUS_OUT='{"state":"paused","pause_code":"review_unknown"}'
-TICK_OUT="{\"run_id\":\"$RUN\",\"state\":\"paused\",\"pause_code\":\"review_unknown\"}" br "$REL"
+STATUS_OUT='paused|review_unknown'
+TICK_OUT="$RUN|paused|review_unknown" br "$REL"
 [ "$(sent)" = 3 ] && has "any pause is reported, not only a failed dispatch" "$(last)" "paused (review_unknown)" || nope "messages sent: $(sent)"
 hasnt "a pause with no stop advice is not told to stop" "$(last)" "tandem build stop"
 unset PROMPTS STATUS_OUT

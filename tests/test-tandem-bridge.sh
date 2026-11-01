@@ -2,7 +2,9 @@
 # tandem-bridge's deliver() branches, through --once, which processes the
 # queue and exits.
 #
-# Hermetic: herdr is a controllable stub and jq is real.
+# Hermetic: herdr and tandem are controllable stubs. The tandem stubs pass
+# relay read, state active-run and build roles to the real binary. jq fails:
+# the bridge asks tandem, so any jq call is a bug. The fixtures use real jq.
 set -uo pipefail
 BRIDGE="${1:-$(cd "$(dirname "$0")/.." && pwd)/bin/tandem-bridge}"
 [ -x "$BRIDGE" ] || { echo "not executable: $BRIDGE" >&2; exit 2; }
@@ -15,7 +17,10 @@ nchk() { case "$OUT" in *"$2"*) nope "$1 (unexpected: $2)" ;; *) ok "$1" ;; esac
 
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/bin"
-ln -s "$(command -v jq)" "$TMP/bin/jq"
+printf '#!/bin/sh\necho "jq was called: $*" >&2\nexit 99\n' > "$TMP/bin/jq"
+chmod +x "$TMP/bin/jq"
+(cd "$(dirname "$0")/.." && go build -o "$TMP/tandem-real" ./cmd/tandem) || { echo "could not build tandem" >&2; exit 2; }
+export TANDEM_REAL="$TMP/tandem-real"
 
 # herdr stub: agent get reports HERDR_GET_STATUS (default idle); agent wait
 # exits HERDR_WAIT_EXIT; agent prompt logs its message to HERDR_PROMPT_LOG and,
@@ -50,6 +55,10 @@ cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
 [ -n "${HERDR_ARGV_LOG:-}" ] && printf '%s\n' "$*" >> "$HERDR_ARGV_LOG"
 case "$1 $2" in
+  "relay read") [ "${RELAY_READ_FAIL:-0}" = 1 ] && exit 1; exec "$TANDEM_REAL" "$@" ;;
+  "state active-run"|"build roles") exec "$TANDEM_REAL" "$@" ;;
+esac
+case "$1 $2" in
   "agent prompt")
     printf '%s' "$4" > "${HERDR_PROMPT_LOG:-/dev/null}"
     if [ "${HERDR_PROMPT_FAIL:-0}" = 1 ]; then
@@ -71,7 +80,7 @@ run_bridge() {
   : > "$PROMPT_LOG"; : > "$WAIT_LOG"
   OUT=$(PATH="$TMP/bin:$PATH" HERDR_ENV=1 HERDR_GET_STATUS="${HERDR_GET_STATUS:-idle}" \
     HERDR_WAIT_EXIT="${HERDR_WAIT_EXIT:-0}" HERDR_PROMPT_FAIL="${HERDR_PROMPT_FAIL:-0}" \
-    HERDR_PROMPT_ERROR_CODE="${HERDR_PROMPT_ERROR_CODE:-}" \
+    HERDR_PROMPT_ERROR_CODE="${HERDR_PROMPT_ERROR_CODE:-}" RELAY_READ_FAIL="${RELAY_READ_FAIL:-0}" \
     HERDR_PROMPT_LOG="$PROMPT_LOG" HERDR_WAIT_LOG="$WAIT_LOG" \
     "$BRIDGE" --mailbox "$MB" --planner planner --once 2>&1); RC=$?
 }
@@ -219,6 +228,38 @@ run_bridge
 chk "it logs the file as malformed" "malformed question file"
 nchk "it does not claim to have delivered a malformed file" "delivered"
 
+echo "--- a queued file that is not a JSON object is skipped, and the next is delivered ---"
+reset_mb; mkdir -p "$MB/q"
+printf '[1,2]\n' > "$MB/q/arr.json"
+jq -n '{id:"ok1", from:"builder", question:"after the array"}' > "$MB/q/ok1.json"
+run_bridge
+[ "$RC" -eq 0 ] && ok "an array does not stop the bridge" || nope "bridge exited $RC on an array"
+chk "it logs the array as malformed" "malformed question file $MB/q/arr.json.taken"
+chk "the next question is still delivered" "ok1 delivered"
+
+echo "--- a relay read that fails is logged as malformed, and the bridge goes on ---"
+reset_mb; mkdir -p "$MB/q"
+jq -n '{id:"rf1", from:"builder", question:"unread"}' > "$MB/q/rf1.json"
+RELAY_READ_FAIL=1 run_bridge
+[ "$RC" -eq 0 ] && ok "a failing tandem does not stop the bridge" || nope "bridge exited $RC when relay read failed"
+chk "it logs the file as malformed" "malformed question file"
+nchk "it delivers nothing" "delivered"
+
+echo "--- a question holding a tab, a newline and a unit separator arrives whole ---"
+reset_mb; mkdir -p "$MB/q"
+Q=$'col1\tcol2\nline2 \x1f after'
+jq -n --arg q "$Q" '{id:"sep1", from:"builder", question:$q}' > "$MB/q/sep1.json"
+run_bridge
+chk "it delivers the question" "sep1 delivered"
+[ "$(head -c "$(( ${#Q} + 15 ))" "$PROMPT_LOG")" = "[from builder] $Q" ] && ok "the question reaches the planner unchanged" \
+  || nope "the question changed: $(head -3 "$PROMPT_LOG")"
+
+echo "--- a question with no sender is from the builder ---"
+reset_mb; mkdir -p "$MB/q"
+jq -n '{id:"nf1", from:null, question:"who?"}' > "$MB/q/nf1.json"
+run_bridge
+grep -q '^\[from builder\] who?' "$PROMPT_LOG" && ok "a null sender reads as builder" || nope "sender: $(head -1 "$PROMPT_LOG")"
+
 echo "--- --once with an empty mailbox does nothing and exits cleanly ---"
 reset_mb; mkdir -p "$MB/q"
 run_bridge
@@ -253,6 +294,10 @@ grep -q "^agent prompt custom-target " "$ARGV_LOG" && ok "it prompts the named t
 cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$TANDEM_LOG"
+case "$1 $2" in
+  "relay read") [ "${RELAY_READ_FAIL:-0}" = 1 ] && exit 1; exec "$TANDEM_REAL" "$@" ;;
+  "state active-run"|"build roles") exec "$TANDEM_REAL" "$@" ;;
+esac
 case "$1 $2" in
   "build advance") printf '%s\n' "$ADVANCE_OUT"; [ -n "${ADVANCE_ERR:-}" ] && printf '%s\n' "$ADVANCE_ERR" >&2; exit "${ADVANCE_RC:-0}" ;;
   "build stop")    printf 'stopped handoff R9 %s\n' "$MSGFILE"; exit 0 ;;
@@ -418,6 +463,13 @@ for kind in question handback verdict; do
     && ok "the completed $kind stays claimed" || nope "the completed $kind was requeued"
 done
 
+echo "--- a task message with a string task and no sender is still advanced ---"
+queue_task; : > "$PROMPT_LOG"; ADVANCE_OUT="next 2"
+jq -n --arg created "$EVENT_CREATED" '{id:"t1", kind:"task", from:null, task:"2", review:null, report_path:"/r/x.md", created:$created}' > "$MB/q/t1.json"
+run_task_bridge
+grep -q -- "build advance --root $TMP --task 2 --event t1 --created $EVENT_CREATED --report /r/x.md\$" "$TLOG" \
+  && ok "advance hears task 2, with no stuck or review flags" || nope "advance call ($(grep '^build advance' "$TLOG"))"
+
 echo "--- a stuck task is passed on as stuck ---"
 queue_task true; ADVANCE_OUT="stopped stuck R2 $MSGFILE"
 run_task_bridge
@@ -467,6 +519,10 @@ cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$TANDEM_LOG"
 case "$1 $2" in
+  "relay read") [ "${RELAY_READ_FAIL:-0}" = 1 ] && exit 1; exec "$TANDEM_REAL" "$@" ;;
+  "state active-run"|"build roles") exec "$TANDEM_REAL" "$@" ;;
+esac
+case "$1 $2" in
   "agent watch")
     [ "${WATCH_RC:-0}" = 27 ] && { printf 'agent_exited\tbuilder\n'; exit 27; }
     [ -n "${WATCH_OUT:-}" ] && { printf '%s\n' "$WATCH_OUT"; exit 0; }
@@ -474,9 +530,10 @@ case "$1 $2" in
 esac
 exit 0
 STUB
+RUN1=0123456789abcdef0123456789abcdef
 durable_loop() { # durable_loop SECONDS [norun]
-  reset_mb; mkdir -p "$MB/durable/r1/q"
-  [ "${2:-}" = norun ] || printf '{"protocol_version":2,"run_id":"r1"}\n' > "$MB/active-run.json"
+  reset_mb; mkdir -p "$MB/durable/$RUN1/q"
+  [ "${2:-}" = norun ] || printf '{"engine_version":2,"protocol_version":2,"run_id":"%s"}\n' "$RUN1" > "$MB/active-run.json"
   : > "$TLOG"
   PATH="$TMP/bin:$PATH" HERDR_ENV=1 HERDR_PROMPT_LOG="$PROMPT_LOG" TANDEM_LOG="$TLOG" WATCH_RC="${WATCH_RC:-0}" WATCH_OUT="${WATCH_OUT:-}" \
     HERDR_BRIDGE_POLL_SECONDS=1 HERDR_BRIDGE_BACKSTOP_SECONDS=7 "$BRIDGE" --mailbox "$MB" --planner planner >/dev/null 2>&1 &

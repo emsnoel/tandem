@@ -74,11 +74,23 @@ done
 [[ -n "$MAILBOX" ]] || { usage >&2; die "--mailbox is required."; }
 [[ "${HERDR_ENV:-}" == 1 ]] || die "must run inside a Herdr pane (HERDR_ENV != 1) — it needs the socket."
 command -v herdr >/dev/null 2>&1 || die "herdr not found on PATH."
-command -v jq    >/dev/null 2>&1 || die "jq not found on PATH."
 
 engine_guard "$(dirname "$MAILBOX")"
 
 mkdir -p "$MAILBOX/q" "$MAILBOX/a"
+
+# tandem answers in NUL-separated fields, written here. A fixed file in the
+# mailbox, like .last_error: a mktemp file would need a TERM trap to be
+# removed, and bash runs one only after the foreground `tandem agent watch`
+# returns, which would hold up tandem-unpair's stop.
+FIELDS="$MAILBOX/.fields"
+# read_field VAR: the next field into VAR, empty at the end of the input.
+read_field() { IFS= read -r -d '' "$1" || true; }
+# read_message FILE: run `tandem relay read`. A failure, as for a file that is
+# not a JSON object, leaves the fields empty, as the old jq read did.
+read_message() {
+  tandem relay read --file "$1" >"$FIELDS" 2>/dev/null || : >"$FIELDS"
+}
 
 # Answer a question with an error when delivery fails, so the asker stops
 # polling. Handbacks get a marker beside the report instead (see deliver).
@@ -96,12 +108,12 @@ EOF
 
 deliver() {
   local qfile="$1" id="" kind="" from="" question="" msg="" answer_path
-  # NUL-separated, because a message can hold newlines. A file with no kind is
-  # a question.
-  { IFS= read -r -d '' id; IFS= read -r -d '' kind; IFS= read -r -d '' from
-    IFS= read -r -d '' question; IFS= read -r -d '' msg; } < <(jq -j \
-    '[.id, .kind // "question", .from // "builder", .question, .message]
-     | map((. // "" | tostring) + "\u0000") | add' "$qfile" 2>/dev/null) || true
+  # A file with no kind is a question, and one with no sender is from the
+  # builder.
+  read_message "$qfile"
+  { read_field id; read_field kind; read_field from; read_field question; read_field msg; } <"$FIELDS"
+  kind=${kind:-question}
+  from=${from:-builder}
 
   # Handbacks and verdicts carry the message their sender composed. The bridge
   # only transports it.
@@ -183,7 +195,10 @@ send_planner() {
 # during one is set aside with its reason.
 durable_run() {
   [[ -f "$MAILBOX/active-run.json" ]] || return 1
-  jq -er 'select(.protocol_version == 2) | .run_id' "$MAILBOX/active-run.json" 2>/dev/null
+  local id
+  id=$(tandem state active-run --relay "$MAILBOX" 2>/dev/null) || return 1
+  [[ -n "$id" ]] || return 1
+  printf '%s\n' "$id"
 }
 
 quarantine_v1() {
@@ -201,43 +216,47 @@ quarantine_v1() {
 # for the next pass. Renaming it back to *.json would wake the loop at once
 # into the same failure.
 ingest_durable() {
-  local taken="$1" root st out rc=0 settled=()
+  local taken="$1" root st rc=0 settled=() disp="" why=""
   root=$(dirname "$MAILBOX")
   st=$(tandem agent status "${HERDR_BUILDER_NAME:-builder}" 2>/dev/null || printf unknown)
   case "$st" in idle|done) settled=(--session-settled) ;; esac
-  out=$(tandem build event ingest --root "$root" --claimed "$taken" ${settled[@]+"${settled[@]}"} 2>"$MAILBOX/.last_error") || rc=$?
+  tandem build event ingest --root "$root" --claimed "$taken" ${settled[@]+"${settled[@]}"} --fields \
+    >"$FIELDS" 2>"$MAILBOX/.last_error" || rc=$?
   if (( rc != 0 )); then
     log "$(basename "$taken"): not applied yet (rc $rc), kept for the next pass: $(tail -1 "$MAILBOX/.last_error" 2>/dev/null)"
     return
   fi
-  log "$(basename "$taken"): $(printf '%s' "$out" | jq -r '.disposition + " " + (.reason // "")' 2>/dev/null)"
+  { read_field disp; read_field why; } <"$FIELDS"
+  log "$(basename "$taken"): $disp $why"
 }
 
 # drive_durable VERB [ARGS...]: give the durable run's controller one step (tick
 # or recover). A non-zero exit is logged and the loop goes on. Exit 3 is the
 # writer lease, which `tandem build recover` resolves.
 drive_durable() {
-  local verb="$1" root out rc=0
+  local verb="$1" root rc=0 run="" state="" code="" skipped=""
   root=$(dirname "$MAILBOX")
-  out=$(tandem build "$verb" --root "$root" "${@:2}" 2>"$MAILBOX/.last_error") || rc=$?
+  tandem build "$verb" --root "$root" "${@:2}" --fields >"$FIELDS" 2>"$MAILBOX/.last_error" || rc=$?
   if (( rc != 0 )); then
     log "build $verb: exit $rc: $(tail -1 "$MAILBOX/.last_error" 2>/dev/null)"
     return
   fi
-  log "build $verb: $out"
-  report_pause "$root" "$out"
+  { read_field run; read_field state; read_field code; read_field skipped; } <"$FIELDS"
+  if [[ -n "$skipped" ]]; then
+    log "build $verb: run $run skipped ($skipped)"
+  else
+    log "build $verb: run $run $state${code:+ ($code)}"
+  fi
+  report_pause "$root" "$run" "$state" "$code"
 }
 
-# report_pause ROOT TICK_OUTPUT: tell the planner once when the durable run
+# report_pause ROOT RUN STATE CODE: tell the planner once when the durable run
 # pauses, since a paused run waits for a person. The run and pause code are
 # recorded beside the queue so it is not said twice, and a running run clears
 # the mark. The mark is written before sending, so a lost notice is not resent
 # every second.
 report_pause() {
-  local root="$1" out="$2" run state code mark key reason msg
-  # None of the three fields can hold a tab or a newline.
-  IFS=$'\t' read -r run state code < <(printf '%s' "$out" |
-    jq -r '[.run_id // "", .state // "", .pause_code // ""] | @tsv' 2>/dev/null) || true
+  local root="$1" run="$2" state="$3" code="$4" mark key reason="" msg _
   [[ -n "$run" && -d "$MAILBOX/durable/$run" ]] || return 0
   mark="$MAILBOX/durable/$run/pause-reported"
   if [[ "$state" != paused ]]; then
@@ -247,7 +266,10 @@ report_pause() {
   key="$run ${code:-paused}"
   [[ "$(cat "$mark" 2>/dev/null)" == "$key" ]] && return 0
   printf '%s\n' "$key" > "$mark"
-  reason=$(tandem build status --root "$root" --json 2>/dev/null | jq -r '.pause_reason // empty' 2>/dev/null) || reason=""
+  # Field 4 of the status is the pause reason.
+  if tandem build status --root "$root" --fields >"$FIELDS" 2>/dev/null; then
+    { read_field _; read_field _; read_field _; read_field reason; } <"$FIELDS"
+  fi
   msg="[build] Durable run $run paused (${code:-no code}) and waits for a person.${reason:+
 
 $reason}
@@ -294,18 +316,15 @@ stop_build() {
 }
 
 advance_build() {
-  local qfile="$1" id created task report stuck review verdict from root out rc
-  local active
+  local qfile="$1" id="" created="" task="" report="" stuck="" review="" verdict="" from="" root out rc
+  local active plan="" builder="" reviewer="" _
   if active=$(durable_run); then
     quarantine_v1 "$qfile" "$active"
     return
   fi
-  # The unit separator is used instead of a tab, because read collapses empty
-  # tab-separated fields.
-  IFS=$'\x1f' read -r id created task report stuck review verdict from < <(
-    jq -r '[(.id | tostring), (.created // ""), (.task // ""), (.report_path // ""),
-            (.stuck // false), (.review // false), (.verdict // ""), (.from // "")]
-           | map(tostring) | join("\u001f")' "$qfile" 2>/dev/null) || true
+  read_message "$qfile"
+  { read_field id; read_field _; read_field from; read_field _; read_field _; read_field created
+    read_field task; read_field report; read_field stuck; read_field review; read_field verdict; } <"$FIELDS"
   if [[ ! "$task" =~ ^[0-9]+$ ]]; then
     log "malformed task file $qfile -- skipping"
     return
@@ -341,11 +360,16 @@ The build is paused. See \`tandem build status\` and the bridge log at $MAILBOX/
   log "task $task: $out"
   local verb f2 f3 f4
   read -r verb f2 f3 f4 <<<"$out"
+  # Who is in the build. A record that cannot be read leaves the plan and
+  # reviewer empty and the builder "builder", as the old jq defaults did.
+  if tandem build roles --relay "$MAILBOX" >"$FIELDS" 2>/dev/null; then
+    { read_field plan; read_field builder; read_field reviewer; } <"$FIELDS"
+  fi
+  builder=${builder:-builder}
   case "$verb" in
     review)
-      local msgfile reviewer pres prc=0 detail
+      local msgfile pres prc=0 detail
       msgfile="$f3"
-      reviewer=$(jq -r '.reviewer // empty' "$MAILBOX/build/build.json" 2>/dev/null || true)
       # build advance stops a build without a reviewer before it prints review, so
       # one is always named here. --as proves the review started a turn that keeps
       # running. Its result is on stdout or stderr, never both.
@@ -367,9 +391,8 @@ $(printf '%s\n' "$pres" | tail -n +2)"
     fix)
       # The reviewer asked for changes. Its findings go to the builder's current
       # conversation, which still holds the task.
-      local msgfile builder pres prc=0 detail
+      local msgfile pres prc=0 detail
       msgfile="$f3"
-      builder=$(jq -r '.builder // "builder"' "$MAILBOX/build/build.json" 2>/dev/null || true)
       pres=$(tandem agent prompt "$builder" "$(cat "$msgfile")" --as task 2>&1) || prc=$?
       if (( prc == 0 )); then
         log "task $f2: the reviewer's findings sent to $builder to fix"
@@ -384,9 +407,7 @@ $(printf '%s\n' "$pres" | tail -n +2)"
       stop_build "$f2" "fix NOT sent" "$detail" --task "$f2"
       ;;
     next)
-      local plan="" builder="" hout
-      { read -r plan; read -r builder; } < <(jq -r '.plan // "", .builder // "builder"' \
-        "$MAILBOX/build/build.json" 2>/dev/null) || true
+      local hout
       rc=0
       hout=$(HERDR_BUILDER_NAME="$builder" HERDR_PLANNER_NAME="$PLANNER_NAME" \
                tandem-handoff "$plan" --continue 2>&1) || rc=$?
@@ -410,7 +431,10 @@ $(printf '%s\n' "$pres" | tail -n +2)"
 # verdicts stay claimed so they are not sent twice.
 shopt -s nullglob
 for taken in "$MAILBOX"/q/*.json.taken; do
-  if [[ $(jq -r '.kind // "question"' "$taken" 2>/dev/null || true) == task ]]; then
+  _kind=""
+  read_message "$taken"
+  { read_field _; read_field _kind; } <"$FIELDS"
+  if [[ "$_kind" == task ]]; then
     mv -n "$taken" "${taken%.taken}"
   fi
 done
