@@ -1,0 +1,11 @@
+Review the plan at {{PLAN}}. Another agent will implement it. Working directory: {{ROOT}}.
+
+DO NOT CHANGE ANY FILE. This is a read-and-probe pass only. Do not start
+task 1. The planner decides what happens after your review.
+
+Read the whole plan, then read the code it touches. You are looking for
+exactly five kinds of defect, and nothing else:
+
+{{CLASSES}}
+
+{{RULES}}

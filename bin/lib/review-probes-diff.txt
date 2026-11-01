@@ -1,0 +1,5 @@
+       - if a changed hunk adds or alters a commit step, run:
+         git -C {{ROOT}} commit --dry-run --allow-empty -m probe
+       - confirm every path a changed hunk names actually exists
+       - do not run the check command: the earlier review already ran it,
+         and a plan edit does not change its result

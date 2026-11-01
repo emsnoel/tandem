@@ -1,0 +1,31 @@
+Re-review the plan at {{PLAN}}. Working directory: {{ROOT}}.
+
+DO NOT CHANGE ANY FILE. This is a read-and-probe pass only. Do not start
+task 1. The planner decides what happens after your review.
+
+An earlier version of this plan was reviewed. That review is:
+
+    {{PREVMD}}
+
+The planner has changed the plan since. The whole change, as a unified diff
+of the reviewed version against the plan now, with five lines of context, is:
+
+    {{DIFF}}
+
+Read those two files. DO NOT read the whole plan again: the parts the diff
+does not touch were already reviewed, and re-reading them re-sends their text
+on every call you make after. Open the plan or the code only where a changed
+hunk depends on them, and only the lines you need.
+
+Answer two questions, and nothing else:
+
+  A. For each objection in the earlier review, is it resolved? Name each
+     one as {{PREV}}#N, N being its number there, and say
+     "resolved" or "still open", quoting the hunk that shows it. List every
+     still-open objection again in full, as an objection of this review: the
+     planner reads this review, not the earlier one.
+  B. Does the changed text introduce a defect of these five kinds?
+
+{{CLASSES}}
+
+{{RULES}}

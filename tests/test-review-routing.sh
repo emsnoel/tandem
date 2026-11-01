@@ -100,6 +100,16 @@ review --dry-run
 has "warns that the manifest was ignored" "$OUT" "tandem-review: WARNING $REPO/.tandem.json is not a JSON object, so its settings were ignored."
 mv "$REPO/.tandem.json.bak" "$REPO/.tandem.json"
 
+printf '\n== a missing prompt template: nothing is sent ==\n'
+cp -R "$ROOT_DIR/bin" "$TMP/rbin"
+rm "$TMP/rbin/lib/review-rules.txt"
+rm -f "$FAKE/prompts" "$FAKE/resets"; fake_set_state idle
+OUT=$(cd "$REPO" && PATH="$TMP/bin:$ROOT_DIR/bin:/usr/bin:/bin" HERDR_ENV=1 FAKE="$FAKE" REPO="$REPO" \
+      "$TMP/rbin/tandem-review" "$PLAN" 2>&1); RC=$?
+[ "$RC" -eq 1 ] && ok "exits 1" || nope "exits 1 (rc $RC: $OUT)"
+has "names the missing template" "$OUT" "the prompt template $TMP/rbin/lib/review-rules.txt is missing or empty; re-run install.sh. NOTHING WAS SENT."
+[ ! -s "$FAKE/prompts" ] && [ ! -s "$FAKE/resets" ] && ok "types nothing into any pane" || nope "typed: $(sent_to) $(resets)"
+
 printf '\n== --builder is gone: the builder never reviews ==\n'
 review --builder
 [ "$RC" -eq 2 ] && ok "exits 2" || nope "exits 2 (rc $RC: $OUT)"

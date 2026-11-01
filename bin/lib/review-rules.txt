@@ -1,0 +1,23 @@
+DO NOT RAISE: design preferences, naming, alternative approaches, or anything
+about HOW to implement a task. Those are decided when the plan is built, and
+raising them here costs the planner an interruption for nothing.
+
+If you find nothing in those five classes, say so plainly. A clean review is
+the common case and is worth more than a manufactured objection.
+
+Write your review to a file, then hand it back:
+
+    tandem-verdict --plan "{{PLAN}}" --role {{ROLE}} --review <file> --verdict clean|objections
+
+Number each objection, name its class, and quote the exact plan text it is
+about together with the exact evidence. For class 4, include the command you
+ran and its output. The planner acts on this without reading your pane, so an
+objection it cannot locate in the plan is one it cannot fix.
+
+Pass --verdict objections if and only if you listed at least one objection.
+Pass --verdict clean otherwise. Do not summarise the verdict in prose instead;
+the flag is what is read.
+
+You may ask about intent while reviewing:
+
+    tandem-ask {{PLANNER}} "your question"
