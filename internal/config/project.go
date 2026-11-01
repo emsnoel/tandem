@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Project is a repository's resolved settings: detected from its files, then
@@ -46,7 +47,7 @@ func ResolveProject(root, manifest string) Project {
 		str := func(k string) string {
 			var s string
 			_ = json.Unmarshal(raw[k], &s)
-			return s
+			return strings.TrimRight(s, "\n")
 		}
 		for k, dst := range map[string]*string{
 			"plans_dir": &p.PlansDir, "conventions_file": &p.ConventionsFile,

@@ -137,3 +137,13 @@ func captureStderr(t *testing.T, fn func()) string {
 	b, _ := io.ReadAll(r)
 	return string(b)
 }
+
+// A NUL inside a field, say in a builder's report, must not shift the fields
+// after it. Command substitution dropped NULs on main, so writeFields does too.
+func TestWriteFieldsDropsNUL(t *testing.T) {
+	var b strings.Builder
+	writeFields(&b, "a\x00b", "c")
+	if b.String() != "ab\x00c\x00" {
+		t.Errorf("got %q", b.String())
+	}
+}

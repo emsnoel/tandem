@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -73,13 +74,18 @@ func cmdGateRule(args []string) int {
 	if err := json.Unmarshal(b, &doc); err != nil || doc == nil {
 		return ruleFail(fmt.Errorf("%s is not a JSON object", path))
 	}
-	reason, _ := json.Marshal(because)
-	doc["override_reason"] = reason
-	out, err := json.MarshalIndent(doc, "", "  ")
-	if err != nil {
+	var reason bytes.Buffer
+	enc := json.NewEncoder(&reason)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(because); err != nil {
 		return ruleFail(err)
 	}
-	if err := os.WriteFile(path+".tmp", append(out, '\n'), 0o644); err != nil {
+	doc["override_reason"] = bytes.TrimRight(reason.Bytes(), "\n")
+	var out bytes.Buffer
+	if err := writeIndentedJSON(&out, doc); err != nil {
+		return ruleFail(err)
+	}
+	if err := os.WriteFile(path+".tmp", out.Bytes(), 0o644); err != nil {
 		return ruleFail(err)
 	}
 	if err := os.Rename(path+".tmp", path); err != nil {

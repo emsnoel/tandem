@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/emsnoel/tandem/internal/exitcode"
@@ -103,5 +104,16 @@ func TestConfigBuilderKind(t *testing.T) {
 func TestConfigBuilderKindMissing(t *testing.T) {
 	if out := captureStdout(t, func() int { return cmdConfig([]string{"builder-kind", "--relay", t.TempDir()}) }); out != "" {
 		t.Errorf("got %q", out)
+	}
+}
+
+func TestGateRuleKeepsHTMLCharacters(t *testing.T) {
+	relay := sidecar(t, `{"verdict":"objections","plan":"/a&b<c>.md"}`)
+	captureStdout(t, func() int {
+		return cmdGate([]string{"rule", "--relay", relay, "--id", rulingID, "--because", "x && y"})
+	})
+	b, _ := os.ReadFile(filepath.Join(relay, "reviews", rulingID+".json"))
+	if !strings.Contains(string(b), `"/a&b<c>.md"`) || !strings.Contains(string(b), `"x && y"`) {
+		t.Errorf("got %s", b)
 	}
 }
