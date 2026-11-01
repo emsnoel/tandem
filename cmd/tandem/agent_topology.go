@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/emsnoel/tandem/internal/exitcode"
 	"github.com/emsnoel/tandem/internal/herdr"
@@ -80,21 +81,53 @@ func cmdAgentAdoptable(args []string) int {
 	return exitcode.OK
 }
 
-// cmdAgentKind prints the kind Herdr detected for the agent called name.
+// cmdAgentKind prints the kind Herdr detected for the agent named NAME, or in
+// pane P with --pane.
 func cmdAgentKind(args []string) int {
-	if len(args) != 1 {
-		fmt.Fprintln(os.Stderr, "usage: tandem agent kind NAME")
+	var pane string
+	switch {
+	case len(args) == 2 && args[0] == "--pane" && args[1] != "":
+		pane = args[1]
+	case len(args) != 1 || strings.HasPrefix(args[0], "-"):
+		fmt.Fprintln(os.Stderr, "usage: tandem agent kind NAME | --pane PANE")
 		return exitcode.Usage
 	}
 	agents, rc := listAgents()
 	if rc != exitcode.OK {
 		return rc
 	}
-	a := herdr.Find(agents, args[0])
-	if a == nil {
+	var a *herdr.Agent
+	if pane != "" {
+		if a = herdr.FindPane(agents, pane); a == nil {
+			fmt.Fprintf(os.Stderr, "not_found\tno agent in pane %q\n", pane)
+			return exitcode.HerdrError
+		}
+	} else if a = herdr.Find(agents, args[0]); a == nil {
 		fmt.Fprintf(os.Stderr, "not_found\tno agent named %q\n", args[0])
 		return exitcode.HerdrError
 	}
 	fmt.Println(a.Kind)
+	return exitcode.OK
+}
+
+// cmdAgentCount answers bin/tandem-unpair's --clean-trust question: how many
+// other agents of a kind still work in the repo. It prints the count, or
+// nothing when Herdr fails.
+func cmdAgentCount(args []string) int {
+	fs := flag.NewFlagSet("agent count", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	kind := fs.String("kind", "", "count agents of this kind")
+	under := fs.String("under", "", "count agents working in this directory or below it")
+	var exclude listFlag
+	fs.Var(&exclude, "exclude-pane", "leave out this pane (repeatable)")
+	if err := fs.Parse(args); err != nil || fs.NArg() != 0 || *kind == "" || *under == "" {
+		fmt.Fprintln(os.Stderr, "usage: tandem agent count --kind KIND --under DIR [--exclude-pane PANE]...")
+		return exitcode.Usage
+	}
+	agents, rc := listAgents()
+	if rc != exitcode.OK {
+		return rc
+	}
+	fmt.Println(herdr.CountUnder(agents, *kind, *under, exclude))
 	return exitcode.OK
 }

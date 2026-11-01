@@ -1,6 +1,9 @@
 package herdr
 
-import "errors"
+import (
+	"errors"
+	"strings"
+)
 
 // ErrNoPlanner and ErrManyPlanners are PickPlanner's two ways to find no
 // planner: no agent of the kind runs, or several do and none is the caller.
@@ -65,4 +68,35 @@ func Adoptable(agents []Agent, excludePane, tab, kind string) *Agent {
 		found = a
 	}
 	return found
+}
+
+// CountUnder counts the agents of kind working at root or below it, leaving
+// out the panes in exclude. /repo-other is not below /repo.
+func CountUnder(agents []Agent, kind, root string, exclude []string) int {
+	n := 0
+	for _, a := range agents {
+		if a.Kind != kind || (a.CWD != root && !strings.HasPrefix(a.CWD, root+"/")) {
+			continue
+		}
+		skip := false
+		for _, p := range exclude {
+			if p != "" && p == a.PaneID {
+				skip = true
+			}
+		}
+		if !skip {
+			n++
+		}
+	}
+	return n
+}
+
+// FindPane returns the agent in pane, as a pointer into agents, or nil.
+func FindPane(agents []Agent, pane string) *Agent {
+	for i := range agents {
+		if agents[i].PaneID == pane {
+			return &agents[i]
+		}
+	}
+	return nil
 }

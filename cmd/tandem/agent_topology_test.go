@@ -97,3 +97,45 @@ func TestAgentKindNotFound(t *testing.T) {
 		t.Fatalf("rc %d, want %d", rc, exitcode.HerdrError)
 	}
 }
+
+const trustAgents = `{"result":{"agents":[
+ {"pane_id":"w1:p1","agent":"claude","name":"planner","agent_status":"idle","cwd":"/r"},
+ {"pane_id":"w1:p2","agent":"codex","name":"builder","agent_status":"idle","cwd":"/r"},
+ {"pane_id":"w1:p3","agent":"codex","name":null,"agent_status":"idle","cwd":"/r/sub"},
+ {"pane_id":"w1:p4","agent":"codex","name":null,"agent_status":"idle","cwd":"/r-other"}]}}`
+
+func TestAgentCountPrintsNumber(t *testing.T) {
+	stubHerdr(t, trustAgents)
+	out, rc := captureStdoutRC(t, func() int {
+		return cmdAgent([]string{"count", "--kind", "codex", "--under", "/r", "--exclude-pane", "w1:p2"})
+	})
+	if rc != exitcode.OK || out != "1\n" {
+		t.Fatalf("rc %d, out %q", rc, out)
+	}
+}
+
+// Review focus 2: a Herdr failure prints nothing, so the caller cannot read it
+// as zero other agents.
+func TestAgentCountHerdrFails(t *testing.T) {
+	stubHerdrAnswers(t, map[string]string{})
+	out, rc := captureStdoutRC(t, func() int { return cmdAgent([]string{"count", "--kind", "codex", "--under", "/r"}) })
+	if rc == exitcode.OK || out != "" {
+		t.Fatalf("rc %d, out %q", rc, out)
+	}
+}
+
+func TestAgentKindByPane(t *testing.T) {
+	stubHerdr(t, trustAgents)
+	out, rc := captureStdoutRC(t, func() int { return cmdAgent([]string{"kind", "--pane", "w1:p1"}) })
+	if rc != exitcode.OK || out != "claude\n" {
+		t.Fatalf("rc %d, out %q", rc, out)
+	}
+}
+
+func TestAgentKindByPaneNotFound(t *testing.T) {
+	stubHerdr(t, trustAgents)
+	out, rc := captureStdoutRC(t, func() int { return cmdAgent([]string{"kind", "--pane", "w9:p9"}) })
+	if rc != exitcode.HerdrError || out != "" {
+		t.Fatalf("rc %d, out %q", rc, out)
+	}
+}

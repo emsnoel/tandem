@@ -112,3 +112,37 @@ func TestAdoptableNoneWhenTwo(t *testing.T) {
 		t.Fatalf("got %+v", a)
 	}
 }
+
+func at(pane, kind, cwd string) Agent { return Agent{PaneID: pane, Kind: kind, CWD: cwd} }
+
+// Review focus 1: /x/repo-other is not under /x/repo; /x/repo/sub is.
+func TestCountUnderPrefixIsNotChild(t *testing.T) {
+	agents := []Agent{at("p1", "codex", "/x/repo-other"), at("p2", "codex", "/x/repo/sub"), at("p3", "codex", "/x/repo")}
+	if got := CountUnder(agents, "codex", "/x/repo", nil); got != 2 {
+		t.Fatalf("got %d, want 2", got)
+	}
+}
+
+func TestCountUnderExcludesPanesAndOtherKinds(t *testing.T) {
+	agents := []Agent{at("p1", "codex", "/r"), at("p2", "codex", "/r"), at("p3", "claude", "/r"), at("p4", "codex", "/r")}
+	if got := CountUnder(agents, "codex", "/r", []string{"p1", "p4"}); got != 1 {
+		t.Fatalf("got %d, want 1", got)
+	}
+}
+
+func TestCountUnderEmptyExcludeIgnored(t *testing.T) {
+	agents := []Agent{at("p1", "codex", "/r"), at("", "codex", "/r")}
+	if got := CountUnder(agents, "codex", "/r", []string{""}); got != 2 {
+		t.Fatalf("got %d, want 2: an empty exclude entry excludes nothing", got)
+	}
+}
+
+func TestFindPane(t *testing.T) {
+	agents := []Agent{at("p1", "codex", "/r"), at("p2", "claude", "/r")}
+	if a := FindPane(agents, "p2"); a == nil || a.Kind != "claude" {
+		t.Fatalf("got %+v", a)
+	}
+	if a := FindPane(agents, "p9"); a != nil {
+		t.Fatalf("got %+v, want nil", a)
+	}
+}
