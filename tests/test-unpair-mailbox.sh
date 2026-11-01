@@ -43,7 +43,8 @@ case "$1 $2" in
     fi
     [[ -n "${DEAD:-}" ]] && exit 10; printf '%%2\t%s\tidle\n' "$BCWD"; exit 0 ;;
   "pane close") printf '%s\n' "$3" >> "$PANE_LOG"; exit 0 ;;
-  "config check-command") printf 'true\0'; exit 0 ;;
+  # CHECK_SILENT models a tandem that exits 0 and prints nothing.
+  "config check-command") [[ -n "${CHECK_SILENT:-}" ]] && exit 0; printf 'true\0'; exit 0 ;;
 esac
 case "$1" in
   paths)
@@ -82,7 +83,8 @@ run() { # run <builder-cwd> <extra-args...>
   # With a dead pane, tandem-unpair falls back to $PWD.
   OUT=$(cd "$REPO" && PATH="$TMP/bin:$PATH" HERDR_ENV=1 BCWD="$bcwd" \
           DEAD="$DEAD" ARCHIVE_LOG="$TMP/archive.log" ARCHIVE_FAIL="${ARCHIVE_FAIL:-}" \
-          PANE_LOG="$TMP/panes.log" FAKE_REVIEWER_STATUS="$FAKE_REVIEWER_STATUS" "$UNPAIR" "$@" 2>&1); RC=$?
+          PANE_LOG="$TMP/panes.log" FAKE_REVIEWER_STATUS="$FAKE_REVIEWER_STATUS" \
+          CHECK_SILENT="${CHECK_SILENT:-}" "$UNPAIR" "$@" 2>&1); RC=$?
 }
 FAKE_REVIEWER_STATUS=""
 
@@ -246,6 +248,14 @@ case "$_count" in
   1) ok "a non-git pair names one mailbox exactly once" ;;
   *) nope "a non-git pair named $_count mailboxes, want 1" ;;
 esac
+
+# --- check-command answers nothing: unpair must not end in silence ---
+fixture "$REPO"
+CHECK_SILENT=1
+run "$REPO/sub" --dry-run
+CHECK_SILENT=""
+[ "$RC" -eq 0 ] && ok "an empty check-command answer does not abort the run" \
+  || nope "an empty check-command answer aborted unpair (rc $RC): $OUT"
 
 printf '\nunpair-mailbox: passed %d, failed %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
