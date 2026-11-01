@@ -28,7 +28,7 @@ import (
 )
 
 const eventUse = "usage: tandem build event new --root DIR --kind KIND --task N --attempt ID --job ID --effect ID --nonce ID [--payload FILE]\n" +
-	"       tandem build event ingest --root DIR --claimed FILE [--state-home DIR] [--session-settled]"
+	"       tandem build event ingest --root DIR --claimed FILE [--state-home DIR] [--session-settled] [--fields]"
 
 func cmdBuildEvent(args []string) int {
 	if len(args) == 0 {
@@ -188,6 +188,7 @@ func cmdEventIngest(args []string) int {
 	claimed := fs.String("claimed", "", "the claimed queue file")
 	home := fs.String("state-home", os.Getenv("TANDEM_STATE_HOME"), "state home")
 	settled := fs.Bool("session-settled", false, "the builder's session has finished its turn")
+	asFields := fs.Bool("fields", false, "print NUL-separated fields for bash (disposition, reason) in place of JSON")
 	if err := fs.Parse(args); err != nil || fs.NArg() != 0 || *root == "" || *claimed == "" {
 		fmt.Fprintln(os.Stderr, eventUse)
 		return exitcode.Usage
@@ -230,6 +231,10 @@ func cmdEventIngest(args []string) int {
 	res, err := c.IngestClaimed(ctx, d.run.RunID, *claimed)
 	if err != nil {
 		return fail(err)
+	}
+	if *asFields {
+		writeFields(os.Stdout, string(res.Disposition), res.Reason)
+		return exitcode.OK
 	}
 	return printJSON(ingestOut{Disposition: string(res.Disposition), EventID: res.EventID, Version: res.Receipt.Version,
 		Duplicate: res.Receipt.Duplicate, Reason: res.Reason})
