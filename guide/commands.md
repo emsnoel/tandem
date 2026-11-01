@@ -116,11 +116,15 @@ process info.
 | `tandem config builder --relay DIR` | Prints the kind, autonomy and adopted (`true` or `false`) in the relay's `builder.json` as NUL-separated fields. With no readable record they are empty, empty and `false` |
 | `tandem gate ruling --relay DIR --id ID` | Prints a review's verdict and the ruling that stands on it, as NUL-separated fields. A ruling never stands on a clean review |
 | `tandem gate rule --relay DIR --id ID --because TEXT` | Records the planner's ruling in the review's sidecar and keeps every other key |
+| `tandem gate record --relay DIR --id ID --plan PATH --verdict V ...` | Writes the review's sidecar, `reviews/ID.json`, with the builder and reviewer values `tandem-verdict` passes, through a temporary file and a rename |
+| `tandem config write-manifest --file PATH ...` | Writes a `.tandem.json` with the given plans dir, check command, conventions file and builder kind, and an empty `prompt_extra`. `tandem-init` uses it |
 | `tandem build start ... --fields` | Prints the start's answer from either engine as 14 NUL-separated fields, on a refusal too. A missing value, `null` and `false` print empty |
-| `tandem relay write task\|handback\|question --mailbox DIR --id ID ...` | Writes one message to the relay's queue for `tandem-bridge`, through a temporary file and a rename. `tandem-handback` and `tandem-ask` use it |
+| `tandem relay write task\|handback\|verdict\|question --mailbox DIR --id ID ...` | Writes one message to the relay's queue for `tandem-bridge`, through a temporary file and a rename. `tandem-handback`, `tandem-verdict` and `tandem-ask` use it |
 | `tandem relay log --dir DIR --id ID ...` | Writes one `tandem-ask` question and answer to the Q&A history |
+| `tandem relay history --dir DIR [--limit N]` | Prints the Q&A history oldest first, leaving out `judge-*` files, for `tandem-relaylog`. Each record is 8 NUL-separated fields: the file, its JSON on one line, id, ts, from, to, question, answer. A file that is not a JSON object prints its path and seven empty fields. `--limit` keeps the last N |
 | `tandem relay read --file F` | Prints a queued message for `tandem-bridge` as NUL-separated fields: id, kind, from, question, message, created, task, report_path, stuck, review, verdict. A value that is not a string prints as JSON; null or false takes the default (`question` for kind, `false` for stuck and review). Exits 1 when the file is not a JSON object |
 | `tandem build roles --relay DIR` | Prints the legacy build's plan, builder, reviewer and planner as NUL-separated fields. Exits 1 when there is no readable build record |
+| `tandem state engine [--root DIR] --fields` | Prints which engine the next build here would use, and what decided it, as NUL-separated fields in place of JSON |
 | `tandem state active-run --relay DIR` | Prints the id of the durable run in the relay's `active-run.json`, or nothing when there is none. Exits 23 when the file cannot be read |
 | `tandem trust clean --kind KIND --cwd DIR` | Removes the trust entry tandem added for DIR. Prints `removed`, or `none` when there was no tandem entry |
 | `tandem pane wait-shell PANE --timeout MS` | Waits until the pane's foreground process is its shell. Exits 23 at the timeout and 3 when Herdr is unreachable |
