@@ -27,26 +27,32 @@ printf '{"plan":"%s","verdict":"objections","kind":"codex","autonomy":"auto","ov
 PAYLOAD_EXTRA='before `touch '"$CANARY_EXTRA"'` and $(touch '"$CANARY_EXTRA"') after'
 PAYLOAD_BECAUSE='before `touch '"$CANARY_BECAUSE"'` and $(touch '"$CANARY_BECAUSE"') after'
 
+# The real binary reads and writes the review sidecar. STUB_EXTRA is the
+# project's prompt_extra and STUB_LEDGER the build's ledger.
+export REAL_TANDEM; REAL_TANDEM=$(command -v tandem) || { echo "need an installed tandem" >&2; exit 2; }
+export STUB_EXTRA="$PAYLOAD_EXTRA"
 cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
-[ "$1 $2" = "build start" ] && { printf '{"task":1,"total":1,"title":"the plan","brief":"/relay/build/task-1.md","ledger":"","resumed":false}\n'; exit 0; }
+nul() { local f; for f in "$@"; do printf '%s\0' "$f"; done; }
+# build start: engine run_id dry_run task total title brief ledger resumed
+# replaced judge reviewer review_pending review_prompt
+[ "$1 $2" = "build start" ] && { nul "" "" "" 1 1 "the plan" /relay/build/task-1.md "${STUB_LEDGER-}" "" "" "" "" "" ""; exit 0; }
 case "$1 $2" in
   "agent snapshot") printf '%%1\t%s\tidle\n' "$REPO"; exit 0 ;;
   "gate review")    printf '20260910-000001-1-1\n'; exit 0 ;;
+  "gate ruling"|"gate rule") exec "$REAL_TANDEM" "$@" ;;
+  # root plans_dir check_command conventions_file builder_kind prompt_extra
+  # task_input_budget context_limit build_engine review_delivery
+  # acceptance_policy collaboration source invalid_manifest
+  "config project") nul "$REPO" docs/plans true "" "" "$STUB_EXTRA" "" "" "" "" "" "" stub ""; exit 0 ;;
 esac
 case "$1" in
   paths)  printf '%s/.tandem-relay\n' "$REPO"; exit 0 ;;
 esac
 exit 0
 STUB
-cat > "$TMP/bin/tandem-project" <<STUB
-#!/usr/bin/env bash
-jq -n --arg root "$TMP/repo" --arg extra '$PAYLOAD_EXTRA' \\
-  '{root:\$root, plans_dir:"docs/plans", check_command:"true",
-    conventions_file:"", prompt_extra:\$extra, source:"stub"}'
-STUB
-# Symlink, not copy: macOS kills a copied /usr/bin/jq on exec.
-ln -s "$(command -v jq)" "$TMP/bin/jq"
+# A jq that fails: tandem-handoff asks tandem, so any jq call is a bug.
+printf '#!/bin/sh\necho "jq was called: $*" >&2\nexit 99\n' > "$TMP/bin/jq"
 printf '#!/usr/bin/env bash\nexit 0\n' > "$TMP/bin/herdr"
 printf '#!/usr/bin/env bash\nexit 0\n' > "$TMP/bin/tandem-review"
 chmod +x "$TMP/bin"/*
@@ -80,7 +86,7 @@ chk "the because ruling appears literally"         'touch '"$CANARY_BECAUSE"
 chk "the because backtick survives verbatim"       '`touch '"$CANARY_BECAUSE"
 chk "the because command substitution is inert"    '$(touch '"$CANARY_BECAUSE"
 
-# --dry-run skips the sidecar write, so repeat without it to exercise the jq
+# --dry-run skips the sidecar write, so repeat without it to exercise the
 # write and read-back.
 OUT2=$(PATH="$TMP/bin:$PATH" HERDR_ENV=1 REPO="$TMP/repo" \
          "$HANDOFF" "$PLAN" \
@@ -136,6 +142,26 @@ case "$_n" in
   1) ok "the adopted ruling is not duplicated by its own slot marker" ;;
   *) nope "the adopted ruling appears $_n times, want 1" ;;
 esac
+
+# Command substitution stripped trailing newlines from prompt_extra and the
+# ledger on main. The NUL reads must do the same, or the prompt changes.
+printf '{"plan":"%s","verdict":"clean","kind":"codex","autonomy":"auto"}\n' \
+  "$PLAN" > "$TMP/repo/.tandem-relay/reviews/20260910-000001-1-1.json"
+OUT5=$(PATH="$TMP/bin:$PATH" HERDR_ENV=1 REPO="$TMP/repo" STUB_EXTRA="keep it short
+
+" STUB_LEDGER="task 1 did one thing
+
+" "$HANDOFF" "$PLAN" --dry-run 2>&1)
+NL=$'\n'
+case "$OUT5" in
+  *"keep it short${NL}${NL}When you finish"*) ok "a prompt_extra ending in newlines renders as on main" ;;
+  *) nope "prompt_extra's trailing newlines changed the prompt" ;;
+esac
+case "$OUT5" in
+  *"did one thing${NL}${NL}Then do the task"*) ok "a ledger ending in newlines renders as on main" ;;
+  *) nope "the ledger's trailing newlines changed the prompt" ;;
+esac
+case "$OUT5" in *"jq was called"*) nope "handoff called jq" ;; *) ok "handoff called no jq" ;; esac
 
 printf '\nprompt-injection: passed %d, failed %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

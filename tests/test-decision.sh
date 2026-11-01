@@ -25,25 +25,27 @@ printf '{"kind":"codex","autonomy":"auto","adopted":false}\n' \
 # ADVICE_OUT is empty for the disabled and unconfigured runs.
 cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
-[ "$1 $2" = "build start" ] && { printf '{"task":1,"total":1,"title":"the plan","brief":"/relay/build/task-1.md","ledger":"","resumed":false}\n'; exit 0; }
+nul() { local f; for f in "$@"; do printf '%s\0' "$f"; done; }
+# build start: engine run_id dry_run task total title brief ledger resumed
+# replaced judge reviewer review_pending review_prompt
+[ "$1 $2" = "build start" ] && { nul "" "" "" 1 1 "the plan" /relay/build/task-1.md "" "" "" "" "" "" ""; exit 0; }
 case "$1 $2" in
   "agent snapshot")   printf '%%1\t%s\tidle\n' "$REPO"; exit 0 ;;
   "gate review")      printf '20260920-000001-1-1\n'; exit 0 ;;
   "decision assess")  [ -n "${ADVICE_OUT:-}" ] && printf '%s' "$ADVICE_OUT"; exit 0 ;;
+  # root plans_dir check_command conventions_file builder_kind prompt_extra
+  # task_input_budget context_limit build_engine review_delivery
+  # acceptance_policy collaboration source invalid_manifest
+  "config project")   nul "$REPO" docs/plans true "" "" "" "" "" "" "" "" "" stub ""; exit 0 ;;
+  "config builder-kind") printf 'codex\n'; exit 0 ;;
 esac
 case "$1" in
   paths) printf '%s/.tandem-relay\n' "$REPO"; exit 0 ;;
 esac
 exit 0
 STUB
-cat > "$TMP/bin/tandem-project" <<STUB
-#!/usr/bin/env bash
-jq -n --arg root "$TMP/repo" \\
-  '{root:\$root, plans_dir:"docs/plans", check_command:"true",
-    conventions_file:"", prompt_extra:"", source:"stub"}'
-STUB
-# Symlink, not copy: macOS kills a copied /usr/bin/jq on exec.
-ln -s "$(command -v jq)" "$TMP/bin/jq"
+# A jq that fails: tandem-handoff asks tandem, so any jq call is a bug.
+printf '#!/bin/sh\necho "jq was called: $*" >&2\nexit 99\n' > "$TMP/bin/jq"
 printf '#!/usr/bin/env bash\nexit 0\n' > "$TMP/bin/herdr"
 printf '#!/usr/bin/env bash\nexit 0\n' > "$TMP/bin/tandem-review"
 chmod +x "$TMP/bin"/*

@@ -8,7 +8,8 @@
 #   STUB_CHECK         check_command; unset is "true", set but empty is none
 #   STUB_PROMPT_EXTRA  prompt_extra
 # DIR/bin/tandem.extra, if present, is sourced first by the tandem stub, so its
-# cases win. By default `build start` answers task 1 of 1.
+# cases win. By default `build start` answers task 1 of 1. A jq that fails on
+# any call sits on PATH.
 stub_handoff_env() {
   local dir="$1"
   mkdir -p "$dir/bin"
@@ -16,14 +17,29 @@ stub_handoff_env() {
   printf '#!/usr/bin/env bash\nexit 0\n' > "$dir/bin/tandem-review"
   cat > "$dir/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
+nul() { local f; for f in "$@"; do printf '%s\0' "$f"; done; }
 _extra="$(dirname "$0")/tandem.extra"
 [ -f "$_extra" ] && . "$_extra"
 if [ "$1 $2" = "build start" ]; then
-  case " $* " in *" --judge "*) j=true ;; *) j=false ;; esac
-  printf '{"task":1,"total":1,"title":"the plan","brief":"/relay/build/task-1.md","ledger":"","resumed":false,"judge":%s}\n' "${STUB_BUILD_JUDGE:-$j}"
+  case " $* " in *" --judge "*) j=true ;; *) j="" ;; esac
+  j="${STUB_BUILD_JUDGE:-$j}"; [ "$j" = false ] && j=""
+  # engine run_id dry_run task total title brief ledger resumed replaced judge
+  # reviewer review_pending review_prompt
+  nul "" "" "" 1 1 "the plan" /relay/build/task-1.md "" "" "" "$j" "" "" ""
   exit 0
 fi
 case "$1 $2" in
+  # root plans_dir check_command conventions_file builder_kind prompt_extra
+  # task_input_budget context_limit build_engine review_delivery
+  # acceptance_policy collaboration source invalid_manifest
+  # The JSON is what bin/tandem-project prints, for tandem-review.
+  "config project")
+    case " $* " in
+      *" --fields "*) nul "$REPO" docs/plans "${STUB_CHECK-true}" "" "" "${STUB_PROMPT_EXTRA-}" "" "" "" "" "" "" stub "" ;;
+      *) printf '{"root":"%s","plans_dir":"docs/plans","check_command":"%s","conventions_file":"","prompt_extra":"%s","source":"stub"}\n' \
+           "$REPO" "${STUB_CHECK-true}" "${STUB_PROMPT_EXTRA-}" ;;
+    esac
+    exit 0 ;;
   "agent snapshot") printf '%%1\t%s\tidle\n' "$REPO"; exit 0 ;;
   "gate review")    exit 0 ;;
 esac
@@ -32,13 +48,8 @@ case "$1" in
 esac
 exit 0
 STUB
-  cat > "$dir/bin/tandem-project" <<'STUB'
-#!/usr/bin/env bash
-jq -n --arg root "$REPO" --arg check "${STUB_CHECK-true}" --arg extra "${STUB_PROMPT_EXTRA-}" \
-  '{root:$root, plans_dir:"docs/plans", check_command:$check,
-    conventions_file:"", prompt_extra:$extra, source:"stub"}'
-STUB
-  chmod +x "$dir/bin/herdr" "$dir/bin/tandem-review" "$dir/bin/tandem" "$dir/bin/tandem-project"
-  # Symlink after the chmod, so chmod never touches the real jq.
-  ln -s "$(command -v jq)" "$dir/bin/jq"
+  chmod +x "$dir/bin/herdr" "$dir/bin/tandem-review" "$dir/bin/tandem"
+  # A jq that fails: tandem-handoff asks tandem, so any jq call is a bug.
+  printf '#!/bin/sh\necho "jq was called: $*" >&2\nexit 99\n' > "$dir/bin/jq"
+  chmod +x "$dir/bin/jq"
 }

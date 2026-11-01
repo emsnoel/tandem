@@ -25,7 +25,7 @@ PLAN="$TMP/repo/docs/plans/p.md"; printf '# plan\n' > "$PLAN"
 # gate, and reports objections from `gate review`.
 cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
-[ "$1 $2" = "build start" ] && { printf '{"task":1,"total":1,"title":"the plan","brief":"/relay/build/task-1.md","ledger":"","resumed":false}\n'; exit 0; }
+. "$(dirname "$0")/stub-common"
 printf '%s\n' "$*" >> "$MARKER"
 case "$1 $2" in
   "agent snapshot") printf '%%1\t%s\tidle\n' "$REPO"; exit 0 ;;
@@ -37,14 +37,36 @@ case "$1" in
 esac
 exit 0
 STUB
-cat > "$TMP/bin/tandem-project" <<'STUB'
-#!/usr/bin/env bash
-printf '{"root":"%s","plans_dir":"docs/plans","check_command":"true","conventions_file":"","prompt_extra":"","source":"stub"}\n' "$REPO"
+# stub-common answers what every stub below answers the same way. build start
+# is canned. config project reads check_command and prompt_extra from the
+# check-command and prompt-extra files beside it. The real binary reads and
+# writes the review sidecar.
+cat > "$TMP/bin/stub-common" <<'STUB'
+nul() { local f; for f in "$@"; do printf '%s\0' "$f"; done; }
+_here=$(dirname "$0")
+case "$1 $2" in
+  # engine run_id dry_run task total title brief ledger resumed replaced judge
+  # reviewer review_pending review_prompt
+  "build start") nul "" "" "" 1 1 "the plan" /relay/build/task-1.md "" "" "" "" "" "" ""; exit 0 ;;
+  # root plans_dir check_command conventions_file builder_kind prompt_extra
+  # task_input_budget context_limit build_engine review_delivery
+  # acceptance_policy collaboration source invalid_manifest
+  "config project")
+    nul "$REPO" docs/plans "$(cat "$_here/check-command")" "" "" "$(cat "$_here/prompt-extra")" "" "" "" "" "" "" stub ""
+    exit 0 ;;
+  "config builder-kind") printf 'codex\n'; exit 0 ;;
+  "gate ruling"|"gate rule") exec "$REAL_TANDEM" "$@" ;;
+esac
 STUB
-# herdr is stubbed, so only jq has to be real.
+# project CHECK EXTRA: the project's check_command and prompt_extra.
+project() { printf '%s' "$1" > "$TMP/bin/check-command"; printf '%s' "$2" > "$TMP/bin/prompt-extra"; }
+project true ""
+export REAL_TANDEM; REAL_TANDEM=$(command -v tandem) || { echo "need an installed tandem" >&2; exit 2; }
+# herdr is stubbed. The tests read sidecars with the real jq; tandem-handoff
+# gets one that fails, since it must call none.
 command -v jq >/dev/null || { echo "need jq" >&2; exit 2; }
-# Symlink, not copy: macOS kills a copied /usr/bin/jq on exec.
-ln -s "$(command -v jq)" "$TMP/bin/jq"
+export REAL_JQ; REAL_JQ=$(command -v jq)
+printf '#!/bin/sh\necho "jq was called: $*" >&2\nexit 99\n' > "$TMP/bin/jq"
 printf '#!/usr/bin/env bash\nexit 0\n' > "$TMP/bin/herdr"
 # Logged, so the test can tell a requested review from a printed command.
 cat > "$TMP/bin/tandem-review" <<'STUB'
@@ -94,7 +116,7 @@ fi
 # --- no current review: handoff requests one ---
 cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
-[ "$1 $2" = "build start" ] && { printf '{"task":1,"total":1,"title":"the plan","brief":"/relay/build/task-1.md","ledger":"","resumed":false}\n'; exit 0; }
+. "$(dirname "$0")/stub-common"
 printf '%s\n' "$*" >> "$MARKER"
 case "$1 $2" in
   "agent snapshot") printf '%%1\t%s\tidle\n' "$REPO"; exit 0 ;;
@@ -153,7 +175,7 @@ fi
 # The stub now passes the gate, so --dry-run renders the real launch prompt.
 cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
-[ "$1 $2" = "build start" ] && { printf '{"task":1,"total":1,"title":"the plan","brief":"/relay/build/task-1.md","ledger":"","resumed":false}\n'; exit 0; }
+. "$(dirname "$0")/stub-common"
 printf '%s\n' "$*" >> "$MARKER"
 case "$1 $2" in
   "agent snapshot") printf '%%1\t%s\tidle\n' "$REPO"; exit 0 ;;
@@ -195,11 +217,7 @@ chk "the ruling outranks the plan"           "outrank the plan"
 # --- injection: a --because reason containing {{EXTRA}} reaches the prompt
 # unchanged. prompt_extra must be non-empty and distinct for this to test
 # anything.
-cat > "$TMP/bin/tandem-project" <<'STUB'
-#!/usr/bin/env bash
-printf '{"root":"%s","plans_dir":"docs/plans","check_command":"true","conventions_file":"","prompt_extra":"REPO-EXTRA-MARKER","source":"stub"}\n' "$REPO"
-STUB
-chmod +x "$TMP/bin/tandem-project"
+project 'true' 'REPO-EXTRA-MARKER'
 
 RC=0
 OUT=$(PATH="$TMP/bin:$PATH" HERDR_ENV=1 MARKER="$MARKER" REPO="$TMP/repo" \
@@ -216,11 +234,7 @@ esac
 
 # --- injection: prompt_extra containing {{OVERRULED}} must not pull in the
 # ruling.
-cat > "$TMP/bin/tandem-project" <<'STUB'
-#!/usr/bin/env bash
-printf '{"root":"%s","plans_dir":"docs/plans","check_command":"true","conventions_file":"","prompt_extra":"see {{OVERRULED}} above","source":"stub"}\n' "$REPO"
-STUB
-chmod +x "$TMP/bin/tandem-project"
+project 'true' 'see {{OVERRULED}} above'
 
 RC=0
 OUT=$(PATH="$TMP/bin:$PATH" HERDR_ENV=1 MARKER="$MARKER" REPO="$TMP/repo" \
@@ -246,11 +260,7 @@ case "$OUT" in
 esac
 
 # Restore the default project stub for the remaining cases.
-cat > "$TMP/bin/tandem-project" <<'STUB'
-#!/usr/bin/env bash
-printf '{"root":"%s","plans_dir":"docs/plans","check_command":"true","conventions_file":"","prompt_extra":"","source":"stub"}\n' "$REPO"
-STUB
-chmod +x "$TMP/bin/tandem-project"
+project 'true' ''
 
 RC=0
 OUT=$(PATH="$TMP/bin:$PATH" HERDR_ENV=1 MARKER="$MARKER" REPO="$TMP/repo" \
@@ -361,7 +371,7 @@ fi
 # gate only reads the newest record.
 cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
-[ "$1 $2" = "build start" ] && { printf '{"task":1,"total":1,"title":"the plan","brief":"/relay/build/task-1.md","ledger":"","resumed":false}\n'; exit 0; }
+. "$(dirname "$0")/stub-common"
 printf '%s\n' "$*" >> "$MARKER"
 case "$1 $2" in
   "agent snapshot") printf '%%1\t%s\tidle\n' "$REPO"; exit 0 ;;
@@ -396,12 +406,13 @@ fi
 # the sidecar, so the main call must be skipped for the override to render.
 DRYID="20260910-000050-1-1"
 printf 'objection: do not do X\n' > "$TMP/repo/.tandem-relay/reviews/$DRYID.md"
-printf '{"plan":"%s","verdict":"objections","kind":"codex","autonomy":"auto","override_reason":""}\n' \
+# "keep" is a key handoff knows nothing about; a recorded ruling must keep it.
+printf '{"plan":"%s","verdict":"objections","kind":"codex","autonomy":"auto","override_reason":"","keep":{"a":[1]}}\n' \
   "$PLAN" > "$TMP/repo/.tandem-relay/reviews/$DRYID.json"
 
 cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
-[ "$1 $2" = "build start" ] && { printf '{"task":1,"total":1,"title":"the plan","brief":"/relay/build/task-1.md","ledger":"","resumed":false}\n'; exit 0; }
+. "$(dirname "$0")/stub-common"
 printf '%s\n' "$*" >> "$MARKER"
 case "$1 $2" in
   "agent snapshot") printf '%%1\t%s\tidle\n' "$REPO"; exit 0 ;;
@@ -415,8 +426,8 @@ case "$1 $2" in
       esac
     done
     meta="$REPO/.tandem-relay/reviews/$DRYID.json"
-    reason=$(jq -r '.override_reason // ""' "$meta" 2>/dev/null)
-    verdict=$(jq -r '.verdict // ""' "$meta" 2>/dev/null)
+    reason=$("$REAL_JQ" -r '.override_reason // ""' "$meta" 2>/dev/null)
+    verdict=$("$REAL_JQ" -r '.verdict // ""' "$meta" 2>/dev/null)
     if [[ -n "$expect" && "$expect" != "$DRYID" ]]; then
       printf 'superseded\n%s\n' "$DRYID"
       exit 24
@@ -460,6 +471,15 @@ else
   nope "dry-run wrote '$STORED' to the sidecar"
 fi
 
+# Without --dry-run the ruling is recorded, and every other key stays.
+RC=0
+OUT=$(PATH="$TMP/bin:$PATH" HERDR_ENV=1 MARKER="$MARKER" REPO="$TMP/repo" DRYID="$DRYID" \
+        "$HANDOFF" "$PLAN" --override-review "$DRYID" --because 'record this one' 2>&1) || RC=$?
+STORED=$(jq -r '.override_reason' "$TMP/repo/.tandem-relay/reviews/$DRYID.json")
+[ "$STORED" = "record this one" ] && ok "a real override records the ruling" || nope "the ruling was not recorded (got '$STORED', rc $RC)"
+[ "$(jq -c '.keep' "$TMP/repo/.tandem-relay/reviews/$DRYID.json")" = '{"a":[1]}' ] \
+  && ok "and keeps the keys handoff does not know" || nope "the ruling write dropped or changed another key"
+
 # --- an unrecognised pre-check result writes nothing ---
 # A tandem too old for --expect-review exits 2 with empty stdout, which looks
 # like a bare pass by reason alone. The exit code must decide.
@@ -470,7 +490,7 @@ printf '{"plan":"%s","verdict":"objections","kind":"codex","autonomy":"auto","ov
 
 cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
-[ "$1 $2" = "build start" ] && { printf '{"task":1,"total":1,"title":"the plan","brief":"/relay/build/task-1.md","ledger":"","resumed":false}\n'; exit 0; }
+. "$(dirname "$0")/stub-common"
 printf '%s\n' "$*" >> "$MARKER"
 case "$1 $2" in
   "agent snapshot") printf '%%1\t%s\tidle\n' "$REPO"; exit 0 ;;
@@ -508,15 +528,11 @@ fi
 
 # --- a slot marker in check_command does not corrupt the render ---
 # check_command is repo-controlled and substitutes before OVERRULED.
-cat > "$TMP/bin/tandem-project" <<STUB
-#!/usr/bin/env bash
-printf '{"root":"%s","plans_dir":"docs/plans","check_command":"make test {{OVERRULED}}","conventions_file":"","prompt_extra":"","source":"stub"}\n' "$TMP/repo"
-STUB
-chmod +x "$TMP/bin/tandem-project"
+project 'make test {{OVERRULED}}' ''
 
 cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
-[ "$1 $2" = "build start" ] && { printf '{"task":1,"total":1,"title":"the plan","brief":"/relay/build/task-1.md","ledger":"","resumed":false}\n'; exit 0; }
+. "$(dirname "$0")/stub-common"
 printf '%s\n' "$*" >> "$MARKER"
 case "$1 $2" in
   "agent snapshot") printf '%%1\t%s\tidle\n' "$REPO"; exit 0 ;;
@@ -551,15 +567,11 @@ esac
 
 # --- a triple-brace marker is fully defanged ---
 # One pass turns "{{{OVERRULED}}}" into a live "{{OVERRULED}}".
-cat > "$TMP/bin/tandem-project" <<STUB
-#!/usr/bin/env bash
-printf '{"root":"%s","plans_dir":"docs/plans","check_command":"make test {{{OVERRULED}}}","conventions_file":"","prompt_extra":"","source":"stub"}\n' "$TMP/repo"
-STUB
-chmod +x "$TMP/bin/tandem-project"
+project 'make test {{{OVERRULED}}}' ''
 
 cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
-[ "$1 $2" = "build start" ] && { printf '{"task":1,"total":1,"title":"the plan","brief":"/relay/build/task-1.md","ledger":"","resumed":false}\n'; exit 0; }
+. "$(dirname "$0")/stub-common"
 printf '%s\n' "$*" >> "$MARKER"
 case "$1 $2" in
   "agent snapshot") printf '%%1\t%s\tidle\n' "$REPO"; exit 0 ;;
@@ -602,15 +614,11 @@ printf '{"plan":"%s","verdict":"clean","kind":"codex","autonomy":"auto","overrid
   "$PLAN" > "$TMP/repo/.tandem-relay/reviews/$BADID.json"
 printf 'not json at all' > "$TMP/repo/.tandem-relay/builder.json"
 
-cat > "$TMP/bin/tandem-project" <<STUB
-#!/usr/bin/env bash
-printf '{"root":"%s","plans_dir":"docs/plans","check_command":"true","conventions_file":"","prompt_extra":"","source":"stub"}\n' "$TMP/repo"
-STUB
-chmod +x "$TMP/bin/tandem-project"
+project 'true' ''
 
 cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
-[ "$1 $2" = "build start" ] && { printf '{"task":1,"total":1,"title":"the plan","brief":"/relay/build/task-1.md","ledger":"","resumed":false}\n'; exit 0; }
+. "$(dirname "$0")/stub-common"
 printf '%s\n' "$*" >> "$MARKER"
 case "$1 $2" in
   "agent snapshot") printf '%%1\t%s\tidle\n' "$REPO"; exit 0 ;;
@@ -667,15 +675,11 @@ fi
 # --- EXTRA's trailing newline survives defanging ---
 # Command substitution strips trailing newlines, which would collapse the
 # blank line after prompt_extra.
-cat > "$TMP/bin/tandem-project" <<STUB
-#!/usr/bin/env bash
-printf '{"root":"%s","plans_dir":"docs/plans","check_command":"true","conventions_file":"","prompt_extra":"REPO-EXTRA-MARKER","source":"stub"}\n' "$TMP/repo"
-STUB
-chmod +x "$TMP/bin/tandem-project"
+project 'true' 'REPO-EXTRA-MARKER'
 
 cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
-[ "$1 $2" = "build start" ] && { printf '{"task":1,"total":1,"title":"the plan","brief":"/relay/build/task-1.md","ledger":"","resumed":false}\n'; exit 0; }
+. "$(dirname "$0")/stub-common"
 printf '%s\n' "$*" >> "$MARKER"
 case "$1 $2" in
   "agent snapshot") printf '%%1\t%s\tidle\n' "$REPO"; exit 0 ;;
@@ -711,7 +715,7 @@ printf '{"plan":"%s","verdict":"clean","kind":"codex","autonomy":"auto","reviewe
   "$PLAN" > "$TMP/repo/.tandem-relay/reviews/$RVID.json"
 cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
-[ "$1 $2" = "build start" ] && { printf '{"task":1,"total":1,"title":"the plan","brief":"/relay/build/task-1.md","ledger":"","resumed":false}\n'; exit 0; }
+. "$(dirname "$0")/stub-common"
 printf '%s\n' "$*" >> "$MARKER"
 case "$1 $2" in
   "agent snapshot") printf '%%1\t%s\tidle\n' "$REPO"; exit 0 ;;
