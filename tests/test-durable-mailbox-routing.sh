@@ -218,7 +218,8 @@ BUILDER_STATUS=idle br "$REL"
 grep -q -- "build event ingest --root $B --claimed $RD/q/e1.json.taken --session-settled" "$CALLS" \
   && ok "a queued v2 message is claimed and ingested, with the settled flag when the builder is idle" || nope "ingest call ($(cat "$CALLS"))"
 [ -f "$RD/q/e1.json.taken" ] && [ ! -f "$RD/q/e1.json" ] && ok "it stays claimed until ingestion removes it" || nope "claim state"
-has "the log names what ingest did" "$OUT" "e1.json.taken: committed"
+printf '%s\n' "$OUT" | grep -q 'e1.json.taken: committed$' && ok "the log names what ingest did, with no trailing space" \
+  || nope "ingest log line: $(printf '%s\n' "$OUT" | grep 'e1.json.taken:' | cat -v)"
 
 printf '{"schema_version":2,"kind":"builder_submitted"}\n' > "$RD/q/e2.json"
 BUILDER_STATUS=working br "$REL"
