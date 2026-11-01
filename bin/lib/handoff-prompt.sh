@@ -52,6 +52,8 @@ defang_slots() {
 # ==============================================================================
 # build_prompt: fill LAUNCH_PROMPT from bin/lib/handoff-prompt.txt.
 build_prompt() {
+  [[ -r "$HANDOFF_LIB/handoff-prompt.txt" ]] \
+    || die "the prompt template $HANDOFF_LIB/handoff-prompt.txt is missing; re-run install.sh. Nothing was sent."
   read -r -d '' TEMPLATE < "$HANDOFF_LIB/handoff-prompt.txt" || true
 
   # Ask for the conventions file only when the CLI does not load it already.
