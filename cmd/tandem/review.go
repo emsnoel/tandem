@@ -15,8 +15,9 @@ import (
 	"github.com/emsnoel/tandem/internal/paths"
 )
 
-// reviewMeta is the sidecar bin/tandem-verdict writes beside each review. The
-// field names must match the script's jq keys.
+// reviewMeta is the sidecar `tandem gate record` writes beside each review for
+// bin/tandem-verdict. Its keys and their order are the ones the script wrote
+// with jq before, so older records read the same.
 type reviewMeta struct {
 	Plan     string `json:"plan"`
 	Verdict  string `json:"verdict"`
