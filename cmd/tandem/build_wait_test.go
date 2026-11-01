@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/emsnoel/tandem/internal/exitcode"
+	"strings"
 	"testing"
 	"time"
 )
@@ -104,8 +105,8 @@ func TestBuildWaitFieldsSettled(t *testing.T) {
 	out, rc := captureStdoutRC(t, func() int {
 		return cmdBuild([]string{"wait", "--root", d.root, "--state-home", d.home, "--until", "running", "--timeout", "1000", "--fields"})
 	})
-	if rc != exitcode.OK || out != "running\x00" {
-		t.Fatalf("rc %d, out %q", rc, out)
+	if f := strings.Split(out, "\x00"); rc != exitcode.OK || len(f) != 5 || f[0] != "running" || f[1] != "" {
+		t.Fatalf("rc %d, fields %q: want state, pause_code, dispatch, pause_reason", rc, f)
 	}
 }
 
@@ -116,7 +117,26 @@ func TestBuildWaitFieldsTimeout(t *testing.T) {
 	out, rc := captureStdoutRC(t, func() int {
 		return cmdBuild([]string{"wait", "--root", d.root, "--state-home", d.home, "--until", "finished", "--timeout", "0", "--fields"})
 	})
-	if rc != exitcode.ManualGate || out != "running\x00" {
-		t.Fatalf("rc %d, out %q", rc, out)
+	if f := strings.Split(out, "\x00"); rc != exitcode.ManualGate || len(f) != 5 || f[0] != "running" {
+		t.Fatalf("rc %d, fields %q", rc, f)
+	}
+}
+
+// Review focus 4: field 3 is the dispatch of the first unaccepted task's
+// current attempt, the one `--until sent` watches, at a timeout too.
+func TestBuildWaitFieldsDispatch(t *testing.T) {
+	d := durableRepo(t)
+	st, _ := captureStdoutRC(t, func() int {
+		return cmdBuild([]string{"status", "--root", d.root, "--state-home", d.home, "--json"})
+	})
+	var v statusView
+	if err := json.Unmarshal([]byte(st), &v); err != nil || v.dispatch() == "" {
+		t.Fatalf("status %q has no dispatch: %v", st, err)
+	}
+	out, _ := captureStdoutRC(t, func() int {
+		return cmdBuild([]string{"wait", "--root", d.root, "--state-home", d.home, "--until", "finished", "--timeout", "0", "--fields"})
+	})
+	if f := strings.Split(out, "\x00"); len(f) != 5 || f[2] != v.dispatch() {
+		t.Fatalf("fields %q, want dispatch %q", f, v.dispatch())
 	}
 }

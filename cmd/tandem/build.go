@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,6 +30,11 @@ func cmdBuild(args []string) int {
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, buildUse)
 		return exitcode.Usage
+	}
+	if args[0] == "start" {
+		if rest, ok := withoutFlag(args[1:], "--fields"); ok {
+			return cmdBuildStartFields(rest)
+		}
 	}
 	if rc, handled := routeBuild(args[0], args[1:]); handled {
 		return rc
@@ -72,7 +78,11 @@ func loadBuild(root string) (string, *build.Build, error) {
 }
 
 func printJSON(v any) int {
-	if err := json.NewEncoder(os.Stdout).Encode(v); err != nil {
+	var w io.Writer = os.Stdout
+	if jsonOut != nil {
+		w = jsonOut
+	}
+	if err := json.NewEncoder(w).Encode(v); err != nil {
 		return fail(err)
 	}
 	return exitcode.OK

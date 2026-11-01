@@ -104,7 +104,7 @@ func cmdBuildWait(args []string) int {
 	timeoutMS := fs.Int("timeout", 0, "milliseconds to wait")
 	untilNot := fs.String("until-not", "", "return once the run's state is not this one")
 	tick := fs.Bool("tick", false, "run a tick before each check")
-	asFields := fs.Bool("fields", false, "print NUL-separated fields for bash (the run's state) in place of JSON")
+	asFields := fs.Bool("fields", false, "print NUL-separated fields for bash (state, pause_code, dispatch, pause_reason) in place of JSON")
 	if err := fs.Parse(args); err != nil || fs.NArg() != 0 || f.root == "" || (len(until) == 0 && *untilNot == "") || *timeoutMS < 0 {
 		fmt.Fprintln(os.Stderr, "usage: tandem build wait --root DIR --until STATE... [--until-not STATE] --timeout MS [--tick] [--fields] [--state-home DIR]")
 		return exitcode.Usage
@@ -138,13 +138,13 @@ func cmdBuildWait(args []string) int {
 			return err
 		}
 	}
-	_, ok, err := waitForRun(read, tk, until, *untilNot, time.Duration(*timeoutMS)*time.Millisecond, time.Now, time.Sleep)
+	v, ok, err := waitForRun(read, tk, until, *untilNot, time.Duration(*timeoutMS)*time.Millisecond, time.Now, time.Sleep)
 	if err != nil {
 		return fail(err)
 	}
 	if *asFields {
-		// Printed on a timeout too: the caller names the state the run is stuck in.
-		writeFields(os.Stdout, last.State)
+		// Printed on a timeout too: the caller names where the run is stuck.
+		writeFields(os.Stdout, last.State, last.PauseCode, v.dispatch(), last.PauseReason)
 	} else if rc := printJSON(last); rc != exitcode.OK {
 		return rc
 	}
