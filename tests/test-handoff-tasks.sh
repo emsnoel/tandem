@@ -141,6 +141,7 @@ has   "carries task 1's note, defanged"  "$P" "Use {PLAN} carefully."
 hasnt "the note's marker was not filled" "$P" "Use $PLAN carefully."
 has   "hands back task 2"                "$P" "--task 2 --report <file>"
 has   "does not ask Jev again"           "$OUT" "not asked again for a later task"
+hasnt "the next task is not called a resumed stop" "$OUT" "stopped part-way"
 
 printf '\n== a changed plan cannot be continued ==\n'
 printf '\nAn edit.\n' >> "$PLAN"

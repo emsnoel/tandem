@@ -58,7 +58,10 @@ send_task() {
   printf 'tandem-handoff: project %s (%s)\n' "$ROOT" "$PROJ_SOURCE"
   printf 'tandem-handoff: plan    %s\n' "$PLAN_ABS"
   _resumed=""
-  [[ "$RESUMED" == true ]] && _resumed=" (resuming a build that stopped part-way)"
+  # --continue is the bridge sending the next task, not a resume after a stop.
+  if [[ "$RESUMED" == true ]] && (( ! CONTINUE )); then
+    _resumed=" (resuming a build that stopped part-way)"
+  fi
   printf 'tandem-handoff: task    %s of %s: %s%s\n' "$TASK" "$TOTAL" "$TASK_TITLE" "$_resumed"
   printf 'tandem-handoff: brief   %s\n' "$BRIEF"
 
