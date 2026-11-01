@@ -1,9 +1,10 @@
 # Shared setup for the tandem-verdict tests: the stubs, the counters and run.
 # Source it from a test in tests/; $0 and $1 are the test's own.
 #
-# Hermetic: tandem, tandem-project and herdr are stubbed and jq is symlinked.
-# `tandem agent self --expect` is the real command, run against the stubbed
-# herdr, because it decides whether a shell is the reviewer pane.
+# Hermetic: tandem and herdr are stubbed. `tandem agent self --expect` is the
+# real command, run against the stubbed herdr, because it decides whether a
+# shell is the reviewer pane. jq fails: tandem-verdict writes through tandem,
+# so any jq call is a bug. The tests read what it wrote with the real jq.
 # shellcheck shell=bash
 . "$(cd "$(dirname "$0")" && pwd)/lib/records.sh"
 VERDICT_BIN="${1:-$(cd "$(dirname "$0")/.." && pwd)/bin/tandem-verdict}"
@@ -18,8 +19,8 @@ command -v jq >/dev/null || { echo "need jq" >&2; exit 2; }
 
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/bin" "$TMP/repo" "$TMP/mailbox"
-# Symlink, not copy: macOS kills a copied /usr/bin/jq on exec.
-ln -s "$(command -v jq)" "$TMP/bin/jq"
+rm -f "$TMP/bin/jq"
+printf '#!/bin/sh\necho "jq was called: $*" >&2\nexit 99\n' > "$TMP/bin/jq"
 (cd "$(dirname "$0")/.." && go build -o "$TMP/tandem-real" ./cmd/tandem) || { echo "could not build tandem" >&2; exit 2; }
 export TANDEM_REAL="$TMP/tandem-real"
 # Cases about a pane set HERDR_PANE_ID themselves.
@@ -35,8 +36,19 @@ cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$MARKER"
 case "$1 $2" in
-  "agent self"|"reviewer show")
+  "agent self"|"reviewer show"|"config builder"|"relay write")
     exec "$TANDEM_REAL" "$@" ;;
+  "gate record")
+    [[ "${GATE_RECORD_RC:-0}" == 0 ]] || exit "$GATE_RECORD_RC"
+    exec "$TANDEM_REAL" "$@" ;;
+  "config project")
+    # Field 1 is the root, echoed from --root; 14 is an invalid manifest.
+    root=""; shift 2
+    while (( $# )); do [[ "$1" == --root ]] && root="$2"; shift; done
+    printf '%s\0' "$root"
+    for _ in 2 3 4 5 6 7 8 9 10 11 12 13; do printf '\0'; done
+    printf '%s\0' "${INVALID_MANIFEST:-}"
+    exit 0 ;;
   "agent snapshot")
     [[ "${AGENT_SNAPSHOT_RC:-0}" == 0 ]] || exit "${AGENT_SNAPSHOT_RC}"
     printf 'w7:p1\t%s\t%s\n' "$REPO" "${SNAPSHOT_STATUS:-idle}"
@@ -60,7 +72,6 @@ case "$1" in
 esac
 exit 0
 STUB
-# tandem-project echoes --root back, as the real one does.
 # HERDR_FAKE makes herdr hang (timeout), fail as the Codex sandbox does
 # (denied), or return an error (error). Otherwise w1:p1 is the builder and
 # w1:p2 the reviewer.
@@ -73,10 +84,6 @@ case "${HERDR_FAKE:-}" in
 esac
 [[ "$1 $2" == "agent list" ]] && { printf '{"result":{"agents":[{"pane_id":"w1:p1","name":"builder","agent_status":"idle"},{"pane_id":"w1:p2","name":"reviewer","agent_status":"idle"}]}}\n'; exit 0; }
 exit 0
-STUB
-cat > "$TMP/bin/tandem-project" <<'STUB'
-#!/usr/bin/env bash
-printf '{"root":"%s"}\n' "$PWD"
 STUB
 chmod +x "$TMP/bin"/*
 
