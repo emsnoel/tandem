@@ -186,7 +186,7 @@ rm -rf "$TMP/mailbox"; mkdir -p "$TMP/mailbox"
 ENV=(HERDR_ROLE=builder AGENT_SNAPSHOT_RC=3)
 run "$HANDBACK_BIN" --report "$REPORT" --plan "$PLAN"
 [[ "$RC" == 0 ]] && ok "sandboxed handback exits 0" || nope "sandboxed handback exits 0 (got $RC)"
-chk "sandboxed handback says queued" "handback queued at"
+chk "sandboxed handback says queued" "handback was queued at"
 QFILE=$(ls "$TMP/mailbox/q"/*.json 2>/dev/null | head -1)
 [[ -n "$QFILE" ]] && ok "a queued handback file was written" || nope "a queued handback file was written"
 if [[ -n "$QFILE" ]]; then

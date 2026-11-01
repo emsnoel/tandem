@@ -78,7 +78,7 @@ run_ask
 chk "heartbeat calls out the dead bridge, not a generic wait" "tandem-bridge is not running"
 chk "final message names the dead bridge as the likely cause" "and tandem-bridge is not running"
 chk "final message tells the caller how to recover" "re-running tandem-pair"
-nchk "heartbeat does not print the generic still-waiting line" "still waiting for planner —"
+nchk "heartbeat does not print the generic still-waiting line" "still waiting for planner,"
 rm -f "$REPO/.tandem-relay"/q/*.json 2>/dev/null
 
 echo "--- bridge pid file present but stale (process does not exist) ---"
@@ -100,7 +100,7 @@ sleep 30 & BRIDGE_PID=$!
 echo "$BRIDGE_PID" > "$REPO/.tandem-relay/bridge.pid"
 PS_MATCH_PID="$BRIDGE_PID" PS_MATCH_NAME="tandem-bridge" run_ask
 [ "$RC" -eq 5 ] && ok "still exits 5 on timeout" || nope "exits 5 on timeout (got $RC)"
-chk "heartbeat uses the generic still-waiting message when the bridge is alive" "still waiting for planner —"
+chk "heartbeat uses the generic still-waiting message when the bridge is alive" "still waiting for planner,"
 chk "final message blames a slow peer, not the bridge" "peer itself is likely just busy or slow"
 nchk "final message does not falsely blame the bridge" "and tandem-bridge is not running"
 kill "$BRIDGE_PID" 2>/dev/null; wait "$BRIDGE_PID" 2>/dev/null
@@ -110,7 +110,7 @@ echo "--- a sandbox that denies the process table entirely (Codex seatbelt) ---"
 sleep 30 & BRIDGE_PID=$!
 echo "$BRIDGE_PID" > "$REPO/.tandem-relay/bridge.pid"
 PS_DENY=1 run_ask
-chk "a live pid is still trusted when ps itself is denied" "still waiting for planner —"
+chk "a live pid is still trusted when ps itself is denied" "still waiting for planner,"
 nchk "ps being denied must not be reported as a dead bridge" "tandem-bridge is not running"
 kill "$BRIDGE_PID" 2>/dev/null; wait "$BRIDGE_PID" 2>/dev/null
 rm -f "$REPO/.tandem-relay/bridge.pid" "$REPO/.tandem-relay"/q/*.json 2>/dev/null
