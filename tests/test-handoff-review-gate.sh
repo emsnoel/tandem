@@ -54,7 +54,7 @@ case "$1 $2" in
   "config project")
     nul "$REPO" docs/plans "$(cat "$_here/check-command")" "" "" "$(cat "$_here/prompt-extra")" "" "" "" "" "" "" stub ""
     exit 0 ;;
-  "config builder-kind") printf 'codex\n'; exit 0 ;;
+  "config builder") nul codex auto; exit 0 ;;
   "gate ruling"|"gate rule") exec "$REAL_TANDEM" "$@" ;;
 esac
 STUB

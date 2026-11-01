@@ -29,7 +29,10 @@ check_planner() {
 # bridge sends the next after handback. A stopped build resumes at its first
 # unfinished task.
 start_build() {
-  BUILDER_KIND=$(tandem config builder-kind --relay "$MAILBOX" 2>/dev/null) || BUILDER_KIND=""
+  BUILDER_KIND=""
+  if tandem config builder --relay "$MAILBOX" >"$FIELDS" 2>/dev/null; then
+    read_field BUILDER_KIND <"$FIELDS"
+  fi
   BARGS=( --plan "$PLAN_ABS" --root "$ROOT" --builder "$BUILDER_NAME" --planner "$PLANNER_NAME"
           --check "$CHECK_COMMAND" --budget "${TASK_BUDGET:-0}" )
   [[ "${HERDR_JUDGE:-0}" == 1 && -n "${TYPESAFE_API_KEY:-}" ]] && BARGS+=( --judge )

@@ -100,18 +100,20 @@ func ruleFail(err error) int {
 	return exitcode.Internal
 }
 
-// cmdConfigBuilderKind prints the kind in the relay's builder record, or
-// nothing when there is no readable record.
-func cmdConfigBuilderKind(args []string) int {
-	fs := flag.NewFlagSet("config builder-kind", flag.ContinueOnError)
+// cmdConfigBuilder prints the kind and autonomy in the relay's builder
+// record as NUL fields, both empty when there is no readable record.
+func cmdConfigBuilder(args []string) int {
+	fs := flag.NewFlagSet("config builder", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	relay := fs.String("relay", "", "the relay mailbox holding builder.json")
 	if err := fs.Parse(args); err != nil || fs.NArg() != 0 || *relay == "" {
-		fmt.Fprintln(os.Stderr, "usage: tandem config builder-kind --relay DIR")
+		fmt.Fprintln(os.Stderr, "usage: tandem config builder --relay DIR")
 		return exitcode.Usage
 	}
-	if rec, err := config.LoadBuilder(*relay); err == nil && rec.Kind != "" {
-		fmt.Println(rec.Kind)
+	rec, err := config.LoadBuilder(*relay)
+	if err != nil {
+		rec = config.BuilderRecord{}
 	}
+	writeFields(os.Stdout, rec.Kind, rec.Autonomy)
 	return exitcode.OK
 }

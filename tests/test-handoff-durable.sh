@@ -43,7 +43,7 @@ case "$1" in
   config)
     case "$2" in
       project) printf '%s\0' "$REPO" docs/plans ./check.sh AGENTS.md codex "" 3000000 "${PROJ_CTX:-0}" "${PROJ_ENGINE:-}" "" "" "" stub "" ;;
-      builder-kind) sed -n 's/.*"kind":"\([^"]*\)".*/\1/p' "$RELAY/builder.json" ;;
+      builder) printf '%s\0' "$(sed -n 's/.*"kind":"\([^"]*\)".*/\1/p' "$RELAY/builder.json")" auto ;;
     esac
     exit 0 ;;
   # The review gate refuses a pair with no reviewer before anything else.
