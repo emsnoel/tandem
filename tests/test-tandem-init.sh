@@ -140,6 +140,7 @@ REPO="$TMP/readonly"; mkdir -p "$REPO"; chmod 555 "$REPO"
 run "$INIT_BIN" --root "$REPO"
 [[ "$RC" == 1 ]] && ok "an unwritable manifest exits 1" || nope "an unwritable manifest exits 1 (got $RC)"
 chk "an unwritable manifest says so" "could not write $REPO/.tandem.json."
+chk "an unwritable manifest gives the reason" "permission denied"
 chmod 755 "$REPO"
 
 # --- git repo: adds both .gitignore entries, once each ------------------------

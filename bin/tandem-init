@@ -75,7 +75,7 @@ if [[ -f "$MANIFEST" && $FORCE -eq 0 ]]; then
   info "$MANIFEST already exists; leaving it alone (--force to overwrite)."
 else
   tandem config write-manifest --file "$MANIFEST" --plans-dir "$PLANS_DIR" --check-command "$CHECK_COMMAND" \
-      --conventions-file "$CONVENTIONS_FILE" --builder-kind "$BUILDER_KIND" 2>/dev/null \
+      --conventions-file "$CONVENTIONS_FILE" --builder-kind "$BUILDER_KIND" \
     || die "could not write $MANIFEST."
   info "wrote $MANIFEST"
 fi
