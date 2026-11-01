@@ -40,3 +40,13 @@ func writeRecord(relay, name string, v any) error {
 	}
 	return os.Rename(path+".tmp", path)
 }
+
+// LoadBuilder reads the builder record tandem-pair wrote in relay.
+func LoadBuilder(relay string) (BuilderRecord, error) {
+	var rec BuilderRecord
+	b, err := os.ReadFile(filepath.Join(relay, BuilderFile))
+	if err != nil {
+		return rec, err
+	}
+	return rec, json.Unmarshal(b, &rec)
+}
