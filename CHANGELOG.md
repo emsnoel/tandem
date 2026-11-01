@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.2](https://github.com/emsnoel/tandem/compare/v0.3.1...v0.3.2) (2026-11-01)
+
+
+### Bug Fixes
+
+* let tandem-pair explain an unresolved builder, and check every pair file for jq ([0783fef](https://github.com/emsnoel/tandem/commit/0783fefa1d9beac66d606d1e99cfd01e79bfb410))
+* report a running reviewer's unenforced model once ([d1254a3](https://github.com/emsnoel/tandem/commit/d1254a3f2b1eefa4a7c69a15f01fd1019aca661d))
+
 ## [0.3.1](https://github.com/emsnoel/tandem/compare/v0.3.0...v0.3.1) (2026-10-31)
 
 
