@@ -31,9 +31,7 @@ while (( $# )); do
     *)         usage >&2; die "unknown argument: $1" ;;
   esac
 done
-[[ "$LIMIT" =~ ^[0-9]+$ ]] || die "--limit must be a non-negative integer."
-
-command -v jq >/dev/null 2>&1 || die "jq not found on PATH."
+[[ "$LIMIT" =~ ^[0-9]+$ ]] || die "--limit takes a whole number, such as 5."
 
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null || printf '%s' "$PWD")
 LOG_DIR="$ROOT/.tandem-log"
@@ -43,31 +41,25 @@ if [[ ! -d "$LOG_DIR" ]]; then
   exit 0
 fi
 
-# Ids sort chronologically (date+time-pid-random).
-shopt -s nullglob
-# Only tandem-ask exchanges. Review triage writes judge-<id>.json here too.
-FILES=()
-for f in "$LOG_DIR"/*.json; do
-  case "$(basename "$f")" in judge-*) continue ;; esac
-  FILES+=( "$f" )
-done
-shopt -u nullglob
-if [[ "${#FILES[@]}" -eq 0 ]]; then
+# tandem sorts the records oldest first, keeps the last LIMIT, and leaves out
+# review triage's judge-<id>.json files. Each record is 8 NUL-separated fields.
+FIELDS=$(mktemp)
+trap 'rm -f "$FIELDS"' EXIT
+tandem relay history --dir "$LOG_DIR" --limit "$LIMIT" >"$FIELDS" 2>/dev/null \
+  || die "the installed tandem is behind these commands (no 'tandem relay history'); re-run install.sh."
+if [[ ! -s "$FIELDS" ]]; then
   printf 'tandem-relaylog: no history yet at %s\n' "$LOG_DIR" >&2
   exit 0
 fi
 
-SORTED=$(printf '%s\n' "${FILES[@]}" | sort)
-if [[ "$LIMIT" -gt 0 ]]; then
-  SORTED=$(printf '%s\n' "$SORTED" | tail -n "$LIMIT")
-fi
-
-while IFS= read -r f; do
-  [[ -n "$f" ]] || continue
-  if (( AS_JSON )); then
-    # -c prints one line per record whatever the file's formatting.
-    jq -c '.' "$f"
+while IFS= read -r -d '' file && IFS= read -r -d '' json \
+      && IFS= read -r -d '' id && IFS= read -r -d '' ts && IFS= read -r -d '' from \
+      && IFS= read -r -d '' to && IFS= read -r -d '' question && IFS= read -r -d '' answer; do
+  if [[ -z "$json" ]]; then
+    printf 'tandem-relaylog: skipped %s, it is not a JSON record.\n' "$file" >&2
+  elif (( AS_JSON )); then
+    printf '%s\n' "$json"
   else
-    jq -r '"\(.id)  \(.ts)  \(.from) -> \(.to)\n  Q: \(.question)\n  A: \(.answer)\n"' "$f"
+    printf '%s  %s  %s -> %s\n  Q: %s\n  A: %s\n\n' "$id" "$ts" "$from" "$to" "$question" "$answer"
   fi
-done <<<"$SORTED"
+done <"$FIELDS"
