@@ -41,6 +41,20 @@ type relayHandback struct {
 	Created    string `json:"created"`
 }
 
+// relayVerdict is tandem-verdict's queued verdict, for when the reviewer
+// cannot reach Herdr. The bridge delivers its message as written.
+type relayVerdict struct {
+	ID         string `json:"id"`
+	Kind       string `json:"kind"`
+	From       string `json:"from"`
+	To         string `json:"to"`
+	Question   string `json:"question"`
+	Message    string `json:"message"`
+	Plan       string `json:"plan"`
+	ReviewPath string `json:"review_path"`
+	Created    string `json:"created"`
+}
+
 // relayQuestion has no kind: the bridge reads a message without one as a
 // question.
 type relayQuestion struct {
@@ -62,12 +76,14 @@ type relayLog struct {
 
 const relayUse = "usage: tandem relay write task --mailbox DIR --id ID --from NAME --task N --report PATH --plan PATH [--stuck] [--review --verdict V]\n" +
 	"       tandem relay write handback --mailbox DIR --id ID --from NAME --to NAME --message TEXT --report PATH --plan PATH\n" +
+	"       tandem relay write verdict --mailbox DIR --id ID --from NAME --to NAME --message TEXT --plan PATH --review-path PATH\n" +
 	"       tandem relay write question --mailbox DIR --id ID --from NAME --to NAME --question TEXT\n" +
 	"       tandem relay log --dir DIR --id ID --from NAME --to NAME --question TEXT --answer TEXT\n" +
 	"       tandem relay read --file F"
 
 // cmdRelay writes the relay's messages for bin/tandem-handback and
-// bin/tandem-ask: the mailbox files tandem-bridge delivers, and the Q&A log.
+// bin/tandem-ask, and the queued verdict for bin/tandem-verdict: the mailbox
+// files tandem-bridge delivers, and the Q&A log.
 // `relay read` is the bridge's side: it reads one of those files back.
 func cmdRelay(args []string) int {
 	var name string
@@ -87,7 +103,7 @@ func cmdRelay(args []string) int {
 	str := func(n string) *string { return fs.String(n, "", n) }
 	mailbox, dir, id, from, to := str("mailbox"), str("dir"), str("id"), str("from"), str("to")
 	task, report, plan, verdict := str("task"), str("report"), str("plan"), str("verdict")
-	message, question, answer := str("message"), str("question"), str("answer")
+	message, question, answer, reviewPath := str("message"), str("question"), str("answer"), str("review-path")
 	stuck, review := fs.Bool("stuck", false, "stuck"), fs.Bool("review", false, "review")
 	if err := fs.Parse(args); err != nil || fs.NArg() != 0 || *id == "" {
 		fmt.Fprintln(os.Stderr, relayUse)
@@ -106,6 +122,8 @@ func cmdRelay(args []string) int {
 		v = relayTask{*id, "task", *from, "task", n, *stuck, *review, *verdict, *report, *plan, now}
 	case "write handback":
 		v = relayHandback{*id, "handback", *from, *to, "handback", *message, *report, *plan, now}
+	case "write verdict":
+		v = relayVerdict{*id, "verdict", *from, *to, "verdict", *message, *plan, *reviewPath, now}
 	case "write question":
 		v = relayQuestion{*id, *from, *to, *question, now}
 	case "log":
