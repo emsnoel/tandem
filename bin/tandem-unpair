@@ -86,7 +86,9 @@ remove_mailbox() {
 }
 
 SNAP="$(mktemp)"
-trap 'rm -f "$SNAP"' EXIT
+# tandem answers in NUL-separated fields, which bash reads from a file.
+FIELDS="$(mktemp)"
+trap 'rm -f "$SNAP" "$FIELDS"' EXIT
 
 while (( $# )); do
   case "$1" in
@@ -104,7 +106,7 @@ while (( $# )); do
 done
 
 [[ "${HERDR_ENV:-}" == 1 ]] || die "not running inside a Herdr-managed pane (HERDR_ENV != 1)."
-for c in herdr jq tandem tandem-project; do
+for c in herdr tandem; do
   command -v "$c" >/dev/null 2>&1 || die "$c not found on PATH."
 done
 
@@ -202,7 +204,7 @@ REPORTS_PENDING=()
 # handback reports. Reports beside it come from an earlier legacy build.
 DURABLE_ID=""
 if [[ -f "$MAILBOX/active-run.json" ]]; then
-  DURABLE_ID=$(jq -r '.run_id // empty' "$MAILBOX/active-run.json" 2>/dev/null) || DURABLE_ID=""
+  DURABLE_ID=$(tandem state active-run --relay "$MAILBOX" 2>/dev/null) || DURABLE_ID=""
   [[ -n "$DURABLE_ID" ]] || DURABLE_ID="(unreadable marker)"
 fi
 
@@ -278,11 +280,14 @@ fi
 CHECK_COMMAND=""
 CHECK_PATHS=()
 if [[ -n "$BUILDER_PANE" && $FORCE -eq 0 && $SKIP_CHECKS -eq 0 ]]; then
-  PROJECT_JSON=$(tandem-project --root "$ROOT" 2>/dev/null || true)
-  CHECK_COMMAND=$(jq -r '.check_command // empty' <<<"$PROJECT_JSON" 2>/dev/null || true)
-  while IFS= read -r _p; do
-    [[ -n "$_p" ]] && CHECK_PATHS+=( "$_p" )
-  done < <(jq -r '.check_paths[]? // empty' <<<"$PROJECT_JSON" 2>/dev/null || true)
+  # The command, then each check path. A failure leaves both empty, so gate 6
+  # refuses.
+  if tandem config check-command --root "$ROOT" --fields >"$FIELDS" 2>/dev/null; then
+    IFS= read -r -d '' CHECK_COMMAND <"$FIELDS" || true
+    { IFS= read -r -d '' _; while IFS= read -r -d '' _p; do
+        [[ -n "$_p" ]] && CHECK_PATHS+=( "$_p" )
+      done; } <"$FIELDS"
+  fi
 fi
 
 # The builder pane is passed even when empty: cleanup after a builder that is
@@ -486,17 +491,12 @@ fi
 # clean_trust_kind KIND: remove the trust entry tandem added for KIND, unless
 # another agent of that kind still runs in the repo.
 clean_trust_kind() {
-  local _k="$1" others _res
-  # Only another running agent of the same kind needs the entry, so filter by
-  # kind. The builder and reviewer are excluded because this unpair closes them.
-  # Match the root exactly or with a separator, so /repo-other is not /repo.
-  others=$(printf '%s' "$AGENTS" | jq -r \
-    --arg r "$ROOT" --arg k "$_k" --arg bp "$BUILDER_PANE" --arg rp "$REVIEWER_PANE" '
-    [ .result.agents[]?
-      | select(.pane_id != $bp and .pane_id != $rp)
-      | select(.agent == $k)
-      | select(.cwd == $r or (.cwd | startswith($r + "/")))
-    ] | length' 2>/dev/null || printf '')
+  local _k="$1" others _ex=()
+  # Only another running agent of the same kind needs the entry. The builder
+  # and reviewer are left out because this unpair closes them.
+  [[ -n "$BUILDER_PANE" ]] && _ex+=( --exclude-pane "$BUILDER_PANE" )
+  [[ -n "$REVIEWER_PANE" ]] && _ex+=( --exclude-pane "$REVIEWER_PANE" )
+  others=$(tandem agent count --kind "$_k" --under "$ROOT" ${_ex[@]+"${_ex[@]}"} 2>/dev/null) || others=""
 
   # Empty means the query failed. Fail closed before a destructive action.
   if [[ -z "$others" ]]; then
@@ -506,8 +506,7 @@ clean_trust_kind() {
   elif (( DRY_RUN )); then
     info "would remove any $_k trust entry tandem added for $ROOT."
   else
-    _res=$(tandem trust clean --kind "$_k" --cwd "$ROOT" 2>/dev/null || printf '{}')
-    if [[ "$(printf '%s' "$_res" | jq -r '.removed // false')" == true ]]; then
+    if [[ "$(tandem trust clean --kind "$_k" --cwd "$ROOT" 2>/dev/null)" == removed ]]; then
       info "removed the $_k trust entry tandem added for $ROOT."
     else
       info "no tandem $_k trust entry to remove (entries you wrote are never touched)."
@@ -518,23 +517,22 @@ clean_trust_kind() {
 # Trust cleanup runs after verification and before the builder closes. A dry
 # run reports it without touching the trust store.
 if (( CLEAN_TRUST )); then
-  AGENTS=$(tandem agent list 2>/dev/null || true)
-
   # Use the kind read from the running pane. A --builder flag is not persisted,
   # so the configured kind may be wrong.
-  BUILDER_KIND=$(printf '%s' "$AGENTS" | jq -r --arg bp "$BUILDER_PANE" \
-    '[.result.agents[]? | select(.pane_id == $bp) | .agent] | .[0] // empty' 2>/dev/null || true)
-  # Fall back to the configured kind when the pane is gone.
-  if [[ -z "$BUILDER_KIND" ]]; then
-    BUILDER_KIND=$(tandem config resolve --role builder --root "$ROOT" 2>/dev/null \
-      | jq -r '.kind.value // empty' || true)
+  BUILDER_KIND=""
+  if [[ -n "$BUILDER_PANE" ]]; then
+    BUILDER_KIND=$(tandem agent kind --pane "$BUILDER_PANE" 2>/dev/null) || BUILDER_KIND=""
+  fi
+  # Fall back to the configured kind (field 3) when the pane is gone.
+  if [[ -z "$BUILDER_KIND" ]] \
+     && tandem config resolve --role builder --root "$ROOT" --fields >"$FIELDS" 2>/dev/null; then
+    { IFS= read -r -d '' _; IFS= read -r -d '' _; IFS= read -r -d '' BUILDER_KIND; } <"$FIELDS" || true
   fi
 
   # The reviewer's trust entry is cleaned the same way.
   REVIEWER_KIND=""
   if [[ -n "$REVIEWER_PANE" ]]; then
-    REVIEWER_KIND=$(printf '%s' "$AGENTS" | jq -r --arg rp "$REVIEWER_PANE" \
-      '[.result.agents[]? | select(.pane_id == $rp) | .agent] | .[0] // empty' 2>/dev/null || true)
+    REVIEWER_KIND=$(tandem agent kind --pane "$REVIEWER_PANE" 2>/dev/null) || REVIEWER_KIND=""
   fi
 
   if [[ -z "$BUILDER_KIND" ]]; then
@@ -554,7 +552,8 @@ if (( DRY_RUN )); then
   [[ -n "$BRIDGE_PID"   ]] && printf '  [dry-run] kill %s\n' "$BRIDGE_PID"
   if [[ -f "$MAILBOX/active-run.json" ]]; then
     printf '  [dry-run] tandem build stop --root %s   (then wait for the durable run to settle)\n' "$MB_ROOT"
-    printf '  [dry-run] tandem state archive --run %s --root %s\n' "$(jq -r '.run_id // "?"' "$MAILBOX/active-run.json" 2>/dev/null)" "$MB_ROOT"
+    _run=$(tandem state active-run --relay "$MAILBOX" 2>/dev/null) || _run=""
+    printf '  [dry-run] tandem state archive --run %s --root %s\n' "${_run:-?}" "$MB_ROOT"
   fi
   if (( KEEP_RELAY )); then
     if [[ -d "$MAILBOX" ]]; then
@@ -593,13 +592,16 @@ done
 # left open. Only the panes, the bridge and the mailbox are removed.
 DURABLE_RUN=""
 if [[ -f "$MAILBOX/active-run.json" ]]; then
-  DURABLE_RUN=$(jq -er '.run_id' "$MAILBOX/active-run.json" 2>/dev/null) \
+  DURABLE_RUN=$(tandem state active-run --relay "$MAILBOX" 2>/dev/null) || DURABLE_RUN=""
+  [[ -n "$DURABLE_RUN" ]] \
     || die "$MAILBOX/active-run.json is not a readable durable-run marker, so nothing was closed or deleted."
   _tries="${TANDEM_UNPAIR_SETTLE_POLLS:-10}"
   _state=""
   if tandem build stop --root "$MB_ROOT" >/dev/null 2>&1; then
-    _state=$(tandem build wait --root "$MB_ROOT" --until finished --until paused --until archived \
-               --timeout "$(( _tries * 1000 ))" --tick 2>/dev/null | jq -r '.state // empty' 2>/dev/null || true)
+    # The state is printed on a timeout too, so read it whatever the exit code.
+    tandem build wait --root "$MB_ROOT" --until finished --until paused --until archived \
+      --timeout "$(( _tries * 1000 ))" --tick --fields >"$FIELDS" 2>/dev/null || true
+    IFS= read -r -d '' _state <"$FIELDS" || true
   fi
   case "$_state" in
     finished|paused|archived) ;;

@@ -20,26 +20,26 @@ command -v jq >/dev/null || { echo "need jq" >&2; exit 2; }
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/bin"
 (cd "$ROOT_DIR" && go build -o "$TMP/tandem-real" ./cmd/tandem) || { echo "could not build tandem"; exit 1; }
-ln -s "$(command -v jq)" "$TMP/bin/jq"
+# A stub jq that fails: tandem-unpair asks tandem, so any jq call is a bug.
+printf '#!/bin/sh\necho "jq was called: $*" >&2\nexit 99\n' > "$TMP/bin/jq"
 . "$ROOT_DIR/tests/lib/fake-herdr.sh"
 . "$ROOT_DIR/tests/lib/fake-socket.sh"
 fake_herdr_install "$TMP/bin" "$TMP/fake"
 FAKE="$TMP/fake" PATH="$TMP/bin:$PATH" fake_socket_start "$TMP" || exit 1
-printf '#!/usr/bin/env bash\nprintf "{\\"root\\":\\"%%s\\",\\"check_command\\":\\"true\\"}\\n" "$2"\n' > "$TMP/bin/tandem-project"
-chmod +x "$TMP/bin/tandem-project"
 # The pane is gone (exit 10) unless PANE names a live, idle one.
 cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
 case "$1 $2" in
   "agent snapshot") [ -n "${PANE:-}" ] || exit 10; printf '%s\t%s\tidle\n' "$PANE" "$REPO"; exit 0 ;;
   "agent status")   [ -n "${PANE:-}" ] || exit 1; printf 'idle\n'; exit 0 ;;
+  "config check-command") printf 'true\0'; exit 0 ;;
 esac
 case "$1" in
   pane) exit 0 ;;
 esac
 exec "$TANDEM_REAL" "$@"
 STUB
-chmod +x "$TMP/bin/tandem"
+chmod +x "$TMP/bin/tandem" "$TMP/bin/jq"
 
 export TANDEM_REAL="$TMP/tandem-real" TANDEM_STATE_HOME="$TMP/state" FAKE="$TMP/fake" HERDR_ENV=1
 PATHX="$TMP/bin:$ROOT_DIR/bin:/usr/bin:/bin"
