@@ -122,3 +122,20 @@ func TestRelayHistoryEmpty(t *testing.T) {
 		t.Errorf("no --dir: rc %d, want usage", rc)
 	}
 }
+
+// A directory whose path holds glob characters is read as a path, and dot
+// files stay out, as bash's "$LOG_DIR"/*.json did.
+func TestRelayHistoryLiteralDirAndDotFiles(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "proj[1]*?")
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range map[string]string{"1.json": askRecord(1), ".hidden.json": askRecord(2)} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if rc, f := history(t, "--dir", dir); rc != exitcode.OK || !reflect.DeepEqual(questions(t, f), []string{"q1"}) {
+		t.Errorf("rc %d %q", rc, f)
+	}
+}
