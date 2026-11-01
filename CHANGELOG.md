@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/emsnoel/tandem/compare/v0.3.4...v0.4.0) (2026-11-01)
+
+
+### Features
+
+* install and run tandem without jq ([0448abe](https://github.com/emsnoel/tandem/commit/0448abee0f8fbfe0c6a77d43e885fb923abdf583))
+
 ## [0.3.4](https://github.com/emsnoel/tandem/compare/v0.3.3...v0.3.4) (2026-11-01)
 
 
