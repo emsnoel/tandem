@@ -30,7 +30,7 @@ read_check_settings() {
       IFS= read -r -d '' CHECK_COMMAND <"$FIELDS" || true
       { IFS= read -r -d '' _; while IFS= read -r -d '' _p; do
           if [[ -n "$_p" ]]; then CHECK_PATHS+=( "$_p" ); fi
-        done; } <"$FIELDS"
+        done; } <"$FIELDS" || true
     fi
   fi
 }
