@@ -4,7 +4,7 @@
 curl -fsSL https://raw.githubusercontent.com/emsnoel/tandem/main/install.sh | bash
 ```
 
-This installs the latest release. You need `curl`, `tar`, `jq` and `shasum` (or
+This installs the latest release. You need `curl`, `tar` and `shasum` (or
 `sha256sum`). You don't need Go. Here is what `install.sh` does:
 
 1. It downloads the tarball for your machine: macOS or Linux, on arm64 or amd64.
@@ -113,7 +113,7 @@ You need these on every machine:
 
 - Herdr 0.9.3 or later. Every wait reads Herdr's event stream, whose versioned schema
   (protocol 22) arrived in 0.9.3. F27 in `guide/design.md` pins the shapes.
-- `jq`, `git`, `bash`, `curl`, `tar`, and `shasum` or `sha256sum`.
+- `git`, `bash`, `curl`, `tar`, and `shasum` or `sha256sum`.
 - Herdr's integration for each agent you use. `herdr integration install claude` is always
   needed, because the planner is Claude Code. Add `codex`, `copilot` or `opencode` for the
   builder and reviewer kinds you pick. `herdr integration install` lists every kind Herdr
@@ -122,13 +122,12 @@ You need these on every machine:
 You only need the agent CLIs for the kinds you use. tandem never needs all four.
 
 You only need Go 1.26 or later to build from source (`./install.sh --from-source`) and to
-run `tests/run.sh`. Releases are built with `CGO_ENABLED=0` for macOS and Linux on arm64
-and amd64. That works because the durable state store uses `modernc.org/sqlite`, a SQLite
-driver written in Go.
+run `tests/run.sh`. The tests also need `jq`, though tandem itself does not. Releases are
+built with `CGO_ENABLED=0` for macOS and Linux on arm64 and amd64. That works because the
+durable state store uses `modernc.org/sqlite`, a SQLite driver written in Go.
 
 The binary has no bash fallback, on purpose. Two copies of a teardown gate are worse than
-one, because a second copy that drifts fails by passing when it should refuse. tandem
-still needs `jq`.
+one, because a second copy that drifts fails by passing when it should refuse.
 
 tandem is developed and tested on macOS only. `tandem-handoff` checks for BSD or GNU
 `stat`, so plan selection should work on Linux, but nobody has run tandem there yet.

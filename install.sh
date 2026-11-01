@@ -98,13 +98,6 @@ CONFIG="${HERDR_CONFIG_PATH:-$HOME/.config/herdr/config.toml}"
 
 if [ "$MODE" = uninstall ]; then uninstall; return; fi
 
-command -v jq >/dev/null 2>&1 || {
-  printf 'install: FATAL jq is not on PATH.\n' >&2
-  printf 'install: every bin/ command parses Herdr'"'"'s JSON output through jq;\n' >&2
-  printf 'install: install it (e.g. via your package manager) and re-run.\n' >&2
-  exit 1
-}
-
 # --- a prebuilt release -------------------------------------------------------
 # Nothing in DEST or the share directory changes until the download has passed
 # its checksum and the binary has run, so a failed upgrade keeps the old one.
@@ -235,7 +228,7 @@ if [[ ! -e "$CONFIG" ]]; then
   cp "$EXAMPLE" "$CONFIG"
   printf 'install: wrote %s\n' "$CONFIG"
 else
-  printf 'install: %s already exists — left untouched.\n' "$CONFIG"
+  printf 'install: %s already exists, so it was left untouched.\n' "$CONFIG"
   missing=()
   while IFS='|' read -r pattern label; do
     grep -qE "$pattern" "$CONFIG" || missing+=("$label")
@@ -256,7 +249,7 @@ KEYS
   else
     printf 'install: it is missing %s of the settings this harness uses:\n' "${#missing[@]}"
     printf '  - %s\n' "${missing[@]}"
-    printf 'install: these are quality-of-life only — the commands work without them.\n'
+    printf 'install: these only make Herdr nicer to use. The commands work without them.\n'
     printf 'install: copy what you want from %s\n' "$EXAMPLE"
   fi
 fi
