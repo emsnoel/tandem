@@ -71,9 +71,21 @@ while (( $# )); do
 done
 
 [[ "${HERDR_ENV:-}" == 1 ]] || die "not running inside a Herdr-managed pane (HERDR_ENV != 1)."
-for c in herdr jq tandem tandem-project; do
+for c in herdr tandem; do
   command -v "$c" >/dev/null 2>&1 || die "$c not found on PATH."
 done
+
+# tandem answers in NUL-separated fields, read from this file.
+FIELDS=$(mktemp)
+trap 'rm -f "$FIELDS"' EXIT
+# read_field VAR reads the next field into VAR, dropping trailing newlines as
+# command substitution did.
+read_field() {
+  local __v=""
+  IFS= read -r -d '' __v || true
+  while [[ "$__v" == *$'\n' ]]; do __v="${__v%$'\n'}"; done
+  printf -v "$1" '%s' "$__v"
+}
 
 rc=0
 _snap=$(tandem agent snapshot "$BUILDER_NAME" 2>/dev/null) || rc=$?
@@ -84,13 +96,17 @@ case $rc in
 esac
 
 ROOT="${BUILDER_CWD:-$PWD}"
-PROJ=$(tandem-project --root "$ROOT") || die "could not resolve project settings for $ROOT"
-# `|| true`: jq fails on garbage output, and set -e would abort before the
-# empty-root check below.
-pk() { printf '%s' "$PROJ" | jq -r --arg k "$1" '.[$k] // empty' 2>/dev/null || true; }
-ROOT=$(pk root)
-PLANS_DIR="${HERDR_PLANS_SUBDIR:-$(pk plans_dir)}"
-CHECK_COMMAND=$(pk check_command)
+tandem config project --root "$ROOT" --fields >"$FIELDS" 2>/dev/null \
+  || die "could not resolve project settings for $ROOT"
+# Fields 1 to 3 are root, plans dir and check command; 14 names a manifest
+# that is not a JSON object.
+{ read_field ROOT; read_field _plans_dir; read_field CHECK_COMMAND
+  for _ in 4 5 6 7 8 9 10 11 12 13; do read_field _; done
+  read_field _invalid_manifest; } <"$FIELDS"
+if [[ -n "$_invalid_manifest" ]]; then
+  info "WARNING $_invalid_manifest is not a JSON object, so its settings were ignored."
+fi
+PLANS_DIR="${HERDR_PLANS_SUBDIR:-$_plans_dir}"
 
 # Plan resolution matches tandem-handoff and tandem-status.
 if [[ -n "$PLAN_ARG" ]]; then
@@ -137,12 +153,13 @@ TARGET_ROLE=reviewer
 TARGET_NAME="$_rname"
 
 # Class 4 asks about the builder's authority, so read its kind and autonomy.
-_bj="$MAILBOX/builder.json"
-# `|| true`: a parse error must reach the check below.
-BUILDER_KIND=$(jq -r '.kind // empty' "$_bj" 2>/dev/null) || true
-BUILDER_AUTONOMY=$(jq -r '.autonomy // empty' "$_bj" 2>/dev/null) || true
-[[ -n "${BUILDER_KIND:-}" && -n "${BUILDER_AUTONOMY:-}" ]] \
-  || die "no complete builder identity is recorded at $_bj. Run tandem-pair. NOTHING WAS SENT."
+# An unreadable record gives two empty fields, so the check below fires.
+BUILDER_KIND=""; BUILDER_AUTONOMY=""
+if tandem config builder --relay "$MAILBOX" >"$FIELDS" 2>/dev/null; then
+  { read_field BUILDER_KIND; read_field BUILDER_AUTONOMY; } <"$FIELDS"
+fi
+[[ -n "$BUILDER_KIND" && -n "$BUILDER_AUTONOMY" ]] \
+  || die "no complete builder identity is recorded at $MAILBOX/builder.json. Run tandem-pair. NOTHING WAS SENT."
 
 # --- full or diff ---
 # Anything unexpected falls back to a full review: it costs tokens, while a

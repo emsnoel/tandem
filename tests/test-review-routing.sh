@@ -19,20 +19,18 @@ command -v jq >/dev/null || { echo "need jq" >&2; exit 2; }
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/bin"
 (cd "$ROOT_DIR" && go build -o "$TMP/bin/tandem" ./cmd/tandem) || { echo "could not build tandem"; exit 1; }
-ln -s "$(command -v jq)" "$TMP/bin/jq"
+# A jq that fails: tandem-review asks tandem, so any jq call is a bug.
+printf '#!/bin/sh\necho "jq was called: $*" >&2\nexit 99\n' > "$TMP/bin/jq"
+chmod +x "$TMP/bin/jq"
 . "$ROOT_DIR/tests/lib/fake-herdr.sh"
 . "$ROOT_DIR/tests/lib/fake-socket.sh"
 FAKE="$TMP/fake"
 fake_herdr_install "$TMP/bin" "$FAKE"
 FAKE="$FAKE" PATH="$TMP/bin:$PATH" fake_socket_start "$TMP" || exit 1
-cat > "$TMP/bin/tandem-project" <<'STUB'
-#!/usr/bin/env bash
-jq -n --arg root "$REPO" '{root:$root, plans_dir:"docs/plans", check_command:"true", source:"stub"}'
-STUB
-chmod +x "$TMP/bin/tandem-project"
 
 REPO="$TMP/repo"; MB="$REPO/.tandem-relay"
 mkdir -p "$REPO/docs/plans" "$MB"; git -C "$REPO" init -q; REPO=$(cd "$REPO" && pwd -P); MB="$REPO/.tandem-relay"
+printf '{"plans_dir":"docs/plans","check_command":"true"}\n' > "$REPO/.tandem.json"
 PLAN="$REPO/docs/plans/p.md"
 printf '# plan\n### Task 1: one\nstep\n' > "$PLAN"
 write_builder "$MB" claude
@@ -83,6 +81,24 @@ review
 has "says to run tandem-pair" "$OUT" "Run tandem-pair"
 [ ! -s "$FAKE/prompts" ] && [ ! -s "$FAKE/resets" ] && ok "types nothing into any pane" || nope "typed: $(sent_to) $(resets)"
 mv "$MB/builder.json.bak" "$MB/builder.json"
+
+printf '\n== an incomplete builder record: nothing is sent ==\n'
+cp "$MB/builder.json" "$MB/builder.json.bak"
+for rec in '{"kind":"claude"}' 'not json'; do
+  printf '%s\n' "$rec" > "$MB/builder.json"
+  review
+  [ "$RC" -eq 1 ] && ok "builder.json $rec: exits 1" || nope "builder.json $rec: exits 1 (rc $RC: $OUT)"
+  has "builder.json $rec: says no complete builder identity is recorded" "$OUT" "no complete builder identity"
+  [ ! -s "$FAKE/prompts" ] && [ ! -s "$FAKE/resets" ] && ok "builder.json $rec: types nothing" || nope "typed: $(sent_to) $(resets)"
+done
+mv "$MB/builder.json.bak" "$MB/builder.json"
+
+printf '\n== a manifest that is not a JSON object is named ==\n'
+mv "$REPO/.tandem.json" "$REPO/.tandem.json.bak"
+printf '[1]\n' > "$REPO/.tandem.json"
+review --dry-run
+has "warns that the manifest was ignored" "$OUT" "tandem-review: WARNING $REPO/.tandem.json is not a JSON object, so its settings were ignored."
+mv "$REPO/.tandem.json.bak" "$REPO/.tandem.json"
 
 printf '\n== --builder is gone: the builder never reviews ==\n'
 review --builder

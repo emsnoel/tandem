@@ -20,8 +20,6 @@ chkno() { case "$FLAT" in *"$2"*) nope "$1 (present but must not be: $2)" ;; *) 
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 . "$(cd "$(dirname "$0")" && pwd)/lib/stub-handoff.sh"
 stub_handoff_env "$TMP"
-# tandem-review still calls jq until roadmap item 5's PR 4.
-ln -sf "$(command -v jq)" "$TMP/bin/jq"
 mkdir -p "$TMP/repo/docs/plans" "$TMP/repo/.tandem-relay"
 # The builder never reviews: tandem-review renders the reviewer's prompt.
 write_reviewer "$TMP/repo/.tandem-relay" codex
