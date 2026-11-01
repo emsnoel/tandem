@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 
 	"github.com/emsnoel/tandem/internal/config"
 	"github.com/emsnoel/tandem/internal/exitcode"
@@ -100,8 +101,9 @@ func ruleFail(err error) int {
 	return exitcode.Internal
 }
 
-// cmdConfigBuilder prints the kind and autonomy in the relay's builder
-// record as NUL fields, both empty when there is no readable record.
+// cmdConfigBuilder prints the kind, autonomy and adopted (true or false) in the
+// relay's builder record as NUL fields: empty, empty and false when there is
+// no readable record.
 func cmdConfigBuilder(args []string) int {
 	fs := flag.NewFlagSet("config builder", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -114,6 +116,6 @@ func cmdConfigBuilder(args []string) int {
 	if err != nil {
 		rec = config.BuilderRecord{}
 	}
-	writeFields(os.Stdout, rec.Kind, rec.Autonomy)
+	writeFields(os.Stdout, rec.Kind, rec.Autonomy, strconv.FormatBool(rec.Adopted))
 	return exitcode.OK
 }

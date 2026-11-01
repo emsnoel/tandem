@@ -113,7 +113,7 @@ process info.
 | `tandem reviewer record --relay DIR --kind K --name N --autonomy A ...` | Writes `reviewer.json`. A running reviewer keeps the earlier record's model only for the same kind and name. Prints the model and the JSON as NUL-separated fields |
 | `tandem config check-command --root DIR [--from DIR] [--fields]` | Prints the project's check command and check paths as JSON, or with `--fields` the command and then each path as NUL-separated fields. The command comes from the nearest manifest at or above `--from`, else from the build files in `--root` |
 | `tandem config project --root DIR [--from DIR] [--fields]` | Prints the project's resolved settings, the JSON `tandem-project` prints. `--fields` prints them as NUL-separated fields in the order the help text names, ending with any manifest that is not a JSON object, then each check path |
-| `tandem config builder --relay DIR` | Prints the kind and autonomy in the relay's `builder.json` as NUL-separated fields, both empty when there is no readable record |
+| `tandem config builder --relay DIR` | Prints the kind, autonomy and adopted (`true` or `false`) in the relay's `builder.json` as NUL-separated fields. With no readable record they are empty, empty and `false` |
 | `tandem gate ruling --relay DIR --id ID` | Prints a review's verdict and the ruling that stands on it, as NUL-separated fields. A ruling never stands on a clean review |
 | `tandem gate rule --relay DIR --id ID --because TEXT` | Records the planner's ruling in the review's sidecar and keeps every other key |
 | `tandem build start ... --fields` | Prints the start's answer from either engine as 14 NUL-separated fields, on a refusal too. A missing value, `null` and `false` print empty |
