@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tandem-handoff: hand an implementation plan to the builder agent.
 #
-# Repo settings come from tandem-project. With no argument, it picks the most
+# Repo settings come from tandem config project. With no argument, it picks the most
 # recently reviewed plan, else the newest plan in the plans directory.
 set -euo pipefail
 
@@ -95,6 +95,16 @@ $(printf '%s\n' "$_pres" | tail -n +2 | sed 's/^/    /')
 MSG
 }
 
+# read_field VAR reads one NUL field from stdin into VAR. It strips trailing
+# newlines, as the command substitution these values came through before did,
+# so the prompt stays the same.
+read_field() {
+  local __v=""
+  IFS= read -r -d '' __v || true
+  while [[ "$__v" == *$'\n' ]]; do __v="${__v%$'\n'}"; done
+  printf -v "$1" '%s' "$__v"
+}
+
 record_build_session() {
   local s
   s=$(tandem agent session "$BUILDER_NAME" --not "$PRE_SESSION" --timeout 5000 2>/dev/null) || s=""
@@ -175,7 +185,10 @@ if [[ -z "$OVERRIDE_ID" && -n "$OVERRIDE_REASON" ]]; then
 fi
 
 [[ "${HERDR_ENV:-}" == 1 ]] || die "not running inside a Herdr-managed pane (HERDR_ENV != 1)."
-for c in herdr jq tandem tandem-project tandem-review; do
+# tandem answers in NUL-separated fields, which bash reads from a file.
+FIELDS=$(mktemp)
+trap 'rm -f "$FIELDS"' EXIT
+for c in herdr tandem tandem-review; do
   command -v "$c" >/dev/null 2>&1 || die "$c not found on PATH."
 done
 
@@ -206,18 +219,18 @@ esac
 # The builder's cwd is the project; $PWD may be a popup's directory.
 ROOT="${BUILDER_CWD:-$PWD}"
 
-PROJ=$(tandem-project --root "$ROOT") || die "could not resolve project settings for $ROOT"
-# `|| true`: jq fails on garbage output, and set -e would abort before the
-# empty-root check below.
-pk() { printf '%s' "$PROJ" | jq -r --arg k "$1" '.[$k] // empty' 2>/dev/null || true; }
-ROOT=$(pk root)
-PLANS_DIR="${HERDR_PLANS_SUBDIR:-$(pk plans_dir)}"
-CHECK_COMMAND=$(pk check_command)
-CONVENTIONS_FILE=$(pk conventions_file)
-PROMPT_EXTRA=$(pk prompt_extra)
-TASK_BUDGET=$(pk task_input_budget)
+tandem config project --root "$ROOT" --fields >"$FIELDS" 2>/dev/null \
+  || die "could not resolve project settings for $ROOT"
+{ read_field ROOT; read_field _plans_dir; read_field CHECK_COMMAND; read_field CONVENTIONS_FILE
+  read_field _; read_field PROMPT_EXTRA; read_field TASK_BUDGET; read_field _context_limit
+  read_field PROJ_BUILD_ENGINE; read_field REVIEW_DELIVERY; read_field ACCEPTANCE_POLICY
+  read_field COLLABORATION; read_field PROJ_SOURCE; read_field _invalid_manifest; } <"$FIELDS"
+if [[ -n "$_invalid_manifest" ]]; then
+  info "WARNING $_invalid_manifest is not a JSON object, so its settings were ignored."
+fi
+PLANS_DIR="${HERDR_PLANS_SUBDIR:-$_plans_dir}"
 # The per-task prompt limit: the flag, else .tandem.json, else the default.
-CONTEXT_LIMIT="${CONTEXT_LIMIT_ARG:-$(pk context_limit)}"
+CONTEXT_LIMIT="${CONTEXT_LIMIT_ARG:-$_context_limit}"
 [[ "$CONTEXT_LIMIT" == 0 ]] && CONTEXT_LIMIT=""
 
 # --- resolve the plan ---
@@ -303,7 +316,8 @@ MSG
       # An empty reason means the gate passed: either the review is clean or an
       # earlier ruling already cleared it. A ruling against a clean review would
       # record a decision nobody made.
-      _stored_verdict=$(jq -r '.verdict // empty' "$_meta" 2>/dev/null) || true
+      tandem gate ruling --relay "$MAILBOX" --id "$OVERRIDE_ID" >"$FIELDS" 2>/dev/null || true
+      read_field _stored_verdict <"$FIELDS"
       if [[ -z "$_pre_reason" && "${_stored_verdict:-}" == clean ]]; then
         printf 'tandem-handoff: review %s raised no objections, so there is nothing to
 ' "$OVERRIDE_ID" >&2
@@ -321,9 +335,7 @@ MSG
         # call too and proceed as the override would.
         DRY_OVERRIDE_OK=1
       else
-        # Write to a temp file: redirecting into the file being read truncates it.
-        jq --arg r "$OVERRIDE_REASON" '.override_reason = $r' "$_meta" > "$_meta.tmp" \
-          && mv "$_meta.tmp" "$_meta" \
+        tandem gate rule --relay "$MAILBOX" --id "$OVERRIDE_ID" --because "$OVERRIDE_REASON" \
           || die "could not record the override in $_meta"
       fi
       ;;
@@ -441,13 +453,11 @@ if [[ -z "$OVERRIDE_ID" ]]; then
   _pass_meta="$MAILBOX/reviews/$_pass_id.json"
   # Same id shape check as the flag path.
   if [[ "$_pass_id" =~ ^[0-9]{8}-[0-9]{6}-[0-9]+-[0-9]+$ && -f "$_pass_meta" ]]; then
-    # A missing ruling is the normal case, not a reason to die under set -e.
-    _stored=$(jq -r '.override_reason // empty' "$_pass_meta" 2>/dev/null) || true
-    # The gate reads override_reason only when the verdict is not clean, so a
-    # reason stored against a clean review is ignored here too. Older sidecars
-    # can hold one.
-    _stored_verdict=$(jq -r '.verdict // empty' "$_pass_meta" 2>/dev/null) || true
-    if [[ -n "${_stored:-}" && "${_stored_verdict:-}" != clean ]]; then
+    # Field 2 is the ruling, empty when there is none. A ruling never stands
+    # on a clean review, which older sidecars can pair with one.
+    tandem gate ruling --relay "$MAILBOX" --id "$_pass_id" >"$FIELDS" 2>/dev/null || true
+    { read_field _; read_field _stored; } <"$FIELDS"
+    if [[ -n "$_stored" ]]; then
       OVERRIDE_ID="$_pass_id"
       OVERRIDE_REASON="$_stored"
     fi
@@ -472,7 +482,7 @@ fi
 # Each handoff sends one task brief to a fresh conversation, and the relay
 # bridge sends the next after handback. A stopped build resumes at its first
 # unfinished task.
-BUILDER_KIND=$(jq -r '.kind // empty' "$MAILBOX/builder.json" 2>/dev/null) || BUILDER_KIND=""
+BUILDER_KIND=$(tandem config builder-kind --relay "$MAILBOX" 2>/dev/null) || BUILDER_KIND=""
 BARGS=( --plan "$PLAN_ABS" --root "$ROOT" --builder "$BUILDER_NAME" --planner "$PLANNER_NAME"
         --check "$CHECK_COMMAND" --budget "${TASK_BUDGET:-0}" )
 [[ "${HERDR_JUDGE:-0}" == 1 && -n "${TYPESAFE_API_KEY:-}" ]] && BARGS+=( --judge )
@@ -481,15 +491,12 @@ BARGS=( --plan "$PLAN_ABS" --root "$ROOT" --builder "$BUILDER_NAME" --planner "$
 # A durable run needs the builder's kind to choose its transport. The legacy
 # engine does not accept the flag. The variable overrides build_engine.
 DURABLE_START=0
-if [[ "${TANDEM_BUILD_ENGINE:-$(pk build_engine)}" == durable || -f "$MAILBOX/active-run.json" ]]; then
+if [[ "${TANDEM_BUILD_ENGINE:-$PROJ_BUILD_ENGINE}" == durable || -f "$MAILBOX/active-run.json" ]]; then
   DURABLE_START=1
   BARGS+=( --builder-kind "$BUILDER_KIND" )
   [[ -n "$CONTEXT_LIMIT" ]] && BARGS+=( --context-limit "$CONTEXT_LIMIT" )
   # Only new runs read these settings. A persisted run keeps its own.
   if [[ ! -f "$MAILBOX/active-run.json" ]]; then
-    REVIEW_DELIVERY=$(pk review_delivery)
-    ACCEPTANCE_POLICY=$(pk acceptance_policy)
-    COLLABORATION=$(pk collaboration)
     [[ -n "$REVIEW_DELIVERY" ]] && BARGS+=( --review-delivery "$REVIEW_DELIVERY" )
     if [[ -n "$ACCEPTANCE_POLICY" ]]; then
       [[ "$ACCEPTANCE_POLICY" == /* ]] || ACCEPTANCE_POLICY="$ROOT/$ACCEPTANCE_POLICY"
@@ -500,14 +507,17 @@ if [[ "${TANDEM_BUILD_ENGINE:-$(pk build_engine)}" == durable || -f "$MAILBOX/ac
 fi
 # Both engines refuse with 23 when no reviewer pane is recorded.
 rc=0
-_build=$(tandem build start "${BARGS[@]}") || rc=$?
-bf() { printf '%s' "$_build" | jq -r --arg k "$1" '.[$k] // empty' 2>/dev/null || true; }
+tandem build start "${BARGS[@]}" --fields >"$FIELDS" || rc=$?
+# The fields are printed on a refusal too, so read them whatever the exit code.
+{ read_field B_ENGINE; read_field RUN_ID; read_field B_DRY_RUN; read_field TASK; read_field TOTAL
+  read_field TASK_TITLE; read_field BRIEF; read_field LEDGER_TEXT; read_field RESUMED; read_field REPLACED
+  read_field B_JUDGE; read_field REVIEWER_TARGET; read_field REVIEW_PENDING; read_field REVIEW_PROMPT_FILE; } <"$FIELDS"
 if (( rc != 0 )); then
   if (( CONTINUE && rc == 23 )); then
     printf 'tandem-handoff: the durable run is paused and needs a person (for example the plan file changed); nothing was sent. See `tandem build status --root %s`.\n' "$ROOT" >&2
     exit "$rc"
   fi
-  if (( rc == 23 )) && [[ -z "$(bf run_id)" ]]; then
+  if (( rc == 23 )) && [[ -z "$RUN_ID" ]]; then
     # Refused before anything was created. The start printed why.
     if (( DURABLE_START )); then
       printf 'tandem-handoff: no durable run was started; the reason is above. Nothing was sent. A task too large for the context limit is raised with --context-limit N, or context_limit in .tandem.json.\n' >&2
@@ -524,14 +534,13 @@ if (( rc != 0 )); then
   die "could not start the build (rc $rc); the reason is above. Only if it says 'tandem build' is unknown, re-run install.sh."
 fi
 # A durable dry run creates nothing, so it has no run id.
-if (( DRY_RUN )) && [[ "$(bf engine)" == durable && "$(bf dry_run)" == true && -z "$(bf run_id)" ]]; then
+if (( DRY_RUN )) && [[ "$B_ENGINE" == durable && "$B_DRY_RUN" == true && -z "$RUN_ID" ]]; then
   printf 'tandem-handoff: [dry-run] a durable run would start for %s; nothing was sent.\n' "$BUILDER_NAME"
   exit 0
 fi
 # A durable run delivers its own prompts, so handoff only ticks it once to
 # send the first task. The bridge keeps ticking.
-if [[ -n "$(bf run_id)" ]]; then
-  RUN_ID=$(bf run_id)
+if [[ -n "$RUN_ID" ]]; then
   if (( DRY_RUN )); then
     printf 'tandem-handoff: [dry-run] durable run %s would continue for %s; nothing was sent.\n' "$RUN_ID" "$BUILDER_NAME"
     exit 0
@@ -556,12 +565,12 @@ MSG
   [[ "$WAIT_S" =~ ^[1-9][0-9]*$ ]] || WAIT_S=120
   rc=0
   _werr=$(mktemp "${TMPDIR:-/tmp}/tandem-handoff-wait.XXXXXX")
-  _st=$(tandem build wait --root "$ROOT" --until sent --until-not running \
-          --timeout "$(( WAIT_S * 1000 ))" 2>"$_werr") || rc=$?
+  tandem build wait --root "$ROOT" --until sent --until-not running \
+    --timeout "$(( WAIT_S * 1000 ))" --fields >"$FIELDS" 2>"$_werr" || rc=$?
   _werrtxt=$(cat "$_werr" 2>/dev/null || true); rm -f "$_werr"
-  sj() { printf '%s' "$_st" | jq -r "$1" 2>/dev/null || true; }
-  _state=$(sj '.state // empty'); _code=$(sj '.pause_code // empty')
-  _disp=$(sj '[.tasks[]? | select(.accepted | not) | .attempts[]? | select(.current) | .dispatch // empty] | first // empty')
+  # Printed at the timeout too: the state, its pause code, the first unfinished
+  # task's dispatch, and the pause reason.
+  { read_field _state; read_field _code; read_field _disp; read_field _reason; } <"$FIELDS"
   if [[ "$_disp" == sent ]]; then
     printf 'tandem-handoff: durable run %s %s for %s.\n' "$RUN_ID" "$verb" "$BUILDER_NAME"
     exit 0
@@ -570,7 +579,7 @@ MSG
     cat >&2 <<MSG
 tandem-handoff: WARNING durable run $RUN_ID could not deliver its task to $BUILDER_NAME, so nothing is building the plan.
 
-$(sj '.pause_reason // "No reason was recorded."' | sed 's/^/    /')
+$(printf '%s\n' "${_reason:-No reason was recorded.}" | sed 's/^/    /')
 
   A model the CLI rejects, an expired login or used-up quota looks like this.
   Fix it in pane $BUILDER_PANE (or re-run tandem-pair), then:
@@ -598,18 +607,14 @@ MSG
     exit 0
   fi
 fi
-TASK=$(bf task); TOTAL=$(bf total); TASK_TITLE=$(bf title); BRIEF=$(bf brief)
-LEDGER_TEXT=$(bf ledger); RESUMED=$(bf resumed); REPLACED=$(bf replaced)
 [[ -n "$REPLACED" ]] && info "WARNING an unfinished build of $REPLACED was replaced; this plan starts again at task 1."
 [[ "$TASK" =~ ^[0-9]+$ && "$TOTAL" =~ ^[0-9]+$ && -n "$BRIEF" ]] \
   || die "the build record gave no task to send. The installed tandem may be behind these commands; re-run install.sh."
 
 # A task paused on its review budget already has its implementation. Send the
 # stored review prompt to the reviewer pane, with no reset and no `build sent`.
-if [[ "$(bf review_pending)" == true ]]; then
-  REVIEW_PROMPT_FILE=$(bf review_prompt)
-  # Never empty: the start refused above without a reviewer.
-  REVIEWER_TARGET=$(bf reviewer)
+if [[ "$REVIEW_PENDING" == true ]]; then
+  # REVIEWER_TARGET is never empty: the start refused above without a reviewer.
   printf 'tandem-handoff: task    %s of %s: %s is paused at its review; sending the review, not the task.\n' "$TASK" "$TOTAL" "$TASK_TITLE"
   if (( DRY_RUN )); then
     # A dry run writes nothing, so the prompt file does not exist yet.
@@ -778,7 +783,7 @@ fi
 
 # The build owns the triage switch. A resume keeps its first handoff's choice.
 JUDGE=""
-if [[ "$(bf judge)" == true ]]; then
+if [[ "$B_JUDGE" == true ]]; then
   JUDGE="
 Tandem decides when a task gets a review. With review triage on, it may skip
 one.
@@ -879,7 +884,7 @@ defang_slots _D_OVERRULED "$OVERRULED"
 LAUNCH_PROMPT="${LAUNCH_PROMPT//\{\{OVERRULED\}\}/$_D_OVERRULED}"
 
 printf 'tandem-handoff: builder %s (pane %s, status: %s)\n' "$BUILDER_NAME" "$BUILDER_PANE" "$BUILDER_STATUS"
-printf 'tandem-handoff: project %s (%s)\n' "$ROOT" "$(pk source)"
+printf 'tandem-handoff: project %s (%s)\n' "$ROOT" "$PROJ_SOURCE"
 printf 'tandem-handoff: plan    %s\n' "$PLAN_ABS"
 _resumed=""
 [[ "$RESUMED" == true ]] && _resumed=" (resuming a build that stopped part-way)"

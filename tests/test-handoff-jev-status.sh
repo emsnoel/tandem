@@ -23,11 +23,6 @@ PLAN="$REPO/docs/plans/p.md"; printf '# plan\n' > "$PLAN"
 # `decision assess` writes STUB_DECISION and STUB_REASON to its --status file
 # and prints advice only for "advice".
 cat > "$TMP/bin/tandem.extra" <<'EXTRA'
-if [ "$1 $2" = "build start" ]; then
-  case " $* " in *" --judge "*) j=true ;; *) j=false ;; esac
-  printf '{"task":1,"total":1,"title":"the plan","brief":"/relay/build/task-1.md","ledger":"","resumed":false,"judge":%s}\n' "${STUB_BUILD_JUDGE:-$j}"
-  exit 0
-fi
 if [ "$1 $2" = "decision assess" ]; then
   st=""; prev=""
   for a in "$@"; do [ "$prev" = --status ] && st="$a"; prev="$a"; done

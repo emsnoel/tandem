@@ -28,7 +28,8 @@ write_builder "$RELAY"
 # A run needs a reviewer pane: the builder never reviews.
 write_reviewer "$RELAY"
 
-ln -s "$(command -v jq)" "$TMP/bin/jq"
+# A jq that fails: tandem-handoff asks tandem, so any jq call is a bug.
+printf '#!/bin/sh\necho "jq was called: $*" >&2\nexit 99\n' > "$TMP/bin/jq"
 printf '#!/usr/bin/env bash\nexit 0\n' > "$TMP/bin/herdr"
 printf '#!/usr/bin/env bash\nexit 0\n' > "$TMP/bin/tandem-review"
 cat > "$TMP/bin/tandem" <<'STUB'
@@ -36,20 +37,31 @@ cat > "$TMP/bin/tandem" <<'STUB'
 printf '%s\n' "$*" >> "$CALLS"
 case "$1" in
   paths) printf '%s\n' "$RELAY"; exit 0 ;;
+    # root plans_dir check_command conventions_file builder_kind prompt_extra
+  # task_input_budget context_limit build_engine review_delivery
+  # acceptance_policy collaboration source invalid_manifest
+  config)
+    case "$2" in
+      project) printf '%s\0' "$REPO" docs/plans ./check.sh AGENTS.md codex "" 3000000 "${PROJ_CTX:-0}" "${PROJ_ENGINE:-}" "" "" "" stub "" ;;
+      builder-kind) sed -n 's/.*"kind":"\([^"]*\)".*/\1/p' "$RELAY/builder.json" ;;
+    esac
+    exit 0 ;;
   # The review gate refuses a pair with no reviewer before anything else.
   gate) [ -f "$RELAY/reviewer.json" ] && exit 0; printf 'no_reviewer\n'; exit 24 ;;
   build)
     case "$2" in
-      start) printf '%s\n' "$START_OUT"; [ -n "${START_ERR:-}" ] && printf '%s\n' "$START_ERR" >&2; exit "${START_RC:-0}" ;;
+      # START_OUT and STATUS_OUT hold fields separated by "|", since an
+      # environment variable cannot hold NUL.
+      start) printf '%s' "$START_OUT" | tr '|' '\000'; [ -n "${START_ERR:-}" ] && printf '%s\n' "$START_ERR" >&2; exit "${START_RC:-0}" ;;
       tick)  printf '{"run_id":"r"}\n'; exit "${TICK_RC:-0}" ;;
-      # What the run reports after its tick; by default the first task was sent.
-      # The wait exits 23 at its timeout with the last status.
+      # What the run reports after its tick: state, pause_code, dispatch and
+      # pause_reason. By default the first task was sent. The wait exits 23 at
+      # its timeout with the last status.
       wait)
-        sent='{"state":"running","tasks":[{"accepted":false,"attempts":[{"current":true,"dispatch":"sent"}]}]}'
-        out="${STATUS_OUT:-$sent}"
+        out="${STATUS_OUT-running||sent||}"
         [ -n "${WAIT_ERR:-}" ] && { printf '%s\n' "$WAIT_ERR" >&2; exit 1; }
-        printf '%s\n' "$out"
-        printf '%s' "$out" | jq -e '.state == "running" and ([.tasks[]? | .attempts[]? | select(.current) | .dispatch] | index("sent") | not)' >/dev/null && exit 23
+        printf '%s' "$out" | tr '|' '\000'
+        case "$out" in "running||sent|"*) exit 0 ;; running*) exit 23 ;; esac
         exit 0 ;;
       status)
         sent='{"state":"running","tasks":[{"accepted":false,"attempts":[{"current":true,"dispatch":"sent"}]}]}'
@@ -65,16 +77,21 @@ case "$1 $2" in
 esac
 exit 0
 STUB
-cat > "$TMP/bin/tandem-project" <<'STUB'
-#!/usr/bin/env bash
-jq -n --arg root "$REPO" --argjson ctx "${PROJ_CTX:-0}" --arg eng "${PROJ_ENGINE:-}" '{root:$root, plans_dir:"docs/plans", check_command:"./check.sh",
-  conventions_file:"AGENTS.md", prompt_extra:"", task_input_budget:3000000, context_limit:$ctx, build_engine:$eng, source:"stub"}'
-STUB
 chmod +x "$TMP/bin/"*
 
 CALLS="$TMP/calls"
-LEGACY='{"task":1,"total":1,"title":"One","brief":"/b/1.md","ledger":"","resumed":false}'
-DURABLE='{"engine":"durable","run_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}'
+# start_out FIELD...: build start's 14 fields, "|"-separated, empty past the
+# ones given: engine run_id dry_run task total title brief ledger resumed
+# replaced judge reviewer review_pending review_prompt.
+start_out() {
+  local out="" n=0 f
+  for f in "$@"; do out="$out$f|"; n=$((n+1)); done
+  while (( n < 14 )); do out="$out|"; n=$((n+1)); done
+  printf '%s' "$out"
+}
+RUN=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+LEGACY=$(start_out "" "" "" 1 1 One /b/1.md)
+DURABLE=$(start_out durable "$RUN")
 run() { # run <env assignments...> -- <handoff args...>
   local envs=()
   while [[ "$1" != -- ]]; do envs+=("$1"); shift; done; shift
@@ -92,8 +109,7 @@ has "it names the run" "$OUT" "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
 printf '\n== handoff waits for the first task to land ==\n'
 status() { # status STATE PAUSE_CODE DISPATCH [REASON]
-  jq -cn --arg s "$1" --arg c "$2" --arg d "$3" --arg r "${4:-}" \
-    '{state:$s, pause_code:$c, pause_reason:$r, tasks:[{accepted:false, attempts:[{current:true, dispatch:$d}]}]}'
+  printf '%s|%s|%s|%s|' "$1" "$2" "$3" "${4:-}"
 }
 run TANDEM_BUILD_ENGINE=durable START_OUT="$DURABLE" STATUS_OUT="$(status running "" sent)" --
 [ "$RC" -eq 0 ] && has "a task that was sent: the run started" "$OUT" "started for builder" || nope "sent: rc $RC: $OUT"
@@ -145,12 +161,12 @@ run START_OUT="$LEGACY" -- --dry-run
 grep '^build start' "$CALLS" | grep -q -- '--builder-kind' && nope "no setting still started durable" || ok "with neither, the default stays legacy"
 
 printf '\n== a durable dry run ==\n'
-run TANDEM_BUILD_ENGINE=durable START_OUT='{"dry_run":true,"engine":"durable"}' -- --dry-run
+run TANDEM_BUILD_ENGINE=durable START_OUT="$(start_out durable "" true)" -- --dry-run
 [ "$RC" -eq 0 ] && ok "a durable dry run exits 0 (rc $RC)" || nope "durable dry run rc $RC: $OUT"
 has "and says a durable run would start" "$OUT" "[dry-run] a durable run would start"
 case "$OUT" in *install.sh*) nope "a durable dry run blamed the install: $OUT" ;; *) ok "and does not blame the install" ;; esac
 grep -q '^build tick' "$CALLS" && nope "a dry run ticked the run" || ok "and ticks nothing"
-run START_OUT='{"dry_run":true,"engine":"durable","run_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}' -- --continue --dry-run
+run START_OUT="$(start_out durable "$RUN" true)" -- --continue --dry-run
 [ "$RC" -eq 0 ] && has "a dry continue says the run would continue" "$OUT" "would continue" || nope "dry continue rc $RC: $OUT"
 grep -q '^build tick' "$CALLS" && nope "a dry continue ticked the run" || ok "and ticks nothing"
 
@@ -174,18 +190,19 @@ case "$OUT" in *"was created but is paused"*) nope "it claims a run was created:
 has "and names both ways to raise the limit" "$OUT" "context_limit in .tandem.json"
 
 printf '\n== continuing ==\n'
-run START_OUT='{"run_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","state":"running"}' -- --continue
+run START_OUT="$(start_out "" "$RUN")" -- --continue
 [ "$RC" -eq 0 ] && ok "--continue on a durable run exits 0" || nope "continue rc $RC: $OUT"
 grep -q '^build start .*--resume-only' "$CALLS" && ok "continue asks start to resume only" || nope "no --resume-only"
 grep -q '^build tick' "$CALLS" && ok "and ticks" || nope "no tick on continue"
 
-run START_OUT='{"run_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","state":"paused","pause_code":"plan_changed"}' START_RC=23 -- --continue
+run START_OUT="$(start_out "" "$RUN")" START_RC=23 -- --continue
 [ "$RC" -eq 23 ] && has "a paused run is reported as needing a person, not as nothing to continue" "$OUT" "needs a person" || nope "paused continue: rc $RC: $OUT"
 grep -q '^build tick' "$CALLS" && nope "a paused run was ticked by handoff" || ok "and handoff does not tick it"
 
-run TANDEM_BUILD_ENGINE=durable START_OUT='{"run_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","state":"paused","pause_code":"context_too_large"}' START_RC=23 --
+run TANDEM_BUILD_ENGINE=durable START_OUT="$(start_out "" "$RUN")" START_RC=23 --
 [ "$RC" -eq 23 ] && has "a start that paused at a gate says so, not 're-run install.sh'" "$OUT" "needs a person" || nope "paused start: rc $RC: $OUT"
 case "$OUT" in *install.sh*) nope "a paused start blamed the install" ;; *) ok "and does not blame the install" ;; esac
+has "and says the run was created, since the fields carry its id" "$OUT" "was created but is paused"
 
 printf '\n== a reviewer pane ==\n'
 rm -f "$RELAY/reviewer.json"

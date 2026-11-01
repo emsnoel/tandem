@@ -78,8 +78,10 @@ has "says the turn ended at once" "$OUT" "ended as soon as it started"
 has "shows what the pane shows" "$OUT" "$MODEL_ERROR"
 
 # tandem-handoff with the gate, the reset and the session lookup stubbed. Other
-# calls go to the real binary and the fake Herdr. STUB_BUILD_JSON is a legacy
-# build paused at a task's review.
+# calls go to the real binary and the fake Herdr. STUB_BUILD_FIELDS is a legacy
+# build paused at a task's review, as build start's fields separated by "|".
+# The fake Herdr writes the Codex log with jq, so jq stays real here; the
+# stub-based handoff tests put a jq that fails on PATH instead.
 cat > "$TMP/hbin/tandem" <<'STUB'
 #!/usr/bin/env bash
 case "$1 $2" in
@@ -87,7 +89,7 @@ case "$1 $2" in
   "agent reset")         printf 'reset\n'; exit 0 ;;
   "agent explain-reset") printf 'fresh conversation for the build (reset).\n'; exit 0 ;;
   "agent session")       case "$*" in *--not*) printf 's2\n' ;; *) printf 's1\n' ;; esac; exit 0 ;;
-  "build start")         if [ -n "${STUB_BUILD_JSON:-}" ]; then printf '%s\n' "$STUB_BUILD_JSON"; exit 0; fi ;;
+  "build start")         if [ -n "${STUB_BUILD_FIELDS:-}" ]; then printf '%s' "$STUB_BUILD_FIELDS" | tr '|' '\000'; exit 0; fi ;;
   "build sent"|"build review-sent") printf '%s\n' "$2" >> "$BUILD_CALLS" ;;
 esac
 exec "$TANDEM_REAL" "$@"
@@ -116,10 +118,10 @@ grep -qx sent "$TMP/build-calls" 2>/dev/null && nope "records the task as sent" 
 
 printf '\n== tandem-handoff: a paused review whose turn ends at once ==\n'
 printf 'Review task 1.\n' > "$TMP/review-prompt.md"
-STUB_BUILD_JSON=$(jq -cn --arg f "$TMP/review-prompt.md" \
-  '{task:1, total:2, title:"one", brief:"step", ledger:"", resumed:false, replaced:"",
-    review_pending:true, review_prompt:$f, reviewer:"reviewer"}')
-export STUB_BUILD_JSON
+# engine run_id dry_run task total title brief ledger resumed replaced judge
+# reviewer review_pending review_prompt
+STUB_BUILD_FIELDS="|||1|2|one|step|||||reviewer|true|$TMP/review-prompt.md|"
+export STUB_BUILD_FIELDS
 fresh; handoff
 [ "$RC" -eq 0 ] && ok "a review that keeps running exits 0" || nope "a review that keeps running exits 0 (rc $RC: $OUT)"
 grep -qx review-sent "$TMP/build-calls" 2>/dev/null && ok "and is recorded as sent" || nope "and is recorded as sent"
@@ -127,7 +129,7 @@ fresh; ends_at_once; handoff
 [ "$RC" -eq 8 ] && ok "a review whose turn ends at once exits 8" || nope "a review whose turn ends at once exits 8 (rc $RC)"
 has "shows what the pane shows" "$OUT" "$MODEL_ERROR"
 grep -qx review-sent "$TMP/build-calls" 2>/dev/null && nope "is recorded as sent" || ok "stays pending, so a re-run sends it again"
-unset STUB_BUILD_JSON
+unset STUB_BUILD_FIELDS
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 (( FAIL == 0 ))

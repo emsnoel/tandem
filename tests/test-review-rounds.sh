@@ -32,6 +32,8 @@ CALLS="$TMP/calls"; SENT="$TMP/sent"
 # the reviewer pane.
 (cd "$(dirname "$0")/.." && go build -o "$TMP/tandem-real" ./cmd/tandem) || { echo "could not build tandem" >&2; exit 2; }
 export TANDEM_REAL="$TMP/tandem-real"
+# tandem-review and tandem-handback still call jq until roadmap item 5's PR 4.
+ln -sf "$(command -v jq)" "$TMP/bin/jq"
 cat > "$TMP/bin/tandem.extra" <<'EXTRA'
 case "$1 $2" in
   "agent self")    exec "$TANDEM_REAL" "$@" ;;

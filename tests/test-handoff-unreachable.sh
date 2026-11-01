@@ -26,8 +26,7 @@ exit 3
 STUB
 # Only for tandem-handoff's `command -v herdr` check; never run.
 printf '#!/usr/bin/env bash\nprintf "{}"\n' > "$TMP/bin/herdr"
-printf '#!/usr/bin/env bash\nprintf "{}"\n' > "$TMP/bin/tandem-project"
-chmod +x "$TMP/bin/tandem" "$TMP/bin/herdr" "$TMP/bin/tandem-project"
+chmod +x "$TMP/bin/tandem" "$TMP/bin/herdr"
 
 MARKER="$TMP/calls"; : > "$MARKER"
 rc=0

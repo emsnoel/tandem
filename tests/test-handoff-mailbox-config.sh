@@ -11,20 +11,23 @@ git -C "$REPO" init -q
 printf '# Plan\n\n**Goal:** g.\n\n### Task 1: One\n\nDo one.\n' > "$REPO/docs/plans/p.md"
 write_builder "$RELAY"; write_reviewer "$RELAY"
 (cd "$ROOT_DIR" && go build -o "$TMP/tandem-real" ./cmd/tandem) || exit 1
-ln -s "$ROOT_DIR/bin/tandem-project" "$TMP/bin/tandem-project"
+# A jq that fails: tandem-handoff asks tandem, so any jq call is a bug. The
+# stub records start's arguments with the real jq.
+export REAL_JQ; REAL_JQ=$(command -v jq) || { echo "need jq" >&2; exit 2; }
+printf '#!/bin/sh\necho "jq was called: $*" >&2\nexit 99\n' > "$TMP/bin/jq"
 printf '#!/usr/bin/env bash\nexit 0\n' > "$TMP/bin/herdr"
 cp "$TMP/bin/herdr" "$TMP/bin/tandem-review"
 cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
 case "$1 $2" in
-  'paths manifest') printf '%s/.tandem.json\n' "$REPO"; exit 0 ;;
   'paths relay') printf '%s\n' "$RELAY"; exit 0 ;;
   'agent snapshot') printf '%%1\t%s\tidle\n' "$REPO"; exit 0 ;;
-  'config check-command') exec "$TANDEM_REAL" "$@" ;;
+  'config project') exec "$TANDEM_REAL" "$@" ;;
   'build start')
-    printf '%s\n' "$@" | jq -Rn '[inputs]' > "$CALLS"
+    printf '%s\n' "$@" | "$REAL_JQ" -Rn '[inputs]' > "$CALLS"
     [[ "${REAL_START:-0}" == 1 ]] && exec "$TANDEM_REAL" "$@"
-    printf '{"dry_run":true,"engine":"durable"}\n'; exit 0 ;;
+    # A durable dry run: engine, run_id and dry_run, then 11 empty fields.
+    printf '%s\0' durable "" true "" "" "" "" "" "" "" "" "" "" ""; exit 0 ;;
 esac
 exit 0
 STUB
