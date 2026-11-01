@@ -521,8 +521,11 @@ error never reaches — and handback delivery from the builder silently failed u
 builder's own handback failed to arrive and exposed it. The bash it replaced was broader
 on purpose: `if ! herdr agent list >/dev/null 2>&1; then ask_via_mailbox; fi`.
 
-One gap is known and deliberate. `tandem-bridge` keeps its own `jq` and its
-`// "unknown"` defaults, because it must keep working when everything else is broken.
+`tandem-bridge` must keep working when everything else is broken. It asks `tandem` like
+every other script (`tandem relay read` for a queued message, `tandem build roles` for the
+build's panes), and a failed call leaves the same empty value a failed `jq` read used to:
+the message is logged as malformed and set aside, and the loop goes on.
+
 `tandem-pair` used to parse herdr JSON with `jq` too, for topology decisions the by-name
 snapshot does not model. Those moved into `tandem agent planner`, `tandem agent adoptable`,
 `tandem pane split-direction` and `tandem tab label`, each a function in `internal/herdr`
