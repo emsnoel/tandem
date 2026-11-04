@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/emsnoel/tandem/internal/artifact"
 	"github.com/emsnoel/tandem/internal/controller"
 	"github.com/emsnoel/tandem/internal/exitcode"
 	"github.com/emsnoel/tandem/internal/paths"
@@ -472,5 +473,60 @@ func TestStatusReportsEachAttemptsDispatch(t *testing.T) {
 	}
 	if got := dispatch(failed); got != "failed" {
 		t.Errorf("after the last attempt: dispatch %q, want failed", got)
+	}
+}
+
+// seedOpenCodeRun starts a durable run the way an older tandem did, with a
+// builder kind that has no adapter now.
+func seedOpenCodeRun(t *testing.T, e *cliEnv) string {
+	t.Helper()
+	id, err := state.ResolveIdentity(e.root, e.home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := state.Open(context.Background(), id.StateRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	art, err := artifact.Open(id.StateRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := controller.New(controller.Dependencies{State: st, Artifacts: art, Transport: noSend{}, CheckExecutor: controller.NewCheckExecutor(art), Owner: cliOwner})
+	if err != nil {
+		t.Fatal(err)
+	}
+	run, err := c.Start(context.Background(), controller.StartRequest{Root: e.root, PlanPath: e.plan, BuilderKind: "opencode", BuilderSession: "builder",
+		PlannerSession: "planner", CheckCommand: "true", ReviewerKind: "claude", ReviewerSession: "reviewer"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return run
+}
+
+func TestOldOpenCodeRunCanBeClosed(t *testing.T) {
+	e := newCLI(t)
+	durableTransport = defaultDurableTransport // what ships: it refuses a kind with no adapter
+	t.Setenv("TANDEM_BUILD_ENGINE", "durable")
+	run := seedOpenCodeRun(t, e)
+
+	rc, out, errOut := e.sub("tick")
+	if res := oneJSON(t, out); rc != exitcode.OK || res["state"] != "paused" || res["pause_code"] != "agent_unsupported" {
+		t.Fatalf("tick rc %d %s %s", rc, out, errOut)
+	}
+	rc, out, errOut = e.sub("status", "--json")
+	if st := oneJSON(t, out); rc != exitcode.OK || st["state"] != "paused" {
+		t.Fatalf("status rc %d %s %s", rc, out, errOut)
+	}
+	// A person ends the run the way they would end any other: stop it, let the
+	// tick settle it, close its jobs, archive it.
+	for _, step := range [][]string{{"build", "stop"}, {"build", "tick"}, {"state", "recover", "--run", run}, {"state", "archive", "--run", run}} {
+		if rc, out, errOut := e.run(append(step, "--root", e.root, "--state-home", e.home)...); rc != exitcode.OK {
+			t.Fatalf("%v rc %d %s %s", step, rc, out, errOut)
+		}
+	}
+	if n := e.tr.count(); n != 0 {
+		t.Fatalf("%d prompts sent to a kind with no adapter", n)
 	}
 }

@@ -220,7 +220,7 @@ func cmdEventIngest(args []string) int {
 	if err != nil {
 		return fail(err)
 	}
-	tr, err := durableTransport(runTransportSpec(ag, *root, d.art))
+	tr, err := runTransport(ag, *root, d.art)
 	if err != nil {
 		return fail(err)
 	}

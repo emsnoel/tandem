@@ -108,3 +108,31 @@ func TestPauseIfAgentsGoneWritesNothingWithoutTheLease(t *testing.T) {
 		t.Fatalf("state %s", run.State)
 	}
 }
+
+// A run an older tandem started with a kind that is no longer supported has no
+// adapter to type with. A tick stops it with a clear state instead of failing
+// the same way on every pass.
+func TestTickPausesARunWhoseKindIsGone(t *testing.T) {
+	for _, tc := range []struct{ name, builder, reviewer string }{
+		{"builder", "opencode", "claude"},
+		{"reviewer", "codex", "opencode"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newCEnv(t)
+			e.builderKind, e.reviewerKind = tc.builder, tc.reviewer
+			e.start()
+			e.tick()
+			run, _ := e.st.GetRun(ctx, e.runID)
+			if run.State != "paused" || run.PauseCode != "agent_unsupported" {
+				t.Fatalf("state %s code %s", run.State, run.PauseCode)
+			}
+			e.tick()
+			if run, _ = e.st.GetRun(ctx, e.runID); run.State != "paused" || run.PauseCode != "agent_unsupported" {
+				t.Fatalf("a later tick left state %s code %s", run.State, run.PauseCode)
+			}
+			if n := len(e.tr.sends); n != 0 {
+				t.Fatalf("%d prompts typed into a run with no adapter", n)
+			}
+		})
+	}
+}

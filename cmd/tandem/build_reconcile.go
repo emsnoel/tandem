@@ -49,7 +49,7 @@ func cmdBuildReconcile(args []string) int {
 	if err != nil {
 		return fail(err)
 	}
-	tr, err := durableTransport(runTransportSpec(ag, f.root, d.art))
+	tr, err := runTransport(ag, f.root, d.art)
 	if err != nil {
 		return fail(err)
 	}

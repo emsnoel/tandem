@@ -175,7 +175,7 @@ func cmdStateRecover(args []string) int {
 	if err != nil {
 		return refusal("recover", err)
 	}
-	tr, err := durableTransport(runTransportSpec(ag, id.CanonicalRoot, art))
+	tr, err := runTransport(ag, id.CanonicalRoot, art)
 	if err != nil {
 		return refusal("recover", err)
 	}
