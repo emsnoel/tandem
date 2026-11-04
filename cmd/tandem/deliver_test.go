@@ -140,21 +140,21 @@ func TestDeliverResetsBeforeATask(t *testing.T) {
 		t.Fatalf("outcome %v reset %v proved %q before %q resets %d", res.outcome, res.reset, res.proved, res.before, p.resets)
 	}
 	for _, c := range []struct {
-		tok   string
-		share bool
-		want  deliverOutcome
-		code  string
+		tok  string
+		want deliverOutcome
+		code string
 	}{
-		{"skip:unsupported", false, sendRefused, "reset_unverified"},
-		{"skip:unsupported", true, sendStarted, ""},
-		{"unconfirmed", true, sendRefused, "reset_failed"},
-		{"skip:off-main", false, sendRefused, "reset_failed"},
+		{"skip:unsupported", sendRefused, "reset_unverified"},
+		{"skip:no-identity", sendRefused, "reset_unverified"},
+		{"skip:holds-build", sendRefused, "reset_unverified"},
+		{"unconfirmed", sendRefused, "reset_failed"},
+		{"skip:off-main", sendRefused, "reset_failed"},
 	} {
 		p := newPane("idle")
 		p.resetTok = c.tok
-		res := deliverPrompt(p.deps(), deliverReq{name: "builder", text: "task", root: "/repo", shareContext: c.share}, task)
+		res := deliverPrompt(p.deps(), deliverReq{name: "builder", text: "task", root: "/repo"}, task)
 		if res.outcome != c.want || res.code != c.code || res.reset {
-			t.Errorf("%s share=%v: outcome %v code %q reset %v err %v", c.tok, c.share, res.outcome, res.code, res.reset, res.err)
+			t.Errorf("%s: outcome %v code %q reset %v err %v", c.tok, res.outcome, res.code, res.reset, res.err)
 		}
 	}
 }

@@ -388,30 +388,24 @@ func (e *cliEnv) run3(args ...string) (int, map[string]any, string, string) {
 	return rc, got, out, errOut
 }
 
-func TestShareContextIsRememberedByTheRun(t *testing.T) {
-	for _, shared := range []bool{false, true} {
-		e := newCLI(t)
-		var seen []transportSpec
-		durableTransport = func(spec transportSpec) (runner.Transport, error) { seen = append(seen, spec); return e.tr, nil }
-		t.Setenv("TANDEM_BUILD_ENGINE", "durable")
-		extra := []string{}
-		if shared {
-			extra = append(extra, "--share-context")
-		}
-		if rc, _, errOut := e.start(extra...); rc != exitcode.OK {
-			t.Fatalf("start: %d %s", rc, errOut)
-		}
-		// Later commands are new processes: what the run was started with is read from the run.
-		seen = nil
-		e.sub("tick")
-		e.sub("recover")
-		if len(seen) != 2 {
-			t.Fatalf("%d transports built", len(seen))
-		}
-		for _, spec := range seen {
-			if spec.ShareContext != shared || spec.Kind != "codex" || spec.Builder != "builder" {
-				t.Errorf("shared=%v: a later command built %+v", shared, spec)
-			}
+func TestLaterCommandsBuildTheTransportFromTheRun(t *testing.T) {
+	e := newCLI(t)
+	var seen []transportSpec
+	durableTransport = func(spec transportSpec) (runner.Transport, error) { seen = append(seen, spec); return e.tr, nil }
+	t.Setenv("TANDEM_BUILD_ENGINE", "durable")
+	if rc, _, errOut := e.start(); rc != exitcode.OK {
+		t.Fatalf("start: %d %s", rc, errOut)
+	}
+	// Later commands are new processes: what the run was started with is read from the run.
+	seen = nil
+	e.sub("tick")
+	e.sub("recover")
+	if len(seen) != 2 {
+		t.Fatalf("%d transports built", len(seen))
+	}
+	for _, spec := range seen {
+		if spec.Kind != "codex" || spec.Builder != "builder" {
+			t.Errorf("a later command built %+v", spec)
 		}
 	}
 }

@@ -29,10 +29,6 @@ type transportSpec struct {
 	Planner   string // the planner's Herdr agent name
 	Root      string // the checkout, where the relay and builder.json live
 	Artifacts *artifact.Store
-	// ShareContext lets a builder with no verified way to start a fresh
-	// conversation be sent its task in the one it has. Without it that builder is
-	// never sent a task, because its earlier context is unknown.
-	ShareContext bool
 	// ReviewerKind and Reviewer name the reviewer pane, when the run has one:
 	// review prompts are typed there, never reset, and observed by that name.
 	ReviewerKind string
@@ -43,7 +39,7 @@ type transportSpec struct {
 // the agents it was started with.
 func runTransportSpec(ag controller.Agents, root string, art *artifact.Store) transportSpec {
 	return transportSpec{Kind: ag.BuilderKind, Builder: ag.BuilderSession, Planner: ag.PlannerSession, Root: root, Artifacts: art,
-		ShareContext: ag.ShareContext, ReviewerKind: ag.ReviewerKind, Reviewer: ag.ReviewerSession}
+		ReviewerKind: ag.ReviewerKind, Reviewer: ag.ReviewerSession}
 }
 
 // maxPromptBytes bounds a prompt passed as one command argument.
@@ -191,7 +187,7 @@ func (t *herdrTransport) Send(ctx context.Context, d runner.Delivery) (runner.Re
 	if len(text) > maxPromptBytes {
 		return runner.Receipt{}, runner.NotSent(fmt.Errorf("the prompt is %d bytes; the most one command can carry is %d", len(text), maxPromptBytes))
 	}
-	res := deliverPrompt(t.d, deliverReq{name: name, text: text, nonce: d.Nonce, root: t.spec.Root, shareContext: t.spec.ShareContext}, p)
+	res := deliverPrompt(t.d, deliverReq{name: name, text: text, nonce: d.Nonce, root: t.spec.Root}, p)
 	switch res.outcome {
 	case sendRefused:
 		return runner.Receipt{}, runner.NotSent(res.err)

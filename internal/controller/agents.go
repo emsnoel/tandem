@@ -13,7 +13,6 @@ import (
 type Agents struct {
 	BuilderKind, BuilderSession, PlannerKind, PlannerSession string
 	ReviewerKind, ReviewerSession                            string
-	ShareContext                                             bool
 }
 
 // RunAgents reads the agents a run was started with, so a caller can build a
@@ -32,5 +31,5 @@ func RunAgents(ctx context.Context, st *state.Store, art *artifact.Store, runID 
 		return Agents{}, err
 	}
 	return Agents{BuilderKind: cfg.BuilderKind, BuilderSession: cfg.BuilderSession, PlannerKind: cfg.PlannerKind, PlannerSession: cfg.PlannerSession,
-		ReviewerKind: cfg.ReviewerKind, ReviewerSession: cfg.ReviewerSession, ShareContext: cfg.ShareContext}, nil
+		ReviewerKind: cfg.ReviewerKind, ReviewerSession: cfg.ReviewerSession}, nil
 }

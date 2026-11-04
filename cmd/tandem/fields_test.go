@@ -72,15 +72,15 @@ func TestLaunchSpecFieldsKindThenArgs(t *testing.T) {
 }
 
 func TestLaunchSpecFieldsRefusalPrintsRemedy(t *testing.T) {
-	dir := withFixture(t, `{"builder":{"kind":"opencode","autonomy":"readonly"}}`, "")
-	if err := config.ApproveKind(config.UserConfigPath(), dir, "opencode"); err != nil {
+	dir := withFixture(t, `{"builder":{"kind":"codex","effort":"max"}}`, "")
+	if err := config.ApproveKind(config.UserConfigPath(), dir, "codex"); err != nil {
 		t.Fatal(err)
 	}
 	var rc int
 	errOut := captureStderr(t, func() {
 		rc = cmdLaunchSpec([]string{"--fields", "--role", "builder", "--root", dir, "--cwd", dir})
 	})
-	if rc != exitcode.WideningRefused || strings.Contains(errOut, `{"error"`) || !strings.HasPrefix(errOut, "tandem: ") {
+	if rc != exitcode.NarrowingRefused || strings.Contains(errOut, `{"error"`) || !strings.HasPrefix(errOut, "tandem: ") {
 		t.Fatalf("rc %d, stderr %q", rc, errOut)
 	}
 }

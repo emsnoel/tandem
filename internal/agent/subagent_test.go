@@ -13,14 +13,14 @@ import "testing"
 // as seen in children's turn_context in real rollout logs (children ran a
 // different model and effort from their parent).
 //
-// copilot and opencode are unverified.
+// copilot is unverified.
 func TestSubagentEffortIsClaimedOnlyWhereVerified(t *testing.T) {
 	for _, a := range []Adapter{claudeAdapter{}, codexAdapter{}} {
 		if got := a.Supports("subagent_effort"); len(got) == 0 {
 			t.Errorf("%s is verified to express a subagent effort axis, got %v", a.Kind(), got)
 		}
 	}
-	for _, a := range []Adapter{copilotAdapter{}, opencodeAdapter{}} {
+	for _, a := range []Adapter{copilotAdapter{}} {
 		if got := a.Supports("subagent_effort"); got != nil {
 			t.Errorf("%s must not claim a subagent effort axis it cannot express, got %v", a.Kind(), got)
 		}

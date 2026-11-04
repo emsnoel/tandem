@@ -101,7 +101,7 @@ func (f failingTransport) RoundTrip(*http.Request) (*http.Response, error) {
 func TestEvalNoLiveCallsByDefault(t *testing.T) {
 	dir := t.TempDir()
 	marker := filepath.Join(dir, "called")
-	for _, bin := range []string{"codex", "claude", "copilot", "opencode", "herdr"} {
+	for _, bin := range []string{"codex", "claude", "copilot", "herdr"} {
 		script := "#!/bin/sh\necho " + bin + " >> " + marker + "\nexit 1\n"
 		if err := os.WriteFile(filepath.Join(dir, bin), []byte(script), 0o755); err != nil {
 			t.Fatal(err)

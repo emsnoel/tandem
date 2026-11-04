@@ -216,7 +216,7 @@
       "id": "builder",
       "type": "frontend",
       "label": "Builder",
-      "sublabel": "codex, claude, copilot, opencode",
+      "sublabel": "codex, claude, copilot",
       "pos": [
         910,
         540

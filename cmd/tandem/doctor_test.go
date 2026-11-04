@@ -20,7 +20,7 @@ func (okProbe) HerdrVersion(context.Context) (string, error)  { return "0.9.3", 
 func (okProbe) Agents(context.Context) ([]herdr.Agent, error) { return nil, nil }
 func (okProbe) Integrations(context.Context) (map[string]herdr.Integration, error) {
 	all := map[string]herdr.Integration{}
-	for _, k := range []string{"claude", "codex", "copilot", "opencode"} {
+	for _, k := range []string{"claude", "codex", "copilot"} {
 		all[k] = herdr.Integration{Kind: k, State: "current"}
 	}
 	return all, nil

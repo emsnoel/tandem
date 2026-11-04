@@ -3,12 +3,16 @@ package main
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/emsnoel/tandem/internal/agent"
+	"github.com/emsnoel/tandem/internal/exitcode"
 	"github.com/emsnoel/tandem/internal/herdr"
+	"github.com/emsnoel/tandem/internal/paths"
 	"github.com/emsnoel/tandem/internal/runner"
 )
 
@@ -301,8 +305,8 @@ func copilotPane() *fakePane {
 	return p
 }
 
-func copilotTransport(p *fakePane, share bool) *herdrTransport {
-	return newHerdrTransport(transportSpec{Kind: "copilot", Builder: "builder", Planner: "planner", Root: "/repo", ShareContext: share}, p.deps())
+func copilotTransport(p *fakePane) *herdrTransport {
+	return newHerdrTransport(transportSpec{Kind: "copilot", Builder: "builder", Planner: "planner", Root: "/repo"}, p.deps())
 }
 
 // The task's receipt names the conversation the reset proved, at once. It
@@ -310,7 +314,7 @@ func copilotTransport(p *fakePane, share bool) *herdrTransport {
 func TestACopilotTaskReceiptNamesTheConversationItsResetProved(t *testing.T) {
 	p := copilotPane()
 	start := p.now
-	rc, err := copilotTransport(p, false).Send(context.Background(), delivery("builder_dispatch", "builder"))
+	rc, err := copilotTransport(p).Send(context.Background(), delivery("builder_dispatch", "builder"))
 	if err != nil || rc.ExternalID != "c2" {
 		t.Fatalf("receipt %+v, %v; want the reset's conversation c2", rc, err)
 	}
@@ -321,21 +325,21 @@ func TestACopilotTaskReceiptNamesTheConversationItsResetProved(t *testing.T) {
 	}
 }
 
-// Without a reset, a Copilot receipt cannot name its conversation: Herdr's id
-// may be one the pane left at an earlier /new.
+// A Copilot task is never sent without a verified reset, and a review prompt,
+// which is not reset, has a receipt that cannot name its conversation: Herdr's
+// id may be one the pane left at an earlier /new.
 func TestACopilotReceiptNeverNamesHerdrsLaunchID(t *testing.T) {
 	p := copilotPane()
 	p.resetTok, p.resetSession = "skip:holds-build", ""
-	rc, err := copilotTransport(p, true).Send(context.Background(), delivery("builder_dispatch", "builder"))
-	if err != nil || rc.ExternalID == "launch-id" {
-		t.Fatalf("receipt %+v, %v: Herdr's launch id is not the conversation", rc, err)
+	if _, err := copilotTransport(p).Send(context.Background(), delivery("builder_dispatch", "builder")); !runner.IsNotSent(err) || len(p.prompts) != 0 {
+		t.Fatalf("a task sent with no verified reset: %v %q", err, p.prompts)
 	}
 	q := copilotPane()
-	rc, err = copilotTransport(q, false).Send(context.Background(), delivery("review_prompt", "builder"))
+	rc, err := copilotTransport(q).Send(context.Background(), delivery("review_prompt", "builder"))
 	if err != nil || rc.ExternalID == "launch-id" {
 		t.Fatalf("review receipt %+v, %v: Herdr's launch id is not the conversation", rc, err)
 	}
-	obs, err := copilotTransport(copilotPane(), false).Observe(context.Background(), "")
+	obs, err := copilotTransport(copilotPane()).Observe(context.Background(), "")
 	if err != nil || obs.Session != "" {
 		t.Errorf("observation %+v, %v: a Copilot session is never taken from Herdr", obs, err)
 	}
@@ -349,13 +353,13 @@ func TestACopilotTurnIsJudgedByTheConversationItsResetProved(t *testing.T) {
 	p := copilotPane()
 	p.endAfter, p.promptTokens = 2, 500
 	p.tokenLog = map[string]int64{"launch-id": 9000}
-	if _, err := copilotTransport(p, false).Send(context.Background(), delivery("builder_dispatch", "builder")); err != nil {
+	if _, err := copilotTransport(p).Send(context.Background(), delivery("builder_dispatch", "builder")); err != nil {
 		t.Fatalf("a short task that used tokens in c2 was refused: %v", err)
 	}
 	q := copilotPane()
 	q.endAfter, q.promptTokens = 2, 0
 	q.tokenLog = map[string]int64{"launch-id": 9000, "c2": 0}
-	if _, err := copilotTransport(q, false).Send(context.Background(), delivery("builder_dispatch", "builder")); !runner.IsNotSent(err) {
+	if _, err := copilotTransport(q).Send(context.Background(), delivery("builder_dispatch", "builder")); !runner.IsNotSent(err) {
 		t.Errorf("a turn that used no tokens in c2 counted as started: %v", err)
 	}
 }
@@ -426,20 +430,13 @@ func TestHerdrSendNeverTypesIntoAnUnconfirmedReset(t *testing.T) {
 			t.Errorf("%s: err %v, prompts %q", tok, err, p.prompts)
 		}
 	}
-	// One that cannot be shown to be fresh is not sent a task, unless the run
-	// was started accepting the conversation the builder has.
+	// One that cannot be shown to be fresh is not sent a task.
 	for _, tok := range []string{"skip:unsupported", "skip:no-identity", "skip:holds-build"} {
 		p := newPane("idle")
 		p.resetTok = tok
 		_, err := transportFor(p).Send(context.Background(), delivery("builder_dispatch", "builder"))
-		if !runner.IsNotSent(err) || len(p.prompts) != 0 || !strings.Contains(err.Error(), "--share-context") {
+		if !runner.IsNotSent(err) || len(p.prompts) != 0 {
 			t.Errorf("%s: err %v, prompts %q", tok, err, p.prompts)
-		}
-		q := newPane("idle")
-		q.resetTok = tok
-		tr := newHerdrTransport(transportSpec{Kind: "codex", Builder: "builder", Planner: "planner", Root: "/repo", ShareContext: true}, q.deps())
-		if _, err := tr.Send(context.Background(), delivery("builder_dispatch", "builder")); err != nil || len(q.prompts) != 1 {
-			t.Errorf("%s with --share-context: err %v, prompts %q", tok, err, q.prompts)
 		}
 	}
 }
@@ -466,16 +463,9 @@ func TestEveryKindIsSentTheSamePromptOrRefusedBeforeTyping(t *testing.T) {
 		if tok != "reset" && (!runner.IsNotSent(err) || len(p.prompts) != 0) {
 			t.Errorf("%s has no verified reset and must not be sent a task into an unknown conversation: %v %q", kind, err, p.prompts)
 		}
-		// Sharing the conversation is explicit, and then every kind gets the same text.
-		q := newPane("idle")
-		q.resetTok = tok
-		tr = newHerdrTransport(transportSpec{Kind: kind, Builder: "builder", Root: "/repo", ShareContext: true}, q.deps())
-		if _, err := tr.Send(context.Background(), runner.Delivery{Kind: "builder_dispatch", EffectID: "e1", Nonce: "n1", PromptHash: "h1", AgentKind: kind, SessionID: "builder"}); err != nil {
-			t.Errorf("%s with --share-context: %v", kind, err)
-		}
-		typed = append(typed, strings.Join(q.prompts, "|"))
+		typed = append(typed, strings.Join(p.prompts, "|"))
 	}
-	if len(typed) < 4 {
+	if len(typed) < 3 {
 		t.Fatalf("only %d kinds registered", len(typed))
 	}
 	for _, x := range typed[1:] {
@@ -725,5 +715,51 @@ func TestAwaitSessionReturnsTheNewSessionFromAnEvent(t *testing.T) {
 	w, _ := d.watch("builder")
 	if s := awaitSession(d, w, "builder", "old", 6*time.Second); s != "new" {
 		t.Fatalf("got %q, want new", s)
+	}
+}
+
+// OpenCode support is gone. Both pane kinds are refused up front, before the
+// run creates any state, and the refusal names the kinds that remain.
+func TestOpenCodeBuilderIsRefusedBeforeAnyState(t *testing.T) {
+	e := newCLI(t)
+	t.Setenv("TANDEM_BUILD_ENGINE", "durable")
+	rc, _, errOut := e.run("build", "start", "--plan", e.plan, "--root", e.root, "--builder-kind", "opencode",
+		"--reviewer", "reviewer", "--reviewer-kind", "claude", "--state-home", e.home)
+	assertOpenCodeRefused(t, e, rc, errOut)
+}
+
+func TestOpenCodeReviewerIsRefusedBeforeAnyState(t *testing.T) {
+	e := newCLI(t)
+	t.Setenv("TANDEM_BUILD_ENGINE", "durable")
+	rc, _, errOut := e.run("build", "start", "--plan", e.plan, "--root", e.root, "--builder-kind", "codex",
+		"--reviewer", "reviewer", "--reviewer-kind", "opencode", "--state-home", e.home)
+	assertOpenCodeRefused(t, e, rc, errOut)
+}
+
+func assertOpenCodeRefused(t *testing.T, e *cliEnv, rc int, errOut string) {
+	t.Helper()
+	if rc != exitcode.NarrowingRefused {
+		t.Errorf("exit %d, want the refusal code %d: %s", rc, exitcode.NarrowingRefused, errOut)
+	}
+	if !strings.Contains(errOut, "codex, claude, copilot") {
+		t.Errorf("stderr does not name the supported kinds: %q", errOut)
+	}
+	for _, p := range []string{filepath.Join(paths.Relay(e.root), "active-run.json"), filepath.Join(e.home, "state.sqlite")} {
+		if _, err := os.Stat(p); err == nil {
+			t.Errorf("%s exists after a refused start", p)
+		}
+	}
+	if matches, _ := filepath.Glob(filepath.Join(e.home, "*", "state.sqlite")); len(matches) > 0 {
+		t.Errorf("state created: %v", matches)
+	}
+}
+
+func TestShareContextFlagIsGone(t *testing.T) {
+	e := newCLI(t)
+	t.Setenv("TANDEM_BUILD_ENGINE", "durable")
+	rc, _, errOut := e.run("build", "start", "--plan", e.plan, "--root", e.root, "--builder-kind", "codex",
+		"--reviewer", "reviewer", "--reviewer-kind", "claude", "--state-home", e.home, "--share-context")
+	if rc != exitcode.Usage {
+		t.Errorf("exit %d, want usage %d: %s", rc, exitcode.Usage, errOut)
 	}
 }

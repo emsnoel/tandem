@@ -370,7 +370,7 @@ func TestConversationTokensReadsTheConversationsLog(t *testing.T) {
 	if _, ok := read("claude", "no-such-session"); ok {
 		t.Error("a missing log was read")
 	}
-	if _, ok := read("opencode", session); ok {
+	if _, ok := read("nonesuch", session); ok {
 		t.Error("a kind with no log reader was read")
 	}
 }

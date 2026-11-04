@@ -1,7 +1,7 @@
 # tandem
 
 tandem runs two coding agents side by side in [Herdr](https://herdr.dev). Claude Code plans,
-and the builder can be any supported agent CLI: `codex`, `claude`, `copilot` or `opencode`.
+and the builder can be any supported agent CLI: `codex`, `claude` or `copilot`.
 Each repository declares the builder's model, effort and autonomy. A third pane, the
 reviewer, checks every plan and every task on its own model, so the builder never reviews
 its own work.

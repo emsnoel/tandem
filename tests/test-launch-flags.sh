@@ -65,13 +65,11 @@ chk  "disables approval prompts"            "--ask-for-approval never"
 chk  "keeps the sandbox at workspace-write" "--sandbox workspace-write"
 nchk "never drops the sandbox by default"   "--dangerously-bypass-approvals-and-sandbox"
 
-echo "--- launch flags: opencode ---"
-run_pair env HERDR_BUILDER_KIND=opencode HERDR_BUILDER_AUTONOMY=full
-chk  "starts opencode"              "agent start builder --kind opencode"
-chk  "auto-approves"                "--auto"
-chk  "derives the build persona"    "--agent build"
-nchk "never passes codex approval"  "--ask-for-approval"
-nchk "never passes a codex sandbox" "--sandbox"
+echo "--- launch flags: opencode is refused ---"
+run_pair env -- --builder opencode
+[ "$RC" -eq 20 ] && ok "refuses with exit 20" || nope "refuses with exit 20 (got $RC)"
+chk  "names the supported kinds"    "supported kinds: claude, codex, copilot"
+nchk "never renders a launch line"  "agent start builder"
 
 # Trust is in place so the copilot launch is asserted; the refusal is
 # asserted separately below.
@@ -204,9 +202,6 @@ echo "--- pre-launch gates ---"
 run_pair env
 chk  "reports the codex trust gate"            "project-trust"
 chk  "says what it would write"                'trust_level = "trusted"'
-run_pair env HERDR_BUILDER_KIND=opencode HERDR_BUILDER_AUTONOMY=full
-nchk "no codex gate for an opencode builder"   "project-trust"
-nchk "no hook warning for an opencode builder" "hook"
 run_pair env HERDR_BUILDER_KIND=copilot HERDR_BUILDER_AUTONOMY=auto
 nchk "no hook warning for a copilot builder"   "hook"
 nchk "never writes codex trust for copilot"    'trust_level = "trusted"'
@@ -235,9 +230,8 @@ chk "names the remedy" "accept the trust dialog"
 nchk "never renders a launch line" "agent start builder"
 
 echo "--- fail closed ---"
-run_pair env HERDR_BUILDER_KIND=opencode HERDR_BUILDER_AUTONOMY=readonly
-chk "refuses a widening" "GRANTS authority"
-chk "names the remedy"   "allow_widen"
+run_pair env HERDR_BUILDER_KIND=codex HERDR_BUILDER_EFFORT=max
+chk "refuses a narrowing" "allow_degrade"
 
 echo "--- legacy env still works ---"
 run_pair env HERDR_BUILDER_SANDBOX=danger-full-access
@@ -248,14 +242,14 @@ echo "--- adoption reports what it cannot enforce ---"
 cat > "$TMP/bin/herdr" <<'STUB2'
 #!/usr/bin/env bash
 case "$1 $2" in
-  "agent list")  printf '{"result":{"agents":[{"pane_id":"p1","agent":"claude","name":null,"cwd":"%s","agent_status":"idle"},{"pane_id":"p9","agent":"opencode","name":null,"cwd":"%s","agent_status":"idle"}]}}' "$FAKE_CWD" "$FAKE_CWD" ;;
+  "agent list")  printf '{"result":{"agents":[{"pane_id":"p1","agent":"claude","name":null,"cwd":"%s","agent_status":"idle"},{"pane_id":"p9","agent":"copilot","name":null,"cwd":"%s","agent_status":"idle"}]}}' "$FAKE_CWD" "$FAKE_CWD" ;;
   "pane layout") printf '{"result":{"layout":{"panes":[{"pane_id":"p1","rect":{"width":200,"height":50}}]}}}' ;;
   *) printf '{"error":{"code":"unexpected","message":"stub got: %s"}}' "$*" >&2; exit 1 ;;
 esac
 STUB2
 chmod +x "$TMP/bin/herdr"
 run_pair env HERDR_BUILDER_KIND=codex HERDR_BUILDER_MODEL=gpt-5.4
-chk  "adopts the running agent whatever its kind" "adopting the running opencode agent"
+chk  "adopts the running agent whatever its kind" "adopting the running copilot agent"
 chk  "names the axes it cannot enforce"           "keeps the settings it started with"
 chk  "says how to apply them"                     "Restart its pane"
 nchk "never adopts the planner pane"              "adopting the running claude agent"

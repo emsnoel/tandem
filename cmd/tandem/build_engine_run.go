@@ -27,13 +27,12 @@ func cmdBuildStartDurable(args []string, retireLegacy string) int {
 	planPath := fs.String("plan", "", "absolute path of the plan")
 	builder := fs.String("builder", "builder", "builder agent name")
 	planner := fs.String("planner", "planner", "planner agent name")
-	kind := fs.String("builder-kind", "", "the builder's agent kind (codex, claude, copilot, opencode)")
+	kind := fs.String("builder-kind", "", "the builder's agent kind (codex, claude, copilot)")
 	reviewer := fs.String("reviewer", "", "reviewer agent name: every review prompt goes to this pane (needs --reviewer-kind; default: the pane tandem-pair recorded in reviewer.json)")
-	reviewerKind := fs.String("reviewer-kind", "", "the reviewer pane's agent kind (codex, claude, copilot, opencode; needs --reviewer)")
+	reviewerKind := fs.String("reviewer-kind", "", "the reviewer pane's agent kind (codex, claude, copilot; needs --reviewer)")
 	check := fs.String("check", "", "the project's check command")
 	budget := fs.Int64("budget", 0, "input tokens one task may use; 0 is off")
 	runBudget := fs.Int64("run-budget", 0, "input tokens the whole run may use; 0 is off")
-	share := fs.Bool("share-context", false, "send a task to a builder with no verified reset in the conversation it already has")
 	ctxLimit := fs.Int("context-limit", 0, "most bytes of prompt a builder is given for one task; 0 is the default of 24000")
 	collab := fs.String("collaboration", "", "attach the run to an open collaboration (see tandem collaboration create)")
 	delivery := fs.String("review-delivery", "", "how reviews come back: manual (default) or mailbox (direct handback; needs --collaboration and --acceptance-policy)")
@@ -43,7 +42,7 @@ func cmdBuildStartDurable(args []string, retireLegacy string) int {
 	resumeOnly := fs.Bool("resume-only", false, "refuse unless a durable run exists to continue")
 	dry := fs.Bool("dry-run", false, "decide and print, write nothing")
 	if err := fs.Parse(args); err != nil || *planPath == "" || f.root == "" || *ctxLimit < 0 {
-		fmt.Fprintln(os.Stderr, "usage: tandem build start --plan FILE --root DIR --builder-kind KIND [--builder N] [--planner N] [--reviewer N --reviewer-kind KIND] [--check CMD] [--budget N] [--run-budget N] [--context-limit N] [--share-context] [--collaboration ID] [--review-delivery manual|mailbox] [--acceptance-policy FILE] [--recovery-policy FILE] [--state-home DIR] [--resume-only] [--dry-run]\n"+
+		fmt.Fprintln(os.Stderr, "usage: tandem build start --plan FILE --root DIR --builder-kind KIND [--builder N] [--planner N] [--reviewer N --reviewer-kind KIND] [--check CMD] [--budget N] [--run-budget N] [--context-limit N] [--collaboration ID] [--review-delivery manual|mailbox] [--acceptance-policy FILE] [--recovery-policy FILE] [--state-home DIR] [--resume-only] [--dry-run]\n"+
 			"A run needs a reviewer pane: the one tandem-pair recorded in reviewer.json, or --reviewer with --reviewer-kind.")
 		return exitcode.Usage
 	}
@@ -73,8 +72,12 @@ func cmdBuildStartDurable(args []string, retireLegacy string) int {
 		fmt.Fprintln(os.Stderr, "tandem build start: a durable run needs --builder-kind")
 		return exitcode.Usage
 	}
+	// A kind with no adapter is refused before the run creates anything.
+	if rc := refuseUnknownKind("--builder-kind", *kind); rc != exitcode.OK {
+		return rc
+	}
 	req := controller.StartRequest{Root: f.root, PlanPath: *planPath, BuilderKind: *kind, BuilderSession: *builder,
-		PlannerSession: *planner, CheckCommand: *check, TaskInputLimit: *budget, RunInputLimit: *runBudget, ContextLimit: *ctxLimit, ShareContext: *share,
+		PlannerSession: *planner, CheckCommand: *check, TaskInputLimit: *budget, RunInputLimit: *runBudget, ContextLimit: *ctxLimit,
 		Collaboration: *collab, ReviewDelivery: *delivery, ReviewProtocol: reviewProtocolFor(*delivery), AcceptancePolicyPath: *policyPath, RecoveryPolicyPath: *recoveryPath,
 		ReviewerKind: *reviewerKind, ReviewerSession: *reviewer}
 	// The flags override the recorded pane. Without them the record decides,
@@ -86,6 +89,9 @@ func cmdBuildStartDurable(args []string, retireLegacy string) int {
 			return exitcode.Usage
 		}
 		return exitcode.ManualGate
+	}
+	if rc := refuseUnknownKind("the reviewer pane's kind", req.ReviewerKind); rc != exitcode.OK {
+		return rc
 	}
 	// Every task's first prompt is measured before anything exists, so a task
 	// too large for the limit is refused here instead of pausing a new run.
@@ -103,7 +109,7 @@ func cmdBuildStartDurable(args []string, retireLegacy string) int {
 		return printJSON(out)
 	}
 	// The kind is checked before anything is created.
-	spec := transportSpec{Kind: *kind, Builder: *builder, Planner: *planner, Root: f.root, ShareContext: *share, ReviewerKind: req.ReviewerKind, Reviewer: req.ReviewerSession}
+	spec := transportSpec{Kind: *kind, Builder: *builder, Planner: *planner, Root: f.root, ReviewerKind: req.ReviewerKind, Reviewer: req.ReviewerSession}
 	if _, err := durableTransport(spec); err != nil {
 		return fail(err)
 	}

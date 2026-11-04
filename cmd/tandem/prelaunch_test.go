@@ -69,9 +69,9 @@ func TestPrelaunchEmitsActionsAsJSON(t *testing.T) {
 	}
 }
 
-// opencode has no launch-time gate at all; that is a clean pass, not an error.
-func TestPrelaunchOpenCodeHasNoGates(t *testing.T) {
-	rc := cmdPrelaunch([]string{"--role", "builder", "--kind", "opencode", "--cwd", t.TempDir()})
+// A kind with no launch-time gate at all is a clean pass, not an error.
+func TestPrelaunchKindWithNoGatesPasses(t *testing.T) {
+	rc := cmdPrelaunch([]string{"--role", "builder", "--kind", "nonesuch", "--cwd", t.TempDir()})
 	if rc != 0 {
 		t.Fatalf("got exit %d, want 0", rc)
 	}

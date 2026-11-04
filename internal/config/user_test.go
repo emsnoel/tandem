@@ -10,11 +10,11 @@ func TestLoadUser(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "tandem.json")
 	body := `{
-	  "defaults": {"builder_kind": "opencode"},
+	  "defaults": {"builder_kind": "copilot"},
 	  "adapters": {
 	    "codex":    {"path": "/opt/homebrew/bin/codex",
 	                 "args": ["-c", "model_reasoning_effort=high"]},
-	    "opencode": {"allow_widen": ["autonomy"]}
+	    "copilot": {"allow_widen": ["autonomy"]}
 	  }
 	}`
 	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
@@ -24,7 +24,7 @@ func TestLoadUser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if u.Defaults.BuilderKind != "opencode" {
+	if u.Defaults.BuilderKind != "copilot" {
 		t.Errorf("got %q", u.Defaults.BuilderKind)
 	}
 	if u.Adapters["codex"].Path != "/opt/homebrew/bin/codex" {
@@ -33,8 +33,8 @@ func TestLoadUser(t *testing.T) {
 	if len(u.Adapters["codex"].Args) != 2 {
 		t.Errorf("got %v", u.Adapters["codex"].Args)
 	}
-	if len(u.Adapters["opencode"].AllowWiden) != 1 {
-		t.Errorf("got %v", u.Adapters["opencode"].AllowWiden)
+	if len(u.Adapters["copilot"].AllowWiden) != 1 {
+		t.Errorf("got %v", u.Adapters["copilot"].AllowWiden)
 	}
 }
 

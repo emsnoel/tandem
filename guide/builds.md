@@ -146,14 +146,10 @@ same reason, tandem never takes a Copilot pane's conversation id from Herdr. A t
 conversation is the one its reset named, or the one whose prompt holds the task's nonce in
 `~/.copilot/session-state`.
 
-**tandem doesn't reset an opencode builder.** Its `/new` does empty the conversation, but
-nothing shows that until the next prompt. Herdr never reports an opencode session, its
-counter doesn't move, and opencode writes no session, log line or state file before that
-prompt. tandem doesn't claim a reset nobody can confirm (F18 in `guide/design.md`).
-
-A skipped reset never blocks a build. For an unsupported kind, or a builder that is still
-working or at a dialog before the reset, tandem prints one warning and delivers into the
-existing conversation. Only a reset that tandem typed and couldn't confirm stops the
+A skipped legacy reset never blocks a build. For a builder that is still working or at a
+dialog before the reset, tandem prints one warning and delivers into the existing
+conversation. A durable run is stricter: it never sends a task into a conversation it could
+not reset. Only a reset that tandem typed and couldn't confirm stops the
 handoff, as described above. A Claude or Copilot builder with no session id yet hasn't
 taken a turn since `tandem-pair`, so there is nothing to reset and nothing to warn about.
 
@@ -175,8 +171,8 @@ was a 60-second wait that kept expiring. 18 of 46 waits timed out, and a child t
 three minutes cost three full-context calls that did nothing. One wait per child is the
 minimum, so about 26 calls learned nothing.
 
-The prompt names no tool and no number. One template drives `claude`, `codex`, `copilot`
-and `opencode`, which name their wait settings differently, and a fixed value would break
+The prompt names no tool and no number. One template drives `claude`, `codex` and `copilot`,
+which name their wait settings differently, and a fixed value would break
 as soon as a CLI renamed its parameter. Instead, the prompt states the rule and its cost,
 which is what an agent needs to pick a sensible value itself.
 

@@ -56,9 +56,9 @@ func TestDefaultsPreserveTodaysBehaviour(t *testing.T) {
 }
 
 func TestLegacyBuilderKindStillResolves(t *testing.T) {
-	r := ResolveRole(agent.RoleBuilder, &Repo{BuilderKind: "opencode"},
+	r := ResolveRole(agent.RoleBuilder, &Repo{BuilderKind: "copilot"},
 		&User{Adapters: map[string]UserAdapter{}}, envFrom(nil), Overrides{})
-	if r.Kind.Value != "opencode" || r.Kind.From != FromRepo {
+	if r.Kind.Value != "copilot" || r.Kind.From != FromRepo {
 		t.Fatalf("got %+v", r.Kind)
 	}
 }
@@ -76,8 +76,8 @@ func TestLegacySandboxEnvTranslatesWithWarning(t *testing.T) {
 
 // SECURITY: allow_widen may only ever come from user config.
 func TestAllowWidenComesOnlyFromUserConfig(t *testing.T) {
-	user := &User{Adapters: map[string]UserAdapter{"opencode": {AllowWiden: []string{"autonomy"}}}}
-	r := ResolveRole(agent.RoleBuilder, &Repo{Builder: &RepoRole{Kind: "opencode"}},
+	user := &User{Adapters: map[string]UserAdapter{"copilot": {AllowWiden: []string{"autonomy"}}}}
+	r := ResolveRole(agent.RoleBuilder, &Repo{Builder: &RepoRole{Kind: "copilot"}},
 		user, envFrom(nil), Overrides{})
 	if len(r.AllowWiden) != 1 || r.AllowWiden[0] != "autonomy" {
 		t.Fatalf("got %v", r.AllowWiden)
@@ -85,10 +85,10 @@ func TestAllowWidenComesOnlyFromUserConfig(t *testing.T) {
 }
 
 func TestSpecConversion(t *testing.T) {
-	r := ResolveRole(agent.RoleBuilder, &Repo{Builder: &RepoRole{Kind: "opencode", Autonomy: "full"}},
+	r := ResolveRole(agent.RoleBuilder, &Repo{Builder: &RepoRole{Kind: "copilot", Autonomy: "full"}},
 		&User{Adapters: map[string]UserAdapter{}}, envFrom(nil), Overrides{})
 	s := r.Spec("/repo")
-	if s.Kind != "opencode" || s.Autonomy != agent.Full || s.Cwd != "/repo" || s.Role != agent.RoleBuilder {
+	if s.Kind != "copilot" || s.Autonomy != agent.Full || s.Cwd != "/repo" || s.Role != agent.RoleBuilder {
 		t.Fatalf("got %+v", s)
 	}
 }
@@ -98,9 +98,9 @@ func TestMarkAdoptedRewritesProvenance(t *testing.T) {
 		&Repo{Builder: &RepoRole{Kind: "codex", Model: "gpt-5.4", Autonomy: "auto"}},
 		&User{Adapters: map[string]UserAdapter{}}, envFrom(nil), Overrides{})
 
-	got := r.MarkAdopted("opencode")
+	got := r.MarkAdopted("copilot")
 
-	if got.Kind.Value != "opencode" || got.Kind.From != FromAdopted {
+	if got.Kind.Value != "copilot" || got.Kind.From != FromAdopted {
 		t.Fatalf("kind must become the RUNNING agent's, marked adopted; got %+v", got.Kind)
 	}
 	for _, v := range []Value{got.Model, got.Autonomy} {

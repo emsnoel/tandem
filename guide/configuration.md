@@ -12,8 +12,8 @@ project wants for each role.
   "check_paths": ["src", "internal"],
   "conventions_file": "AGENTS.md",
   "builder": {
-    "kind": "opencode",
-    "model": "anthropic/claude-sonnet-5",
+    "kind": "copilot",
+    "model": "claude-sonnet-5",
     "autonomy": "full",
     "allow_degrade": ["effort"]
   },
@@ -135,19 +135,15 @@ unanswered and nothing would be logged.
 
 ## Choosing an agent
 
-`kind` selects `codex`, `claude`, `copilot` or `opencode`. You set behaviour with one shared
+`kind` selects `codex`, `claude` or `copilot`. You set behaviour with one shared
 autonomy setting, and tandem maps it onto each CLI's own flags:
 
-| autonomy | Codex | Claude Code | Copilot | opencode |
-| -------- | ----- | ----------- | ------- | -------- |
-| `readonly` | `--sandbox read-only --ask-for-approval on-request` | `--permission-mode plan` | `--mode plan` | unsupported |
-| `ask` | `--sandbox workspace-write --ask-for-approval on-request` | `--permission-mode manual` | *no flag, which is Copilot's own default* | omit `--auto` |
-| `auto` | `--sandbox workspace-write --ask-for-approval never` | `--permission-mode auto` | `--allow-all-tools --allow-all-urls`, plus `--allow-all-paths` for the builder and reviewer | unsupported |
-| `full` | `--dangerously-bypass-approvals-and-sandbox` | `--permission-mode bypassPermissions` | `--allow-all` | `--auto` |
-
-opencode has no filesystem sandbox, and no effort setting in its interactive TUI. So the
-only autonomy values it can match are `ask` and `full`. tandem refuses an effort setting
-for opencode unless `allow_degrade` allows dropping it.
+| autonomy | Codex | Claude Code | Copilot |
+| -------- | ----- | ----------- | ------- |
+| `readonly` | `--sandbox read-only --ask-for-approval on-request` | `--permission-mode plan` | `--mode plan` |
+| `ask` | `--sandbox workspace-write --ask-for-approval on-request` | `--permission-mode manual` | *no flag, which is Copilot's own default* |
+| `auto` | `--sandbox workspace-write --ask-for-approval never` | `--permission-mode auto` | `--allow-all-tools --allow-all-urls`, plus `--allow-all-paths` for the builder and reviewer |
+| `full` | `--dangerously-bypass-approvals-and-sandbox` | `--permission-mode bypassPermissions` | `--allow-all` |
 
 **`readonly` is for a planner, and an unattended builder stalls on it.** This is true of
 every adapter. `readonly` withholds authority, so Codex runs it as
@@ -159,10 +155,10 @@ not a mapping bug. Autonomy is about authority, and `internal/agent` keeps conve
 authority as separate questions. Give a builder `auto`, and keep `readonly` for a role with
 a person watching it.
 
-**Copilot has no filesystem sandbox by default either.** Its `--allow-all-paths` covers the
+**Copilot has no filesystem sandbox by default.** Its `--allow-all-paths` covers the
 built-in file tools only. Shell commands run with your full user access, unless the
-experimental MXC sandbox is on, and it is off by default. So a Copilot builder is unconfined
-in the same way as an opencode one. Choose it knowing that.
+experimental MXC sandbox is on, and it is off by default. So a Copilot builder is unconfined.
+Choose it knowing that.
 
 **Copilot's `ask` is the one value tandem can't enforce.** Copilot has no
 `--permission-mode` flag. Manual approval is its default, and `defaultPermissionMode` in
@@ -188,7 +184,7 @@ they are in.
 To override the builder for one pairing, use flags:
 
 ```bash
-tandem-pair --builder opencode --builder-autonomy full
+tandem-pair --builder copilot --builder-autonomy full
 ```
 
 ### The reviewer
@@ -225,13 +221,13 @@ Your own adapter settings live in `~/.config/herdr/tandem.json`:
 
 ```json
 {
-  "defaults": { "builder_kind": "opencode" },
+  "defaults": { "builder_kind": "copilot" },
   "adapters": {
     "codex": {
       "path": "/opt/homebrew/bin/codex",
       "args": ["-c", "model_reasoning_effort=high"]
     },
-    "opencode": { "allow_widen": ["autonomy"] }
+    "copilot": { "allow_widen": ["autonomy"] }
   }
 }
 ```

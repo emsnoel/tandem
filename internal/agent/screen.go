@@ -2,7 +2,6 @@ package agent
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 )
 
@@ -18,7 +17,6 @@ import (
 //   - claude, an earlier prompt recalled with Up: new text joins it.
 //   - codex, a sub-agent's thread: input is disabled.
 //   - codex, the agent command center: Enter opens another session.
-//   - opencode, a child session: the text is dropped.
 //   - copilot, a subagent's screen: input goes to that subagent.
 //   - copilot, its task list, focused sidebar and Sessions tab: single keys
 //     act there (x kills a task, enter opens one). Herdr reads the Sessions
@@ -40,12 +38,6 @@ func OffMainInput(kind, screen string) (why string, off bool) {
 				return "the agent command center, where Enter opens a session", true
 			case strings.HasPrefix(t, "›") && strings.Contains(t, "Viewing sub-agent"):
 				return "a sub-agent's thread, whose input is disabled", true
-			}
-		}
-	case "opencode":
-		for _, l := range lines {
-			if opencodeChildFooter.MatchString(l) {
-				return "a child session, which cannot be prompted", true
 			}
 		}
 	case "copilot":
@@ -83,10 +75,6 @@ func bottomLines(lines []string, n int) []string {
 	}
 	return out
 }
-
-// opencodeChildFooter is the footer of an opencode child session: its agent,
-// its place among its siblings, and the key back to the parent.
-var opencodeChildFooter = regexp.MustCompile(`\(\d+ of \d+\).*\bParent\b`)
 
 // claudeOffMain reads Claude Code's input box: a line starting ❯ under a rule.
 // The main conversation's rule is plain; a subagent's screen titles it with

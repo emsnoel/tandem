@@ -247,22 +247,15 @@ fi
 stop_bridge
 fake_set_state working
 
-printf '\n== a builder with no verified reset is not sent a task unless the run accepts that ==\n'
-for mode in strict shared; do
-  R="$TMP/repo-$mode"; cp -R "$REPO" "$R"; find "$R/.tandem-relay" -mindepth 1 ! -name builder.json -delete 2>/dev/null
-  write_builder "$R/.tandem-relay" opencode
-  : > "$FAKE/prompts"; rm -f "$FAKE/resets"; fake_set_state idle
-  tdx() { env PATH="$TMP/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$R" TANDEM_BUILD_ENGINE=durable TANDEM_STATE_HOME="$TMP/state-$mode" tandem "$@"; }
-  extra=(); [ "$mode" = shared ] && extra=(--share-context)
-  tdx build start --plan "$R/plan.md" --root "$R" --builder builder --builder-kind opencode --reviewer reviewer --reviewer-kind claude --check true ${extra[@]+"${extra[@]}"} >/dev/null 2>&1
-  tdx build tick --root "$R" >"$TMP/out" 2>"$TMP/err"
-  if [ "$mode" = strict ]; then
-    [ "$(prompts)" -eq 0 ] && ok "opencode has no verified reset: nothing is typed into its unknown conversation" || nope "typed into an unverified conversation"
-    [ ! -s "$FAKE/resets" ] && ok "and no reset command is guessed at" || nope "a reset was typed"
-  else
-    [ "$(prompts)" -eq 1 ] && ok "with --share-context the same builder is sent its task, once" || nope "shared: prompts $(prompts) $(cat "$TMP/err")"
-  fi
-done
+printf '\n== OpenCode is refused before anything is typed or created ==\n'
+R="$TMP/repo-opencode"; cp -R "$REPO" "$R"; find "$R/.tandem-relay" -mindepth 1 ! -name builder.json -delete 2>/dev/null
+: > "$FAKE/prompts"; rm -f "$FAKE/resets"; fake_set_state idle
+tdx() { env PATH="$TMP/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$R" TANDEM_BUILD_ENGINE=durable TANDEM_STATE_HOME="$TMP/state-opencode" tandem "$@"; }
+tdx build start --plan "$R/plan.md" --root "$R" --builder builder --builder-kind opencode --reviewer reviewer --reviewer-kind claude --check true >"$TMP/out" 2>"$TMP/err"
+rc=$?
+[ "$rc" -eq 20 ] && ok "build start refuses an opencode builder with exit 20" || nope "opencode start: exit $rc"
+grep -q 'codex, claude, copilot' "$TMP/err" && ok "and names the kinds it supports" || nope "no supported kinds named: $(cat "$TMP/err")"
+[ ! -e "$R/.tandem-relay/active-run.json" ] && [ "$(prompts)" -eq 0 ] && ok "and creates no run and types nothing" || nope "state created or a prompt typed"
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

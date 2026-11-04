@@ -39,7 +39,6 @@ checked each of these screens live on 2026-10-17:
 | Copilot | a subagent's screen (`/tasks`, then Enter) | goes to that subagent, which answers it |
 | Copilot | the task list, the focused sidebar, the Sessions tab | single keys act, and `x` kills a task or closes a session |
 | Copilot | a GitHub tab (Issues, Pull requests, Gists) | goes nowhere |
-| opencode | a child session (`ctrl+x down`) | is dropped, because child sessions can't take prompts |
 
 Before typing, `tandem agent prompt`, a durable run's send and `tandem agent reset` read the
 pane's screen (`internal/agent/screen.go`). They type nothing into one of these screens.

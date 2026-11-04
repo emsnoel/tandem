@@ -14,8 +14,6 @@ func TestResetCommandsAreMeasured(t *testing.T) {
 		"claude": "/clear",
 		// Confirmed from Copilot's process log, since Herdr's id never moves.
 		"copilot": "/new",
-		// /new works, but nothing observable confirms it.
-		"opencode": "",
 	} {
 		a, err := Get(kind)
 		if err != nil {
@@ -31,10 +29,9 @@ func TestResetCommandsAreMeasured(t *testing.T) {
 func TestResetConfirmKeysAreMeasured(t *testing.T) {
 	for kind, want := range map[string]string{
 		// /new opens a picker with "Current checkout" highlighted.
-		"codex":    "enter",
-		"claude":   "",
-		"copilot":  "",
-		"opencode": "",
+		"codex":   "enter",
+		"claude":  "",
+		"copilot": "",
 	} {
 		a, err := Get(kind)
 		if err != nil {
@@ -67,7 +64,7 @@ func TestResetDecision(t *testing.T) {
 		{"an older build, since reset", "/new", "idle", false, "s2", "s1", "go"},
 		{"no session is no build's", "/new", "idle", false, "", "", "go"},
 		{"unsupported beats not-idle", "", "working", false, "", "", "skip:unsupported"},
-		// Herdr never reports an opencode session, so no-session must not win.
+		// No reset command beats a known-empty conversation: nothing can be reset.
 		{"unsupported beats no-session", "", "idle", true, "", "", "skip:unsupported"},
 	} {
 		if got := ResetDecision(c.cmd, c.status, c.empty, c.session, c.last); got != c.want {
@@ -138,10 +135,9 @@ func TestResetSentenceNamesTheReviewer(t *testing.T) {
 // ask for them. An empty list means the prompt keeps asking.
 func TestInstructionFilesAreMeasured(t *testing.T) {
 	for kind, want := range map[string]string{
-		"codex":    "AGENTS.md",
-		"claude":   "CLAUDE.md",
-		"copilot":  "",
-		"opencode": "",
+		"codex":   "AGENTS.md",
+		"claude":  "CLAUDE.md",
+		"copilot": "",
 	} {
 		a, err := Get(kind)
 		if err != nil {

@@ -128,10 +128,9 @@ func TestResetSkipsAPaneOffItsMainScreen(t *testing.T) {
 // typed into, whichever role the pane has.
 func TestPromptAsTypesNothingIntoAnyKindsChildScreen(t *testing.T) {
 	for kind, screen := range map[string]string{
-		"claude":   claudeSubagentScreen,
-		"codex":    "› Viewing sub-agent — direct input is disabled\n",
-		"copilot":  "┃ Message this subagent (idle -- will wake it)...\n Esc back to tasks\n",
-		"opencode": "┃  General (1 of 1) 13.5K (1%)        Parent up  Prev left  Next right\n",
+		"claude":  claudeSubagentScreen,
+		"codex":   "› Viewing sub-agent — direct input is disabled\n",
+		"copilot": "┃ Message this subagent (idle -- will wake it)...\n Esc back to tasks\n",
 	} {
 		p := newPane("idle")
 		p.kind, p.screens = kind, []string{screen}

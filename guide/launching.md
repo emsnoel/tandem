@@ -11,7 +11,6 @@ can't clear one, it refuses to launch.
 | codex | Approval dialogs for each command | Passes `--ask-for-approval never`, from `autonomy` |
 | codex | Hooks that Codex hasn't accepted | Warns before launch, and never refuses. A skipped hook weakens the builder but doesn't stall it. `HERDR_STRICT_HOOK_CHECK=1` turns the warning into a refusal (see [Codex hooks](#codex-hooks)) |
 | claude | A trust dialog not yet accepted | Reports it and writes nothing. Claude Code owns and rewrites `~/.claude.json`, so tandem never touches it. Pairing refuses with exit 23. Run `claude` once in the folder, accept the dialog, and pair again |
-| opencode | None | Nothing |
 | copilot | "Do you trust the files in this folder?" | Adds a `trustedFolders` entry to `$COPILOT_HOME/config.json`, but only when you chose the copilot builder yourself. If the repository asked for it and you haven't approved that on this machine, tandem reports it instead, and pairing refuses with exit 23. Approve it once with `tandem-pair --approve-kind copilot`. tandem keeps the `//` comment banner and every other key. `tandem-unpair --clean-trust` removes the entry, but only if tandem added it |
 | copilot | The session-restore picker, which Herdr reports as idle | Passes `--session-id <fresh uuid>`, for the builder and reviewer only |
 | copilot | Approval dialogs for commands, paths and URLs | Passes `--allow-all-tools --allow-all-urls`, from `autonomy`, plus `--allow-all-paths` for the builder and reviewer only |
@@ -82,11 +81,6 @@ because the builder is sandboxed (see [How the relay works](relay.md)). Widening
 to `danger-full-access` would let Codex reach the Herdr socket directly and make the mailbox
 unnecessary. `guide/design.md` explains why that is a bad trade for an agent running plans
 on its own.
-
-**opencode has no sandbox at all.** Its `--auto` is an on/off switch for approvals, not a
-permission level, so an opencode builder is always unconfined. It can reach the Herdr
-socket directly, which is why it needs no relay. Choose it knowing that a Codex builder's
-`workspace-write` protection doesn't exist there.
 
 You can override autonomy for a single session, but the defaults are the supported setup:
 

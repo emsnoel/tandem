@@ -19,11 +19,10 @@ unfinished legacy build refuses a durable start with what to do instead. Triage 
 separate switch (`HERDR_TRIAGE_SKIP=1`) and stays off until its own calibration report
 passes. Neither default is changed by this release.
 
-The builder kinds are Codex, Claude, Copilot and OpenCode. Codex, Claude and Copilot have a
-verified way to start a fresh conversation; Copilot's is confirmed from its own process log,
-because Herdr cannot see it. OpenCode has none that can be confirmed, so a durable run sends
-an OpenCode builder a task only when started with `--share-context`. `tandem-handoff` cannot
-pass that flag, so an OpenCode durable build starts with `tandem build start`.
+The builder kinds are Codex, Claude and Copilot. Each has a verified way to start a fresh
+conversation; Copilot's is confirmed from its own process log, because Herdr cannot see it.
+`tandem build start` refuses any other kind, such as the discontinued OpenCode, before it
+creates anything.
 
 ## Where things live
 
@@ -145,8 +144,7 @@ applies to every task, and a run limit to the whole run.
     tandem build budget --scope run --limit 20000000 --root DIR
 
 Raising a limit resumes only a run that was paused for scheduling. Unknown usage under a
-limit pauses by design. Usage can be read for Codex, Claude and Copilot builders; for an
-OpenCode builder a configured limit pauses, so leave limits off there.
+limit pauses by design. Usage can be read for Codex, Claude and Copilot builders.
 
 ## Collaborations (opt-in)
 
@@ -354,7 +352,7 @@ in Copilot's process log, and the usage is the `session.usage_record` events in
 names none, the run searches those logs for the task's nonce, as for Codex. A collaboration
 does not count Copilot sources yet: the collaboration ledger has no Copilot parser.
 
-A pass for Codex says nothing about Claude, Copilot or OpenCode. Anything not observed is
+A pass for Codex says nothing about Claude or Copilot. Anything not observed is
 recorded as unverified.
 
 ## Rollout gates

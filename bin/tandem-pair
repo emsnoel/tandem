@@ -57,7 +57,7 @@ pane for the Herdr sidebar.
   --planner-pane ID   use this pane as the planner (default: auto-detected)
   --cwd PATH          working directory for the builder pane. Defaults to the
                       planner's own cwd, which is not always the repo you mean.
-  --builder KIND      agent CLI for the builder (codex|claude|copilot|opencode)
+  --builder KIND      agent CLI for the builder (codex|claude|copilot)
   --builder-model M   model override for the builder
   --builder-effort E  effort override (low|medium|high|max)
   --builder-autonomy A

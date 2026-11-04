@@ -113,7 +113,7 @@ func TestBuildUsageNeedsADurableRunAndKnownFlags(t *testing.T) {
 func TestBuildUsageReadsACopilotBuilder(t *testing.T) {
 	e := newCLI(t)
 	t.Setenv("TANDEM_BUILD_ENGINE", "durable")
-	if rc, _, errOut := e.start("--builder-kind", "copilot", "--share-context"); rc != exitcode.OK {
+	if rc, _, errOut := e.start("--builder-kind", "copilot"); rc != exitcode.OK {
 		t.Fatalf("start: %d %s", rc, errOut)
 	}
 	e.sub("tick")

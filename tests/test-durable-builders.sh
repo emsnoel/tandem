@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The builder conformance matrix: Codex, Claude, Copilot and OpenCode in both
+# The builder conformance matrix: Codex, Claude and Copilot in both
 # engines, through the shipped binary and a fake Herdr. No model is called.
 #
 # Every cell is asserted from what tandem typed, to whom, and what it recorded.
@@ -25,10 +25,7 @@ FAKE="$FAKE" PATH="$TMP/bin:$PATH" fake_socket_start "$TMP" || exit 1
 mkdir -p "$TMP/codex-home/sessions" "$TMP/copilot-home"
 export CODEX_HOME="$TMP/codex-home" COPILOT_HOME="$TMP/copilot-home"
 
-KINDS="codex claude copilot opencode"
-# Kinds with a verified reset. The others get a task only when the run
-# accepts a shared conversation.
-resets() { case "$1" in codex|claude|copilot) return 0 ;; *) return 1 ;; esac; }
+KINDS="codex claude copilot"
 MATRIX=""
 cell() { MATRIX="$MATRIX$1|$2|$3|$4
 "; }  # cell KIND MODE OPERATION RESULT
@@ -54,19 +51,9 @@ for K in $KINDS; do
   R="$TMP/d-$K"; mkrepo "$R" "$K"; R=$(cd "$R" && pwd -P)
   reset_fake; [ "$K" = copilot ] && printf 'copilot\n' > "$FAKE/kind"
   td() { env PATH="$TMP/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$R" CODEX_HOME="$CODEX_HOME" COPILOT_HOME="$COPILOT_HOME" TANDEM_BUILD_ENGINE=durable TANDEM_STATE_HOME="$TMP/state-d-$K" tandem "$@"; }
-  share=""; resets "$K" || share="--share-context"
 
-  # Launch: the kind is accepted with its flags. A kind with no verified reset is
-  # refused a task until the run accepts a shared conversation.
-  if ! resets "$K"; then
-    td build start --plan "$R/plan.md" --root "$R" --builder builder --planner planner --builder-kind "$K" --reviewer reviewer --reviewer-kind claude --check true >/dev/null 2>&1
-    td build tick --root "$R" >/dev/null 2>&1
-    if [ "$(nprompts)" -eq 0 ] && [ "$(nresets)" -eq 0 ]; then
-      ok "$K: with no verified reset nothing is typed into its unknown conversation"; cell "$K" durable "fresh task (strict)" "refused, nothing typed"
-    else nope "$K: typed into an unverified conversation"; cell "$K" durable "fresh task (strict)" FAIL; fi
-    rm -rf "$TMP/state-d-$K" "$R/.tandem-relay/active-run.json" "$R/.tandem-relay/durable"; reset_fake
-  fi
-  OUT=$(td build start --plan "$R/plan.md" --root "$R" --builder builder --planner planner --builder-kind "$K" --reviewer reviewer --reviewer-kind claude --check true $share 2>&1); rc=$?
+  # Launch: the kind is accepted with its flags.
+  OUT=$(td build start --plan "$R/plan.md" --root "$R" --builder builder --planner planner --builder-kind "$K" --reviewer reviewer --reviewer-kind claude --check true 2>&1); rc=$?
   RUN=$(printf '%s' "$OUT" | jq -r .run_id 2>/dev/null)
   if [ "$rc" -eq 0 ] && [[ "$RUN" =~ ^[0-9a-f]{32}$ ]]; then ok "$K: launch (a durable run starts with this kind)"; cell "$K" durable launch pass
   else nope "$K: start rc $rc: $OUT"; cell "$K" durable launch FAIL; continue; fi
@@ -77,11 +64,7 @@ for K in $KINDS; do
   tickn
   PL=$(sed -n 1p "$FAKE/prompt.1.txt" 2>/dev/null | head -c 0; cat "$FAKE/prompt.1.txt" 2>/dev/null)
   ATT=$(field "$PL" attempt); JOB=$(field "$PL" job); EFF=$(field "$PL" effect); NONCE=$(field "$PL" nonce)
-  if resets "$K"; then
-    [ "$(nresets)" -eq 1 ] && ok "$K: fresh task (one reset before the prompt)" && cell "$K" durable "fresh task" "reset, then prompt" || { nope "$K: resets $(nresets)"; cell "$K" durable "fresh task" FAIL; }
-  else
-    [ "$(nresets)" -eq 0 ] && [ "$(nprompts)" -eq 1 ] && ok "$K: fresh task (shared conversation, accepted by the run, no reset guessed)" && cell "$K" durable "fresh task" "shared (--share-context), no reset" || { nope "$K: shared task: resets $(nresets) prompts $(nprompts)"; cell "$K" durable "fresh task" FAIL; }
-  fi
+  [ "$(nresets)" -eq 1 ] && ok "$K: fresh task (one reset before the prompt)" && cell "$K" durable "fresh task" "reset, then prompt" || { nope "$K: resets $(nresets)"; cell "$K" durable "fresh task" FAIL; }
   [ -n "$ATT" ] && [ -n "$NONCE" ] || { nope "$K: the prompt carries no identity"; continue; }
   BAD=$(printf '%s' "$NONCE" | rev)
   td build event new --root "$R" --kind builder_started --task 1 --attempt "$ATT" --job "$JOB" --effect "$EFF" --nonce "$BAD" >/dev/null 2>&1
@@ -166,11 +149,7 @@ for K in $KINDS; do
   else nope "$K: legacy start: $OUT"; cell "$K" legacy launch FAIL; continue; fi
   # Fresh task: the legacy handoff asks `tandem agent explain-reset`.
   EX=$(tl agent explain-reset "$K" --for build 2>&1)
-  if resets "$K"; then
-    case "$EX" in *"fresh conversation"*|*reset*|*new*) ok "$K: fresh task (an adapter reset exists)"; cell "$K" legacy "fresh task" "adapter reset" ;; *) nope "$K: explain-reset: $EX"; cell "$K" legacy "fresh task" FAIL ;; esac
-  else
-    case "$EX" in *"fresh conversation"*) nope "$K: claims a fresh conversation it cannot start: $EX"; cell "$K" legacy "fresh task" FAIL ;; *) ok "$K: fresh task (no verified reset, said plainly)"; cell "$K" legacy "fresh task" "no verified reset, shared" ;; esac
-  fi
+  case "$EX" in *"fresh conversation"*|*reset*|*new*) ok "$K: fresh task (an adapter reset exists)"; cell "$K" legacy "fresh task" "adapter reset" ;; *) nope "$K: explain-reset: $EX"; cell "$K" legacy "fresh task" FAIL ;; esac
   tl build sent --root "$R" --task 1 >/dev/null 2>&1
   fake_set_state idle
   RED=$(env PATH="$TMP/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$R" CODEX_HOME="$CODEX_HOME" tandem build advance --root "$R" --task 1 2>&1)

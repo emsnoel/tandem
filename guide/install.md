@@ -115,7 +115,7 @@ You need these on every machine:
   (protocol 22) arrived in 0.9.3. F27 in `guide/design.md` pins the shapes.
 - `git`, `bash`, `curl`, `tar`, and `shasum` or `sha256sum`.
 - Herdr's integration for each agent you use. `herdr integration install claude` is always
-  needed, because the planner is Claude Code. Add `codex`, `copilot` or `opencode` for the
+  needed, because the planner is Claude Code. Add `codex` or `copilot` for the
   builder and reviewer kinds you pick. `herdr integration install` lists every kind Herdr
   supports.
 

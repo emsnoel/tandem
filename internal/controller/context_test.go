@@ -431,7 +431,7 @@ func TestFreshSessionFailureDoesNotSendTask(t *testing.T) {
 func TestAllBuilderKindsReceivePacket(t *testing.T) {
 	type got struct{ prompt, manifest, kind string }
 	var all []got
-	for _, kind := range []string{"codex", "claude", "copilot", "opencode"} {
+	for _, kind := range []string{"codex", "claude", "copilot"} {
 		e := newCEnv(t)
 		run, err := e.c.Start(ctx, e.startRequest(func(r *StartRequest) { r.BuilderKind = kind }))
 		if err != nil {

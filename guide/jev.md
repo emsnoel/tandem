@@ -51,8 +51,8 @@ at medium started children that ran `gpt-5.6-luna` at medium and `gpt-5.6-terra`
 Codex still doesn't read project-level `.codex/agents/*.toml`, so the advice can choose a
 model level, but not a named agent definition.
 
-Nobody has checked `copilot` or `opencode`, so tandem treats them as unable to choose. For
-those builders the advice still describes the work, but doesn't name a level.
+Nobody has checked `copilot`, so tandem treats it as unable to choose. For
+that builder the advice still describes the work, but doesn't name a level.
 
 > An earlier version of this section said the opposite about `codex`, citing the same CLI
 > version. It was wrong when written, not made wrong by a later release.
