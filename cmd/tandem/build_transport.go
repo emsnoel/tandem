@@ -42,6 +42,19 @@ func runTransportSpec(ag controller.Agents, root string, art *artifact.Store) tr
 		ReviewerKind: ag.ReviewerKind, Reviewer: ag.ReviewerSession}
 }
 
+// runTransport is the transport for a run that already exists. A run stored
+// with a kind that has no adapter, such as one an older tandem started, gets a
+// transport that sends nothing: its tick pauses it and every command that only
+// reads or closes it still works.
+func runTransport(ag controller.Agents, root string, art *artifact.Store) (runner.Transport, error) {
+	for _, kind := range []string{ag.BuilderKind, ag.ReviewerKind} {
+		if _, err := agent.Get(kind); kind != "" && err != nil {
+			return noSend{}, nil
+		}
+	}
+	return durableTransport(runTransportSpec(ag, root, art))
+}
+
 // maxPromptBytes bounds a prompt passed as one command argument.
 const maxPromptBytes = 256 << 10
 

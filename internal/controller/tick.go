@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/emsnoel/tandem/internal/agent"
 	"github.com/emsnoel/tandem/internal/state"
 	"github.com/emsnoel/tandem/internal/workflow"
 )
@@ -22,6 +23,9 @@ const (
 	pauseIncomplete    = "context_incomplete"
 	pauseAgentExited   = "agent_exited"
 	pauseNoReviewer    = "no_reviewer"
+	// pauseAgentUnsupported is a run whose stored builder or reviewer kind has
+	// no adapter, such as a kind tandem no longer supports.
+	pauseAgentUnsupported = "agent_unsupported"
 )
 
 // externalKinds are delivered to an agent through the transport; the rest are
@@ -114,6 +118,13 @@ func (c *Controller) pass(ctx context.Context, runID string) error {
 		return errors.Join(mailErr, c.tickStopping(ctx, run, cfg))
 	case "paused", "finished":
 		return mailErr
+	}
+	// A kind with no adapter cannot be typed into. The run waits for a person
+	// before any effect is delivered, and a paused run is left as it is.
+	for _, kind := range []string{cfg.BuilderKind, cfg.ReviewerKind} {
+		if _, err := agent.Get(kind); kind != "" && err != nil {
+			return errors.Join(mailErr, c.d.State.SetRunState(ctx, run.ID, "paused", pauseAgentUnsupported))
+		}
 	}
 	// A run an older tandem started has no reviewer pane in its pinned
 	// configuration, and the builder never reviews. It waits for a person
