@@ -1,6 +1,6 @@
 # How the relay works
 
-**Only a sandboxed builder uses the mailbox.** A `claude`, `copilot` or `opencode` builder
+**Only a sandboxed builder uses the mailbox.** A `claude` or `copilot` builder
 reaches the Herdr socket directly, so `tandem-ask` talks to the socket and never touches the
 mailbox described here. The bridge still starts. It sleeps on file and Herdr events, waking
 at least every 30 seconds (see [Commands](commands.md)), so it costs little. Guessing that it

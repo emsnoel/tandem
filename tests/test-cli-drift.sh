@@ -26,17 +26,7 @@ probe() { # probe <cli> <help-args> <flag>...
 
 probe codex    --help -s --sandbox -a --ask-for-approval -m -C --dangerously-bypass-approvals-and-sandbox --dangerously-bypass-hook-trust
 probe claude   --help --permission-mode --model --effort
-probe opencode --help -m --model --agent --auto
 probe copilot  --help --model --effort --mode --allow-all-tools --allow-all-urls --allow-all --no-ask-user -C
-
-# opencode's --variant is `run`-only. If it appears here, opencode has gained
-# an effort setting and Supports("effort") should change.
-if command -v opencode >/dev/null 2>&1; then
-  case "$(opencode --help 2>&1)" in
-    *--variant*) nope "opencode --variant now exists on the interactive path; revisit Supports(effort)" ;;
-    *)           ok   "opencode --variant still absent from the interactive path" ;;
-  esac
-fi
 
 printf '\ncli-drift: passed %d, failed %d, skipped %d\n' "$PASS" "$FAIL" "$SKIP"
 [ "$FAIL" -eq 0 ]

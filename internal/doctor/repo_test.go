@@ -170,10 +170,10 @@ func TestStrictHookCheckFails(t *testing.T) {
 	}
 }
 
-// opencode cannot run read-only without widening to ask: exit 21 at launch.
+// codex has no max effort, so asking for it is refused at launch (exit 20).
 func TestLaunchSettingRefusalFails(t *testing.T) {
 	root := isolate(t, codexRepo)
-	flags := RoleFlags{Builder: config.Overrides{Kind: "opencode", Autonomy: "readonly"}}
+	flags := RoleFlags{Builder: config.Overrides{Kind: "codex", Effort: "max"}}
 	r := find(t, repoResults(t, root, flags), "launch:builder")
 	if r.Status != Fail || r.Fix == "" {
 		t.Fatalf("got %+v", r)

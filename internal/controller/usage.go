@@ -38,7 +38,7 @@ type UsageSource interface {
 // AgentUsageSource reads each builder kind's own logs: Codex rollouts under
 // CodexSessions, Claude Code conversations under ClaudeProjects, Copilot
 // conversations under CopilotHome. Reading only: it changes nothing
-// there. A kind with no log reader (opencode) is workflow.ErrUnsupported, which
+// there. A kind with no log reader is workflow.ErrUnsupported, which
 // the run records as unavailable usage.
 type AgentUsageSource struct {
 	CodexSessions  string

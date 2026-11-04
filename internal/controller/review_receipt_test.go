@@ -246,7 +246,7 @@ func TestReviewRawResultsAreStrictAndBoundToTheJob(t *testing.T) {
 }
 
 func TestReviewerIdentityIsRecordedWithItsLimits(t *testing.T) {
-	for _, kind := range []string{"codex", "claude", "copilot", "opencode"} {
+	for _, kind := range []string{"codex", "claude", "copilot"} {
 		for _, session := range []string{"sess-9", ""} {
 			e := newCEnv(t)
 			run, err := e.c.Start(ctx, e.startRequest(func(r *StartRequest) { r.ReviewerKind, r.BuilderSession, r.PlannerSession = kind, "b", "p" }))

@@ -3,14 +3,11 @@ package controller
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/emsnoel/tandem/internal/workflow"
 )
 
 const copilotSession = "9f694d5f-f43c-465e-bf41-93d818e79795"
@@ -170,10 +167,6 @@ func TestAgentUsageSourceReadsCopilot(t *testing.T) {
 	got, err := src.SessionWith(context.Background(), "copilot", nonce, now.Add(-time.Hour), now)
 	if err != nil || got != copilotSession {
 		t.Errorf("session with: %q, %v", got, err)
-	}
-	// OpenCode is still unread: its usage is unknown, not zero.
-	if _, err := src.Collect(context.Background(), "opencode", "ses_x", now, now); !errors.Is(err, workflow.ErrUnsupported) {
-		t.Errorf("opencode: %v", err)
 	}
 	if !strings.Contains(DefaultAgentUsageSource().CopilotHome, "copilot") {
 		t.Errorf("default Copilot home %q", DefaultAgentUsageSource().CopilotHome)

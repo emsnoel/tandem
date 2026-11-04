@@ -42,7 +42,7 @@ The legacy engine worked for short, supervised builds. Its weak points showed on
 | Who drives it | The relay bridge calls `tandem build advance` after each handback | The relay bridge calls `tandem build tick` on every wake (a queued message, a state nudge, a status change of the builder or reviewer, or the 30-second backstop), and `recover` at startup |
 | How the builder reports | `tandem-handback --task N --report FILE` | The same command, with the identity from the prompt (`--run --attempt --job --effect --nonce`), and `--started` first |
 | Delivery of a prompt | Fire and forget | An effect with a fenced lease. An uncertain delivery is never retyped |
-| Fresh conversation per task | Yes, by a reset command before each task | Yes, and a builder with no verified reset is refused unless `--share-context` |
+| Fresh conversation per task | Yes, by a reset command before each task | Yes, and a builder with no verified reset is refused |
 | Who runs the check | `tandem build advance` after handback | The controller, which keeps the log and a certificate of what it ran against |
 | Evidence of the code | Hashes of changed files | Full snapshots before and after, and the exact patch |
 | Reviewer pane | Required. `tandem build start` refuses with exit 23 without one | Required. Start refuses without one, and a run started before the rule pauses as `no_reviewer` |
@@ -123,8 +123,8 @@ bridge tick -> controller accepts the task and sends the next
   stores the patch between them. The check and review are bound to that patch and tree. A
   tree that changed after the check cannot be accepted on the old result.
 - **Fresh conversation.** Codex, Claude and Copilot have a verified reset command; Copilot's
-  is confirmed from its process log. OpenCode has none that can be confirmed, so a run must
-  say `--share-context` to send it a task in the conversation it has.
+  is confirmed from its process log. `tandem build start` refuses any other kind, such as the
+  discontinued OpenCode.
 - **Pane review.** The review prompt goes to the reviewer pane. Each tick reads the settled
   pane, takes the last JSON object that names the open review job, and records it as `tandem
   build review-record` would. The result is bound to the job, patch and tree. With no valid
@@ -190,19 +190,19 @@ durable run says which durable command to use instead.
 
 Verified by automated tests: the state machine, crash and restart cases, delivery and nonce
 rules, snapshots, checks, review recording, usage, budgets, migration, export, rebind, GC and
-teardown, and a four-builder matrix (legacy and durable) against a fake Herdr.
+teardown, and a three-builder matrix (legacy and durable) against a fake Herdr.
 
 Verified live, one run per CLI on a two-task plan: launch, fresh task, acknowledgement, submit
-and check, pane review, accept, stop and restart for Codex, Claude, Copilot and OpenCode. Codex
+and check, pane review, accept, stop and restart for Codex, Claude and Copilot. Codex
 usage was confirmed against its logs over a full plan.
 
 Not verified: any cost or latency saving, a repair attempt live, a controller crash during a
-send live, a full plan on Claude, Copilot or OpenCode, direct reviewer execution, and a
+send live, a full plan on Claude or Copilot, direct reviewer execution, and a
 legacy review round in a live reviewer pane (it is tested against a fake Herdr only).
 
 Known limits of the durable engine:
 
-- Usage can be read for Codex, Claude and Copilot. A configured budget pauses for OpenCode.
+- Usage can be read for Codex, Claude and Copilot.
 - A provider failure in the builder is silent until the ten-minute acknowledgement timeout,
   unless the turn ends within 8 seconds with no model work: that send is recorded as not
   sent and retried, and after 3 the run pauses as `dispatch_failed`.

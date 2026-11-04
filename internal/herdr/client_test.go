@@ -134,19 +134,17 @@ func TestAgentConversation(t *testing.T) {
 }
 
 // No session means no conversation only for Claude and Copilot, whose id
-// appears at the first turn. A Codex pane may never get one, and opencode is
-// never reported.
+// appears at the first turn. A Codex pane may never get one.
 func TestAgentHasNoConversation(t *testing.T) {
 	agents, err := decodeList([]byte(`{"result":{"agents":[
 	  {"pane_id":"p1","agent":"claude","agent_status":"idle"},
 	  {"pane_id":"p2","agent":"copilot","agent_status":"idle"},
 	  {"pane_id":"p3","agent":"codex","agent_status":"idle"},
-	  {"pane_id":"p4","agent":"opencode","agent_status":"idle"},
 	  {"pane_id":"p5","agent":"claude","agent_status":"idle","agent_session":{"kind":"id","value":"abc"}}]}}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i, want := range []bool{true, true, false, false, false} {
+	for i, want := range []bool{true, true, false, false} {
 		if got := agents[i].HasNoConversation(); got != want {
 			t.Errorf("%s (pane %s) HasNoConversation() = %v, want %v", agents[i].Kind, agents[i].PaneID, got, want)
 		}

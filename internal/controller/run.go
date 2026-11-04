@@ -86,9 +86,6 @@ type StartRequest struct {
 	// ContextLimit is the most bytes of prompt a builder is given for a task;
 	// 0 means taskcontext.DefaultMaxEstimatedTokens.
 	ContextLimit int
-	// ShareContext accepts that a builder kind with no verified way to start a
-	// fresh conversation is sent its task in the conversation it already has.
-	ShareContext bool
 	// Collaboration, when set, attaches the run to an open collaboration: every
 	// model job it launches is registered as an expected source first.
 	Collaboration string
@@ -127,7 +124,6 @@ type runConfig struct {
 	TaskInputLimit int64  `json:"task_input_limit"`
 	RunInputLimit  int64  `json:"run_input_limit"`
 	ContextLimit   int    `json:"context_limit,omitempty"`
-	ShareContext   bool   `json:"share_context,omitempty"`
 	// Collaboration is omitted when empty, so a run without one has the same
 	// configuration, and hash, as before collaborations existed.
 	Collaboration string `json:"collaboration,omitempty"`
@@ -353,7 +349,7 @@ func (c *Controller) startRun(ctx context.Context, req StartRequest, done carrie
 	}
 	cfgHash, err := c.putJSON(ctx, runConfig{Version: 1, Root: root, PlanPath: req.PlanPath, BuilderKind: req.BuilderKind,
 		BuilderSession: req.BuilderSession, PlannerKind: "planner", PlannerSession: req.PlannerSession, CheckCommand: req.CheckCommand,
-		TaskInputLimit: req.TaskInputLimit, RunInputLimit: req.RunInputLimit, ContextLimit: req.ContextLimit, ShareContext: req.ShareContext,
+		TaskInputLimit: req.TaskInputLimit, RunInputLimit: req.RunInputLimit, ContextLimit: req.ContextLimit,
 		Collaboration: req.Collaboration, ReviewProtocol: req.ReviewProtocol, ReviewDelivery: req.ReviewDelivery,
 		AcceptancePolicy: policyHash, RecoveryPolicy: recoveryHash, ReviewerKind: req.ReviewerKind, ReviewerSession: req.ReviewerSession})
 	if err != nil {

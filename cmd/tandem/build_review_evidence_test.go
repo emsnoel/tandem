@@ -122,7 +122,7 @@ func reviewerEdited(t *testing.T) (root, dir string) {
 }
 
 func TestAnInvalidReviewCanBeExplicitlyAccepted(t *testing.T) {
-	for _, kind := range []string{"codex", "claude", "copilot", "opencode"} {
+	for _, kind := range []string{"codex", "claude", "copilot"} {
 		t.Run(kind, func(t *testing.T) {
 			root, dir := reviewerEdited(t)
 			b := load(t, dir)

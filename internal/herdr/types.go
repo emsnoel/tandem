@@ -64,7 +64,6 @@ func (a *Agent) SessionID() string {
 //   - codex: the hook runs in Codex's shared app-server daemon, started by the
 //     first Codex TUI on the machine. Every Codex conversation is credited to
 //     the pane that started the daemon, and no other pane gets one.
-//   - opencode: never reported.
 
 // Conversation returns the conversation the agent is in, when Herdr's report
 // names it: only for Claude Code. For every other kind it is "", and the
@@ -82,7 +81,7 @@ func NamesConversation(kind string) bool { return kind == "claude" }
 
 // HasNoConversation reports whether the pane is known to have no conversation:
 // no session reported, for a kind where that means no turn yet (Claude and
-// Copilot). For Codex and opencode it is false.
+// Copilot). For Codex it is false.
 func (a *Agent) HasNoConversation() bool {
 	return a != nil && (a.Kind == "claude" || a.Kind == "copilot") && a.SessionID() == ""
 }

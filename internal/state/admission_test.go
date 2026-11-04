@@ -211,7 +211,7 @@ func TestAdmissionUnlimitedDiffersFromUnconfigured(t *testing.T) {
 		t.Fatalf("an explicitly unlimited provider: %v", err)
 	}
 	req = e.request(t, 4202, 1, 1)
-	req.Provider = "opencode"
+	req.Provider = "copilot"
 	if _, err := e.s.AdmitDispatch(ctx, req); !errors.Is(err, ErrBudgetUnconfigured) {
 		t.Fatalf("a provider with no budget declared: %v", err)
 	}

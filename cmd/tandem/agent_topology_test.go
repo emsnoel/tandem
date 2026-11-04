@@ -65,7 +65,7 @@ func TestAgentPlannerExitCodes(t *testing.T) {
 	if got := fields(out); rc != exitcode.ManyPlanners || len(got) != 6 || got[0] != "w1:p1" || got[1] != "" || got[4] != "bob" || got[5] != "/c" {
 		t.Fatalf("rc %d, fields %q", rc, got)
 	}
-	out, rc = captureStdoutRC(t, func() int { return cmdAgent([]string{"planner", "--kind", "opencode"}) })
+	out, rc = captureStdoutRC(t, func() int { return cmdAgent([]string{"planner", "--kind", "copilot"}) })
 	if rc != exitcode.NoPlanner || out != "" {
 		t.Fatalf("rc %d, out %q", rc, out)
 	}

@@ -154,7 +154,7 @@ func TestCodexTrustRefusesUnquotablePath(t *testing.T) {
 }
 
 func TestCheckUnknownKindReturnsNothing(t *testing.T) {
-	if a := Check("opencode", t.TempDir(), agent.RoleBuilder); len(a) != 0 {
-		t.Fatalf("opencode has no launch-time gate; got %+v", a)
+	if a := Check("nonesuch", t.TempDir(), agent.RoleBuilder); len(a) != 0 {
+		t.Fatalf("an unknown kind has no launch-time gate; got %+v", a)
 	}
 }

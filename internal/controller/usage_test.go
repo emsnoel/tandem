@@ -206,7 +206,7 @@ func TestUsageUnsupportedAdapterIsUnavailableNotZero(t *testing.T) {
 	e, src := usageEnv(t)
 	src.unsupported["copilot"] = true
 	run, err := e.c.Start(ctx, e.startRequest(func(r *StartRequest) {
-		r.BuilderKind, r.BuilderSession, r.PlannerSession, r.ShareContext = "copilot", "b", "p", true
+		r.BuilderKind, r.BuilderSession, r.PlannerSession = "copilot", "b", "p"
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -346,7 +346,7 @@ func TestAgentUsageSourceReadsEachKindsLogs(t *testing.T) {
 	if streams, err := src.Collect(context.Background(), "codex", "no-such-session", time.Time{}, time.Now()); err != nil || len(streams) == 0 || streams[0].Unavailable == "" {
 		t.Errorf("codex: a missing rollout is a gap: %+v %v", streams, err)
 	}
-	if _, err := src.Collect(context.Background(), "opencode", session, time.Time{}, time.Now()); !errors.Is(err, workflow.ErrUnsupported) {
+	if _, err := src.Collect(context.Background(), "nonesuch", session, time.Time{}, time.Now()); !errors.Is(err, workflow.ErrUnsupported) {
 		t.Errorf("a kind with no log reader: %v", err)
 	}
 }

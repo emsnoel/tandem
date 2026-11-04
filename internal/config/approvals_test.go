@@ -7,14 +7,14 @@ import (
 )
 
 func TestKindApprovedIsPerRepository(t *testing.T) {
-	u := &User{Approvals: map[string][]string{"/repo/a": {"opencode"}}}
-	if !u.KindApproved("/repo/a", "opencode") {
+	u := &User{Approvals: map[string][]string{"/repo/a": {"copilot"}}}
+	if !u.KindApproved("/repo/a", "copilot") {
 		t.Error("approved pair must read as approved")
 	}
 	if u.KindApproved("/repo/a", "droid") {
 		t.Error("a different kind in the same repo is not approved")
 	}
-	if u.KindApproved("/repo/b", "opencode") {
+	if u.KindApproved("/repo/b", "copilot") {
 		t.Error("approval must not leak across repositories")
 	}
 }
@@ -28,17 +28,17 @@ func TestKindApprovedEmptyUser(t *testing.T) {
 func TestApproveKindPersistsAndIsIdempotent(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "tandem.json")
 
-	if err := ApproveKind(p, "/repo/a", "opencode"); err != nil {
+	if err := ApproveKind(p, "/repo/a", "copilot"); err != nil {
 		t.Fatal(err)
 	}
-	if err := ApproveKind(p, "/repo/a", "opencode"); err != nil {
+	if err := ApproveKind(p, "/repo/a", "copilot"); err != nil {
 		t.Fatal(err)
 	}
 	u, err := LoadUser(p)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := u.Approvals["/repo/a"]; len(got) != 1 || got[0] != "opencode" {
+	if got := u.Approvals["/repo/a"]; len(got) != 1 || got[0] != "copilot" {
 		t.Fatalf("got %v, want one entry", got)
 	}
 }
@@ -50,7 +50,7 @@ func TestApproveKindPreservesOtherSettings(t *testing.T) {
 	if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := ApproveKind(p, "/repo/a", "opencode"); err != nil {
+	if err := ApproveKind(p, "/repo/a", "copilot"); err != nil {
 		t.Fatal(err)
 	}
 	u, err := LoadUser(p)

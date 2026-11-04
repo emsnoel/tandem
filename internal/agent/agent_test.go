@@ -18,7 +18,7 @@ func TestDegradeReturnsRequestedWhenSupported(t *testing.T) {
 // also stalls an unattended pane does not make it a narrowing.
 func TestDegradeRefusesWideningByDefault(t *testing.T) {
 	_, _, err := Degrade("autonomy", "readonly", AutonomyOrder,
-		[]string{"ask", "full"}, []string{"autonomy"}, nil, "opencode")
+		[]string{"ask", "full"}, []string{"autonomy"}, nil, "examplekind")
 	if err == nil {
 		t.Fatal("expected refusal; allow_degrade must not permit widening")
 	}
@@ -33,7 +33,7 @@ func TestDegradeRefusesWideningByDefault(t *testing.T) {
 
 func TestDegradeAllowsWideningWhenPermitted(t *testing.T) {
 	got, w, err := Degrade("autonomy", "readonly", AutonomyOrder,
-		[]string{"ask", "full"}, nil, []string{"autonomy"}, "opencode")
+		[]string{"ask", "full"}, nil, []string{"autonomy"}, "examplekind")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -46,7 +46,7 @@ func TestDegradeAllowsWideningWhenPermitted(t *testing.T) {
 // escalating to full.
 func TestDegradePrefersNearestBelow(t *testing.T) {
 	got, w, err := Degrade("autonomy", "auto", AutonomyOrder,
-		[]string{"ask", "full"}, []string{"autonomy"}, nil, "opencode")
+		[]string{"ask", "full"}, []string{"autonomy"}, nil, "examplekind")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -57,7 +57,7 @@ func TestDegradePrefersNearestBelow(t *testing.T) {
 
 func TestDegradeRefusedNarrowingDoesNotEscalate(t *testing.T) {
 	_, _, err := Degrade("autonomy", "auto", AutonomyOrder,
-		[]string{"ask", "full"}, nil, []string{"autonomy"}, "opencode")
+		[]string{"ask", "full"}, nil, []string{"autonomy"}, "examplekind")
 	if err == nil {
 		t.Fatal("expected refusal: allow_widen must not satisfy a narrowing case")
 	}
@@ -67,7 +67,7 @@ func TestDegradeRefusedNarrowingDoesNotEscalate(t *testing.T) {
 }
 
 func TestDegradeEmptySupportedDropsAxisWhenPermitted(t *testing.T) {
-	got, w, err := Degrade("effort", "high", EffortOrder, nil, []string{"effort"}, nil, "opencode")
+	got, w, err := Degrade("effort", "high", EffortOrder, nil, []string{"effort"}, nil, "examplekind")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestDegradeEmptySupportedDropsAxisWhenPermitted(t *testing.T) {
 }
 
 func TestDegradeEmptySupportedRefusesByDefault(t *testing.T) {
-	if _, _, err := Degrade("effort", "high", EffortOrder, nil, nil, nil, "opencode"); err == nil {
+	if _, _, err := Degrade("effort", "high", EffortOrder, nil, nil, nil, "examplekind"); err == nil {
 		t.Fatal("expected refusal when the adapter has no support for the axis")
 	}
 }

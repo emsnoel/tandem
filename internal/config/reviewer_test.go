@@ -50,7 +50,7 @@ func TestResolveReviewerNeverReadsBuilder(t *testing.T) {
 		Builder:  &RepoRole{Kind: "copilot", Model: "claude-sonnet-5.5", Effort: "high", Autonomy: "full"},
 		Reviewer: &RepoRole{Kind: "codex"},
 	}
-	user := &User{Defaults: UserDefaults{BuilderKind: "opencode"}, Adapters: map[string]UserAdapter{}}
+	user := &User{Defaults: UserDefaults{BuilderKind: "copilot"}, Adapters: map[string]UserAdapter{}}
 	env := envFrom(map[string]string{"HERDR_BUILDER_MODEL": "x"})
 	r := mustResolve(t, ResolveReviewer(repo, user, env, Overrides{}))
 	wantValue(t, "kind", r.Kind, "codex", FromRepo)
@@ -91,8 +91,8 @@ func TestResolveReviewerPrecedence(t *testing.T) {
 	wantValue(t, "env autonomy", r.Autonomy, "readonly", FromEnv)
 
 	r = mustResolve(t, ResolveReviewer(repo, emptyUser(), env,
-		Overrides{Kind: "opencode", Model: "f-model", Effort: "high", Autonomy: "full"}))
-	wantValue(t, "flag kind", r.Kind, "opencode", FromFlag)
+		Overrides{Kind: "copilot", Model: "f-model", Effort: "high", Autonomy: "full"}))
+	wantValue(t, "flag kind", r.Kind, "copilot", FromFlag)
 	wantValue(t, "flag model", r.Model, "f-model", FromFlag)
 	wantValue(t, "flag effort", r.Effort, "high", FromFlag)
 	wantValue(t, "flag autonomy", r.Autonomy, "full", FromFlag)

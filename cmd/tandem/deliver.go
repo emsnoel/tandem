@@ -78,10 +78,8 @@ type deliverReq struct {
 	// confirmed prompt to a pane whose conversation Herdr does not name gets a
 	// marker of its own.
 	nonce string
-	// root is the checkout a reset runs in. shareContext lets a pane with no
-	// verified reset be sent a task in the conversation it has.
-	root         string
-	shareContext bool
+	// root is the checkout a reset runs in.
+	root string
 }
 
 // deliverOutcome is what became of a prompt.
@@ -211,9 +209,7 @@ func deliverPrompt(d herdrDeps, r deliverReq, p deliverPolicy) deliverResult {
 			// A conversation that was reset, or that does not exist yet, is fresh.
 			res.reset, res.proved = true, session
 		case "skip:unsupported", "skip:no-identity", "skip:holds-build":
-			if !r.shareContext {
-				return declined("reset_unverified", "a fresh conversation for %s cannot be verified (%s), so the task was not sent. Start a new builder pane, or start the run with --share-context to accept the conversation it has", name, tok)
-			}
+			return declined("reset_unverified", "a fresh conversation for %s cannot be verified (%s), so the task was not sent. Start a new builder pane", name, tok)
 		default: // unconfirmed, skip:not-idle, skip:off-main, or anything unknown
 			return declined("reset_failed", "the conversation of %s could not be reset (%s), so the task was not sent", name, tok)
 		}

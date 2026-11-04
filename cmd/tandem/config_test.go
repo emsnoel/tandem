@@ -53,19 +53,19 @@ func TestLaunchSpecEmitsArgv(t *testing.T) {
 }
 
 func TestLaunchSpecRefusalUsesTheRightExitCode(t *testing.T) {
-	dir := withFixture(t, `{"builder":{"kind":"opencode","autonomy":"readonly"}}`, "")
-	if err := config.ApproveKind(config.UserConfigPath(), dir, "opencode"); err != nil {
+	dir := withFixture(t, `{"builder":{"kind":"codex","effort":"max"}}`, "")
+	if err := config.ApproveKind(config.UserConfigPath(), dir, "codex"); err != nil {
 		t.Fatal(err)
 	}
 	rc := cmdLaunchSpec([]string{"--role", "builder", "--root", dir, "--cwd", dir})
-	if rc != 21 {
-		t.Fatalf("got exit %d, want 21 (widening refused)", rc)
+	if rc != 20 {
+		t.Fatalf("got exit %d, want 20 (narrowing refused)", rc)
 	}
 }
 
 // A kind the REPOSITORY asked for is confirmed once per repository.
 func TestLaunchSpecRefusesUnapprovedRepoKind(t *testing.T) {
-	dir := withFixture(t, `{"builder":{"kind":"opencode","autonomy":"full"}}`, "")
+	dir := withFixture(t, `{"builder":{"kind":"copilot","autonomy":"full"}}`, "")
 	rc := cmdLaunchSpec([]string{"--role", "builder", "--root", dir, "--cwd", dir})
 	if rc != 22 {
 		t.Fatalf("got exit %d, want 22", rc)
@@ -78,7 +78,7 @@ func TestLaunchSpecRefusesUnapprovedRepoKind(t *testing.T) {
 func TestLaunchSpecDoesNotChallengeUserSuppliedKind(t *testing.T) {
 	dir := withFixture(t, `{}`, "")
 	rc := cmdLaunchSpec([]string{"--role", "builder", "--root", dir,
-		"--cwd", dir, "--kind", "opencode", "--autonomy", "full"})
+		"--cwd", dir, "--kind", "copilot", "--autonomy", "full"})
 	if rc != 0 {
 		t.Fatalf("got exit %d, want 0: a user-supplied kind needs no approval", rc)
 	}

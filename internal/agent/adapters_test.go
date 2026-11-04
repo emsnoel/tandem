@@ -2,7 +2,6 @@ package agent
 
 import (
 	"reflect"
-	"strings"
 	"testing"
 )
 
@@ -130,137 +129,6 @@ func TestClaudeNeverSandboxed(t *testing.T) {
 	a, _ := Get("claude")
 	if a.Sandboxed(Spec{Autonomy: Ask}) {
 		t.Error("claude does not sandbox the Herdr socket")
-	}
-}
-
-func TestOpenCodeAutonomyMapping(t *testing.T) {
-	// ask omits --auto; full passes it. Nothing else is expressible.
-	l := resolve(t, Spec{Kind: "opencode", Role: RoleBuilder, Autonomy: Ask})
-	for _, a := range l.Args {
-		if a == "--auto" {
-			t.Fatalf("autonomy=ask must not pass --auto; got %v", l.Args)
-		}
-	}
-	l = resolve(t, Spec{Kind: "opencode", Role: RoleBuilder, Autonomy: Full})
-	if !contains(l.Args, "--auto") {
-		t.Fatalf("autonomy=full must pass --auto; got %v", l.Args)
-	}
-}
-
-// opencode is the one adapter with a real persona to derive from role.
-func TestOpenCodePersonaFollowsRole(t *testing.T) {
-	l := resolve(t, Spec{Kind: "opencode", Role: RoleBuilder, Autonomy: Full})
-	if argAfter(l.Args, "--agent") != "build" {
-		t.Errorf("builder must select the build agent; got %v", l.Args)
-	}
-	l = resolve(t, Spec{Kind: "opencode", Role: RolePlanner, Autonomy: Ask})
-	if argAfter(l.Args, "--agent") != "plan" {
-		t.Errorf("planner must select the plan agent; got %v", l.Args)
-	}
-}
-
-func TestOpenCodeModel(t *testing.T) {
-	l := resolve(t, Spec{
-		Kind: "opencode", Role: RoleBuilder, Autonomy: Full,
-		Model: "anthropic/claude-sonnet-5",
-	})
-	if argAfter(l.Args, "--model") != "anthropic/claude-sonnet-5" {
-		t.Fatalf("got %v", l.Args)
-	}
-}
-
-// readonly is a WIDENING here: the nearest supported value is `ask`, which
-// grants write-with-prompts to an agent that asked to be read-only.
-func TestOpenCodeReadonlyRefusedAsWidening(t *testing.T) {
-	a, _ := Get("opencode")
-	_, err := a.Resolve(Spec{Kind: "opencode", Role: RoleBuilder, Autonomy: Readonly})
-	if err == nil {
-		t.Fatal("expected a refusal")
-	}
-	e := err.(*Error)
-	if e.Exit != 21 || e.Direction != Widening {
-		t.Fatalf("got exit=%d dir=%v, want 21/widening", e.Exit, e.Direction)
-	}
-}
-
-// auto narrows to ask, which stalls an unattended pane, so it needs
-// allow_degrade rather than allow_widen.
-func TestOpenCodeAutoNarrowsToAsk(t *testing.T) {
-	a, _ := Get("opencode")
-	if _, err := a.Resolve(Spec{Kind: "opencode", Role: RoleBuilder, Autonomy: Auto}); err == nil {
-		t.Fatal("expected a refusal without allow_degrade")
-	}
-	l, err := a.Resolve(Spec{
-		Kind: "opencode", Role: RoleBuilder, Autonomy: Auto,
-		AllowDegrade: []string{"autonomy"},
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if contains(l.Args, "--auto") {
-		t.Fatalf("narrowed to ask, so --auto must not appear; got %v", l.Args)
-	}
-	if len(l.Warnings) == 0 || l.Warnings[0].Direction != Narrowing {
-		t.Fatalf("want a narrowing warning; got %+v", l.Warnings)
-	}
-}
-
-func TestOpenCodeEffortUnsupported(t *testing.T) {
-	a, _ := Get("opencode")
-	if _, err := a.Resolve(Spec{
-		Kind: "opencode", Role: RoleBuilder, Autonomy: Full, Effort: EffortHigh,
-	}); err == nil {
-		t.Fatal("opencode has no interactive effort control; expected a refusal")
-	}
-	l, err := a.Resolve(Spec{
-		Kind: "opencode", Role: RoleBuilder, Autonomy: Full, Effort: EffortHigh,
-		AllowDegrade: []string{"effort"},
-	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if contains(l.Args, "--variant") {
-		t.Fatalf("--variant is not available on the interactive path; got %v", l.Args)
-	}
-}
-
-// A user --agent in ExtraArgs would land after the derived one and win, since
-// opencode parses with yargs, so it is refused.
-func TestOpenCodePersonaConflictRefused(t *testing.T) {
-	a, _ := Get("opencode")
-	_, err := a.Resolve(Spec{
-		Kind: "opencode", Role: RoleBuilder, Autonomy: Full,
-		ExtraArgs: []string{"--agent", "reviewer"},
-	})
-	if err == nil {
-		t.Fatal("expected a refusal when args carry their own --agent")
-	}
-	e, ok := err.(*Error)
-	if !ok {
-		t.Fatalf("want *Error, got %T", err)
-	}
-	if e.Code != "persona_conflict" || e.Exit != 20 {
-		t.Fatalf("got code=%q exit=%d, want persona_conflict/20", e.Code, e.Exit)
-	}
-	if !strings.Contains(e.Remedy, "build") {
-		t.Errorf("the remedy must name the persona being displaced; got %q", e.Remedy)
-	}
-}
-
-func TestOpenCodeUnrelatedExtraArgsStillPass(t *testing.T) {
-	l := resolve(t, Spec{
-		Kind: "opencode", Role: RoleBuilder, Autonomy: Full,
-		ExtraArgs: []string{"--pure"},
-	})
-	if l.Args[len(l.Args)-1] != "--pure" {
-		t.Fatalf("unrelated extra args must survive; got %v", l.Args)
-	}
-}
-
-func TestOpenCodeNeverSandboxed(t *testing.T) {
-	a, _ := Get("opencode")
-	if a.Sandboxed(Spec{Autonomy: Ask}) {
-		t.Error("opencode has no sandbox, so it always reaches the socket")
 	}
 }
 
@@ -414,7 +282,7 @@ func argAfter(args []string, flag string) string {
 }
 
 func TestKindsRegistered(t *testing.T) {
-	want := []string{"claude", "codex", "copilot", "opencode"}
+	want := []string{"claude", "codex", "copilot"}
 	if !reflect.DeepEqual(Kinds(), want) {
 		t.Fatalf("got %v, want %v", Kinds(), want)
 	}
@@ -431,12 +299,6 @@ func TestCopilotReviewerIsUnattended(t *testing.T) {
 	l = resolve(t, Spec{Kind: "copilot", Role: RolePlanner, SessionID: "abc", Autonomy: Auto})
 	if contains(l.Args, "--no-ask-user") || contains(l.Args, "--session-id") {
 		t.Errorf("a planner gets neither flag; got %v", l.Args)
-	}
-}
-
-func TestOpencodeReviewerPersonaIsBuild(t *testing.T) {
-	if p := (opencodeAdapter{}).Persona(RoleReviewer); p != "build" {
-		t.Errorf("reviewer persona = %q, want build", p)
 	}
 }
 

@@ -20,7 +20,7 @@ func writeRepo(t *testing.T, body string) string {
 func TestLoadRepoRoleBlocks(t *testing.T) {
 	p := writeRepo(t, `{
 	  "plans_dir": "docs/plans",
-	  "builder": {"kind":"opencode","model":"anthropic/claude-sonnet-5",
+	  "builder": {"kind":"copilot","model":"claude-sonnet-5",
 	              "autonomy":"full","allow_degrade":["effort"]}
 	}`)
 	r, warns, err := LoadRepo(p)
@@ -30,7 +30,7 @@ func TestLoadRepoRoleBlocks(t *testing.T) {
 	if len(warns) != 0 {
 		t.Fatalf("unexpected warnings: %v", warns)
 	}
-	if r.Builder.Kind != "opencode" || r.Builder.Autonomy != "full" {
+	if r.Builder.Kind != "copilot" || r.Builder.Autonomy != "full" {
 		t.Fatalf("got %+v", r.Builder)
 	}
 	if len(r.Builder.AllowDegrade) != 1 || r.Builder.AllowDegrade[0] != "effort" {
@@ -65,7 +65,7 @@ func TestLoadRepoIgnoresCapabilityKeys(t *testing.T) {
 // A repository may not select the planner. Nothing launches one, so a repo
 // value could only mis-select an agent on someone else's machine.
 func TestLoadRepoIgnoresThePlannerBlock(t *testing.T) {
-	p := writeRepo(t, `{"planner":{"kind":"opencode"},"builder":{"kind":"codex"}}`)
+	p := writeRepo(t, `{"planner":{"kind":"claude"},"builder":{"kind":"codex"}}`)
 	r, warns, err := LoadRepo(p)
 	if err != nil {
 		t.Fatal(err)
@@ -132,7 +132,7 @@ func TestLoadRepoBuilderKindBackCompat(t *testing.T) {
 }
 
 func TestLoadRepoWarnsWhenBothKindFormsPresent(t *testing.T) {
-	p := writeRepo(t, `{"builder_kind":"codex","builder":{"kind":"opencode"}}`)
+	p := writeRepo(t, `{"builder_kind":"codex","builder":{"kind":"claude"}}`)
 	_, warns, err := LoadRepo(p)
 	if err != nil {
 		t.Fatal(err)

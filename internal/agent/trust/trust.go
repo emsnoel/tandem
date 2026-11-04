@@ -52,8 +52,7 @@ var noGates = map[string]string{}
 func RegisterNoGates(kind, reason string) { noGates[kind] = reason }
 
 // Check runs every gate for a kind. An unknown kind has no gates and returns
-// nothing, which is the correct answer for opencode: it has no launch-time
-// trust or hook gate at all.
+// nothing.
 func Check(kind, cwd string, role agent.Role) []agent.Action {
 	return CheckWithOptions(kind, cwd, role, Options{})
 }

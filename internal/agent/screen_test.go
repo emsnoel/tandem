@@ -37,8 +37,6 @@ func TestOffMainInputReadsRealScreens(t *testing.T) {
 		{"codex-main.txt", "codex", false, ""},
 		{"codex-subagent.txt", "codex", true, "sub-agent"},
 		{"codex-command-center.txt", "codex", true, "command center"},
-		{"opencode-main.txt", "opencode", false, ""},
-		{"opencode-child.txt", "opencode", true, "child session"},
 		{"copilot-main.txt", "copilot", false, ""},
 		{"copilot-main-tabbar.txt", "copilot", false, ""},
 		// The sidebar open, with the input still holding the keys: a prompt
@@ -82,12 +80,12 @@ func TestOffMainInputIsSpecificToItsKind(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, kind := range []string{"codex", "opencode", "copilot", ""} {
+	for _, kind := range []string{"codex", "copilot", ""} {
 		if why, off := OffMainInput(kind, string(b)); off {
 			t.Errorf("a Claude subagent screen read as %q is off (%q)", kind, why)
 		}
 	}
-	for _, kind := range []string{"claude", "codex", "opencode", "copilot"} {
+	for _, kind := range []string{"claude", "codex", "copilot"} {
 		if why, off := OffMainInput(kind, ""); off {
 			t.Errorf("an empty %s screen is off (%q)", kind, why)
 		}
