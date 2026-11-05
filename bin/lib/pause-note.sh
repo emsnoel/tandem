@@ -205,7 +205,7 @@ pause_note() {
   case "$code" in
     check_failed)
       if [[ -n "$reason" ]]; then
-        _pn_step "Read the end of the check's log above. Fix the cause in the code or the check."
+        _pn_step "Read what the check reported above. If it printed nothing, run the task's check command yourself in the repo to see why it failed. Fix the cause in the code or the check."
       else
         _pn_step "The check's log could not be read here. Run the task's check command yourself in the repo and read its output. Fix the cause in the code or the check."
       fi

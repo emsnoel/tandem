@@ -66,6 +66,10 @@ has "check_failed names the task" "$OUT" "task-7"
 lack "check_failed does not offer a waive that leaves the run paused" "$OUT" "--waive"
 has "check_failed shows the log facts it was given" "$(pause_note check_failed "$RUN" /r task-7 b r "The check exited 1. The end of its log:
 FAIL TestX")" "FAIL TestX"
+OUT=$(pause_note check_failed "$RUN" /r task-7 b r "The check exited 1 and printed nothing.")
+has "check_failed passes on a check that printed nothing" "$OUT" "The check exited 1 and printed nothing."
+lack "and does not call that an unreadable log" "$OUT" "could not be read"
+has "and says to run the check by hand to see why" "$OUT" "If it printed nothing, run the task's check command yourself"
 OUT=$(pause_note review_unknown "$RUN" /r task-7 b rev "No valid review in the pane.")
 has "review_unknown includes the reason facts" "$OUT" "No valid review in the pane."
 has "review_unknown reads the reviewer pane" "$OUT" "herdr agent read rev"
