@@ -115,17 +115,23 @@ start_bridge() {
       && mv "$MAILBOX/builder-cwd.tmp" "$MAILBOX/builder-cwd" \
       || info "WARNING could not record the builder cwd in $MAILBOX/builder-cwd; tandem-unpair may leave the identity mailbox behind."
 
+    # The bridge writes bridge.pid itself and refuses to start while another
+    # live bridge holds it (lib/bridge-lock.sh), so a running one is reused.
     BRIDGE_PID_FILE="$MAILBOX/bridge.pid"
-    if [[ -f "$BRIDGE_PID_FILE" ]] && kill -0 "$(cat "$BRIDGE_PID_FILE" 2>/dev/null)" 2>/dev/null; then
-      info "relay bridge already running (pid $(cat "$BRIDGE_PID_FILE"))."
+    _bpid=$(cat "$BRIDGE_PID_FILE" 2>/dev/null || true)
+    if bridge_alive "$_bpid"; then
+      info "relay bridge already running (pid $_bpid)."
     else
       rm -f "$MAILBOX/bridge.ready"
       nohup tandem-bridge --mailbox "$MAILBOX" --planner "$PLANNER_NAME" \
         >>"$MAILBOX/bridge.log" 2>&1 &
-      echo $! > "$BRIDGE_PID_FILE"
-      for _ in $(seq 1 50); do [[ -f "$MAILBOX/bridge.ready" ]] && break; kill -0 "$(cat "$BRIDGE_PID_FILE")" 2>/dev/null || break; sleep 0.1; done
-      if kill -0 "$(cat "$BRIDGE_PID_FILE")" 2>/dev/null; then
-        info "relay bridge started (pid $(cat "$BRIDGE_PID_FILE")) watching $MAILBOX/q"
+      _launched=$!
+      for _ in $(seq 1 50); do [[ -f "$MAILBOX/bridge.ready" ]] && break; kill -0 "$_launched" 2>/dev/null || break; sleep 0.1; done
+      _bpid=$(cat "$BRIDGE_PID_FILE" 2>/dev/null || true)
+      if [[ "$_bpid" == "$_launched" ]] && kill -0 "$_launched" 2>/dev/null; then
+        info "relay bridge started (pid $_launched) watching $MAILBOX/q"
+      elif [[ "$_bpid" != "$_launched" ]] && bridge_alive "$_bpid"; then
+        info "relay bridge already running (pid $_bpid)."
       else
         info "WARNING relay bridge failed to start; see $MAILBOX/bridge.log"
       fi

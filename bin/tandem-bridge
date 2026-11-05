@@ -32,6 +32,8 @@ done
 . "${_self%/*}/lib/bridge-durable.sh"
 # shellcheck source=lib/bridge-build.sh
 . "${_self%/*}/lib/bridge-build.sh"
+# shellcheck source=lib/bridge-lock.sh
+. "${_self%/*}/lib/bridge-lock.sh"
 
 MAILBOX=""
 PLANNER_NAME="${HERDR_PLANNER_NAME:-planner}"
@@ -51,6 +53,9 @@ Normally started in the background by tandem-pair; run it by hand only to debug.
   --mailbox DIR   relay directory (contains q/ and a/)
   --planner NAME  agent to deliver to (default: planner)
   --once          process what is queued, then exit (for testing)
+
+One bridge watches a mailbox. A second start on the same mailbox refuses while
+the first runs (MAILBOX/bridge.pid).
 USAGE
 }
 
@@ -86,6 +91,7 @@ command -v herdr >/dev/null 2>&1 || die "herdr not found on PATH."
 engine_guard "$(dirname "$MAILBOX")"
 
 mkdir -p "$MAILBOX/q" "$MAILBOX/a"
+claim_mailbox
 
 # tandem answers in NUL-separated fields, written to this bridge's own file in
 # the mailbox, so a second bridge on the same mailbox cannot overwrite it. It
@@ -98,7 +104,7 @@ for _f in "$MAILBOX"/.fields.*; do
   [[ -e "$_f" ]] || continue
   kill -0 "${_f##*.}" 2>/dev/null || rm -f "$_f"
 done
-trap 'rm -f "$FIELDS"' EXIT
+trap 'rm -f "$FIELDS"; release_mailbox' EXIT
 # read_field VAR: the next field into VAR, empty at the end of the input.
 read_field() { IFS= read -r -d '' "$1" || true; }
 # read_message FILE: run `tandem relay read`. A failure, as for a file that is
@@ -132,6 +138,7 @@ fi
 log "watching $MAILBOX/q -> $PLANNER_NAME (backstop ${BACKSTOP_SECONDS}s)"
 last_wake=""
 while :; do
+  keep_mailbox
   # A run marker can appear while this runs, so check again.
   [[ -f "$MAILBOX/active-run.json" ]] && engine_guard "$(dirname "$MAILBOX")"
   if run=$(durable_run); then
@@ -165,7 +172,9 @@ while :; do
   # A marker that changed since this pass wakes the watch at once.
   [[ -n "$run" ]] && wargs+=(--root "$(dirname "$MAILBOX")")
   wrc=0
-  why=$(tandem agent watch "${wargs[@]}" 2>/dev/null) || wrc=$?
+  # exec, so the wait is the watch itself. Otherwise bash 3.2 forks a copy of
+  # this script to run it, which ps shows as a second bridge on the mailbox.
+  why=$(exec tandem agent watch "${wargs[@]}" 2>/dev/null) || wrc=$?
   case "$wrc" in
     0)  [[ "$why" == timeout ]] || log "woke: ${why//$'\t'/ }"
         # A wake this pass could not act on comes straight back. Pace it like a failed
