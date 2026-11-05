@@ -280,7 +280,7 @@ func (t *herdrTransport) ObserveAgent(_ context.Context, name string) (runner.Ob
 		}
 		return runner.Observation{}, err
 	}
-	obs := runner.Observation{State: runner.ObsUnknown, ExternalID: externalID(a), Session: a.Conversation()}
+	obs := runner.Observation{State: runner.ObsUnknown, ExternalID: externalID(a), Session: a.Conversation(), StateSeq: a.StateChangeSeq}
 	switch st := a.StatusString(); {
 	case st == "working" || st == "blocked":
 		obs.State = runner.ObsRunning

@@ -103,6 +103,7 @@ _pn_what() {
     repairs_exhausted)  echo "the repairs for the task ran out and it is still not accepted." ;;
     writer_unknown)     echo "tandem cannot tell whether the builder received the task." ;;
     dispatch_failed)    echo "the task never reached a working builder." ;;
+    builder_silent)     echo "the builder started this task, then went idle for 10 minutes without handing anything back. A provider failure, an expired login, used-up quota or a turn that ended early can do this." ;;
     agent_exited)       echo "the builder or reviewer CLI quit, so its pane no longer runs it." ;;
     agent_unsupported)  echo "the run uses an agent kind tandem no longer supports." ;;
     no_reviewer)        echo "the run has no reviewer pane, and the builder never reviews." ;;
@@ -148,6 +149,15 @@ _pn_writer_unknown() {
     "tandem state settle-delivery --run $1 --effect EFFECT --abandon --because WHY --root $q"
   _pn_step "Archive the run." "tandem state archive --run $1 --root $q"
   _pn_handoff
+}
+
+# A recover clears this pause only once the builder has taken a new turn, and a
+# handback clears it on its own, so both are told apart from the restart.
+_pn_builder_silent() {
+  _pn_read_pane "$3" "Look at the builder pane ${3:-NAME}."
+  _pn_step "If the builder is doing real work or has a question, answer it in that pane if it needs an answer. A handback continues the run by itself. To have tandem watch the builder again before that, run this once the builder has started a new turn. Until it has, the run stays paused." \
+    "tandem build recover --root $(printf %q "$2")"
+  restart_steps "$1" "$2" alt
 }
 
 # pause_note CODE RUN ROOT TASK BUILDER REVIEWER REASON PLAN COLLABORATION MAILBOX
@@ -208,6 +218,7 @@ pause_note() {
       fi
       restart_steps "$run" "$root" ;;
     writer_unknown) _pn_writer_unknown "$run" "$root" "$task" "$builder" ;;
+    builder_silent) _pn_builder_silent "$run" "$root" "$builder" ;;
     dispatch_failed)
       _pn_step "Fix the builder pane ${builder:-NAME}. A model the CLI rejects, an expired login, a used-up quota or a startup dialog looks like this. Re-run tandem-pair if the pane is gone."
       _pn_step "If the pair has no reviewer: $REVIEWER_REMEDY"

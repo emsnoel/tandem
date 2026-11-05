@@ -8,6 +8,7 @@
 #   - a startup dialog leaves the send delivery_unknown, and the note names the builder;
 #   - a failed check names the task and offers no waiver that cannot move the run;
 #   - a plan edited mid-run, and a deliberate stop, each get their own note;
+#   - a builder that starts and goes idle gets one note, and a late handback goes on;
 #   - a reviewer's changes_requested starts a repair and sends no note.
 set -uo pipefail
 . "$(cd "$(dirname "$0")" && pwd)/lib/records.sh"
@@ -39,8 +40,8 @@ printf '# Plan\n\n**Goal:** g.\n\n### Task 1: First\n\nfirst thing\n' > "$BASE/p
 git -C "$BASE" add . && git -C "$BASE" commit -qm plan
 
 TAB=$(printf '\t'); DRIVER=""
-stop_driver() { [ -z "$DRIVER" ] || { kill "$DRIVER" 2>/dev/null; wait "$DRIVER" 2>/dev/null; DRIVER=""; }; }
-td() { env PATH="$TMP/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$R" TANDEM_BUILD_ENGINE=durable TANDEM_STATE_HOME="$TMP/state-$C" TANDEM_ACK_WINDOW_MS="${ACK_MS:-}" tandem "$@"; }
+stop_driver() { [ -z "$DRIVER" ] || { pkill -P "$DRIVER" 2>/dev/null; kill "$DRIVER" 2>/dev/null; wait "$DRIVER" 2>/dev/null; DRIVER=""; }; }
+td() { env PATH="$TMP/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$R" TANDEM_BUILD_ENGINE=durable TANDEM_STATE_HOME="$TMP/state-$C" TANDEM_ACK_WINDOW_MS="${ACK_MS:-}" TANDEM_SILENCE_WINDOW_MS="${SILENCE_MS:-}" tandem "$@"; }
 # pass [N]: N bridge passes. Each one ticks the run and tells the planner of a new pause.
 pass() {
   local i
@@ -133,6 +134,48 @@ has "it names the builder pane" "$NOTE" "Builder pane: builder"
 has "and tells the planner to look at that pane" "$NOTE" "Look at the builder pane builder."
 once_only dialog
 rm -f "$FAKE/swallow"
+
+printf '\n== a builder that starts and goes idle: builder_silent ==\n'
+# The window is 10 minutes (controller.SilenceWindow); TANDEM_SILENCE_WINDOW_MS
+# shortens it. A bridge recovers when it starts, which restarts the clock, so this
+# case runs one bridge that stays up, as a real pair has, not --once passes.
+SILENCE_MS=3000; new_case silent true
+pass
+PL=$(cat "$FAKE/prompt.1.txt")
+IDENT=(--task 1 --attempt "$(field "$PL" attempt)" --job "$(field "$PL" job)" --effect "$(field "$PL" effect)" --nonce "$(field "$PL" nonce)")
+td build event new --root "$R" --kind builder_started "${IDENT[@]}" >/dev/null 2>&1
+fake_set_state idle
+env PATH="$TMP/bin:$ROOT_DIR/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$R" HERDR_ENV=1 TANDEM_BUILD_ENGINE=durable TANDEM_STATE_HOME="$TMP/state-$C" \
+  TANDEM_SILENCE_WINDOW_MS="$SILENCE_MS" HERDR_BRIDGE_BACKSTOP_SECONDS=1 HERDR_BRIDGE_PROMPT_TIMEOUT_MS=3000 \
+  "$ROOT_DIR/bin/tandem-bridge" --mailbox "$R/.tandem-relay" --planner planner >>"$TMP/bridge.log" 2>&1 &
+DRIVER=$!
+sleep 1
+[ "$(sent_to planner)" = 0 ] && ok "nothing is said inside the window" || nope "early note"
+for _ in $(seq 1 60); do [ "$(sent_to planner)" = 0 ] || break; sleep 0.5; done
+[ "$(state)" = paused/builder_silent ] && ok "the run pauses builder_silent after the window" || nope "state $(state)"
+[ "$(sent_to builder)" = 1 ] && ok "nothing more is typed to the builder" || nope "builder prompts: $(sent_to builder)"
+NOTE=$(last_note)
+has "it says what happened" "$NOTE" "stopped: the builder started this task, then went idle for 10 minutes without handing anything back."
+has "it gives the causes" "$NOTE" "A provider failure, an expired login, used-up quota or a turn that ended early can do this."
+has "it names the builder pane" "$NOTE" "Builder pane: builder"
+has "and tells the planner to look at that pane" "$NOTE" "Look at the builder pane builder."
+has "it says a handback continues the run" "$NOTE" "A handback continues the run by itself."
+has "it gives the way to carry on" "$NOTE" "tandem build recover --root"
+has "it gives the restart route" "$NOTE" "tandem state archive --run"
+has "with the git status step" "$NOTE" "check git status before you hand off"
+has "that starts again at task 1" "$NOTE" "The run starts again at task 1."
+sleep 3
+[ "$(sent_to planner)" = 1 ] && ok "the planner got one note, never repeated" || nope "notes: $(sent_to planner)"
+# The fake shares one status across panes, so typing the note moved the builder too.
+fake_set_state idle
+printf 'work\n' > "$R/file1.txt"; printf 'done\n' > "$TMP/report.md"
+td build event new --root "$R" --kind builder_submitted "${IDENT[@]}" --payload "$TMP/report.md" >/dev/null 2>&1
+for _ in $(seq 1 40); do [ "$(sent_to reviewer)" = 0 ] || break; sleep 0.5; done
+[ "$(state)" = running/ ] && ok "a late handback continues the run" || nope "state $(state)"
+[ "$(sent_to reviewer)" = 1 ] && ok "and the task goes on to its review" || nope "reviewer prompts: $(sent_to reviewer)"
+[ "$(sent_to planner)" = 1 ] && ok "and says nothing more to the planner" || nope "notes: $(sent_to planner)"
+stop_driver
+SILENCE_MS=""
 
 printf '\n== a failed check names the task ==\n'
 new_case check false
