@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+# The note a person reads when a durable run pauses (bin/lib/pause-note.sh).
+# One note for every pause code tandem lists, and tandem-pause-note reading a
+# real run's status. No Herdr: the run is seeded in a temp state home.
+set -uo pipefail
+ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
+
+PASS=0; FAIL=0
+ok()   { printf '  ok   %s\n' "$1"; PASS=$((PASS+1)); }
+nope() { printf '  FAIL %s\n' "$1"; FAIL=$((FAIL+1)); }
+has()  { case "$2" in *"$3"*) ok "$1" ;; *) nope "$1 (missing: $3): $2" ;; esac; }
+lack() { case "$2" in *"$3"*) nope "$1 (found: $3): $2" ;; *) ok "$1" ;; esac; }
+
+TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
+go -C "$ROOT_DIR" build -o "$TMP/tandem-real" ./cmd/tandem || { echo "could not build tandem" >&2; exit 2; }
+CODES="$TMP/codes"
+"$TMP/tandem-real" build pause-codes > "$CODES"
+
+# shellcheck source=../bin/lib/reviewer.sh
+. "$ROOT_DIR/bin/lib/reviewer.sh"
+# shellcheck source=../bin/lib/pause-note.sh
+. "$ROOT_DIR/bin/lib/pause-note.sh"
+
+RUN=0123456789abcdef0123456789abcdef
+SPACED="/tmp/a b/repo"
+
+printf '== every pause code has a note ==\n'
+[ -s "$CODES" ] && ok "tandem lists pause codes" || nope "no pause codes"
+while IFS= read -r -d '' code; do
+  out=$(pause_note "$code" "$RUN" "$SPACED" task-2 builder reviewer "")
+  first=$(printf '%s\n' "$out" | sed -n 1p)
+  case "$first" in "[build] Run $RUN stopped: "*) ok "$code: first line names the run" ;; *) nope "$code: first line: $first" ;; esac
+  case "$out" in *$'\nWhat to do:\n'*) ok "$code: has What to do:" ;; *) nope "$code: no What to do:" ;; esac
+  printf '%s\n' "$out" | grep -q '^1\. ' && ok "$code: has a numbered step" || nope "$code: no numbered step"
+  case "$out" in *"—"*) nope "$code: has an em dash" ;; *) ok "$code: no em dash" ;; esac
+done < "$CODES"
+
+printf '\n== commands keep a root with spaces as one argument ==\n'
+ARGS="$TMP/args"
+tandem() { printf '%s\n' "$@" >> "$ARGS"; printf -- '--end\n' >> "$ARGS"; }
+n=0; bad=0
+while IFS= read -r -d '' code; do
+  : > "$ARGS"
+  pause_note "$code" "$RUN" "$SPACED" task-2 builder reviewer "" | grep '^    tandem ' | while IFS= read -r line; do eval "${line#    }"; done
+  # Each command with a --root has exactly the root as the word after it.
+  if grep -qx -- '--root' "$ARGS"; then
+    n=$((n+1))
+    awk -v want="$SPACED" '$0=="--root"{getline; if ($0!=want) exit 1}' "$ARGS" || { nope "$code: root split"; bad=1; }
+  fi
+done < "$CODES"
+unset -f tandem
+[ "$n" -gt 10 ] && [ "$bad" -eq 0 ] && ok "$n codes print tandem commands and every root is one argument" || nope "checked $n codes, bad=$bad"
+OUT=$(pause_note check_failed "$RUN" "$SPACED" task-2 b r "")
+has "the root is escaped for the shell" "$OUT" 'tandem build stop --root /tmp/a\ b/repo'
+
+printf '\n== unknown and empty codes ==\n'
+for c in made_up_code ""; do
+  OUT=$(pause_note "$c" "$RUN" /r "" "" "" "")
+  has "'$c': says the run stopped" "$OUT" "Run $RUN stopped"
+  has "'$c': points to tandem build status" "$OUT" "tandem build status --root /r"
+done
+
+printf '\n== what each note carries ==\n'
+OUT=$(pause_note check_failed "$RUN" /r task-7 b r "")
+has "check_failed names the task" "$OUT" "task-7"
+has "check_failed waives that task's check" "$OUT" "tandem build accept --task task-7 --waive check"
+OUT=$(pause_note review_unknown "$RUN" /r task-7 b rev "No valid review in the pane.")
+has "review_unknown includes the reason facts" "$OUT" "No valid review in the pane."
+has "review_unknown reads the reviewer pane" "$OUT" "herdr agent read rev"
+has "review_unknown records the result" "$OUT" "tandem build review-record --result FILE --root /r"
+OUT=$(pause_note writer_unknown "$RUN" /r task-7 bldr rev "")
+has "writer_unknown names the builder pane" "$OUT" "bldr"
+has "writer_unknown settles the delivery" "$OUT" "tandem state settle-delivery --run $RUN --effect EFFECT --not-read --because WHY --root /r"
+OUT=$(pause_note agent_exited "$RUN" /r task-7 bldr rev "")
+has "agent_exited names tandem-pair and recover" "$OUT" "tandem-pair"
+has "agent_exited continues with recover" "$OUT" "tandem build recover --root /r"
+OUT=$(pause_note no_reviewer "$RUN" /r "" bldr "" "")
+has "no_reviewer gives the reviewer remedy" "$OUT" "$REVIEWER_REMEDY"
+OUT=$(pause_note agent_unsupported "$RUN" /r "" bldr "" "")
+for s in "build stop" "build tick" "state recover --run $RUN" "state archive --run $RUN"; do has "agent_unsupported lists $s" "$OUT" "tandem $s"; done
+OUT=$(pause_note dispatch_failed "$RUN" /r "" bldr "" "pane says: bad model")
+has "dispatch_failed keeps the reason" "$OUT" "pane says: bad model"
+has "dispatch_failed restarts" "$OUT" "tandem state archive --run $RUN --root /r"
+OUT=$(pause_note context_too_large "$RUN" /r task-1 b r "")
+has "context_too_large offers a larger limit" "$OUT" "--context-limit N"
+OUT=$(restart_steps "$RUN" /r)
+has "restart_steps hands the plan off again" "$OUT" "tandem-handoff PLAN"
+
+printf '\n== tandem-pause-note reads the run status ==\n'
+# A stand-in for tandem that answers the three questions the command asks.
+# STATE_FILE holds the status, as seven NUL-separated fields.
+mkdir -p "$TMP/bin"
+cat > "$TMP/bin/tandem" <<STUB
+#!/usr/bin/env bash
+case "\$1 \$2" in
+  "paths relay") printf '%s\\n' "\$4/.tandem-relay" ;;
+  "state active-run") [ -n "\${NO_RUN:-}" ] && exit 1; printf '%s\\n' $RUN ;;
+  "build status") cat "\$STATE_FILE" ;;
+  *) exit 2 ;;
+esac
+STUB
+chmod +x "$TMP/bin/tandem"
+ln -s "$ROOT_DIR/bin/tandem-pause-note" "$TMP/bin/tandem-pause-note"
+PN() { env PATH="$TMP/bin:$PATH" "$@"; }
+fields() { printf '%s\0%s\0%s\0%s\0%s\0%s\0%s\0' "$@" > "$TMP/status"; }
+
+fields paused stuck sent "It said stuck." task-3 bldr rev
+OUT=$(PN STATE_FILE="$TMP/status" tandem-pause-note --root "$SPACED" 2>&1); RC=$?
+[ "$RC" -eq 0 ] && ok "a paused run prints its note and exits 0" || nope "rc $RC: $OUT"
+has "the note names the run" "$OUT" "[build] Run $RUN stopped: the builder said it could not finish the task."
+has "it carries the task" "$OUT" "Task: task-3"
+has "it carries the reason" "$OUT" "It said stuck."
+has "and quotes the root" "$OUT" 'tandem build stop --root /tmp/a\ b/repo'
+fields running "" sent "" task-3 bldr rev
+OUT=$(PN STATE_FILE="$TMP/status" tandem-pause-note --root /r 2>&1); RC=$?
+[ "$RC" -eq 0 ] && has "a running run is not paused" "$OUT" "is running, not paused" || nope "running: rc $RC: $OUT"
+OUT=$(PN NO_RUN=1 tandem-pause-note --root /r 2>&1); RC=$?
+[ "$RC" -eq 0 ] && has "no run says so" "$OUT" "no durable run" || nope "no run: rc $RC: $OUT"
+OUT=$(PN tandem-pause-note 2>&1); RC=$?
+[ "$RC" -ne 0 ] && ok "a missing --root is refused" || nope "missing --root accepted: $OUT"
+
+printf '\ntests/test-pause-notes: passed %d, failed %d\n' "$PASS" "$FAIL"
+[ "$FAIL" -eq 0 ]

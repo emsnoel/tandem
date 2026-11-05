@@ -24,6 +24,8 @@ while [[ -L "$_self" ]]; do
 done
 # shellcheck source=lib/reviewer.sh
 . "${_self%/*}/lib/reviewer.sh"
+# shellcheck source=lib/pause-note.sh
+. "${_self%/*}/lib/pause-note.sh"
 # shellcheck source=lib/bridge-deliver.sh
 . "${_self%/*}/lib/bridge-deliver.sh"
 # shellcheck source=lib/bridge-durable.sh

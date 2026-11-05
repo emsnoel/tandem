@@ -13,6 +13,8 @@ done
 # shellcheck source=lib/reviewer.sh
 . "${_self%/*}/lib/reviewer.sh"
 HANDOFF_LIB="${_self%/*}/lib"
+# shellcheck source=lib/pause-note.sh
+. "$HANDOFF_LIB/pause-note.sh"
 # shellcheck source=lib/handoff-gate.sh
 . "$HANDOFF_LIB/handoff-gate.sh"
 # shellcheck source=lib/handoff-start.sh
