@@ -22,7 +22,8 @@ cat > "$TMP/bin/herdr" <<'STUB'
 #!/usr/bin/env bash
 exit 0
 STUB
-# tandem: relay paths from --root; tick answers TICK_OUT; a prompt fails while
+# tandem: relay paths from --root; tick answers TICK_OUT and exits TICK_RC, as a
+# tick whose step failed does; a prompt fails while
 # the FAILS_LEFT file holds a number above zero, and is saved otherwise.
 cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
@@ -31,7 +32,10 @@ case "$1" in
   paths) shift; while (( $# )); do [[ "$1" == --root ]] && { printf '%s/.tandem-relay\n' "$2"; exit 0; }; shift; done; exit 1 ;;
   build)
     case "$2" in
-      tick|recover) printf '%s|' "$TICK_OUT" | tr '|' '\000'; exit 0 ;;
+      tick|recover)
+        [[ -z "$TICK_OUT" ]] || printf '%s|' "$TICK_OUT" | tr '|' '\000'
+        [[ "${TICK_RC:-0}" == 0 ]] || echo "tandem build: the deliver step failed" >&2
+        exit "${TICK_RC:-0}" ;;
       status) printf '%s|' "$STATUS_OUT" | tr '|' '\000'; exit 0 ;;
     esac
     [[ "$2" == roles ]] && exec "$TANDEM_REAL" "$@" ;;
@@ -66,7 +70,7 @@ export CALLS PROMPTS FAILS_LEFT STATUS_OUT
 br() {
   : > "$CALLS"
   OUT=$(env -i PATH="$TMP/bin:/usr/bin:/bin" HOME="$HOME" HERDR_ENV=1 CALLS="$CALLS" TANDEM_REAL="$TMP/tandem-real" \
-          RUN_ID="$RUN" PROMPTS="$PROMPTS" FAILS_LEFT="$FAILS_LEFT" STATUS_OUT="$STATUS_OUT" TICK_OUT="$TICK_OUT" \
+          RUN_ID="$RUN" PROMPTS="$PROMPTS" FAILS_LEFT="$FAILS_LEFT" STATUS_OUT="$STATUS_OUT" TICK_OUT="$TICK_OUT" TICK_RC="${TICK_RC:-0}" \
           "$BRIDGE" --mailbox "$REL" --planner planner --once 2>&1); RC=$?
 }
 sent() { ls "$PROMPTS" | wc -l | tr -d ' '; }
@@ -152,6 +156,21 @@ reset 1
 STATUS_OUT='paused|stuck'; TICK_OUT="$RUN|paused|stuck"; br "$REL"
 STATUS_OUT='paused|review_unknown'; TICK_OUT="$RUN|paused|review_unknown"; br "$REL"
 [ "$(sent)" = 1 ] && ok "a different code is sent at once" || nope "sent $(sent)"
+
+printf '\n== a tick that keeps failing still sends the note ==\n'
+# A deliver step that fails on every pass makes each tick exit non-zero. The
+# tick still prints the run, paused in the same pass, and the bridge reports it.
+reset 0
+STATUS_OUT='paused|builder_silent||The pane stayed idle for 10 minutes.|task-1|builder|reviewer'
+TICK_OUT="$RUN|paused|builder_silent"; TICK_RC=1; br "$REL"
+[ "$(sent)" = 1 ] && has "the pause note goes out" "$(cat "$PROMPTS/0" 2>/dev/null)" "stopped: the builder started this task" || nope "sent $(sent): $OUT"
+has "the failure is still logged" "$OUT" "build tick: exit 1: tandem build: the deliver step failed"
+br "$REL"; br "$REL"
+[ "$(sent)" = 1 ] && ok "and is sent once, though every tick fails" || nope "sent $(sent)"
+reset 0
+TICK_OUT=""; br "$REL"
+[ "$RC" -eq 0 ] && [ "$(sent)" = 0 ] && ok "a failed tick that printed nothing sends nothing" || nope "rc $RC, sent $(sent): $OUT"
+TICK_RC=0
 
 printf '\ntests/test-pause-note-retry: passed %d, failed %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

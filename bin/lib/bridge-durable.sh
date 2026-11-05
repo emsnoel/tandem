@@ -43,18 +43,18 @@ ingest_durable() {
 }
 
 # drive_durable VERB [ARGS...]: give the durable run's controller one step (tick
-# or recover). A non-zero exit is logged and the loop goes on. Exit 3 is the
-# writer lease, which `tandem build recover` resolves.
+# or recover). A non-zero exit is logged and the loop goes on. A tick that fails
+# still prints the run when it can read it, and a pause in those fields is
+# reported, because a failure that repeats on every pass would otherwise hide
+# it. Exit 3 is the writer lease, which `tandem build recover` resolves.
 drive_durable() {
   local verb="$1" root rc=0 run="" state="" code="" skipped=""
   root=$(dirname "$MAILBOX")
   tandem build "$verb" --root "$root" "${@:2}" --fields >"$FIELDS" 2>"$MAILBOX/.last_error" || rc=$?
+  { read_field run; read_field state; read_field code; read_field skipped; } <"$FIELDS"
   if (( rc != 0 )); then
     log "build $verb: exit $rc: $(tail -1 "$MAILBOX/.last_error" 2>/dev/null)"
-    return
-  fi
-  { read_field run; read_field state; read_field code; read_field skipped; } <"$FIELDS"
-  if [[ -n "$skipped" ]]; then
+  elif [[ -n "$skipped" ]]; then
     log "build $verb: run $run skipped ($skipped)"
   else
     log "build $verb: run $run $state${code:+ ($code)}"

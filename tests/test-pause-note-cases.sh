@@ -9,6 +9,7 @@
 #   - a failed check names the task and offers no waiver that cannot move the run;
 #   - a plan edited mid-run, and a deliberate stop, each get their own note;
 #   - a builder that starts and goes idle gets one note, and a late handback goes on;
+#   - a handback the tree keeps from applying still pauses with one note;
 #   - a reviewer's changes_requested starts a repair and sends no note.
 set -uo pipefail
 . "$(cd "$(dirname "$0")" && pwd)/lib/records.sh"
@@ -68,6 +69,13 @@ new_case() {
 # once_only: another pass does not repeat the note.
 once_only() { local before; before=$(sent_to planner); pass 2; [ "$(sent_to planner)" = "$before" ] && ok "$1: and never again" || nope "$1: the note was repeated"; }
 field() { printf '%s' "$1" | grep -o -- "--$2 [0-9a-f]*" | head -1 | cut -d' ' -f2; }
+# bridge_up: one bridge that stays up in the background, as a real pair has.
+bridge_up() {
+  env PATH="$TMP/bin:$ROOT_DIR/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$R" HERDR_ENV=1 TANDEM_BUILD_ENGINE=durable TANDEM_STATE_HOME="$TMP/state-$C" \
+    TANDEM_SILENCE_WINDOW_MS="$SILENCE_MS" HERDR_BRIDGE_BACKSTOP_SECONDS=1 HERDR_BRIDGE_PROMPT_TIMEOUT_MS=3000 \
+    "$ROOT_DIR/bin/tandem-bridge" --mailbox "$R/.tandem-relay" --planner planner >>"$TMP/bridge.log" 2>&1 &
+  DRIVER=$!
+}
 # builder_turn: the builder reads its prompt, works, and hands in a report.
 builder_turn() {
   local pl att job eff nonce
@@ -145,10 +153,7 @@ PL=$(cat "$FAKE/prompt.1.txt")
 IDENT=(--task 1 --attempt "$(field "$PL" attempt)" --job "$(field "$PL" job)" --effect "$(field "$PL" effect)" --nonce "$(field "$PL" nonce)")
 td build event new --root "$R" --kind builder_started "${IDENT[@]}" >/dev/null 2>&1
 fake_set_state idle
-env PATH="$TMP/bin:$ROOT_DIR/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$R" HERDR_ENV=1 TANDEM_BUILD_ENGINE=durable TANDEM_STATE_HOME="$TMP/state-$C" \
-  TANDEM_SILENCE_WINDOW_MS="$SILENCE_MS" HERDR_BRIDGE_BACKSTOP_SECONDS=1 HERDR_BRIDGE_PROMPT_TIMEOUT_MS=3000 \
-  "$ROOT_DIR/bin/tandem-bridge" --mailbox "$R/.tandem-relay" --planner planner >>"$TMP/bridge.log" 2>&1 &
-DRIVER=$!
+bridge_up
 sleep 1
 [ "$(sent_to planner)" = 0 ] && ok "nothing is said inside the window" || nope "early note"
 for _ in $(seq 1 60); do [ "$(sent_to planner)" = 0 ] || break; sleep 0.5; done
@@ -176,6 +181,35 @@ for _ in $(seq 1 40); do [ "$(sent_to reviewer)" = 0 ] || break; sleep 0.5; done
 [ "$(state)" = running/ ] && ok "a late handback continues the run" || nope "state $(state)"
 [ "$(sent_to reviewer)" = 1 ] && ok "and the task goes on to its review" || nope "reviewer prompts: $(sent_to reviewer)"
 [ "$(sent_to planner)" = 1 ] && ok "and says nothing more to the planner" || nope "notes: $(sent_to planner)"
+stop_driver
+SILENCE_MS=""
+
+printf '\n== a handback the tree keeps from applying: builder_silent ==\n'
+# An untracked nested repository cannot be captured exactly, so every tick fails
+# as busy. The run still pauses, and the planner hears of it once.
+SILENCE_MS=3000; new_case stuck true
+pass
+PL=$(cat "$FAKE/prompt.1.txt")
+IDENT=(--task 1 --attempt "$(field "$PL" attempt)" --job "$(field "$PL" job)" --effect "$(field "$PL" effect)" --nonce "$(field "$PL" nonce)")
+td build event new --root "$R" --kind builder_started "${IDENT[@]}" >/dev/null 2>&1
+fake_set_state idle
+mkdir "$R/nested" && git -C "$R/nested" init -q
+printf 'work\n' > "$R/file1.txt"; printf 'done\n' > "$TMP/report.md"
+td build event new --root "$R" --kind builder_submitted "${IDENT[@]}" --payload "$TMP/report.md" >/dev/null 2>&1
+bridge_up
+for _ in $(seq 1 60); do [ "$(sent_to planner)" = 0 ] || break; sleep 0.5; done
+[ "$(state)" = paused/builder_silent ] && ok "the run pauses builder_silent while every tick fails" || nope "state $(state)"
+NOTE=$(last_note)
+has "it names the builder pane" "$NOTE" "Builder pane: builder"
+has "it points to the bridge log" "$NOTE" "grep -F 'cannot be captured exactly' $R/.tandem-relay/bridge.log"
+cat "$TMP/bridge.log" "$R/.tandem-relay/bridge.log" 2>/dev/null | grep -q 'cannot be captured exactly' && ok "and the log says why" || nope "no reason in the bridge log"
+sleep 3
+[ "$(sent_to planner)" = 1 ] && ok "the planner got one note, never repeated" || nope "notes: $(sent_to planner)"
+fake_set_state idle
+rm -rf "$R/nested"
+for _ in $(seq 1 40); do [ "$(sent_to reviewer)" = 0 ] || break; sleep 0.5; done
+[ "$(state)" = running/ ] && ok "a fixed tree lets the handback apply and the run continue" || nope "state $(state)"
+[ "$(sent_to reviewer)" = 1 ] && ok "and the task goes on to its review" || nope "reviewer prompts: $(sent_to reviewer)"
 stop_driver
 SILENCE_MS=""
 
