@@ -81,6 +81,13 @@ OUT=$(pause_note no_reviewer "$RUN" /r "" bldr "" "")
 has "no_reviewer gives the reviewer remedy" "$OUT" "$REVIEWER_REMEDY"
 OUT=$(pause_note agent_unsupported "$RUN" /r "" bldr "" "")
 for s in "build stop" "build wait" "state recover --run $RUN" "state archive --run $RUN"; do has "agent_unsupported lists $s" "$OUT" "tandem $s"; done
+OUT=$(pause_note builder_silent "$RUN" /r task-7 bldr rev "" "" "" /r/.tandem-relay)
+has "builder_silent names the builder pane" "$OUT" "Look at the builder pane bldr."
+has "builder_silent says a handback goes on by itself" "$OUT" "A handback continues the run by itself."
+has "builder_silent greps the log for a stuck handback" "$OUT" "grep -F 'busy:' /r/.tandem-relay/bridge.log | tail -n 5"
+lack "builder_silent says nothing twice" "$OUT" "if it needs an answer"
+OUT=$(pause_note builder_silent "$RUN" /r task-7 bldr rev "")
+has "builder_silent with no relay names the log" "$OUT" "It is bridge.log in the relay folder."
 OUT=$(pause_note dispatch_failed "$RUN" /r "" bldr "" "pane says: bad model")
 has "dispatch_failed keeps the reason" "$OUT" "pane says: bad model"
 has "dispatch_failed restarts" "$OUT" "tandem state archive --run $RUN --root /r"

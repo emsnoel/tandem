@@ -182,9 +182,11 @@ minutes, with no handback queued, the run pauses as `builder_silent` and the pla
 note. Nothing is typed into the pane. A repair's builder turn follows the same rule.
 
 These restart the 10 minutes: the pane working or blocked, a new turn or conversation in it,
-a status tandem cannot read, a new event on the attempt, a message in the run's queue, a gap of
-more than 10 minutes between ticks, and `tandem build recover`, which the bridge runs when it
-starts. The clock is `durable/RUN/builder-silence.json` in the relay. A missing or damaged file
+a status tandem cannot read, a new event on the attempt, a new message in the run's queue, a
+gap of more than 10 minutes between ticks, and `tandem build recover`, which the bridge runs
+when it starts. A message that stays queued restarts it only once. A handback the tree keeps
+from applying, such as one with an untracked nested repository in the checkout, logs `busy:`
+in the bridge log on each pass, and the run still pauses. The clock is `durable/RUN/builder-silence.json` in the relay. A missing or damaged file
 restarts it, and never pauses a run.
 
 The run continues in one of two ways:

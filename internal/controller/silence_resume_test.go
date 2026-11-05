@@ -1,7 +1,9 @@
 package controller
 
 import (
+	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -103,4 +105,64 @@ func TestLateStuckReplacesTheSilentPause(t *testing.T) {
 	e.queueClaimed(e.tasks()[0].ID, workflow.EventBuilderStuck, "{\"message\":\"no\"}\n")
 	e.tick()
 	e.wantRun("paused", workflow.PauseStuck)
+}
+
+// A handback the tree keeps from being applied, here because of an untracked
+// nested repository tandem cannot capture, restarts the clock once and then
+// counts as silence. Once the tree is fixed the handback applies and the run
+// goes on.
+func TestStuckHandbackStillPauses(t *testing.T) {
+	e := newCEnv(t)
+	e.startedBuilder(runner.ObsCompleted)
+	task := e.tasks()[0]
+	e.work(1)
+	nested := filepath.Join(e.root, "nested")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	git(t, nested, "init", "-q")
+	e.queueClaimed(task.ID, workflow.EventBuilderSubmitted, "{\"message\":\"done\"}\n")
+	// Each tick reports the busy tree, which the bridge logs.
+	for left := SilenceWindow + time.Minute; left > 0; left -= time.Minute {
+		e.clk.advance(time.Minute)
+		if err := e.c.Tick(ctx, e.runID); !errors.Is(err, workflow.ErrBusy) {
+			t.Fatalf("tick: %v", err)
+		}
+	}
+	e.wantRun("paused", pauseBuilderSilent)
+	if len(queuedFiles(e.runRow(), e.cfg())) != 1 {
+		t.Fatal("the handback is no longer queued")
+	}
+	if err := os.RemoveAll(nested); err != nil {
+		t.Fatal(err)
+	}
+	e.tick()
+	e.wantRun("running", "")
+	if got := e.current(task.ID).Implementation; got != workflow.ImplementationSubmitted {
+		t.Fatalf("the handback was not applied: %s", got)
+	}
+}
+
+func (e *cenv) cfg() runConfig {
+	e.t.Helper()
+	cfg, err := e.c.config(ctx, e.runRow())
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	return cfg
+}
+
+// A step of the pass that keeps failing does not keep the watch from running.
+func TestFailingStepsStillPause(t *testing.T) {
+	e := newCEnv(t)
+	e.startedBuilder(runner.ObsCompleted)
+	failed := errors.New("the delivery failed")
+	e.c.hooks.beforeDeliver = func() error { return failed }
+	for left := SilenceWindow; left > 0; left -= time.Minute {
+		e.clk.advance(time.Minute)
+		if err := e.c.Tick(ctx, e.runID); !errors.Is(err, failed) {
+			t.Fatalf("tick: %v", err)
+		}
+	}
+	e.wantRun("paused", pauseBuilderSilent)
 }

@@ -135,25 +135,32 @@ func (c *Controller) pass(ctx context.Context, runID string) error {
 		return errors.Join(mailErr, c.d.State.SetRunState(ctx, run.ID, "paused", pauseNoReviewer))
 	}
 
+	// The watch runs whatever the steps returned, so a step that keeps failing
+	// cannot hold the clock off. It does nothing for a run that is not running.
+	return errors.Join(mailErr, c.step(ctx, run, cfg), c.watchSilence(ctx, runID, cfg))
+}
+
+// step settles the run's local steps, then delivers at most one external effect.
+func (c *Controller) step(ctx context.Context, run state.Run, cfg runConfig) error {
 	for i := 0; i < maxSettlePasses; i++ {
 		progressed, err := c.settle(ctx, run, cfg)
-		if err != nil {
-			return errors.Join(mailErr, err)
-		}
-		if !progressed {
+		if err != nil || !progressed {
+			if err != nil {
+				return err
+			}
 			break
 		}
-		if run, err = c.d.State.GetRun(ctx, runID); err != nil {
+		if run, err = c.d.State.GetRun(ctx, run.ID); err != nil {
 			return err
 		}
 		if run.State != "running" {
-			return mailErr
+			return nil
 		}
 	}
-	if err := c.deliver(ctx, run, cfg, externalKinds); err != nil {
-		return errors.Join(mailErr, err)
+	if err := c.hook(c.hooks.beforeDeliver); err != nil {
+		return err
 	}
-	return errors.Join(mailErr, c.watchSilence(ctx, runID, cfg))
+	return c.deliver(ctx, run, cfg, externalKinds)
 }
 
 func (c *Controller) load(ctx context.Context, runID string) (state.Run, runConfig, error) {

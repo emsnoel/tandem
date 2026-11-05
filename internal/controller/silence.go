@@ -18,6 +18,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/emsnoel/tandem/internal/runner"
@@ -41,12 +43,32 @@ type silenceClock struct {
 	Version   int64  `json:"version"`
 	Seq       int    `json:"seq"`
 	Session   string `json:"session"`
-	SinceMS   int64  `json:"since_ms"`
-	SeenMS    int64  `json:"seen_ms"`
+	// Queued names the run's queued messages, so a new one restarts the clock
+	// once and one that stays queued does not hold it off.
+	Queued  []string `json:"queued"`
+	SinceMS int64    `json:"since_ms"`
+	SeenMS  int64    `json:"seen_ms"`
 }
 
 func (k silenceClock) sameTurn(o silenceClock) bool {
-	return k.AttemptID == o.AttemptID && k.Version == o.Version && k.Seq == o.Seq && k.Session == o.Session
+	return k.AttemptID == o.AttemptID && k.Version == o.Version && k.Seq == o.Seq && k.Session == o.Session &&
+		strings.Join(k.Queued, "\n") == strings.Join(o.Queued, "\n")
+}
+
+// queuedNames is the run's queue by message, sorted. A claimed file and its
+// unclaimed name are the same message: the bridge and a tick each rename it.
+func queuedNames(run state.Run, cfg runConfig) []string {
+	seen := map[string]bool{}
+	names := []string{}
+	for _, f := range queuedFiles(run, cfg) {
+		n := strings.TrimSuffix(filepath.Base(f), ".taken")
+		if !seen[n] {
+			seen[n] = true
+			names = append(names, n)
+		}
+	}
+	sort.Strings(names)
+	return names
 }
 
 func silenceClockPath(run state.Run, cfg runConfig) string {
@@ -107,6 +129,8 @@ func (c *Controller) observeBuilder(ctx context.Context, run state.Run, att work
 	if err != nil {
 		return runner.Observation{}, err
 	}
+	// An attempt has one task prompt: its attempt_created event makes it, and a
+	// retried send keeps the same effect. So the first match is the only one.
 	for _, e := range effects {
 		if e.Kind == workflow.EffectBuilderDispatch && e.AttemptID == att.ID {
 			return c.d.Transport.Observe(ctx, e.ID)
@@ -116,8 +140,10 @@ func (c *Controller) observeBuilder(ctx context.Context, run state.Run, att work
 }
 
 // watchSilence is the end of a running run's pass. It keeps the clock while the
-// current builder has started, not submitted and sits settled with nothing
-// queued, and pauses the run once that has lasted SilenceWindow. Nothing is typed
+// current builder has started, not submitted and sits settled with its queue
+// unchanged, and pauses the run once that has lasted SilenceWindow. A handback
+// the tree keeps from applying stays queued, so it counts as silence after the
+// clock restarts once for it: the note says where the bridge logs why. Nothing is typed
 // and nothing is ended, so a late handback still applies.
 func (c *Controller) watchSilence(ctx context.Context, runID string, cfg runConfig) error {
 	run, err := c.d.State.GetRun(ctx, runID)
@@ -128,7 +154,7 @@ func (c *Controller) watchSilence(ctx context.Context, runID string, cfg runConf
 	if err != nil {
 		return err
 	}
-	if !found || att.Implementation != workflow.ImplementationRunning || len(queuedFiles(run, cfg)) > 0 {
+	if !found || att.Implementation != workflow.ImplementationRunning {
 		restartSilenceClock(run, cfg)
 		return nil
 	}
@@ -138,7 +164,8 @@ func (c *Controller) watchSilence(ctx context.Context, runID string, cfg runConf
 		return nil
 	}
 	now := c.d.Now().UnixMilli()
-	seen := silenceClock{AttemptID: att.ID, Version: att.Version, Seq: obs.StateSeq, Session: obs.Session, SinceMS: now, SeenMS: now}
+	seen := silenceClock{AttemptID: att.ID, Version: att.Version, Seq: obs.StateSeq, Session: obs.Session,
+		Queued: queuedNames(run, cfg), SinceMS: now, SeenMS: now}
 	path := silenceClockPath(run, cfg)
 	// A gap as long as the window is not watching, as when the machine slept.
 	if last, ok := readSilenceClock(path); ok && last.sameTurn(seen) && now-last.SeenMS <= SilenceWindow.Milliseconds() {
@@ -209,6 +236,6 @@ func (c *Controller) turnMovedOn(ctx context.Context, run state.Run, cfg runConf
 		return true, nil
 	}
 	last, ok := readSilenceClock(silenceClockPath(run, cfg))
-	return ok && obs.State == runner.ObsCompleted &&
-		!last.sameTurn(silenceClock{AttemptID: att.ID, Version: att.Version, Seq: obs.StateSeq, Session: obs.Session}), nil
+	now := silenceClock{AttemptID: att.ID, Version: att.Version, Seq: obs.StateSeq, Session: obs.Session, Queued: last.Queued}
+	return ok && obs.State == runner.ObsCompleted && !last.sameTurn(now), nil
 }

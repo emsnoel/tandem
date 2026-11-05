@@ -159,6 +159,8 @@ type hooks struct {
 	// beforeExportComplete fails Export after every artifact is copied and
 	// verified, before it publishes the completion marker.
 	beforeExportComplete func() error
+	// beforeDeliver fails a pass after its local steps, before it delivers.
+	beforeDeliver func() error
 
 	// The review application boundaries, so a test can place a stop, a pause
 	// or a lease change exactly between two steps: after the fence is read,
