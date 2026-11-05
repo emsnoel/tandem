@@ -72,10 +72,11 @@ has "review_unknown reads the reviewer pane" "$OUT" "herdr agent read rev"
 has "review_unknown records the result" "$OUT" "tandem build review-record --result FILE --root /r"
 OUT=$(pause_note writer_unknown "$RUN" /r task-7 bldr rev "")
 has "writer_unknown names the builder pane" "$OUT" "bldr"
-has "writer_unknown settles the delivery" "$OUT" "tandem state settle-delivery --run $RUN --effect EFFECT --not-read --because WHY --root /r"
+has "writer_unknown settles the delivery" "$OUT" "tandem state settle-delivery --run $RUN --effect EFFECT --abandon --because WHY --root /r"
 OUT=$(pause_note agent_exited "$RUN" /r task-7 bldr rev "")
 has "agent_exited names tandem-pair and recover" "$OUT" "tandem-pair"
 has "agent_exited continues with recover" "$OUT" "tandem build recover --root /r"
+has "agent_exited says how to bring back a custom name" "$OUT" "HERDR_BUILDER_NAME"
 OUT=$(pause_note no_reviewer "$RUN" /r "" bldr "" "")
 has "no_reviewer gives the reviewer remedy" "$OUT" "$REVIEWER_REMEDY"
 OUT=$(pause_note agent_unsupported "$RUN" /r "" bldr "" "")
@@ -90,7 +91,10 @@ has "restart_steps hands the plan off again" "$OUT" "tandem-handoff"
 has "the restart says a gone builder pane holds the stop" "$OUT" "If the builder's pane is gone, the stop cannot finish"
 has "and brings the agent back" "$OUT" "bring the agent back with tandem-pair"
 has "the restart names settle-delivery for an archive refusal" "$OUT" "settle-delivery"
-has "and says only for a prompt never read" "$OUT" "never read the prompt"
+has "and says when to give up on a prompt" "$OUT" "idle and handed nothing back"
+has "and that its files are not accepted work" "$OUT" "aren't counted as accepted work"
+has "and to check them first" "$OUT" "git status"
+has "a pair with a custom name says how to bring it back" "$OUT" "HERDR_BUILDER_NAME"
 
 printf '\n== the rulings ==\n'
 for c in check_failed review_failed stuck repairs_exhausted source_mutated recovery_blocked; do
@@ -120,6 +124,7 @@ OUT=$(pause_note stopping "$RUN" /r task-7 b r "")
 lack "stopping is not called stopped" "$OUT" "stopped:"
 has "stopping says it waits for the current turn" "$OUT" "waiting for the builder's current turn"
 has "stopping says what a gone builder pane needs" "$OUT" "bring the agent back with tandem-pair"
+has "stopping says how to bring back a custom name" "$OUT" "HERDR_BUILDER_NAME"
 has "and how to finish the stop" "$OUT" "tandem build wait --root /r --until paused --tick --timeout 120000"
 OUT=$(restart_steps "$RUN" /r)
 stop_at=$(printf '%s\n' "$OUT" | grep -n 'tandem build stop' | cut -d: -f1)
@@ -137,6 +142,12 @@ OUT=$(pause_note writer_unknown "$RUN" /r task-7 bldr rev "")
 has "writer_unknown: a working builder is cleared by recover" "$OUT" "tandem state recover --run $RUN --root /r"
 has "writer_unknown: the export goes to a new folder" "$OUT" "--output /tmp/tandem-export-$RUN"
 has "writer_unknown: pick the builder's effect" "$OUT" "builder's task prompt"
+has "writer_unknown: a working builder is waited for" "$OUT" "If the builder is working"
+has "writer_unknown: an idle one that handed nothing back is given up on" "$OUT" "If it's idle and handed nothing back, abandon the prompt"
+has "writer_unknown: its files stay" "$OUT" "Any files it changed stay in your tree and aren't counted as accepted work"
+has "writer_unknown: check them before restarting" "$OUT" "check git status before restarting"
+has "writer_unknown: a late acknowledgement can close it" "$OUT" "Skip this step if the export lists nothing open"
+lack "writer_unknown no longer claims to know it was not read" "$OUT" "never read the prompt"
 # A paused run holds the writer lease, which only a finished stop releases, and
 # settle-delivery refuses a held lease. So the stop comes first.
 wait_at=$(printf '%s\n' "$OUT" | grep -n 'tandem build wait --root /r --until paused --tick' | cut -d: -f1)

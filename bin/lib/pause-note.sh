@@ -23,23 +23,30 @@ _pn_step() {
   [[ -z "${2:-}" ]] || printf '    %s\n' "$2"
 }
 
+# How to bring back a builder, named here so a custom name is never forgotten.
+_PN_CUSTOM_NAME="If the pair used a custom builder name, set HERDR_BUILDER_NAME to it first."
+
 # _pn_stop_wait ROOT: stop the run and wait for it to settle. The wait ticks the
 # run, which is what finishes a stop and frees the writer. A builder pane that is
 # gone holds the stop, and only bringing the agent back ends that.
 _pn_stop_wait() {
   local q; q=$(printf %q "$1")
   _pn_step "Stop the run." "tandem build stop --root $q"
-  _pn_step "Wait until the run is paused. A stop waits for the builder's current turn and the wait ticks the run, so it can take a few minutes. If it times out, run it again. If the builder's pane is gone, the stop cannot finish, so bring the agent back with tandem-pair first." \
+  _pn_step "Wait until the run is paused. A stop waits for the builder's current turn and the wait ticks the run, so it can take a few minutes. If it times out, run it again. If the builder's pane is gone, the stop cannot finish, so bring the agent back with tandem-pair first. $_PN_CUSTOM_NAME" \
     "tandem build wait --root $q --until paused --tick --timeout 120000"
+}
+
+# _pn_recover RUN ROOT: end its open jobs, and read any late acknowledgement.
+_pn_recover() {
+  _pn_step "End its open jobs and read any message the agent queued. An open job blocks the archive." "tandem state recover --run $1 --root $(printf %q "$2")"
 }
 
 # _pn_end_run RUN ROOT: end its open jobs and archive it. An open delivery stops
 # the archive, and the refusal prints the settle-delivery command with its ids.
 _pn_end_run() {
-  local q; q=$(printf %q "$2")
-  _pn_step "End its open jobs. An open job blocks the archive." "tandem state recover --run $1 --root $q"
-  _pn_step "Archive the run. If it refuses because a delivery is open, the refusal prints a settle-delivery command. Run it only if the agent never read the prompt, then archive again." \
-    "tandem state archive --run $1 --root $q"
+  _pn_recover "$1" "$2"
+  _pn_step "Archive the run. If it refuses because a delivery is open, the refusal prints a settle-delivery command. Run it only if the agent is idle and handed nothing back and you are giving up on the prompt. Any files it changed stay in your tree and aren't counted as accepted work, so check git status before you hand off. Then archive again." \
+    "tandem state archive --run $1 --root $(printf %q "$2")"
 }
 
 # _pn_teardown RUN ROOT: the whole way to a run that is history.
@@ -111,7 +118,7 @@ _pn_what() {
 
 _pn_agent_exited() {
   local q; q=$(printf %q "$2")
-  _pn_step "Start the agent again in its pane with tandem-pair. The builder pane is ${3:-unknown} and the reviewer pane is ${4:-unknown}." "tandem-pair"
+  _pn_step "Start the agent again in its pane with tandem-pair. The builder pane is ${3:-unknown} and the reviewer pane is ${4:-unknown}. $_PN_CUSTOM_NAME" "tandem-pair"
   _pn_step "Continue the run once the agent is back." "tandem build recover --root $q"
 }
 
@@ -124,18 +131,19 @@ _pn_agent_unsupported() {
 }
 
 # A paused run holds the writer lease until a stop finishes, and settle-delivery
-# refuses a held lease, so the stop comes before the settle.
+# refuses a held lease, so the stop comes before giving up on the prompt.
 _pn_writer_unknown() {
   local q; q=$(printf %q "$2")
-  _pn_read_pane "$4" "Look at the builder pane ${4:-NAME}. If the builder is working on the task, it read the prompt. Do step 2 once its turn has ended, and then you are done."
+  _pn_read_pane "$4" "Look at the builder pane ${4:-NAME}. If the builder is working on the task, it read the prompt, so wait. Do step 2 once its turn has ended, and then you are done."
   _pn_step "Let tandem see that the prompt was read." "tandem state recover --run $1 --root $q"
-  _pn_step "If the builder never read the prompt, clear what blocks it, such as a startup dialog or a provider error. Then stop the run with the next two steps."
+  _pn_step "If it's idle and handed nothing back, abandon the prompt. Any files it changed stay in your tree and aren't counted as accepted work, so check git status before restarting. Clear what blocks the pane first, such as a startup dialog or a provider error. Then stop the run with the next two steps."
   _pn_stop_wait "$2"
+  _pn_recover "$1" "$2"
   _pn_step "Export the run to a folder that does not exist yet. The output lists the unresolved deliveries on screen, each with an effect id. Pick the one for the builder's task prompt, not a reviewer prompt or a notice." \
     "tandem state export --run $1 --output /tmp/tandem-export-$1 --root $q"
-  _pn_step "Record that the builder did not read the prompt." \
-    "tandem state settle-delivery --run $1 --effect EFFECT --not-read --because WHY --root $q"
-  _pn_end_run "$1" "$2"
+  _pn_step "Give up on that prompt. Skip this step if the export lists nothing open." \
+    "tandem state settle-delivery --run $1 --effect EFFECT --abandon --because WHY --root $q"
+  _pn_step "Archive the run." "tandem state archive --run $1 --root $q"
   _pn_handoff
 }
 
@@ -234,7 +242,7 @@ pause_note() {
       printf '\nTo close the pair instead, run tandem-unpair.\n' ;;
     stopping)
       _pn_step "Nothing yet. Check again in a minute." "tandem build status --root $q"
-      _pn_step "If it stays stopping and the builder's pane is gone, the stop cannot finish, so bring the agent back with tandem-pair. Then let the stop finish." \
+      _pn_step "If it stays stopping and the builder's pane is gone, the stop cannot finish, so bring the agent back with tandem-pair. $_PN_CUSTOM_NAME Then let the stop finish." \
         "tandem build wait --root $q --until paused --tick --timeout 120000" ;;
     *)
       _pn_step "Read why it stopped." "tandem build status --root $q" ;;

@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # A paused run always has a way out, through the shipped binary and a fake Herdr.
 #
-# No model is called. A builder that never read its prompt leaves the run with an
-# open delivery, which only a person's statement can end:
+# No model is called. A builder that never acknowledged its prompt leaves the run with
+# an open delivery, which only its nonce or a person's statement can end:
 #   - the archive refuses and prints the command;
 #   - that command refuses while the pane is working or the stop holds the writer;
 #   - with the pane idle it ends the delivery, types nothing, and a new run starts.
-# A gone builder pane holds a stop until the agent is back.
+# A gone builder pane holds a stop until the agent is back, and tandem-pair is
+# what brings it back.
 set -uo pipefail
 . "$(cd "$(dirname "$0")" && pwd)/lib/records.sh"
 ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
@@ -52,7 +53,7 @@ fake_set_state idle
 EFFECT=$(td state export --run "$RUN" --output "$TMP/export" --root "$REPO" | jq -r '.unresolved[0]' | cut -d' ' -f2)
 [[ "$EFFECT" =~ ^[0-9a-f]{32}$ ]] && ok "the export names the open delivery" || nope "effect: $EFFECT"
 
-SETTLE=(state settle-delivery --run "$RUN" --effect "$EFFECT" --not-read --because "the pane never showed it" --root "$REPO")
+SETTLE=(state settle-delivery --run "$RUN" --effect "$EFFECT" --abandon --because "the pane never showed it" --root "$REPO")
 td "${SETTLE[@]}" >/dev/null 2>"$TMP/err"; rc=$?
 [ "$rc" -eq 23 ] && grep -q 'tandem build stop' "$TMP/err" && ok "a running run refuses a settle and says to stop" || nope "rc $rc: $(cat "$TMP/err")"
 
@@ -63,7 +64,7 @@ wait_paused && ok "the wait ticks the stop to paused" || nope "wait: $(state) $(
 [ "$(state)" = paused/stopped ] && ok "the run is stopped" || nope "state: $(state)"
 td state recover --run "$RUN" --root "$REPO" >/dev/null 2>"$TMP/err" && ok "recover goes through" || nope "recover: $(cat "$TMP/err")"
 td state archive --run "$RUN" --root "$REPO" >/dev/null 2>"$TMP/err"; rc=$?
-[ "$rc" -eq 23 ] && grep -qF "tandem state settle-delivery --run $RUN --effect $EFFECT --not-read" "$TMP/err" \
+[ "$rc" -eq 23 ] && grep -qF "tandem state settle-delivery --run $RUN --effect $EFFECT --abandon" "$TMP/err" \
   && ok "the archive refuses and prints the command" || nope "archive rc $rc: $(cat "$TMP/err")"
 
 fake_set_state working
@@ -93,14 +94,60 @@ td build stop --root "$REPO" >/dev/null 2>&1
 wait_paused; rc=$?
 [ "$rc" -eq 23 ] && [ "$(state)" = stopping/stopping ] && ok "the wait times out with the run stopping" || nope "wait rc $rc, state $(state)"
 EFFECT2=$(td state export --run "$RUN2" --output "$TMP/export2" --root "$REPO" | jq -r '.unresolved[0]' | cut -d' ' -f2)
-td state settle-delivery --run "$RUN2" --effect "$EFFECT2" --not-read --because gone --root "$REPO" >/dev/null 2>"$TMP/err"; rc=$?
+td state settle-delivery --run "$RUN2" --effect "$EFFECT2" --abandon --because gone --root "$REPO" >/dev/null 2>"$TMP/err"; rc=$?
 [ "$rc" -eq 23 ] && grep -q 'writer lease' "$TMP/err" && ok "settling cannot end it, because the stop holds the writer" || nope "settle rc $rc: $(cat "$TMP/err")"
 rm -f "$FAKE/absent"; fake_set_state idle
 turn_ends
 wait_paused && [ "$(state)" = paused/stopped ] && ok "with the agent back the same wait finishes the stop" || nope "state $(state) $(cat "$TMP/err")"
-td state settle-delivery --run "$RUN2" --effect "$EFFECT2" --not-read --because gone --root "$REPO" >/dev/null 2>"$TMP/err" && ok "and then the prompt can be settled" || nope "settle: $(cat "$TMP/err")"
+td state settle-delivery --run "$RUN2" --effect "$EFFECT2" --abandon --because gone --root "$REPO" >/dev/null 2>"$TMP/err" && ok "and then the prompt can be settled" || nope "settle: $(cat "$TMP/err")"
 td state recover --run "$RUN2" --root "$REPO" >/dev/null 2>&1
 td state archive --run "$RUN2" --root "$REPO" >/dev/null 2>"$TMP/err" && ok "and the run archived" || nope "archive: $(cat "$TMP/err")"
+
+printf '\n== tandem-pair brings a gone builder back on a stopping run ==\n'
+# The fake keeps one agent's state and knows nothing of opening panes, so this
+# wrapper answers those commands and starting the builder makes it present again.
+mv "$TMP/bin/herdr" "$TMP/bin/herdr.fake"
+cat > "$TMP/bin/herdr" <<STUB
+#!/usr/bin/env bash
+printf '%s\\n' "\$*" >> "$FAKE/pair.log"
+case "\$1 \$2" in
+  "pane split") printf '{"result":{"pane":{"pane_id":"w1:builder"}}}\\n'; exit 0 ;;
+  "pane run"|"pane rename"|"pane title"|"agent rename"|"tab rename"|"tab set-title") printf '{"result":{}}\\n'; exit 0 ;;
+  "agent start") rm -f "$FAKE/absent"; printf '{"result":{"agent":{"name":"builder"}}}\\n'; exit 0 ;;
+  # tandem-pair looks for a Claude planner, and the fake has one kind.
+  "agent list") "$TMP/bin/herdr.fake" "\$@" | sed 's/"agent":"codex"\\(,[^}]*"name":"planner"\\)/"agent":"claude"\\1/'; exit 0 ;;
+esac
+exec "$TMP/bin/herdr.fake" "\$@"
+STUB
+chmod +x "$TMP/bin/herdr"
+pair() {
+  (cd "$REPO" && env PATH="$TMP/bin:$ROOT_DIR/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$REPO" TANDEM_STATE_HOME="$TMP/state" HERDR_ENV=1 HERDR_PANE_ID=w1:planner \
+    HERDR_SKIP_HOOK_CHECK=1 HERDR_PAIR_START_TIMEOUT_MS=1000 "$ROOT_DIR/bin/tandem-pair" --skip-doctor --builder codex --cwd "$REPO" 2>&1)
+}
+RUN3=$(start_run)
+[[ "$RUN3" =~ ^[0-9a-f]{32}$ ]] || nope "start: $RUN3 $(cat "$TMP/err")"
+td build tick --root "$REPO" >/dev/null 2>&1
+fake_set_state idle
+printf 'builder\n' > "$FAKE/absent"
+td build stop --root "$REPO" >/dev/null 2>&1
+wait_paused; rc=$?
+[ "$rc" -eq 23 ] && [ "$(state)" = stopping/stopping ] && ok "the stop holds with the pane gone" || nope "wait rc $rc, state $(state)"
+OUT=$(pair); rc=$?
+[ "$rc" -eq 0 ] && ok "tandem-pair runs on the stopping run" || nope "pair rc $rc: $OUT"
+case "$(cat "$FAKE/pair.log")" in *"agent start builder"*) ok "it starts the builder again" ;; *) nope "pair.log: $(cat "$FAKE/pair.log")" ;; esac
+[ ! -e "$FAKE/absent" ] && ok "and the pane is back" || nope "still absent"
+# tandem-pair started the bridge. It would type notes into the fake's one shared
+# state, so it stops here and the test ticks by itself.
+BP=$(cat "$REPO/.tandem-relay/bridge.pid" 2>/dev/null); [ -z "$BP" ] || { kill "$BP" 2>/dev/null; while kill -0 "$BP" 2>/dev/null; do sleep 0.1; done; }
+fake_set_state idle
+wait_paused
+if [ "$(state)" != paused/stopped ]; then turn_ends; wait_paused; fi
+[ "$(state)" = paused/stopped ] && ok "the wait then finishes the stop" || nope "state $(state) $(cat "$TMP/err")"
+fake_set_state idle
+EFFECT3=$(td state export --run "$RUN3" --output "$TMP/export3" --root "$REPO" | jq -r '.unresolved[0]' | cut -d' ' -f2)
+td state settle-delivery --run "$RUN3" --effect "$EFFECT3" --abandon --because gone --root "$REPO" >/dev/null 2>"$TMP/err" && ok "the prompt can be given up on" || nope "settle: $(cat "$TMP/err")"
+td state recover --run "$RUN3" --root "$REPO" >/dev/null 2>&1
+td state archive --run "$RUN3" --root "$REPO" >/dev/null 2>"$TMP/err" && ok "and the run reaches archived" || nope "archive: $(cat "$TMP/err")"
 
 printf '\ntests/test-way-out-e2e: passed %d, failed %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

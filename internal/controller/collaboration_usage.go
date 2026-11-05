@@ -154,6 +154,11 @@ func (c *Controller) collectCollaboration(ctx context.Context, id string) (usage
 	read := map[string]bool{}
 	settled := map[string]bool{}
 	for _, src := range sources {
+		// An abandoned launch started no session, so it has nothing to account for.
+		if src.Status == "abandoned" {
+			in.Abandoned++
+			continue
+		}
 		view, err := c.snapshotSource(ctx, src, settled)
 		if err != nil {
 			return usageledger.Snapshot{}, err

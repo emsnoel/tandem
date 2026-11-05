@@ -95,30 +95,37 @@ with `writer_unknown`, and no new task starts while a writer is uncertain.
 
        tandem state recover --run ID --root DIR
 
-4. If it did not, stop the run and wait for it to settle. Until the stop finishes the run
-   holds the writer lease, and settling refuses a held lease. A stop settles only a prompt
-   addressed to a discontinued kind's pane (see the builder kinds above). For any other,
-   say what you saw:
+4. If the builder is working, wait. If it is idle and handed nothing back, stop the run and
+   wait for it to settle. Until the stop finishes the run holds the writer lease, and giving
+   up refuses a held lease. A stop settles only a prompt addressed to a discontinued kind's
+   pane (see the builder kinds above). On a stopped run `state recover` reads anything the
+   agent queued, so a late nonce closes the delivery without resuming the run. For anything
+   still open, give up on the prompt:
 
-       tandem state settle-delivery --run ID --effect ID --not-read --because "why" --root DIR
+       tandem state settle-delivery --run ID --effect ID --abandon --because "why" --root DIR
 
-   This is the one way to close a delivery without its nonce. `--not-read` and `--because`
-   are required. It refuses a pane seen working or at a dialog, and a pane Herdr cannot
-   answer for. A pane that is gone counts as not reading. The planner's pane is not looked
+   This is the one way to close a delivery without its nonce, and it holds whether or not the
+   agent read the prompt. `--abandon` and `--because` are required. It refuses a pane seen
+   working or at a dialog, a pane Herdr cannot answer for, a pane that reports no status, and
+   a prompt with a message still queued, which `state recover` reads. A pane that is gone is
+   allowed, because a discontinued pane can never come back. The planner's pane is not looked
    at, because the planner is who runs the command. The prompt is cancelled, the job waiting
-   on it ends, and the statement is kept as a manual intervention. Tandem does not type the
-   prompt again and does not treat it as read. A run with an unresolved delivery cannot be
-   archived or rebound until it is settled, and the archive's refusal prints this command
-   with the effect id. Then start again if you want to.
+   on it ends, and the statement is kept as a `delivery_abandoned` event in the run's log and
+   export. With no session bound, the launch's reservation goes back and its source ends. With
+   one bound its usage may be real, so that stays. Tandem does not type the prompt again and
+   does not treat it as read. Any files the agent changed stay in your tree and aren't counted
+   as accepted work, so check `git status` before restarting. A run with an unresolved
+   delivery cannot be archived or rebound until it is closed, and the archive's refusal prints
+   this command with the effect id.
 
 If the builder's pane is gone, a stop stays `stopping`, because a gone builder is not a builder
-seen to have stopped, and the stop keeps the writer lease. Settling cannot end that. Bring the
-agent back with `tandem-pair` and wait again (`tandem build wait --root DIR --until paused
---tick --timeout 120000`).
+seen to have stopped, and the stop keeps the writer lease. Giving up cannot end that. Bring the
+agent back with `tandem-pair`, setting `HERDR_BUILDER_NAME` if the pair used a custom name, and
+wait again (`tandem build wait --root DIR --until paused --tick --timeout 120000`).
 
 `state recover` also ends any builder job whose attempt is already settled. On a stopped run
 it ends every other job left open as well, except one whose prompt is still open, which ends
-when that delivery is settled. A run that an older tandem drove can hold such jobs, and they
+when that delivery closes. A run that an older tandem drove can hold such jobs, and they
 block its archive (see Rollback and downgrade below).
 
 `state recover` prints the run's state. A pause that needs you is a successful result
@@ -133,8 +140,8 @@ incomplete or names the builder or the planner, it refuses with exit 23 and crea
 The refusal names the remedy: declare a `reviewer` block in `.tandem.json` and re-run
 `tandem-pair`, or run `tandem-pair --reviewer KIND`.
 
-A run started before this rule has no reviewer pane in its stored configuration. On its
-next tick while running it pauses as `no_reviewer`, and `tandem build status` gives the way
+A run started before this rule has no reviewer pane in its stored configuration, so tandem
+types nothing more into it. On its next tick while running it pauses as `no_reviewer`, and `tandem build status` gives the way
 on as the pause's reason. Stop it, let it settle, archive it, re-pair with a reviewer, and
 hand off again. `state recover` ends any builder job left open, which would block the archive:
 
@@ -300,7 +307,6 @@ backup from `backups/` over `state.sqlite` with nothing running.
 Schema 2 adds the collaboration ledger and schema 3 the review handback tables. Rolling
 either back means starting runs without the opt-in flags (`--collaboration`, and later
 `--review-delivery mailbox`) on the same binary; the tables stay and nothing reads them.
-Schema 7 lets `manual_interventions` record a settled delivery.
 An older tandem refuses a store with a newer schema.
 
 ### Direct review handback (opt-in)

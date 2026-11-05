@@ -57,6 +57,9 @@ type SnapshotInput struct {
 	CollaborationID, Status string
 	Sources                 []SnapshotSource
 	Logs                    []SessionLog
+	// Abandoned counts the launches given up on with no session. They have no
+	// usage to read, and they do count as what the collaboration expected.
+	Abandoned int
 }
 
 // OwnedEvent is an event charged to the collaboration.
@@ -174,11 +177,11 @@ func BuildSnapshot(in SnapshotInput) Snapshot {
 		}
 		snap.Reasons = append(snap.Reasons, s.Reasons...)
 	}
-	if len(in.Sources) == 0 {
+	if len(in.Sources)+in.Abandoned == 0 {
 		snap.Reasons = append(snap.Reasons, "no_expected_sources")
 	}
 	snap.Reasons = dedupe(snap.Reasons)
-	snap.Complete = snapshotComplete(len(in.Sources), finals, len(snap.PendingTails), len(snap.AmbiguousEvents) == 0) &&
+	snap.Complete = snapshotComplete(len(in.Sources)+in.Abandoned, finals+in.Abandoned, len(snap.PendingTails), len(snap.AmbiguousEvents) == 0) &&
 		len(snap.Reasons) == 0
 	snap.total(partial)
 	return snap

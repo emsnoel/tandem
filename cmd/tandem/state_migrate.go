@@ -37,7 +37,7 @@ const stateMigrateUse = "       tandem state import-legacy --active DIR --quiesc
 	"       tandem state rebind --checkout ID --root PATH [--repository-moved] [--state-home DIR]\n" +
 	"       tandem state gc [--root DIR] [--state-home DIR] [--apply]\n" +
 	"       tandem state archive --run ID [--root DIR] [--state-home DIR]\n" +
-	"       tandem state settle-delivery --run ID --effect ID --not-read --because WHY [--root DIR] [--state-home DIR]\n" +
+	"       tandem state settle-delivery --run ID --effect ID --abandon --because WHY [--root DIR] [--state-home DIR]\n" +
 	"       tandem state engine [--root DIR] [--fields]"
 
 // herdrProbe reports the status of a legacy builder's pane. Tests replace it.

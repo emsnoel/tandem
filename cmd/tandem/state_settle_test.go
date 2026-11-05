@@ -72,11 +72,11 @@ func TestSettleDeliveryCLINeedsTheOwnersStatement(t *testing.T) {
 	e, _, run := paneCLI(t)
 	eff := e.attempt("task-1").effect
 	for name, args := range map[string][]string{
-		"no --not-read": {"--run", run, "--effect", eff, "--because", "why"},
-		"no --because":  {"--run", run, "--effect", eff, "--not-read"},
-		"blank reason":  {"--run", run, "--effect", eff, "--not-read", "--because", "  "},
-		"no --effect":   {"--run", run, "--not-read", "--because", "why"},
-		"no --run":      {"--effect", eff, "--not-read", "--because", "why"},
+		"no --abandon": {"--run", run, "--effect", eff, "--because", "why"},
+		"no --because": {"--run", run, "--effect", eff, "--abandon"},
+		"blank reason": {"--run", run, "--effect", eff, "--abandon", "--because", "  "},
+		"no --effect":  {"--run", run, "--abandon", "--because", "why"},
+		"no --run":     {"--effect", eff, "--abandon", "--because", "why"},
 	} {
 		if rc, _, _ := e.state("settle-delivery", args...); rc != exitcode.Usage {
 			t.Errorf("%s: exit %d", name, rc)
@@ -93,7 +93,7 @@ func TestSettleDeliveryCLIRefusesAWorkingPane(t *testing.T) {
 	e, pt, run := paneCLI(t)
 	eff := e.attempt("task-1").effect
 	e.stopAndWait(exitcode.OK)
-	settle := []string{"--run", run, "--effect", eff, "--not-read", "--because", "never shown"}
+	settle := []string{"--run", run, "--effect", eff, "--abandon", "--because", "never shown"}
 
 	pt.panes["builder"] = runner.Observation{State: runner.ObsRunning}
 	rc, out, errOut := e.state("settle-delivery", settle...)
@@ -104,8 +104,8 @@ func TestSettleDeliveryCLIRefusesAWorkingPane(t *testing.T) {
 		t.Fatalf("a refusal moved the prompt to %s", got)
 	}
 	var n int
-	if err := e.stateDB().QueryRow(`SELECT count(*) FROM manual_interventions`).Scan(&n); err != nil || n != 0 {
-		t.Fatalf("%d interventions after a refusal (%v)", n, err)
+	if err := e.stateDB().QueryRow(`SELECT count(*) FROM events WHERE kind='delivery_abandoned'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("%d statements after a refusal (%v)", n, err)
 	}
 
 	delete(pt.panes, "builder")
@@ -122,7 +122,7 @@ func TestSettleDeliveryCLIRefusesAWorkingPane(t *testing.T) {
 func TestSettleDeliveryCLIRefusesWhileTheWriterIsHeld(t *testing.T) {
 	e, _, run := paneCLI(t)
 	eff := e.attempt("task-1").effect
-	settle := []string{"--run", run, "--effect", eff, "--not-read", "--because", "never shown"}
+	settle := []string{"--run", run, "--effect", eff, "--abandon", "--because", "never shown"}
 	if rc, _, errOut := e.state("settle-delivery", settle...); rc != exitcode.ManualGate || !strings.Contains(errOut, "tandem build stop") {
 		t.Fatalf("a running run: rc %d %s", rc, errOut)
 	}
@@ -139,7 +139,7 @@ func TestSettleDeliveryCLIRefusesWhileTheWriterIsHeld(t *testing.T) {
 }
 
 // settleCommand is the fix-it line in an archive refusal.
-var settleCommand = regexp.MustCompile(`tandem (state settle-delivery --run \S+ --effect \S+ --not-read --because WHY --root DIR)`)
+var settleCommand = regexp.MustCompile(`tandem (state settle-delivery --run \S+ --effect \S+ --abandon --because WHY --root DIR)`)
 
 // The restart route exactly as a note prints it, on a run whose prompt nobody
 // confirmed: the archive refuses, and the command in the refusal gets it through.
@@ -183,7 +183,7 @@ func TestBuildWaitTicksAStopToPausedOnceTheBuilderIsBack(t *testing.T) {
 		t.Fatalf("the run is %s", st)
 	}
 	eff := e.attempt("task-1").effect
-	if rc, _, errOut := e.state("settle-delivery", "--run", run, "--effect", eff, "--not-read", "--because", "gone"); rc != exitcode.ManualGate {
+	if rc, _, errOut := e.state("settle-delivery", "--run", run, "--effect", eff, "--abandon", "--because", "gone"); rc != exitcode.ManualGate {
 		t.Fatalf("settling a stop that holds the writer: %d %s", rc, errOut)
 	}
 	delete(pt.gone, "builder")

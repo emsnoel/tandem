@@ -1,12 +1,9 @@
 package state
 
 import (
-	"context"
 	"errors"
-	"io/fs"
 	"strings"
 	"testing"
-	"testing/fstest"
 
 	"github.com/emsnoel/tandem/internal/workflow"
 )
@@ -14,17 +11,17 @@ import (
 // settleEnv is a paused run with no writer and one builder prompt whose
 // delivery is open, with the builder job waiting on it.
 type settleEnv struct {
-	s      *Store
-	sd     *seed
-	effect string
-	job    string
-	reason string
+	s       *Store
+	sd      *seed
+	effect  string
+	job     string
+	payload string
 }
 
 func newSettleEnv(t *testing.T) *settleEnv {
 	t.Helper()
 	s, sd, _ := effectStore(t)
-	e := &settleEnv{s: s, sd: sd, effect: hexID(2001), job: hexID(2002), reason: sd.artifact(t, "the pane never showed it")}
+	e := &settleEnv{s: s, sd: sd, effect: hexID(2001), job: hexID(2002), payload: sd.artifact(t, `{"effect_id":"x","actor":"owner","reason":"gave up"}`)}
 	sd.exec(t, `UPDATE runs SET state='paused', pause_code='stopped'`)
 	rawEffect(t, sd, e.effect, hexID(2003), workflow.EffectBuilderDispatch, "delivery_unknown", 1)
 	sd.exec(t, `UPDATE effects SET attempt_id=? WHERE id=?`, sd.AttemptID, e.effect)
@@ -34,14 +31,19 @@ func newSettleEnv(t *testing.T) *settleEnv {
 }
 
 func (e *settleEnv) settle() error {
-	return e.s.SettleDeliveryNotRead(ctx, e.sd.RunID, e.effect, e.reason, "owner")
+	return e.s.AbandonDelivery(ctx, e.sd.RunID, e.effect, e.payload)
 }
 
-func TestSettleDeliveryNotRead(t *testing.T) {
+func TestAbandonDelivery(t *testing.T) {
 	for _, st := range []string{"delivering", "delivery_unknown"} {
 		t.Run("settles a prompt that is "+st, func(t *testing.T) {
 			e := newSettleEnv(t)
 			e.sd.exec(t, `UPDATE effects SET state=? WHERE id=?`, st, e.effect)
+			before, err := e.s.GetRun(ctx, e.sd.RunID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			versionBefore, attemptBefore := before.Version, e.sd.version(t)
 			if err := e.settle(); err != nil {
 				t.Fatal(err)
 			}
@@ -52,15 +54,23 @@ func TestSettleDeliveryNotRead(t *testing.T) {
 			if err := e.s.db.QueryRow(`SELECT state FROM jobs WHERE id=?`, e.job).Scan(&job); err != nil || job != "cancelled" {
 				t.Fatalf("the job is %s (%v)", job, err)
 			}
-			var effect, actor, reason, task string
-			if err := e.s.db.QueryRow(`SELECT effect_id,actor,reason_hash,task_id FROM manual_interventions WHERE run_id=?`, e.sd.RunID).
-				Scan(&effect, &actor, &reason, &task); err != nil {
-				t.Fatal(err)
+			events, err := e.s.RunEvents(ctx, e.sd.RunID)
+			if err != nil || len(events) != 2 {
+				t.Fatalf("events %+v (%v)", events, err)
 			}
-			if effect != e.effect || actor != "owner" || reason != e.reason || task != e.sd.TaskID {
-				t.Fatalf("the row says %s %s %s %s", effect, actor, reason, task)
+			last := events[len(events)-1]
+			if last.Kind != EventDeliveryAbandoned || last.PayloadHash != e.payload || last.AttemptID != e.sd.AttemptID {
+				t.Fatalf("the event is %+v", last)
 			}
-			if n, err := e.s.ManualInterventions(ctx, e.sd.RunID); err != nil || n != 1 {
+			// It records a statement and moves nothing the workflow versions.
+			run, err := e.s.GetRun(ctx, e.sd.RunID)
+			if err != nil || run.Version != versionBefore || run.State != "paused" {
+				t.Fatalf("run %+v (%v), version was %d", run, err, versionBefore)
+			}
+			if got := e.sd.version(t); got != attemptBefore {
+				t.Fatalf("attempt version %d, was %d", got, attemptBefore)
+			}
+			if n, err := e.s.ManualInterventions(ctx, e.sd.RunID); err != nil || n != 0 {
 				t.Fatalf("%d interventions (%v)", n, err)
 			}
 			if err := e.s.ArchiveRun(ctx, e.sd.RunID); err != nil {
@@ -97,7 +107,7 @@ func TestSettleDeliveryNotRead(t *testing.T) {
 		e := newSettleEnv(t)
 		other := seedProjectRunTaskAttempt(t, e.s, 7)
 		other.exec(t, `UPDATE runs SET state='paused' WHERE id=?`, other.RunID)
-		if err := e.s.SettleDeliveryNotRead(ctx, other.RunID, e.effect, e.reason, "owner"); !errors.Is(err, workflow.ErrConflict) {
+		if err := e.s.AbandonDelivery(ctx, other.RunID, e.effect, e.payload); !errors.Is(err, workflow.ErrConflict) {
 			t.Fatalf("err = %v", err)
 		}
 		e.unchanged(t)
@@ -119,13 +129,13 @@ func TestSettleDeliveryNotRead(t *testing.T) {
 		e.refused(t, workflow.ErrBusy)
 	})
 
-	t.Run("needs a reason and who stated it", func(t *testing.T) {
+	t.Run("needs a stored statement", func(t *testing.T) {
 		e := newSettleEnv(t)
-		if err := e.s.SettleDeliveryNotRead(ctx, e.sd.RunID, e.effect, "", "owner"); err == nil {
-			t.Fatal("no reason")
+		if err := e.s.AbandonDelivery(ctx, e.sd.RunID, e.effect, ""); err == nil {
+			t.Fatal("no payload")
 		}
-		if err := e.s.SettleDeliveryNotRead(ctx, e.sd.RunID, e.effect, e.reason, ""); err == nil {
-			t.Fatal("no actor")
+		if err := e.s.AbandonDelivery(ctx, e.sd.RunID, e.effect, strings.Repeat("a", 64)); err == nil {
+			t.Fatal("a payload that is not stored")
 		}
 		e.unchanged(t)
 	})
@@ -153,8 +163,9 @@ func (e *settleEnv) unchanged(t *testing.T) {
 
 func (e *settleEnv) noIntervention(t *testing.T) {
 	t.Helper()
-	if n := e.sd.count(t, "manual_interventions"); n != 0 {
-		t.Fatalf("%d interventions after a refusal", n)
+	var n int
+	if err := e.s.db.QueryRow(`SELECT count(*) FROM events WHERE kind=?`, EventDeliveryAbandoned).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("%d events after a refusal (%v)", n, err)
 	}
 }
 
@@ -188,78 +199,44 @@ func TestSettleDeliveryEndsOnlyItsOwnJob(t *testing.T) {
 	}
 }
 
-// A settled delivery replaces no attempt, so it must not look like a reconcile:
-// that attempt can still be reconciled, and no attempt reads as handed over.
-func TestSettleDeliveryIsNotAReconcile(t *testing.T) {
+// A builder or a replay can never issue this event: it is the store's alone.
+func TestDeliveryAbandonedIsNotAWorkflowEvent(t *testing.T) {
+	e := newSettleEnv(t)
+	_, err := e.s.ApplyWith(ctx, workflow.Event{ID: hexID(2100), RunID: e.sd.RunID, AttemptID: e.sd.AttemptID, Kind: EventDeliveryAbandoned,
+		PayloadHash: e.payload, ExpectedVersion: e.sd.version(t)}, workflow.Observed{})
+	if err == nil {
+		t.Fatal("the event applied through the workflow")
+	}
+}
+
+// A store holding the event opens again and still archives, and the payload is
+// one of the run's artifacts, so an export carries it.
+func TestStoreWithAnAbandonedDeliveryReopensAndArchives(t *testing.T) {
 	e := newSettleEnv(t)
 	if err := e.settle(); err != nil {
 		t.Fatal(err)
 	}
-	if from, ok, err := e.s.ReconcileInto(ctx, e.sd.AttemptID); err != nil || ok {
-		t.Fatalf("the attempt reads as a reconcile of %s (%v)", from, err)
-	}
-	var n int
-	if err := e.s.db.QueryRow(`SELECT count(*) FROM manual_interventions WHERE from_attempt_id=? OR to_attempt_id=?`, e.sd.AttemptID, e.sd.AttemptID).Scan(&n); err != nil || n != 0 {
-		t.Fatalf("%d rows name the attempt (%v)", n, err)
-	}
-}
-
-// The refusal an owner reads names the command that ends it, for each open
-// delivery of the run.
-func TestArchiveRefusalNamesSettleDelivery(t *testing.T) {
-	e := newSettleEnv(t)
-	err := e.s.ArchiveRun(ctx, e.sd.RunID)
-	if !errors.Is(err, workflow.ErrBusy) {
-		t.Fatalf("err = %v", err)
-	}
-	want := "tandem state settle-delivery --run " + e.sd.RunID + " --effect " + e.effect + " --not-read --because WHY --root DIR"
-	if !strings.Contains(err.Error(), "has 1 delivery whose outcome is open") || !strings.Contains(err.Error(), want) {
-		t.Fatalf("the refusal is %q", err)
-	}
-}
-
-// Schema 7 rebuilds manual_interventions, so a store's reconciles must come
-// through it, and still be counted and found.
-func TestSchema7KeepsEveryReconcile(t *testing.T) {
-	root := newRoot(t)
-	files := fstest.MapFS{}
-	names, err := fs.Glob(embedded, "migrations/*.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, name := range names {
-		if name >= "migrations/007" {
-			continue
-		}
-		body, err := fs.ReadFile(embedded, name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		files[name] = &fstest.MapFile{Data: body}
-	}
-	old, err := open(context.Background(), root, files, testHooks{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	sd := seedProjectRunTaskAttempt(t, old, 3)
-	reason, next := sd.artifact(t, "why"), hexID(3001)
-	sd.exec(t, `INSERT INTO attempts(id,run_id,task_id,ordinal,implementation_state,check_state,review_state,budget_state,
-		start_snapshot_hash,packet_hash,version,is_current,created_ms) VALUES(?,?,?,2,'pending','pending','pending','available',?,?,0,0,1)`,
-		next, sd.RunID, sd.TaskID, sd.StartHash, sd.PacketHash)
-	sd.exec(t, `INSERT INTO manual_interventions(id,run_id,task_id,from_attempt_id,to_attempt_id,actor,reason_hash,tree_hash,created_ms) VALUES(?,?,?,?,?,?,?,?,1)`,
-		hexID(3002), sd.RunID, sd.TaskID, sd.AttemptID, next, "owner", reason, sd.StartHash)
-	if err := old.Close(); err != nil {
+	root := filepathDir(e.s)
+	run := e.sd.RunID
+	if err := e.s.Close(); err != nil {
 		t.Fatal(err)
 	}
 	s := openStore(t, root)
-	if n, err := s.ManualInterventions(ctx, sd.RunID); err != nil || n != 1 {
-		t.Fatalf("%d interventions (%v)", n, err)
+	if v, err := s.SchemaVersion(); err != nil || v != LatestSchema() {
+		t.Fatalf("schema %d (%v)", v, err)
 	}
-	if from, ok, err := s.ReconcileInto(ctx, next); err != nil || !ok || from != sd.AttemptID {
-		t.Fatalf("reconcile of %s, %v (%v)", from, ok, err)
+	uses, err := s.RunArtifacts(ctx, run)
+	if err != nil {
+		t.Fatal(err)
 	}
-	// A row is one thing or the other.
-	if _, err := s.db.ExecContext(ctx, `INSERT INTO manual_interventions(id,run_id,actor,reason_hash,created_ms) VALUES(?,?,'owner',?,1)`, hexID(3003), sd.RunID, reason); err == nil {
-		t.Fatal("a row that names neither a reconcile nor a delivery")
+	found := false
+	for _, u := range uses {
+		found = found || u.Hash == e.payload
+	}
+	if !found {
+		t.Fatalf("the statement is not among the run's artifacts: %+v", uses)
+	}
+	if err := s.ArchiveRun(ctx, run); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -1,11 +1,14 @@
 package controller
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"testing"
 
 	"github.com/emsnoel/tandem/internal/runner"
+	"github.com/emsnoel/tandem/internal/state"
 	"github.com/emsnoel/tandem/internal/workflow"
 )
 
@@ -64,8 +67,9 @@ func TestSettleDeliveryOnEveryOpenKind(t *testing.T) {
 }
 
 // The pane a prompt was typed into decides whether a person may say it was not
-// read. A working or blocked one refuses, and so does one Herdr cannot answer
-// for. A gone one cannot be reading anything. The planner's pane is not looked
+// abandoned. A working or blocked one refuses, and so does one Herdr cannot answer
+// for or reports no status for. A gone one stays allowed because the route needs
+// it: a discontinued pane that is gone can never come back. The planner's pane is not looked
 // at, because the planner is who runs this command, so it is always working.
 func TestSettleDeliveryLooksAtThePaneThePromptWentTo(t *testing.T) {
 	gone := fmt.Errorf("%w: pane", runner.ErrAgentGone)
@@ -78,7 +82,7 @@ func TestSettleDeliveryLooksAtThePaneThePromptWentTo(t *testing.T) {
 		"no answer": {err: errors.New("herdr did not answer"), refused: true},
 		"idle":      {pane: runner.Observation{State: runner.ObsCompleted}},
 		"gone":      {err: gone},
-		"not known": {pane: runner.Observation{State: runner.ObsUnknown}},
+		"not known": {pane: runner.Observation{State: runner.ObsUnknown}, refused: true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			e := newCEnv(t)
@@ -150,5 +154,48 @@ func TestRecoverEndsEveryOpenJobOfAStoppedRun(t *testing.T) {
 			}
 			e.startsAgain()
 		})
+	}
+}
+
+// The statement is an event in the run's log, and an export carries it.
+func TestAbandoningIsAnEventAnExportCarries(t *testing.T) {
+	e := newCEnv(t)
+	eff := e.seedPause(pauseDispatch, true)
+	e.stopToPaused()
+	if err := e.settleNotRead(eff.ID); err != nil {
+		t.Fatal(err)
+	}
+	events, err := e.st.RunEvents(ctx, e.runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	last := events[len(events)-1]
+	if last.Kind != state.EventDeliveryAbandoned {
+		t.Fatalf("the last event is %s", last.Kind)
+	}
+	raw, err := e.art.ReadAll(ctx, last.PayloadHash, 1<<16)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]string
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["effect_id"] != eff.ID || got["actor"] != "owner" || got["reason"] != "the pane never showed it" {
+		t.Fatalf("the payload is %s", raw)
+	}
+	m, err := e.c.Export(ctx, e.runID, filepath.Join(t.TempDir(), "export"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Events != len(events) {
+		t.Fatalf("the export counts %d events of %d", m.Events, len(events))
+	}
+	carried := false
+	for _, a := range m.Artifacts {
+		carried = carried || a.Hash == last.PayloadHash
+	}
+	if !carried {
+		t.Fatal("the export does not carry the statement")
 	}
 }
