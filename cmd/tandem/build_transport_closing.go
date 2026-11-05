@@ -18,8 +18,9 @@ var closingPanes = herdr.Get
 // to see the builder settle before it frees the writer, and watching a pane
 // takes the agent's name, not an adapter.
 //
-// It offers only what runner.Transport requires. A run in this state is waiting
-// to be closed, so nothing asks about its agents by name.
+// It also observes any agent by name, so a verification prompt is judged by the
+// planner's pane and not the builder's. It is no runner.PaneReader, because no
+// pane review is read from a run waiting to be closed.
 type closingTransport struct {
 	builder string
 	// builderDiscontinued: a person cannot restart the builder through tandem,
@@ -47,4 +48,10 @@ func (t closingTransport) Observe(ctx context.Context, _ string) (runner.Observa
 		return runner.Observation{State: runner.ObsStopped}, nil
 	}
 	return obs, err
+}
+
+// ObserveAgent reads the named pane. A gone pane stays an error here, because
+// only the builder's stop treats it as stopped.
+func (t closingTransport) ObserveAgent(ctx context.Context, name string) (runner.Observation, error) {
+	return t.panes.ObserveAgent(ctx, name)
 }

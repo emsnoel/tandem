@@ -193,7 +193,27 @@ func TestClosingTransportTypesNothing(t *testing.T) {
 		t.Fatalf("typed %q with %d resets", p.prompts, p.resets)
 	}
 	var _ runner.Transport = tr
-	if _, ok := any(tr).(runner.AgentObserver); ok {
-		t.Error("a closing run has nothing to ask about its agents by name")
+	if _, ok := any(tr).(runner.PaneReader); ok {
+		t.Error("a closing run has no pane review to read")
+	}
+}
+
+// A verification prompt went to the planner, so the planner's pane answers for
+// it, whatever the builder's shows.
+func TestClosingTransportObservesAnAgentByName(t *testing.T) {
+	old := closingPanes
+	closingPanes = func(name string) (*herdr.Agent, error) {
+		if name == "planner" {
+			return newPane("working").read(name)
+		}
+		return newPane("idle").read(name)
+	}
+	defer func() { closingPanes = old }()
+	ao, ok := any(newClosingTransport(controller.Agents{BuilderKind: "opencode", BuilderSession: "builder"})).(runner.AgentObserver)
+	if !ok {
+		t.Fatal("the closing transport cannot observe by name, so a verification prompt is judged by the builder's pane")
+	}
+	if obs, err := ao.ObserveAgent(context.Background(), "planner"); err != nil || obs.State != runner.ObsRunning {
+		t.Fatalf("the planner: %+v %v", obs, err)
 	}
 }

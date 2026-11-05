@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/emsnoel/tandem/internal/agent"
 	"github.com/emsnoel/tandem/internal/state"
 	"github.com/emsnoel/tandem/internal/workflow"
 )
@@ -86,6 +87,11 @@ func (c *Controller) failedAttempt(ctx context.Context, run state.Run) (workflow
 // run, and delivers the decision request an incident queued.
 func (c *Controller) recoverPaused(ctx context.Context, run state.Run, cfg runConfig) error {
 	if cfg.RecoveryPolicy == "" || run.State != "paused" {
+		return nil
+	}
+	// tandem can never type a repair into a discontinued kind's pane, so a run
+	// with one waits for a person and spends no repair allowance.
+	if agent.FirstUnsupported(cfg.BuilderKind, cfg.ReviewerKind) != "" {
 		return nil
 	}
 	if err := c.finishPendingReconcile(ctx, run, cfg); err != nil {
