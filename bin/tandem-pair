@@ -20,6 +20,8 @@ done
 . "${_self%/*}/lib/pair-panes.sh"
 # shellcheck source=lib/pair-records.sh
 . "${_self%/*}/lib/pair-records.sh"
+# shellcheck source=lib/bridge-lock.sh
+. "${_self%/*}/lib/bridge-lock.sh"
 
 PLANNER_NAME="${HERDR_PLANNER_NAME:-planner}"
 BUILDER_NAME="${HERDR_BUILDER_NAME:-builder}"
