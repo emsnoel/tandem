@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/emsnoel/tandem/internal/workflow"
 )
@@ -15,7 +16,8 @@ import (
 //
 // It refuses while the run could still be acting: running or stopping, a job
 // or delivery whose outcome is open, or a held writer lease (an expired one
-// included). Archiving an archived run is a no-op.
+// included). A delivery's refusal names tandem state settle-delivery, the way
+// to end one no agent read. Archiving an archived run is a no-op.
 func (s *Store) ArchiveRun(ctx context.Context, runID string) error {
 	if s.readOnly {
 		return fmt.Errorf("%w: the store is open read-only", workflow.ErrUnsupported)
@@ -46,15 +48,21 @@ func (s *Store) ArchiveRun(ctx context.Context, runID string) error {
 		err = tx.conn.QueryRowContext(ctx, q, args...).Scan(&n)
 		return
 	}
+	// Deliveries come first: settling one also ends the job waiting on it, and
+	// state recover cannot.
+	if open, err := openDeliveries(ctx, tx, runID); err != nil {
+		return err
+	} else if len(open) > 0 {
+		var steps []string
+		for _, id := range open {
+			steps = append(steps, fmt.Sprintf("tandem state settle-delivery --run %s --effect %s --not-read --because WHY --root DIR", runID, id))
+		}
+		return busy("run %s has %d delivery whose outcome is open. Only the agent's nonce shows it read the prompt. If it never did, run: %s. Then archive again", runID, len(open), strings.Join(steps, "; "))
+	}
 	if n, err := count(`SELECT count(*) FROM jobs j JOIN attempts a ON a.id=j.attempt_id WHERE a.run_id=? AND j.state IN ('pending','running','cancelling','unknown')`, runID); err != nil {
 		return err
 	} else if n > 0 {
 		return busy("run %s has %d job(s) whose outcome is open; end them with tandem state recover --run %s, then archive again", runID, n, runID)
-	}
-	if n, err := count(`SELECT count(*) FROM effects WHERE run_id=? AND state IN ('delivering','delivery_unknown')`, runID); err != nil {
-		return err
-	} else if n > 0 {
-		return busy("run %s has %d delivery whose outcome is open", runID, n)
 	}
 	if n, err := count(`SELECT count(*) FROM checkout_leases WHERE checkout_id=? AND state IN ('owned','reconciling')`, checkout); err != nil {
 		return err
@@ -71,4 +79,22 @@ func (s *Store) ArchiveRun(ctx context.Context, runID string) error {
 		return err
 	}
 	return tx.commit(ctx)
+}
+
+// openDeliveries lists the run's effects whose delivery is open.
+func openDeliveries(ctx context.Context, tx *dbTx, runID string) ([]string, error) {
+	rows, err := tx.conn.QueryContext(ctx, `SELECT id FROM effects WHERE run_id=? AND state IN ('delivering','delivery_unknown') ORDER BY created_ms,id`, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }

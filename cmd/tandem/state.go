@@ -46,6 +46,8 @@ func cmdState(args []string) int {
 		return cmdStateGC(args[1:])
 	case "archive":
 		return cmdStateArchive(args[1:])
+	case "settle-delivery":
+		return cmdStateSettleDelivery(args[1:])
 	case "engine":
 		return cmdStateEngine(args[1:])
 	case "active-run":

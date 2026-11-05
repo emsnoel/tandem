@@ -8,6 +8,8 @@ package main
 //	tandem state rebind --checkout ID --root PATH [--repository-moved] [--state-home DIR]
 //	tandem state gc [--root DIR] [--state-home DIR]
 //
+// settle-delivery is in state_settle.go.
+//
 // Each prints exactly one JSON object on stdout on success. A refusal that
 // needs a person (a writer that cannot be ruled out, an existing destination, a
 // different repository) exits 23 with the reason on stderr and nothing on
@@ -35,6 +37,7 @@ const stateMigrateUse = "       tandem state import-legacy --active DIR --quiesc
 	"       tandem state rebind --checkout ID --root PATH [--repository-moved] [--state-home DIR]\n" +
 	"       tandem state gc [--root DIR] [--state-home DIR] [--apply]\n" +
 	"       tandem state archive --run ID [--root DIR] [--state-home DIR]\n" +
+	"       tandem state settle-delivery --run ID --effect ID --not-read --because WHY [--root DIR] [--state-home DIR]\n" +
 	"       tandem state engine [--root DIR] [--fields]"
 
 // herdrProbe reports the status of a legacy builder's pane. Tests replace it.

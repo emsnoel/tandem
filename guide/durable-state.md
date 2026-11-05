@@ -18,6 +18,8 @@ its evidence. Durable runs stay opt-in.
     tandem state rebind --checkout ID --root PATH # points a checkout's state at a moved worktree
     tandem state gc [--apply]                     # lists unused artifacts, and --apply deletes them
     tandem state archive --run ID                 # turns a settled run into history, keeping all of it
+    tandem state settle-delivery --run ID --effect ID --not-read --because WHY
+                                                  # records that an agent never read a prompt
     tandem state engine                           # prints which engine owns this relay, and refuses an unknown one
 
 ## status
@@ -104,8 +106,9 @@ which it can't get while anything is publishing. It then works out the reference
 and deletes each candidate's row before its file. It never deletes by age, and never
 deletes a run.
 
-`archive` refuses while a run is running or stopping, or has an open job or delivery. It
-renames the relay's marker to `active-run.<run id>.archived.json`.
+`archive` refuses while a run is running or stopping, or has an open job or delivery. A
+refused delivery prints the `settle-delivery` command, which is only for a prompt the agent
+never read. An archive renames the relay's marker to `active-run.<run id>.archived.json`.
 
 ## Closing a durable run
 

@@ -33,9 +33,10 @@ builder in a mixed run has to come back first, because a person can restart it.
 
 When the stop finishes, tandem cancels any unconfirmed prompt addressed to a discontinued
 kind's pane, because that pane can never confirm it. An unconfirmed prompt addressed to a
-supported kind's pane still blocks the archive until that agent returns its nonce (see An
-unknown delivery). So does a discontinued kind's prompt on a run whose stop finished before
-the upgrade, because no stop runs again for it.
+supported kind's pane still blocks the archive until that agent returns its nonce or you
+settle it (see An unknown delivery). So does a discontinued kind's prompt on a run whose stop
+finished before the upgrade, because no stop runs again for it. That run leaves through
+`tandem state settle-delivery`.
 
 ## Where things live
 
@@ -94,14 +95,31 @@ with `writer_unknown`, and no new task starts while a writer is uncertain.
 
        tandem state recover --run ID --root DIR
 
-4. If it did not, stop the run (`tandem build stop --root DIR`), let it settle, and
-   decide whether to start again. A run with an unresolved delivery cannot be archived or
-   rebound until it is settled. A stop settles only a prompt addressed to a discontinued
-   kind's pane (see the builder kinds above).
+4. If it did not, stop the run and wait for it to settle. Until the stop finishes the run
+   holds the writer lease, and settling refuses a held lease. A stop settles only a prompt
+   addressed to a discontinued kind's pane (see the builder kinds above). For any other,
+   say what you saw:
 
-`state recover` also ends any builder job whose attempt is already settled. A run that an
-older tandem drove can hold such jobs, and they block its archive (see Rollback and
-downgrade below).
+       tandem state settle-delivery --run ID --effect ID --not-read --because "why" --root DIR
+
+   This is the one way to close a delivery without its nonce. `--not-read` and `--because`
+   are required. It refuses a pane seen working or at a dialog, and a pane Herdr cannot
+   answer for. A pane that is gone counts as not reading. The planner's pane is not looked
+   at, because the planner is who runs the command. The prompt is cancelled, the job waiting
+   on it ends, and the statement is kept as a manual intervention. Tandem does not type the
+   prompt again and does not treat it as read. A run with an unresolved delivery cannot be
+   archived or rebound until it is settled, and the archive's refusal prints this command
+   with the effect id. Then start again if you want to.
+
+If the builder's pane is gone, a stop stays `stopping`, because a gone builder is not a builder
+seen to have stopped, and the stop keeps the writer lease. Settling cannot end that. Bring the
+agent back with `tandem-pair` and wait again (`tandem build wait --root DIR --until paused
+--tick --timeout 120000`).
+
+`state recover` also ends any builder job whose attempt is already settled. On a stopped run
+it ends every other job left open as well, except one whose prompt is still open, which ends
+when that delivery is settled. A run that an older tandem drove can hold such jobs, and they
+block its archive (see Rollback and downgrade below).
 
 `state recover` prints the run's state. A pause that needs you is a successful result
 with `state` paused and a `pause_code`, not an error.
@@ -210,8 +228,9 @@ was launched for. A log that is missing, cut back or still being written gives a
 bound, never zero, and a total that is unknown says unknown. `report` reads the stored
 snapshot and no log. None of these commands calls a model.
 
-`resume` and `amend` also resume the checkout's run if a held launch paused it. A launch
-admitted before a stop may still be sent; the stop cannot recall it. Stopping, collecting
+`resume` and `amend` also resume the checkout's run if a held launch paused it. A launch held
+by a ceiling goes straight back to held after a `resume`, so raise the ceiling with `amend`. A
+launch admitted before a stop may still be sent; the stop cannot recall it. Stopping, collecting
 usage and archiving stay available at any ceiling.
 
 ## A task too large for the context limit
@@ -263,7 +282,8 @@ Rolling back from the durable engine is pause, settle, export, keep the store:
     tandem state export --run ID --output PATH --root DIR
     tandem state archive --run ID --root DIR
 
-`archive` refuses while a job or a delivery is open. A builder job ends when its attempt is
+`archive` refuses while a job or a delivery is open. Its refusal names the command for each
+(see An unknown delivery for `tandem state settle-delivery`). A builder job ends when its attempt is
 settled: `completed` when the attempt is accepted or replaced by a repair, and `cancelled`
 when the run stops. A run finished or stopped by an older tandem kept its builder jobs
 `running` forever; `tandem state recover --run ID` ends them, and the archive then goes
@@ -280,6 +300,7 @@ backup from `backups/` over `state.sqlite` with nothing running.
 Schema 2 adds the collaboration ledger and schema 3 the review handback tables. Rolling
 either back means starting runs without the opt-in flags (`--collaboration`, and later
 `--review-delivery mailbox`) on the same binary; the tables stay and nothing reads them.
+Schema 7 lets `manual_interventions` record a settled delivery.
 An older tandem refuses a store with a newer schema.
 
 ### Direct review handback (opt-in)
