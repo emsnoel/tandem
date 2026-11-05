@@ -24,6 +24,8 @@ func TestQuietPauseReasonsGiveTheWindow(t *testing.T) {
 		window time.Duration
 		want   string
 	}{
+		{"builder_silent", 10 * time.Minute, "The builder's pane stayed idle in the same turn for 10 minutes."},
+		{"builder_silent", 3 * time.Second, "The builder's pane stayed idle in the same turn for 3 seconds."},
 		{"builder_blocked", 10 * time.Minute, "The builder's pane stayed blocked at a dialog for 10 minutes."},
 		{"builder_blocked", 3 * time.Second, "The builder's pane stayed blocked at a dialog for 3 seconds."},
 	} {

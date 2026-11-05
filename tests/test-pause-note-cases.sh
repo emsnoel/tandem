@@ -160,7 +160,8 @@ for _ in $(seq 1 60); do [ "$(sent_to planner)" = 0 ] || break; sleep 0.5; done
 [ "$(state)" = paused/builder_silent ] && ok "the run pauses builder_silent after the window" || nope "state $(state)"
 [ "$(sent_to builder)" = 1 ] && ok "nothing more is typed to the builder" || nope "builder prompts: $(sent_to builder)"
 NOTE=$(last_note)
-has "it says what happened" "$NOTE" "stopped: the builder started this task, then went idle for 10 minutes without handing anything back."
+has "it says what happened" "$NOTE" "stopped: the builder started this task, then went idle without handing anything back."
+has "it gives the window the run used" "$NOTE" "The builder's pane stayed idle in the same turn for 3 seconds."
 has "it gives the causes" "$NOTE" "A provider failure, an expired login, used-up quota or a turn that ended early can do this."
 has "it names the builder pane" "$NOTE" "Builder pane: builder"
 has "and tells the planner to look at that pane" "$NOTE" "Look at the builder pane builder."
