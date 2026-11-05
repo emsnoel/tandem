@@ -271,7 +271,10 @@ pause_note() {
       fi
       restart_steps "$run" "$root" ;;
     stopped)
-      restart_steps "$run" "$root"
+      # The stop is over, and the owner may be ahead of this note.
+      printf 'If you already did a step below, such as archiving the run, skip it.\n'
+      _pn_end_run "$run" "$root"
+      _pn_handoff
       printf '\nTo close the pair instead, run tandem-unpair.\n' ;;
     stopping)
       _pn_step "Nothing yet. Check again in a minute." "tandem build status --root $q"
