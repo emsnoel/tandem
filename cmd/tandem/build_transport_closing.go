@@ -14,9 +14,9 @@ import (
 var closingPanes = herdr.Get
 
 // closingTransport serves a run stored with a kind that has no adapter. It
-// never types anything. It only sees the builder's pane, because a stop needs
-// to see the builder settle before it frees the writer, and watching a pane
-// takes the agent's name, not an adapter.
+// never types anything. It watches the builder's pane, because a stop needs to
+// see the builder settle before it frees the writer, and watching a pane takes
+// the agent's name, not an adapter.
 //
 // It also observes any agent by name, so a verification prompt is judged by the
 // planner's pane and not the builder's. It is no runner.PaneReader, because no
