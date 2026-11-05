@@ -152,8 +152,9 @@ bridge tick -> controller accepts the task and sends the next
 ### Run states
 
 `running`, `paused` (with a `pause_code`), `stopping`, `finished` and `archived`. Common pause
-codes: `stopped`, `writer_unknown`, `check_failed`, `source_mutated`, `repairs_exhausted`,
-`plan_changed`, `context_too_large`, `memory_conflict`, `scheduling_blocked`, `no_reviewer`.
+codes: `stopped`, `writer_unknown`, `builder_silent`, `check_failed`, `source_mutated`,
+`repairs_exhausted`, `plan_changed`, `context_too_large`, `memory_conflict`,
+`scheduling_blocked`, `no_reviewer`.
 
 ## Command map
 
@@ -203,9 +204,12 @@ legacy review round in a live reviewer pane (it is tested against a fake Herdr o
 Known limits of the durable engine:
 
 - Usage can be read for Codex, Claude and Copilot.
-- A provider failure in the builder is silent until the ten-minute acknowledgement timeout,
-  unless the turn ends within 8 seconds with no model work: that send is recorded as not
-  sent and retried, and after 3 the run pauses as `dispatch_failed`.
+- A provider failure before the builder acknowledges its task is silent until the ten-minute
+  acknowledgement timeout, unless the turn ends within 8 seconds with no model work: that send
+  is recorded as not sent and retried, and after 3 the run pauses as `dispatch_failed`.
+- A provider failure after the builder acknowledges its task pauses the run as
+  `builder_silent` once the pane has been idle for 10 minutes. A failure that leaves the turn
+  running, so the pane still shows it working, stays silent with no timeout.
 - Herdr can report a pane as idle while an agent startup dialog is up. Start the agent to its
   prompt before starting a run.
 - A stop waits for the builder's current turn.

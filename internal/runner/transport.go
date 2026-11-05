@@ -52,12 +52,15 @@ const (
 // Observation is what the transport can see of an effect's agent. Nonce is the
 // acknowledged nonce, if any. State unknown means the transport could not
 // tell, which differs from stopped. ExternalID names the agent by session, else
-// by pane. Session is only the conversation id the CLI reported.
+// by pane. Session is only the conversation id the CLI reported. StateSeq is the
+// host's count of the agent's status changes, so a turn that started and ended
+// between two observations still shows; 0 when the host reports none.
 type Observation struct {
 	State      string
 	Nonce      string
 	ExternalID string
 	Session    string
+	StateSeq   int
 }
 
 // Transport sends prompts and observes agents. Implementations exist per

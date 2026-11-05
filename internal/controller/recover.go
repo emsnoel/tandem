@@ -187,6 +187,9 @@ func (c *Controller) Recover(ctx context.Context, runID string) error {
 			}
 		}
 	}
+	if err := c.recoverSilence(ctx, runID); err != nil {
+		return err
+	}
 	return c.pass(ctx, runID)
 }
 

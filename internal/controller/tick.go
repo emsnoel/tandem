@@ -83,6 +83,9 @@ func (c *Controller) pass(ctx context.Context, runID string) error {
 		return err
 	}
 	mailErr := c.processMailbox(ctx, run, cfg)
+	if rerr := c.continueAfterHandback(ctx, runID); rerr != nil {
+		mailErr = errors.Join(mailErr, rerr)
+	}
 	if run, err = c.d.State.GetRun(ctx, runID); err != nil {
 		return err
 	}
@@ -150,7 +153,7 @@ func (c *Controller) pass(ctx context.Context, runID string) error {
 	if err := c.deliver(ctx, run, cfg, externalKinds); err != nil {
 		return errors.Join(mailErr, err)
 	}
-	return mailErr
+	return errors.Join(mailErr, c.watchSilence(ctx, runID, cfg))
 }
 
 func (c *Controller) load(ctx context.Context, runID string) (state.Run, runConfig, error) {

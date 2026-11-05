@@ -659,6 +659,17 @@ func TestDefaultTransportServesEveryRegisteredKindAndNothingElse(t *testing.T) {
 
 // A verification is typed into the planner's pane, and observing it looks at
 // the planner, not the builder.
+// The counter is what shows a turn that started and ended between two ticks.
+func TestHerdrObserveReportsTheStateChangeCounter(t *testing.T) {
+	idle := "idle"
+	tr := newHerdrTransport(transportSpec{Builder: "builder"}, herdrDeps{get: func(string) (*herdr.Agent, error) {
+		return &herdr.Agent{Status: &idle, StateChangeSeq: 48}, nil
+	}})
+	if obs, err := tr.Observe(context.Background(), "e1"); err != nil || obs.StateSeq != 48 {
+		t.Fatalf("%+v %v", obs, err)
+	}
+}
+
 func TestHerdrVerifyPromptGoesToThePlannerAndIsObservedThere(t *testing.T) {
 	p := newPane("idle")
 	tr := transportFor(p)

@@ -174,6 +174,31 @@ reviewed a different tree), the prompt becomes `delivery_unknown` and the run pa
 
 `--task` takes the id as `tandem build status` prints it, or the number alone.
 
+## A builder that went silent
+
+A builder can acknowledge its task and then stop, for example after a provider failure, an
+expired login or used-up quota. If its pane stays idle or done in the same turn for 10
+minutes, with no handback queued, the run pauses as `builder_silent` and the planner gets one
+note. Nothing is typed into the pane. A repair's builder turn follows the same rule.
+
+These restart the 10 minutes: the pane working or blocked, a new turn or conversation in it,
+a status tandem cannot read, a new event on the attempt, a message in the run's queue, a gap of
+more than 10 minutes between ticks, and `tandem build recover`, which the bridge runs when it
+starts. The clock is `durable/RUN/builder-silence.json` in the relay. A missing or damaged file
+restarts it, and never pauses a run.
+
+The run continues in one of two ways:
+
+- The builder hands back. The next tick applies it and the run goes on by itself.
+- The builder has started a new turn since the pause, for example after you answered it in its
+  pane. Then recover clears the pause. While the pane shows the same idle turn, the run stays
+  paused.
+
+      tandem build recover --root DIR
+
+Otherwise stop, recover and archive the run, then hand the plan off again. The note prints each
+step. The new run starts again at task 1.
+
 ## Raising a budget
 
 Limits count total input tokens and are stored in the run. Zero is off. A task limit

@@ -46,7 +46,18 @@ func ackWindowFromEnv() time.Duration {
 	return state.AckWindow
 }
 
-func init() { state.AckWindow = ackWindowFromEnv() }
+// silenceWindowFromEnv does the same for controller.SilenceWindow.
+func silenceWindowFromEnv() time.Duration {
+	if ms, err := strconv.Atoi(os.Getenv("TANDEM_SILENCE_WINDOW_MS")); err == nil && ms > 0 {
+		return time.Duration(ms) * time.Millisecond
+	}
+	return controller.SilenceWindow
+}
+
+func init() {
+	state.AckWindow = ackWindowFromEnv()
+	controller.SilenceWindow = silenceWindowFromEnv()
+}
 
 // paneLines is how much of the pane a turn that ended at once reports.
 const paneLines = 20
