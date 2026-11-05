@@ -8,8 +8,8 @@ tell_planner() {
   local verb a b c
   read -r verb a b c <<<"$1"
   case "$verb" in
-    finished) send_planner "$a" handback builder "$(cat "$b" 2>/dev/null)" ;;
-    stopped)  send_planner "$b" handback builder "$(cat "$c" 2>/dev/null)" ;;
+    finished) send_planner "$a" handback builder "$(cat "$b" 2>/dev/null)" || true ;;
+    stopped)  send_planner "$b" handback builder "$(cat "$c" 2>/dev/null)" || true ;;
   esac
 }
 
@@ -74,7 +74,7 @@ advance_build() {
     log "task $task: tandem build advance FAILED (rc $rc): $err"
     send_planner "$id" handback builder "[build] Tandem could not check task $task that the builder handed back: tandem build advance exited $rc: $err
 
-The build is paused. See \`tandem build status\` and the bridge log at $MAILBOX/bridge.log, then run tandem-handoff to carry on."
+The build is paused. See \`tandem build status\` and the bridge log at $MAILBOX/bridge.log, then run tandem-handoff to carry on." || true
     return
   fi
   log "task $task: $out"

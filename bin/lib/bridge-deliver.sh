@@ -58,11 +58,13 @@ everything it needs in the file. It is polling that path and reads whatever
 you write."
   fi
 
-  send_planner "$id" "$kind" "$from" "$msg"
+  send_planner "$id" "$kind" "$from" "$msg" || true
 }
 
 # send_planner ID KIND FROM MSG: prompt the planner. A failure answers a
-# question with an error, and leaves a marker for anything nobody polls.
+# question with an error, and leaves a marker for anything nobody polls. It
+# returns non-zero on failure. Only report_pause reads that; the other callers
+# add `|| true`, because the bridge runs under set -e.
 send_planner() {
   local id="$1" kind="$2" from="$3" msg="$4" as=question
   # Each kind's checks are one row in cmd/tandem/deliver.go.
@@ -70,6 +72,7 @@ send_planner() {
   if tandem agent prompt "$PLANNER_NAME" "$msg" --as "$as" \
        --wait-unblocked "$PROMPT_TIMEOUT_MS" >/dev/null 2>"$MAILBOX/.last_error"; then
     log "$id delivered"
+    return 0
   else
     local code why
     code=$(head -1 "$MAILBOX/.last_error" | cut -f1)
@@ -89,5 +92,6 @@ send_planner() {
       # A notice has nobody waiting on it; the log records the loss.
       fail_answer "$id" "tandem agent prompt failed: $code"
     fi
+    return 1
   fi
 }
