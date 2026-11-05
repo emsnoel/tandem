@@ -8,86 +8,11 @@
 #   - a startup dialog leaves the send delivery_unknown, and the note names the builder;
 #   - a failed check names the task and offers no waiver that cannot move the run;
 #   - a plan edited mid-run, and a deliberate stop, each get their own note;
-#   - a builder that starts and goes idle gets one note, and a late handback goes on;
-#   - a handback the tree keeps from applying still pauses with one note;
 #   - a reviewer's changes_requested starts a repair and sends no note.
+# The quiet pauses, which need a bridge that stays up, are in
+# tests/test-pause-note-quiet.sh.
 set -uo pipefail
-. "$(cd "$(dirname "$0")" && pwd)/lib/records.sh"
-ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
-
-PASS=0; FAIL=0
-ok()   { printf '  ok   %s\n' "$1"; PASS=$((PASS+1)); }
-nope() { printf '  FAIL %s\n' "$1"; FAIL=$((FAIL+1)); }
-has()  { case "$2" in *"$3"*) ok "$1" ;; *) nope "$1 (missing: $3): $2" ;; esac; }
-lack() { case "$2" in *"$3"*) nope "$1 (found: $3): $2" ;; *) ok "$1" ;; esac; }
-
-command -v jq >/dev/null || { echo "need jq" >&2; exit 2; }
-TMP=$(mktemp -d); trap 'stop_driver; rm -rf "$TMP"' EXIT
-(cd "$ROOT_DIR" && go build -o "$TMP/bin/tandem" ./cmd/tandem) || { echo "could not build tandem"; exit 1; }
-ln -s "$(command -v jq)" "$TMP/bin/jq"
-. "$ROOT_DIR/tests/lib/fake-herdr.sh"
-. "$ROOT_DIR/tests/lib/fake-socket.sh"
-FAKE="$TMP/fake"
-fake_herdr_install "$TMP/bin" "$FAKE"
-FAKE="$FAKE" PATH="$TMP/bin:$PATH" fake_socket_start "$TMP" || exit 1
-# A started turn counts after one second, not eight. The fake logs every prompt
-# under CODEX_HOME so a turn that ends at once can be told from one that worked.
-export TANDEM_FAIL_WITHIN_MS=1000 CODEX_HOME="$TMP/codex"
-
-BASE="$TMP/base"; mkdir -p "$BASE/.tandem-relay"; git -C "$BASE" init -q
-git -C "$BASE" config user.email t@t; git -C "$BASE" config user.name t
-printf '.tandem-relay/\n' > "$BASE/.gitignore"; write_builder "$BASE/.tandem-relay"
-printf '# Plan\n\n**Goal:** g.\n\n### Task 1: First\n\nfirst thing\n' > "$BASE/plan.md"
-git -C "$BASE" add . && git -C "$BASE" commit -qm plan
-
-TAB=$(printf '\t'); DRIVER=""
-stop_driver() { [ -z "$DRIVER" ] || { pkill -P "$DRIVER" 2>/dev/null; kill "$DRIVER" 2>/dev/null; wait "$DRIVER" 2>/dev/null; DRIVER=""; }; }
-td() { env PATH="$TMP/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$R" TANDEM_BUILD_ENGINE=durable TANDEM_STATE_HOME="$TMP/state-$C" TANDEM_ACK_WINDOW_MS="${ACK_MS:-}" TANDEM_SILENCE_WINDOW_MS="${SILENCE_MS:-}" tandem "$@"; }
-# pass [N]: N bridge passes. Each one ticks the run and tells the planner of a new pause.
-pass() {
-  local i
-  for ((i = 0; i < ${1:-1}; i++)); do
-    env PATH="$TMP/bin:$ROOT_DIR/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$R" HERDR_ENV=1 TANDEM_BUILD_ENGINE=durable \
-      TANDEM_STATE_HOME="$TMP/state-$C" TANDEM_ACK_WINDOW_MS="${ACK_MS:-}" HERDR_BRIDGE_PROMPT_TIMEOUT_MS=3000 \
-      "$ROOT_DIR/bin/tandem-bridge" --mailbox "$R/.tandem-relay" --planner planner --once >>"$TMP/bridge.log" 2>&1
-  done
-}
-state() { td build status --root "$R" --json | jq -r '.state + "/" + (.pause_code // "")'; }
-sent_to() { local n; n=$(grep -c "^$1$TAB" "$FAKE/prompts" 2>/dev/null); echo "${n:-0}"; }
-last_note() {
-  local n; n=$(grep -n "^planner$TAB" "$FAKE/prompts" | tail -1 | cut -d: -f1)
-  [ -z "$n" ] || cat "$FAKE/prompt.$n.txt"
-}
-# new_case NAME CHECK: a fresh checkout with a run that has not been ticked.
-new_case() {
-  C=$1; R="$TMP/$1"; cp -R "$BASE" "$R"
-  rm -rf "$FAKE/prompts" "$FAKE"/prompt.*.txt "$FAKE/resets" "$FAKE/pane" "$FAKE/swallow" "$CODEX_HOME"
-  fake_set_state idle; fake_pin planner idle 10
-  td build start --plan "$R/plan.md" --root "$R" --builder builder --planner planner --builder-kind codex \
-    --reviewer reviewer --reviewer-kind claude --check "$2" >/dev/null 2>"$TMP/err" || nope "$1: start failed: $(cat "$TMP/err")"
-}
-# once_only: another pass does not repeat the note.
-once_only() { local before; before=$(sent_to planner); pass 2; [ "$(sent_to planner)" = "$before" ] && ok "$1: and never again" || nope "$1: the note was repeated"; }
-field() { printf '%s' "$1" | grep -o -- "--$2 [0-9a-f]*" | head -1 | cut -d' ' -f2; }
-# bridge_up: one bridge that stays up in the background, as a real pair has.
-bridge_up() {
-  env PATH="$TMP/bin:$ROOT_DIR/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$R" HERDR_ENV=1 TANDEM_BUILD_ENGINE=durable TANDEM_STATE_HOME="$TMP/state-$C" \
-    TANDEM_SILENCE_WINDOW_MS="$SILENCE_MS" HERDR_BRIDGE_BACKSTOP_SECONDS=1 HERDR_BRIDGE_PROMPT_TIMEOUT_MS=3000 \
-    "$ROOT_DIR/bin/tandem-bridge" --mailbox "$R/.tandem-relay" --planner planner >>"$TMP/bridge.log" 2>&1 &
-  DRIVER=$!
-}
-# builder_turn: the builder reads its prompt, works, and hands in a report.
-builder_turn() {
-  local pl att job eff nonce
-  pass 4
-  pl=$(cat "$FAKE/prompt.1.txt"); att=$(field "$pl" attempt); job=$(field "$pl" job); eff=$(field "$pl" effect); nonce=$(field "$pl" nonce)
-  [ -n "$att" ] && [ -n "$nonce" ] || { nope "$C: no identity in the task prompt"; return 1; }
-  td build event new --root "$R" --kind builder_started --task 1 --attempt "$att" --job "$job" --effect "$eff" --nonce "$nonce" >/dev/null 2>&1
-  printf 'work\n' > "$R/file1.txt"; printf 'done\n' > "$TMP/report.md"
-  td build event new --root "$R" --kind builder_submitted --task 1 --attempt "$att" --job "$job" --effect "$eff" --nonce "$nonce" --payload "$TMP/report.md" >/dev/null 2>&1
-  fake_set_state idle
-  pass 4
-}
+. "$(cd "$(dirname "$0")" && pwd)/lib/note-cases.sh"
 
 printf '== a provider that rejects every turn: dispatch_failed ==\n'
 new_case provider true
@@ -142,77 +67,6 @@ has "it names the builder pane" "$NOTE" "Builder pane: builder"
 has "and tells the planner to look at that pane" "$NOTE" "Look at the builder pane builder."
 once_only dialog
 rm -f "$FAKE/swallow"
-
-printf '\n== a builder that starts and goes idle: builder_silent ==\n'
-# The window is 10 minutes (controller.SilenceWindow); TANDEM_SILENCE_WINDOW_MS
-# shortens it. A bridge recovers when it starts, which restarts the clock, so this
-# case runs one bridge that stays up, as a real pair has, not --once passes.
-SILENCE_MS=3000; new_case silent true
-pass
-PL=$(cat "$FAKE/prompt.1.txt")
-IDENT=(--task 1 --attempt "$(field "$PL" attempt)" --job "$(field "$PL" job)" --effect "$(field "$PL" effect)" --nonce "$(field "$PL" nonce)")
-td build event new --root "$R" --kind builder_started "${IDENT[@]}" >/dev/null 2>&1
-fake_set_state idle
-bridge_up
-sleep 1
-[ "$(sent_to planner)" = 0 ] && ok "nothing is said inside the window" || nope "early note"
-for _ in $(seq 1 60); do [ "$(sent_to planner)" = 0 ] || break; sleep 0.5; done
-[ "$(state)" = paused/builder_silent ] && ok "the run pauses builder_silent after the window" || nope "state $(state)"
-[ "$(sent_to builder)" = 1 ] && ok "nothing more is typed to the builder" || nope "builder prompts: $(sent_to builder)"
-NOTE=$(last_note)
-has "it says what happened" "$NOTE" "stopped: the builder started this task, then went idle without handing anything back."
-has "it gives the window the run used" "$NOTE" "The builder's pane stayed idle in the same turn for 3 seconds."
-has "it gives the causes" "$NOTE" "A provider failure, an expired login, used-up quota or a turn that ended early can do this."
-has "it names the builder pane" "$NOTE" "Builder pane: builder"
-has "and tells the planner to look at that pane" "$NOTE" "Look at the builder pane builder."
-has "it says a handback continues the run" "$NOTE" "A handback continues the run by itself."
-has "it gives the way to carry on" "$NOTE" "tandem build recover --root"
-has "it says a stuck handback's reason is in the bridge log" "$NOTE" "the bridge log says why"
-has "and prints the real log path" "$NOTE" "grep -F 'busy:' $R/.tandem-relay/bridge.log"
-has "it gives the restart route" "$NOTE" "tandem state archive --run"
-has "with the git status step" "$NOTE" "check git status before you hand off"
-has "that starts again at task 1" "$NOTE" "The run starts again at task 1."
-sleep 3
-[ "$(sent_to planner)" = 1 ] && ok "the planner got one note, never repeated" || nope "notes: $(sent_to planner)"
-# The fake shares one status across panes, so typing the note moved the builder too.
-fake_set_state idle
-printf 'work\n' > "$R/file1.txt"; printf 'done\n' > "$TMP/report.md"
-td build event new --root "$R" --kind builder_submitted "${IDENT[@]}" --payload "$TMP/report.md" >/dev/null 2>&1
-for _ in $(seq 1 40); do [ "$(sent_to reviewer)" = 0 ] || break; sleep 0.5; done
-[ "$(state)" = running/ ] && ok "a late handback continues the run" || nope "state $(state)"
-[ "$(sent_to reviewer)" = 1 ] && ok "and the task goes on to its review" || nope "reviewer prompts: $(sent_to reviewer)"
-[ "$(sent_to planner)" = 1 ] && ok "and says nothing more to the planner" || nope "notes: $(sent_to planner)"
-stop_driver
-SILENCE_MS=""
-
-printf '\n== a handback the tree keeps from applying: builder_silent ==\n'
-# An untracked nested repository cannot be captured exactly, so every tick fails
-# as busy. The run still pauses, and the planner hears of it once.
-SILENCE_MS=3000; new_case stuck true
-pass
-PL=$(cat "$FAKE/prompt.1.txt")
-IDENT=(--task 1 --attempt "$(field "$PL" attempt)" --job "$(field "$PL" job)" --effect "$(field "$PL" effect)" --nonce "$(field "$PL" nonce)")
-td build event new --root "$R" --kind builder_started "${IDENT[@]}" >/dev/null 2>&1
-fake_set_state idle
-mkdir "$R/nested" && git -C "$R/nested" init -q
-printf 'work\n' > "$R/file1.txt"; printf 'done\n' > "$TMP/report.md"
-td build event new --root "$R" --kind builder_submitted "${IDENT[@]}" --payload "$TMP/report.md" >/dev/null 2>&1
-bridge_up
-for _ in $(seq 1 60); do [ "$(sent_to planner)" = 0 ] || break; sleep 0.5; done
-[ "$(state)" = paused/builder_silent ] && ok "the run pauses builder_silent while every tick fails" || nope "state $(state)"
-NOTE=$(last_note)
-has "it names the builder pane" "$NOTE" "Builder pane: builder"
-has "it points to the bridge log" "$NOTE" "grep -F 'cannot be captured exactly' $R/.tandem-relay/bridge.log"
-cat "$TMP/bridge.log" "$R/.tandem-relay/bridge.log" 2>/dev/null | grep -q 'cannot be captured exactly' && ok "and the log says why" || nope "no reason in the bridge log"
-sleep 3
-[ "$(sent_to planner)" = 1 ] && ok "the planner got one note, never repeated" || nope "notes: $(sent_to planner)"
-fake_set_state idle
-rm -rf "$R/nested"
-for _ in $(seq 1 40); do [ "$(sent_to reviewer)" = 0 ] || break; sleep 0.5; done
-[ "$(state)" = running/ ] && ok "a fixed tree lets the handback apply and the run continue" || nope "state $(state)"
-[ "$(sent_to reviewer)" = 1 ] && ok "and the task goes on to its review" || nope "reviewer prompts: $(sent_to reviewer)"
-stop_driver
-SILENCE_MS=""
 
 printf '\n== a failed check names the task ==\n'
 new_case check false
