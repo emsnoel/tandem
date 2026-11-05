@@ -31,6 +31,12 @@ recover --run ID` and `tandem state archive --run ID`. A stop waits for the buil
 settle. If a discontinued builder's pane is gone, tandem counts it as stopped. A supported
 builder in a mixed run has to come back first, because a person can restart it.
 
+When the stop finishes, tandem cancels any unconfirmed prompt addressed to a discontinued
+kind's pane, because that pane can never confirm it. An unconfirmed prompt addressed to a
+supported kind's pane still blocks the archive until that agent returns its nonce (see An
+unknown delivery). So does a discontinued kind's prompt on a run whose stop finished before
+the upgrade, because no stop runs again for it.
+
 ## Where things live
 
 | What | Where |
@@ -90,7 +96,8 @@ with `writer_unknown`, and no new task starts while a writer is uncertain.
 
 4. If it did not, stop the run (`tandem build stop --root DIR`), let it settle, and
    decide whether to start again. A run with an unresolved delivery cannot be archived or
-   rebound until it is settled.
+   rebound until it is settled. A stop settles only a prompt addressed to a discontinued
+   kind's pane (see the builder kinds above).
 
 `state recover` also ends any builder job whose attempt is already settled. A run that an
 older tandem drove can hold such jobs, and they block its archive (see Rollback and

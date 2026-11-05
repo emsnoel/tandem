@@ -66,6 +66,9 @@ func (c *Controller) tickStopping(ctx context.Context, run state.Run, cfg runCon
 	if err != nil || !quiet {
 		return err
 	}
+	if err := c.cancelDeliveriesToDiscontinued(ctx, run, cfg); err != nil {
+		return err
+	}
 	// The builder is seen to have stopped, so the job it was doing is over.
 	if err := c.d.State.SettleBuilderJobs(ctx, run.ID, true); err != nil {
 		return err

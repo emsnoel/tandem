@@ -58,6 +58,18 @@ func (s *Store) InsertDerivedEffect(ctx context.Context, parentID, kind, payload
 	return eff, tx.commit(ctx)
 }
 
+// CancelOpenDelivery cancels an effect whose delivery is open, for a pane that
+// can never return its nonce. An effect in any other state is left. A sent
+// prompt keeps its reservation: its session's usage settles it.
+func (s *Store) CancelOpenDelivery(ctx context.Context, effectID string) error {
+	if err := s.writable(); err != nil {
+		return err
+	}
+	_, err := s.db.ExecContext(ctx, `UPDATE effects SET state='cancelled', lease_owner=NULL, lease_until_ms=NULL
+		WHERE id=? AND state IN ('delivering','delivery_unknown')`, effectID)
+	return err
+}
+
 // RunEffects lists a run's effects in creation order, for recovery and status.
 func (s *Store) RunEffects(ctx context.Context, runID string) ([]workflow.Effect, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT `+effectColumns+` FROM effects WHERE run_id=? ORDER BY created_ms,source_event_id,ordinal`, runID)
