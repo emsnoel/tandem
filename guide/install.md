@@ -119,7 +119,7 @@ You need these on every machine:
   builder and reviewer kinds you pick. `herdr integration install` lists every kind Herdr
   supports.
 
-You only need the agent CLIs for the kinds you use. tandem never needs all four.
+You only need the agent CLIs for the kinds you use. tandem never needs every supported kind.
 
 You only need Go 1.26 or later to build from source (`./install.sh --from-source`) and to
 run `tests/run.sh`. The tests also need `jq`, though tandem itself does not. Releases are
