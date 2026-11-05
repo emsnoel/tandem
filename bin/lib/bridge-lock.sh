@@ -53,7 +53,8 @@ keep_mailbox() {
     log "another tandem-bridge (pid $pid) now watches $MAILBOX, so this one stops."
     exit 0
   fi
-  printf '%s\n' "$$" > "$file"
+  # A mailbox removed under a bridge that is stopping is not recreated here.
+  { printf '%s\n' "$$" > "$file"; } 2>/dev/null || true
 }
 
 # release_mailbox: on exit, remove the pid file if it is still this bridge's.
