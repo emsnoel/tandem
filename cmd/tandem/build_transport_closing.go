@@ -13,8 +13,8 @@ import (
 // closingPanes reads a pane for the closing transport. Tests replace it.
 var closingPanes = herdr.Get
 
-// closingTransport serves a run stored with a kind that has no adapter. It
-// never types anything. It watches the builder's pane, because a stop needs to
+// closingTransport serves a run tandem can only close: one stored with a kind
+// that has no adapter, or with no reviewer. It never types anything. It watches the builder's pane, because a stop needs to
 // see the builder settle before it frees the writer, and watching a pane takes
 // the agent's name, not an adapter.
 //
@@ -39,7 +39,7 @@ func newClosingTransport(ag controller.Agents) closingTransport {
 }
 
 func (closingTransport) Send(context.Context, runner.Delivery) (runner.Receipt, error) {
-	return runner.Receipt{}, runner.NotSent(errors.New("this run's agent kind is no longer supported, so tandem types nothing into its panes"))
+	return runner.Receipt{}, runner.NotSent(errors.New("this run can only be closed, so tandem types nothing into its panes"))
 }
 
 func (t closingTransport) Observe(ctx context.Context, _ string) (runner.Observation, error) {

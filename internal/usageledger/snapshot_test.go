@@ -244,3 +244,15 @@ func TestSnapshotUnresolvedAndMismatchedSessions(t *testing.T) {
 		t.Fatalf("a mismatched session's event: %+v", s.AmbiguousEvents)
 	}
 }
+
+// A launch given up on with no session is accounted for by that: a collaboration
+// whose only launches were abandoned has nothing missing, and is not empty.
+func TestAbandonedSourcesLeaveNothingMissing(t *testing.T) {
+	snap := BuildSnapshot(SnapshotInput{CollaborationID: "c", Status: "closed", Abandoned: 1})
+	if !snap.Complete || len(snap.Reasons) != 0 {
+		t.Fatalf("complete %v, reasons %v", snap.Complete, snap.Reasons)
+	}
+	if empty := BuildSnapshot(SnapshotInput{CollaborationID: "c", Status: "closed"}); empty.Complete {
+		t.Fatal("a collaboration with no sources at all reads as complete")
+	}
+}

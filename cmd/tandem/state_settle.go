@@ -12,13 +12,13 @@ import (
 	"github.com/emsnoel/tandem/internal/workflow"
 )
 
-// settleActor is who a settled delivery is recorded as stated by. Only a person
-// at the command line makes this statement.
+// settleActor is who an abandoned delivery is recorded as stated by. Only a
+// person at the command line makes this statement.
 const settleActor = "owner"
 
-// cmdStateSettleDelivery is an owner's statement that an agent never read a
-// prompt, which is the one way to close an open delivery without its nonce.
-// --not-read is required so the statement is made on purpose.
+// cmdStateSettleDelivery is an owner giving up on a prompt, which holds whether
+// or not the agent read it, and is the one way to close an open delivery without
+// its nonce. --abandon is required so the statement is made on purpose.
 func cmdStateSettleDelivery(args []string) int {
 	fs := flag.NewFlagSet("state settle-delivery", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -26,9 +26,9 @@ func cmdStateSettleDelivery(args []string) int {
 	f.register(fs)
 	runID := fs.String("run", "", "the run")
 	effectID := fs.String("effect", "", "the effect whose delivery is open")
-	notRead := fs.Bool("not-read", false, "you saw that the agent never read the prompt")
-	because := fs.String("because", "", "why you know")
-	if err := fs.Parse(args); err != nil || fs.NArg() != 0 || *runID == "" || *effectID == "" || !*notRead || strings.TrimSpace(*because) == "" {
+	abandon := fs.Bool("abandon", false, "you are giving up on this prompt")
+	because := fs.String("because", "", "why")
+	if err := fs.Parse(args); err != nil || fs.NArg() != 0 || *runID == "" || *effectID == "" || !*abandon || strings.TrimSpace(*because) == "" {
 		fmt.Fprintln(os.Stderr, stateUse)
 		return exitcode.Usage
 	}
@@ -57,7 +57,7 @@ func cmdStateSettleDelivery(args []string) int {
 	if err != nil {
 		return refusal("settle-delivery", err)
 	}
-	if err := c.SettleDelivery(ctx, *runID, *effectID, *because, settleActor); err != nil {
+	if err := c.AbandonDelivery(ctx, *runID, *effectID, *because, settleActor); err != nil {
 		return refusal("settle-delivery", err)
 	}
 	return printJSON(map[string]string{"run_id": *runID, "effect_id": *effectID, "state": "cancelled"})

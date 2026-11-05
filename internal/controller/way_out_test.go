@@ -84,15 +84,22 @@ func (e *cenv) stopToPaused() {
 	}
 }
 
+// settleNotRead abandons a prompt. A pane the test said nothing about is idle,
+// because a pane in an unknown status refuses.
 func (e *cenv) settleNotRead(effectID string) error {
-	return e.c.SettleDelivery(ctx, e.runID, effectID, "the pane never showed it", "owner")
+	for _, pane := range []string{"builder-session", "reviewer-session"} {
+		if _, ok := e.tr.agents[pane]; !ok {
+			e.tr.setAgent(pane, runner.Observation{State: runner.ObsCompleted})
+		}
+	}
+	return e.c.AbandonDelivery(ctx, e.runID, effectID, "the pane never showed it", "owner")
 }
 
 // archiveRefused checks the refusal names the command for this effect.
 func (e *cenv) archiveRefused(effectID string) {
 	e.t.Helper()
 	err := e.st.ArchiveRun(ctx, e.runID)
-	want := "tandem state settle-delivery --run " + e.runID + " --effect " + effectID + " --not-read"
+	want := "tandem state settle-delivery --run " + e.runID + " --effect " + effectID + " --abandon"
 	if !errors.Is(err, workflow.ErrBusy) || !strings.Contains(err.Error(), want) {
 		e.t.Fatalf("archive: %v", err)
 	}

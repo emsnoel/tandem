@@ -5,10 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
-	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/emsnoel/tandem/internal/plan"
 	"github.com/emsnoel/tandem/internal/runner"
@@ -128,6 +125,9 @@ func (c *Controller) Recover(ctx context.Context, runID string) error {
 		return nil
 	}
 	if stopped {
+		if err := c.readLateAcknowledgements(ctx, run); err != nil {
+			return err
+		}
 		return c.d.State.EndStoppedRunJobs(ctx, run.ID)
 	}
 	if err := c.checkPlan(ctx, run); err != nil {
@@ -188,86 +188,6 @@ func (c *Controller) Recover(ctx context.Context, runID string) error {
 		}
 	}
 	return c.pass(ctx, runID)
-}
-
-// hasUnknownWriter reports whether a builder prompt's delivery is unconfirmed,
-// after reading what the builder queued, which is what proves one was read, and
-// trying to confirm the rest by observation.
-func (c *Controller) hasUnknownWriter(ctx context.Context, run state.Run) (bool, error) {
-	cfg, err := c.config(ctx, run)
-	if err != nil {
-		return false, err
-	}
-	// A message that fails here is tried, and reported, by the pass that follows.
-	_ = c.processMailbox(ctx, run, cfg)
-	clear, err := c.reconcileWriter(ctx, run)
-	return !clear, err
-}
-
-// reconcileWriter observes every unconfirmed builder prompt of the run. A
-// prompt whose nonce is seen on a live agent is acknowledged. It returns true
-// when no unconfirmed prompt is left.
-func (c *Controller) reconcileWriter(ctx context.Context, run state.Run) (bool, error) {
-	effects, err := c.d.State.RunEffects(ctx, run.ID)
-	if err != nil {
-		return false, err
-	}
-	sort.Slice(effects, func(i, j int) bool { return effects[i].ID < effects[j].ID })
-	clear := true
-	for _, e := range effects {
-		if e.Kind != workflow.EffectBuilderDispatch || (e.State != "delivering" && e.State != "delivery_unknown") {
-			continue
-		}
-		obs, err := c.d.Transport.Observe(ctx, e.ID)
-		if err != nil {
-			return false, err
-		}
-		if obs.Nonce == e.Nonce && (obs.State == runner.ObsRunning || obs.State == runner.ObsCompleted) {
-			if err := c.d.State.AcknowledgeEffect(ctx, e.ID, e.Nonce); err != nil {
-				return false, err
-			}
-			continue
-		}
-		clear = false
-	}
-	return clear, nil
-}
-
-// processMailbox ingests the run's queued builder messages, at most
-// maxMailboxPerTick, replaying any claimed before a crash first.
-func (c *Controller) processMailbox(ctx context.Context, run state.Run, cfg runConfig) error {
-	dir := RunDir(cfg.relay(), run.ID)
-	var files []string
-	for _, pattern := range []string{"*.json.taken", "*.json"} {
-		m, _ := filepath.Glob(filepath.Join(dir, "q", pattern))
-		sort.Strings(m)
-		files = append(files, m...)
-	}
-	if len(files) > maxMailboxPerTick {
-		files = files[:maxMailboxPerTick]
-	}
-	deps := c.mailboxDeps(run, cfg)
-	var first error
-	for _, f := range files {
-		claimed := f
-		if !strings.HasSuffix(f, ".taken") {
-			claimed = f + ".taken"
-			if err := os.Rename(f, claimed); err != nil {
-				continue
-			}
-		}
-		if _, err := ProcessClaimed(ctx, deps, claimed); err != nil {
-			// Undecided: put it back so the next tick tries again.
-			if _, serr := os.Stat(claimed); serr == nil {
-				_ = os.Rename(claimed, strings.TrimSuffix(claimed, ".taken"))
-			}
-			// A builder still in its turn is waited for, not a failed tick.
-			if first == nil && !errors.Is(err, ErrBuilderWorking) {
-				first = err
-			}
-		}
-	}
-	return first
 }
 
 // ErrPlanChanged: the plan file is not the plan the run started with. A resume

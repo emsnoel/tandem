@@ -43,11 +43,12 @@ func runTransportSpec(ag controller.Agents, root string, art *artifact.Store) tr
 }
 
 // runTransport is the transport for a run that already exists. A run stored
-// with a kind that has no adapter, such as one an older tandem started, gets a
-// transport that types nothing but still sees the builder's pane: its tick
-// pauses it, and it can be stopped and closed (build_transport_closing.go).
+// with a kind that has no adapter, or with no reviewer, as an older tandem could
+// start, gets a transport that types nothing but still sees the builder's pane:
+// its tick pauses it, and it can be stopped and closed
+// (build_transport_closing.go).
 func runTransport(ag controller.Agents, root string, art *artifact.Store) (runner.Transport, error) {
-	if agent.FirstUnsupported(ag.BuilderKind, ag.ReviewerKind) != "" {
+	if agent.FirstUnsupported(ag.BuilderKind, ag.ReviewerKind) != "" || ag.ReviewerKind == "" || ag.ReviewerSession == "" {
 		return newClosingTransport(ag), nil
 	}
 	return durableTransport(runTransportSpec(ag, root, art))
