@@ -59,9 +59,7 @@ func durableStatus(d *openRun) (statusDurableOut, error) {
 	}
 	out := statusDurableOut{Engine: "durable", RunID: run.ID, State: run.State, PauseCode: run.PauseCode, TaskInputLimit: run.TaskInputLimit, RunInputLimit: run.RunInputLimit, Tasks: []taskOut{}}
 	if run.State == "paused" && run.PauseCode == "dispatch_failed" {
-		if out.PauseReason, err = dispatchFailure(ctx, d.st, d.art, run.ID); err != nil {
-			return statusDurableOut{}, err
-		}
+		out.PauseReason = dispatchFailure(ctx, d.st, d.art, run.ID)
 	}
 	if ag, err := controller.RunAgents(ctx, d.st, d.art, run.ID); err == nil {
 		out.Builder, out.Reviewer = ag.BuilderSession, ag.ReviewerSession
@@ -119,9 +117,7 @@ func durableStatus(d *openRun) (statusDurableOut, error) {
 		out.PauseReason = pauseRejection
 	}
 	if run.State == "paused" && out.PauseReason == "" {
-		if out.PauseReason, err = pauseFacts(ctx, d, run.PauseCode, out.Task); err != nil {
-			return statusDurableOut{}, err
-		}
+		out.PauseReason = pauseFacts(ctx, d, run.PauseCode, out.Task)
 	}
 	return out, nil
 }
