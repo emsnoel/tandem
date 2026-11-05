@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# tandem-pause-note: say what stopped a paused durable run and what to do.
+#
+# Read-only. `tandem build status` reports the facts; the wording and the steps
+# come from lib/pause-note.sh, the same text the bridge sends the planner.
+#
+# See README.md.
+set -uo pipefail
+
+# install.sh symlinks the commands, so resolve the link to find lib/.
+_self="${BASH_SOURCE[0]}"
+while [[ -L "$_self" ]]; do
+  _link=$(readlink "$_self"); [[ "$_link" == /* ]] && _self="$_link" || _self="${_self%/*}/$_link"
+done
+# shellcheck source=lib/reviewer.sh
+. "${_self%/*}/lib/reviewer.sh"
+# shellcheck source=lib/pause-note.sh
+. "${_self%/*}/lib/pause-note.sh"
+
+usage() {
+  cat <<'USAGE'
+usage: tandem-pause-note --root DIR
+
+Prints what stopped the durable build run in the repo at DIR and the steps to
+take. Says so when there is no run or it is not paused. Changes nothing.
+USAGE
+}
+
+die() { printf 'tandem-pause-note: %s\n' "$*" >&2; exit 1; }
+
+ROOT=""
+while (( $# )); do
+  case "$1" in
+    --root)    ROOT="${2:-}"; [[ -n "$ROOT" ]] || die "--root needs a directory."; shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    *)         usage >&2; die "unknown argument: $1" ;;
+  esac
+done
+[[ -n "$ROOT" ]] || { usage >&2; die "--root is required."; }
+command -v tandem >/dev/null 2>&1 || die "tandem not found on PATH."
+
+# tandem answers in NUL-separated fields, read from this file.
+FIELDS=$(mktemp)
+trap 'rm -f "$FIELDS"' EXIT
+read_field() {
+  local __v=""
+  IFS= read -r -d '' __v || true
+  while [[ "$__v" == *$'\n' ]]; do __v="${__v%$'\n'}"; done
+  printf -v "$1" '%s' "$__v"
+}
+
+MAILBOX=$(tandem paths relay --root "$ROOT" 2>/dev/null) || die "the installed tandem is behind these commands (no 'tandem paths'); re-run install.sh."
+RUN=$(tandem state active-run --relay "$MAILBOX" 2>/dev/null) || RUN=""
+if [[ -z "$RUN" ]]; then
+  printf 'tandem-pause-note: no durable run is active in %s.\n' "$ROOT"
+  exit 0
+fi
+tandem build status --root "$ROOT" --fields >"$FIELDS" 2>/dev/null \
+  || die "could not read the status of run $RUN. Try: tandem build status --root $(printf %q "$ROOT")"
+state=""; code=""; reason=""; task=""; builder=""; reviewer=""
+{ read_field state; read_field code; read_field _; read_field reason; read_field task; read_field builder; read_field reviewer; } <"$FIELDS"
+if [[ "$state" != paused ]]; then
+  printf 'tandem-pause-note: run %s is %s, not paused.\n' "$RUN" "${state:-in an unknown state}"
+  exit 0
+fi
+pause_note "$code" "$RUN" "$ROOT" "$task" "$builder" "$reviewer" "$reason"

@@ -121,10 +121,12 @@ run TANDEM_BUILD_ENGINE=durable START_OUT="$DURABLE" STATUS_OUT="$(status paused
 [ "$RC" -eq 8 ] && ok "a task that could not be delivered exits 8" || nope "dispatch_failed: rc $RC: $OUT"
 has "it shows why" "$OUT" "There's an issue with the selected model (sonnet-5.5)."
 has "and the way on" "$OUT" "tandem build stop --root $REPO"
+has "as a note with steps" "$OUT" "What to do:"
 case "$OUT" in *"started for builder"*) nope "it still says the run started" ;; *) ok "and does not say the run started" ;; esac
 
 run TANDEM_BUILD_ENGINE=durable START_OUT="$DURABLE" STATUS_OUT="$(status paused plan_changed pending)" --
 [ "$RC" -eq 23 ] && has "a run that paused for another reason needs a person" "$OUT" "needs a person" || nope "other pause: rc $RC: $OUT"
+has "and gets the note for its code" "$OUT" "the plan file changed after the run started."
 
 run TANDEM_BUILD_ENGINE=durable START_OUT="$DURABLE" STATUS_OUT="$(status running "" pending)" TANDEM_DISPATCH_WAIT_S=2 --
 [ "$RC" -eq 0 ] && has "a task still pending when the wait ends is not claimed" "$OUT" "not confirmed" || nope "pending: rc $RC: $OUT"

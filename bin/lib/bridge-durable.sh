@@ -66,9 +66,9 @@ drive_durable() {
 # pauses, since a paused run waits for a person. The run and pause code are
 # recorded beside the queue so it is not said twice, and a running run clears
 # the mark. The mark is written before sending, so a lost notice is not resent
-# every second.
+# every second. The words come from pause_note, which tandem-pause-note prints too.
 report_pause() {
-  local root="$1" run="$2" state="$3" code="$4" mark key reason="" msg _
+  local root="$1" run="$2" state="$3" code="$4" mark key reason="" task="" builder="" reviewer="" msg _
   [[ -n "$run" && -d "$MAILBOX/durable/$run" ]] || return 0
   mark="$MAILBOX/durable/$run/pause-reported"
   if [[ "$state" != paused ]]; then
@@ -78,28 +78,11 @@ report_pause() {
   key="$run ${code:-paused}"
   [[ "$(cat "$mark" 2>/dev/null)" == "$key" ]] && return 0
   printf '%s\n' "$key" > "$mark"
-  # Field 4 of the status is the pause reason.
+  # The status fields are state, code, dispatch, reason, task, builder, reviewer.
   if tandem build status --root "$root" --fields >"$FIELDS" 2>/dev/null; then
-    { read_field _; read_field _; read_field _; read_field reason; } <"$FIELDS"
+    { read_field _; read_field _; read_field _; read_field reason; read_field task; read_field builder; read_field reviewer; } <"$FIELDS"
   fi
-  msg="[build] Durable run $run paused (${code:-no code}) and waits for a person.${reason:+
-
-$reason}
-
-See \`tandem build status --root $root\`."
-  if [[ "$code" == dispatch_failed ]]; then
-    msg+="
-
-The task never reached a working builder. A model the CLI rejects, an expired
-login or used-up quota looks like this. Fix the builder pane, then restart the
-run. A second tandem-handoff is refused while this run is active, so:
-
-1. \`tandem build stop --root $root\`
-2. \`tandem state recover --run $run --root $root\` (ends its open jobs)
-3. \`tandem state archive --run $run --root $root\`
-4. If the pair has no reviewer: $REVIEWER_REMEDY
-5. tandem-handoff the plan again."
-  fi
+  msg=$(pause_note "$code" "$run" "$root" "$task" "$builder" "$reviewer" "$reason")
   log "run $run paused ($code); telling $PLANNER_NAME"
   send_planner "pause-$run-${code:-paused}" notice tandem "$msg"
 }

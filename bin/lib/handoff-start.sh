@@ -140,29 +140,22 @@ MSG
       --timeout "$(( WAIT_S * 1000 ))" --fields >"$FIELDS" 2>"$_werr" || rc=$?
     _werrtxt=$(cat "$_werr" 2>/dev/null || true); rm -f "$_werr"
     # Printed at the timeout too: the state, its pause code, the first unfinished
-    # task's dispatch, and the pause reason.
-    { read_field _state; read_field _code; read_field _disp; read_field _reason; } <"$FIELDS"
+    # task's dispatch, the pause reason, the task and the builder and reviewer panes.
+    { read_field _state; read_field _code; read_field _disp; read_field _reason; read_field _task; read_field _builder; read_field _reviewer; } <"$FIELDS"
     if [[ "$_disp" == sent ]]; then
       printf 'tandem-handoff: durable run %s %s for %s.\n' "$RUN_ID" "$verb" "$BUILDER_NAME"
       exit 0
     fi
-    if [[ "$_state" == paused && "$_code" == dispatch_failed ]]; then
-      cat >&2 <<MSG
-tandem-handoff: WARNING durable run $RUN_ID could not deliver its task to $BUILDER_NAME, so nothing is building the plan.
-
-$(printf '%s\n' "${_reason:-No reason was recorded.}" | sed 's/^/    /')
-
-  A model the CLI rejects, an expired login or used-up quota looks like this.
-  Fix it in pane $BUILDER_PANE (or re-run tandem-pair), then:
-
-    tandem build stop --root $ROOT
-    tandem-handoff $PLAN_ABS
-MSG
-      exit 8
-    fi
     if [[ "$_state" == paused ]]; then
-      printf 'tandem-handoff: durable run %s paused (%s) and needs a person; the task was not confirmed as sent. See `tandem build status --root %s`.\n' "$RUN_ID" "${_code:-no code}" "$ROOT" >&2
-      exit 23
+      if [[ "$_code" == dispatch_failed ]]; then
+        printf 'tandem-handoff: WARNING durable run %s could not deliver its task to %s, so nothing is building the plan.\n\n' "$RUN_ID" "$BUILDER_NAME" >&2
+        _rc=8
+      else
+        printf 'tandem-handoff: durable run %s paused (%s) and needs a person; the task was not confirmed as sent.\n\n' "$RUN_ID" "${_code:-no code}" >&2
+        _rc=23
+      fi
+      pause_note "$_code" "$RUN_ID" "$ROOT" "$_task" "$_builder" "$_reviewer" "$_reason" >&2
+      exit "$_rc"
     fi
     if [[ -n "$_state" && "$_state" != running ]]; then
       printf 'tandem-handoff: durable run %s is %s.\n' "$RUN_ID" "$_state"

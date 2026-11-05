@@ -79,6 +79,7 @@ goes through the same steps in detail.
 | `tandem-init` | Writes `.tandem.json` and adds tandem's local folders to `.gitignore` |
 | `tandem-pair` | Starts the builder, the reviewer and the relay bridge, or reuses running ones. Safe to run again |
 | `tandem-status` | Prints the pair's state. Changes nothing |
+| `tandem-pause-note` | Says what stopped a paused build run and what to do. Changes nothing |
 | `tandem-review` | Asks the reviewer to review a plan |
 | `tandem-handoff` | Sends a reviewed plan to the builder |
 | `tandem-ask` | Asks the other agent a question and prints the reply |

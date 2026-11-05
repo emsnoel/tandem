@@ -160,6 +160,11 @@ ST=$(td4 build status --root "$R4" --json)
 # What to do about the pause is tandem-pause-note's job; status reports the facts.
 [ "$(printf '%s' "$ST" | jq -r '.state + " " + .pause_code + " " + .builder')" = "paused agent_exited builder" ] \
   && ok "status says paused, with the code and the builder's pane" || nope "status: $ST"
+NOTE=$(env PATH="$TMP/bin:$PATH" TANDEM_BUILD_ENGINE=durable TANDEM_STATE_HOME="$TMP/state4" "$ROOT_DIR/bin/tandem-pause-note" --root "$R4" 2>&1)
+case "$NOTE" in
+  *"stopped: the builder or reviewer CLI quit"*"tandem-pair"*"tandem build recover --root $R4"*) ok "tandem-pause-note says to restart it with tandem-pair, then recover" ;;
+  *) nope "pause note: $NOTE" ;;
+esac
 td4 build recover --root "$R4" >/dev/null 2>&1
 ST=$(td4 build status --root "$R4" --json | jq -r .state)
 [ "$ST" = paused ] && ok "recover leaves the run paused while the builder is still gone" || nope "state after recover with builder gone: $ST"
