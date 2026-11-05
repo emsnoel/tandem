@@ -70,6 +70,12 @@ OUT=$(pause_note check_failed "$RUN" /r task-7 b r "The check exited 1 and print
 has "check_failed passes on a check that printed nothing" "$OUT" "The check exited 1 and printed nothing."
 lack "and does not call that an unreadable log" "$OUT" "could not be read"
 has "and says to run the check by hand to see why" "$OUT" "If it printed nothing, run the task's check command yourself"
+OUT=$(pause_note stopped "$RUN" /r task-7 bldr rev "")
+lack "stopped does not tell the owner to stop the run again" "$OUT" "tandem build stop"
+lack "stopped does not tell the owner to wait for the stop" "$OUT" "tandem build wait"
+has "stopped starts at the recover step" "$OUT" "1. End its open jobs"
+has "stopped says to skip what is already done" "$OUT" "skip it"
+has "stopped still archives and hands off" "$OUT" "tandem state archive --run $RUN --root /r"
 OUT=$(pause_note review_unknown "$RUN" /r task-7 b rev "No valid review in the pane.")
 has "review_unknown includes the reason facts" "$OUT" "No valid review in the pane."
 has "review_unknown reads the reviewer pane" "$OUT" "herdr agent read rev"
