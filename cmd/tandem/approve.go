@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/emsnoel/tandem/internal/agent"
 	"github.com/emsnoel/tandem/internal/config"
 	"github.com/emsnoel/tandem/internal/exitcode"
 )
@@ -20,6 +21,10 @@ func cmdApprove(args []string) int {
 	if *kind == "" {
 		fmt.Fprintln(os.Stderr, "usage: tandem config approve-kind --root DIR --kind K")
 		return exitcode.Usage
+	}
+	if agent.FirstUnsupported(*kind) != "" {
+		fmt.Fprintf(os.Stderr, "tandem: kind %q is not supported, so it cannot be approved. Use one of the supported kinds: %s\n", *kind, supportedKinds())
+		return exitcode.NarrowingRefused
 	}
 	abs := config.CanonicalKey(*root)
 	if err := config.ApproveKind(config.UserConfigPath(), abs, *kind); err != nil {

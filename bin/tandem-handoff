@@ -197,7 +197,7 @@ PLAN_ABS=$(cd "$(dirname "$PLAN")" && printf '%s/%s' "$(pwd)" "$(basename "$PLAN
 MAILBOX=$(tandem paths relay --root "$ROOT") \
   || die "the installed tandem is behind these commands (no 'tandem paths'); re-run install.sh."
 engine_guard "$ROOT"
-
+check_recorded_kinds
 
 record_override
 review_gate

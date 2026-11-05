@@ -45,27 +45,36 @@ func PickPlanner(agents []Agent, flagPane, callerPane, kind string) (Agent, []Ag
 	return Agent{}, ofKind, ErrManyPlanners
 }
 
-// Adoptable returns the one unnamed agent bin/tandem-pair may adopt as the
-// builder: not in excludePane, in tab (when either side has no tab, any tab
-// matches), and of kind when kind is set. It returns nil for none or several,
-// so a config change never starts a second builder beside a running one.
-func Adoptable(agents []Agent, excludePane, tab, kind string) *Agent {
-	var found *Agent
-	for i := range agents {
-		a := &agents[i]
+// Unnamed returns the unnamed agents beside the planner: not in excludePane, and
+// in tab (when either side has no tab, any tab matches).
+func Unnamed(agents []Agent, excludePane, tab string) []Agent {
+	var out []Agent
+	for _, a := range agents {
 		if a.PaneID == excludePane || (a.Name != nil && *a.Name != "") {
 			continue
 		}
 		if tab != "" && a.TabID != "" && a.TabID != tab {
 			continue
 		}
+		out = append(out, a)
+	}
+	return out
+}
+
+// Adoptable returns the one unnamed agent bin/tandem-pair may adopt as the
+// builder: one of Unnamed, and of kind when kind is set. It returns nil for none
+// or several, so a config change never starts a second builder beside a running
+// one.
+func Adoptable(agents []Agent, excludePane, tab, kind string) *Agent {
+	var found *Agent
+	for _, a := range Unnamed(agents, excludePane, tab) {
 		if kind != "" && a.Kind != kind {
 			continue
 		}
 		if found != nil {
 			return nil
 		}
-		found = a
+		found = &a
 	}
 	return found
 }

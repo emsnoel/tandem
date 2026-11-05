@@ -53,6 +53,7 @@ record_builder() {
     >"$FIELDS" || _rc=$?
   case "$_rc" in
     0) ;;
+    20) exit 20 ;;  # tandem printed why
     33) die "the builder resolved with no kind or no autonomy, so the review gate would refuse every review. Check the builder settings in .tandem.json." ;;
     *) die "could not record the builder identity${IDENTITY_MAILBOX:+ in $IDENTITY_MAILBOX}." ;;
   esac

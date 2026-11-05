@@ -7,6 +7,18 @@
 # this file alone.
 # shellcheck shell=bash disable=SC2034,SC2153
 
+# refuse_unsupported_pane ROLE PANE KIND: stop the pairing when a running pane
+# has a kind tandem no longer supports. Only the person can close it.
+refuse_unsupported_pane() {
+  local rc=0
+  [[ -n "$3" ]] || return 0
+  tandem agent supported "$3" 2>/dev/null || rc=$?
+  (( rc == 20 )) || return 0
+  printf 'tandem-pair: pane %s runs %s, which tandem no longer supports, so it cannot be the %s.\n' "$2" "$3" "$1" >&2
+  printf 'tandem-pair: close that pane, then run tandem-pair again. Nothing was recorded for it.\n' >&2
+  exit 20
+}
+
 # ensure_builder: find, adopt or start the builder.
 ensure_builder() {
   BUILDER_PANE=""; rc=0
@@ -18,16 +30,19 @@ ensure_builder() {
   fi
 
   if [[ -n "$BUILDER_PANE" ]]; then
+    _running=$(tandem agent kind "$BUILDER_NAME" 2>/dev/null) || _running=""
+    refuse_unsupported_pane builder "$BUILDER_PANE" "$_running"
     info "builder already present in pane $BUILDER_PANE."
   else
     # Adopt the single unnamed agent in the planner's tab, whatever its kind, so a
     # config change does not start a second one. --builder KIND narrows it. A dry
     # run leaves the planner unnamed, so exclude it by pane id.
-    ADOPTED_KIND=""
+    ADOPTED_KIND=""; rc=0
     tandem agent adoptable --exclude-pane "$PLANNER_PANE" ${PLANNER_TAB:+--tab "$PLANNER_TAB"} \
-      ${OV_BUILDER_KIND:+--kind "$OV_BUILDER_KIND"} >"$FIELDS" 2>/dev/null \
-      || die "could not list agents to look for one to adopt."
+      ${OV_BUILDER_KIND:+--kind "$OV_BUILDER_KIND"} >"$FIELDS" 2>/dev/null || rc=$?
+    (( rc == 0 || rc == 20 )) || die "could not list agents to look for one to adopt."
     { IFS= read -r -d '' BUILDER_PANE; IFS= read -r -d '' ADOPTED_KIND; } < "$FIELDS" || true
+    (( rc == 0 )) || refuse_unsupported_pane builder "$BUILDER_PANE" "$ADOPTED_KIND"
 
     if [[ -n "$BUILDER_PANE" ]]; then
       info "adopting the running $ADOPTED_KIND agent in pane $BUILDER_PANE."

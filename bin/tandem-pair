@@ -145,8 +145,10 @@ SPLIT_CWD="${CWD_OVERRIDE:-${PLANNER_CWD:-$PWD}}"
 ROOT=$(git -C "$SPLIT_CWD" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$SPLIT_CWD")
 
 for _kind in $OV_APPROVE_KINDS; do
-  tandem config approve-kind --root "$ROOT" --kind "$_kind" >/dev/null \
-    || die "could not record approval for kind '$_kind'."
+  rc=0
+  tandem config approve-kind --root "$ROOT" --kind "$_kind" >/dev/null || rc=$?
+  (( rc != 20 )) || exit 20  # tandem printed why, and wrote nothing
+  (( rc == 0 )) || die "could not record approval for kind '$_kind'."
 done
 
 # --- doctor ---

@@ -24,6 +24,24 @@ check_planner() {
   fi
 }
 
+# check_recorded_kinds: refuse a pair recorded with a kind tandem no longer
+# supports, on either engine, before anything is written or typed. A durable
+# --continue is left to the run, which its own tick has paused.
+check_recorded_kinds() {
+  local rc=0 role kind supported
+  (( CONTINUE )) && [[ -f "$MAILBOX/active-run.json" ]] && return 0
+  tandem config check-kinds --relay "$MAILBOX" >"$FIELDS" 2>/dev/null || rc=$?
+  case "$rc" in
+    0) return 0 ;;
+    20) ;;
+    *) die "the installed tandem cannot check the recorded agent kinds (rc $rc); re-run install.sh." ;;
+  esac
+  { read_field role; read_field kind; read_field supported; } <"$FIELDS"
+  printf 'tandem-handoff: this pair records %s as its %s, and tandem has discontinued %s. Nothing was sent.\n' "$kind" "$role" "$kind" >&2
+  printf 'tandem-handoff: close that pane and re-pair with a supported kind: tandem-pair --%s KIND (one of %s).\n' "$role" "$supported" >&2
+  exit 20
+}
+
 # start_build: the task to send.
 # Each handoff sends one task brief to a fresh conversation, and the relay
 # bridge sends the next after handback. A stopped build resumes at its first

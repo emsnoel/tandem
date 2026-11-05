@@ -181,6 +181,8 @@ resolve_reviewer() {
     _snap=$(tandem agent snapshot "$REVIEWER_NAME" 2>/dev/null) || rc=$?
     if (( rc == 0 )); then
       IFS=$'\t' read -r REVIEWER_PANE _ _ <<<"$_snap"
+      _running=$(tandem agent kind "$REVIEWER_NAME" 2>/dev/null) || _running=""
+      refuse_unsupported_pane reviewer "$REVIEWER_PANE" "$_running"
     elif (( rc != 10 )); then
       die "could not check for an existing reviewer."
     fi

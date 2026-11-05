@@ -254,7 +254,7 @@ tdx() { env PATH="$TMP/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$R" TANDEM_BUILD_EN
 tdx build start --plan "$R/plan.md" --root "$R" --builder builder --builder-kind opencode --reviewer reviewer --reviewer-kind claude --check true >"$TMP/out" 2>"$TMP/err"
 rc=$?
 [ "$rc" -eq 20 ] && ok "build start refuses an opencode builder with exit 20" || nope "opencode start: exit $rc"
-grep -q 'codex, claude, copilot' "$TMP/err" && ok "and names the kinds it supports" || nope "no supported kinds named: $(cat "$TMP/err")"
+grep -q 'claude, codex, copilot' "$TMP/err" && ok "and names the kinds it supports" || nope "no supported kinds named: $(cat "$TMP/err")"
 [ ! -e "$R/.tandem-relay/active-run.json" ] && [ "$(prompts)" -eq 0 ] && ok "and creates no run and types nothing" || nope "state created or a prompt typed"
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
