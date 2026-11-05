@@ -40,7 +40,7 @@ func cmdBuildTick(args []string, recoverRun bool) int {
 	}
 	out, code, err := tickRun(f, recoverRun, *observe)
 	switch {
-	case err != nil && code == 0:
+	case err != nil && out == nil && code == 0:
 		return fail(err)
 	case err != nil:
 		fmt.Fprintln(os.Stderr, "tandem build:", err)
@@ -58,7 +58,8 @@ func cmdBuildTick(args []string, recoverRun bool) int {
 // tickRun is one tick (or recover) of the active durable run, without printing.
 // It returns what a tick reports, an exit code, and an error. A zero code with
 // an error is a plain failure; ManualGate with an error is a run that needs a
-// person, and the error says why.
+// person, and the error says why. A tick that fails still reports the run when
+// it can read it, so a pause made in the same pass reaches the planner.
 func tickRun(f durableFlags, recoverRun, observe bool) (*tickOut, int, error) {
 	d, err := openDurable(f.root, f.home, false)
 	if err != nil {
@@ -81,45 +82,52 @@ func tickRun(f durableFlags, recoverRun, observe bool) (*tickOut, int, error) {
 	defer unlock()
 
 	ctx := context.Background()
+	err = tickOnce(ctx, d, f.root, recoverRun, observe)
+	if errors.Is(err, controller.ErrNotWriter) {
+		return nil, exitcode.ManualGate, errors.New("another controller holds this checkout's writer lease; `tandem build recover` reconciles it")
+	}
+	run, gerr := d.st.GetRun(ctx, runID)
+	if gerr != nil {
+		return nil, 0, errors.Join(err, gerr)
+	}
+	out := &tickOut{RunID: runID, State: run.State, PauseCode: run.PauseCode}
+	switch {
+	case err == nil:
+		return out, exitcode.OK, nil
+	case (run.State == "paused" && gateCodes[run.PauseCode]) || errors.Is(err, controller.ErrPlanChanged):
+		// The run is paused, not failed: say so with the machine code, and ask
+		// for a person.
+		return out, exitcode.ManualGate, err
+	}
+	return out, exitcode.Internal, err
+}
+
+// tickOnce builds the run's controller and gives it one tick or recover. The
+// gone-pane watch runs even when the tick failed: a failure that repeats on
+// every pass must not hide a pane that is gone. It writes only under the writer
+// lease the tick renewed.
+func tickOnce(ctx context.Context, d *openRun, root string, recoverRun, observe bool) error {
+	runID := d.run.RunID
 	ag, err := controller.RunAgents(ctx, d.st, d.art, runID)
 	if err != nil {
-		return nil, 0, err
+		return err
 	}
-	tr, err := runTransport(ag, f.root, d.art)
+	tr, err := runTransport(ag, root, d.art)
 	if err != nil {
-		return nil, 0, err
+		return err
 	}
 	c, err := d.controller(tr)
 	if err != nil {
-		return nil, 0, err
+		return err
 	}
 	if recoverRun {
 		err = c.Recover(ctx, runID)
 	} else {
 		err = c.Tick(ctx, runID)
 	}
-	if observe && err == nil {
-		_, err = c.PauseIfAgentsGone(ctx, runID)
+	if observe && !errors.Is(err, controller.ErrNotWriter) {
+		_, oerr := c.PauseIfAgentsGone(ctx, runID)
+		err = errors.Join(err, oerr)
 	}
-	if code, ok := gatedRun(ctx, d.st, runID); err != nil && (ok || errors.Is(err, controller.ErrPlanChanged)) {
-		// The run is paused, not failed: say so in the one JSON object, with the
-		// machine code, and ask for a person.
-		var out *tickOut
-		if run, gerr := d.st.GetRun(ctx, runID); gerr == nil {
-			code = run.PauseCode
-			out = &tickOut{RunID: runID, State: run.State, PauseCode: code}
-		}
-		return out, exitcode.ManualGate, err
-	}
-	if errors.Is(err, controller.ErrNotWriter) {
-		return nil, exitcode.ManualGate, errors.New("another controller holds this checkout's writer lease; `tandem build recover` reconciles it")
-	}
-	if err != nil {
-		return nil, 0, err
-	}
-	run, err := d.st.GetRun(ctx, runID)
-	if err != nil {
-		return nil, 0, err
-	}
-	return &tickOut{RunID: runID, State: run.State, PauseCode: run.PauseCode}, exitcode.OK, nil
+	return err
 }
