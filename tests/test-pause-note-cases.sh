@@ -1,0 +1,176 @@
+#!/usr/bin/env bash
+# Each pause note reaches the planner pane through the real bridge.
+#
+# No model is called. The shipped tandem binary, a real bin/tandem-bridge and a
+# fake Herdr run one pass at a time (--once). The planner's pane is pinned idle
+# and the checks are what it was typed, to whom, and how many times:
+#   - a provider that rejects every turn pauses dispatch_failed;
+#   - a startup dialog leaves the send delivery_unknown, and the note names the builder;
+#   - a failed check names the task and offers no waiver that cannot move the run;
+#   - a plan edited mid-run, and a deliberate stop, each get their own note;
+#   - a reviewer's changes_requested starts a repair and sends no note.
+set -uo pipefail
+. "$(cd "$(dirname "$0")" && pwd)/lib/records.sh"
+ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
+
+PASS=0; FAIL=0
+ok()   { printf '  ok   %s\n' "$1"; PASS=$((PASS+1)); }
+nope() { printf '  FAIL %s\n' "$1"; FAIL=$((FAIL+1)); }
+has()  { case "$2" in *"$3"*) ok "$1" ;; *) nope "$1 (missing: $3): $2" ;; esac; }
+lack() { case "$2" in *"$3"*) nope "$1 (found: $3): $2" ;; *) ok "$1" ;; esac; }
+
+command -v jq >/dev/null || { echo "need jq" >&2; exit 2; }
+TMP=$(mktemp -d); trap 'stop_driver; rm -rf "$TMP"' EXIT
+(cd "$ROOT_DIR" && go build -o "$TMP/bin/tandem" ./cmd/tandem) || { echo "could not build tandem"; exit 1; }
+ln -s "$(command -v jq)" "$TMP/bin/jq"
+. "$ROOT_DIR/tests/lib/fake-herdr.sh"
+. "$ROOT_DIR/tests/lib/fake-socket.sh"
+FAKE="$TMP/fake"
+fake_herdr_install "$TMP/bin" "$FAKE"
+FAKE="$FAKE" PATH="$TMP/bin:$PATH" fake_socket_start "$TMP" || exit 1
+# A started turn counts after one second, not eight. The fake logs every prompt
+# under CODEX_HOME so a turn that ends at once can be told from one that worked.
+export TANDEM_FAIL_WITHIN_MS=1000 CODEX_HOME="$TMP/codex"
+
+BASE="$TMP/base"; mkdir -p "$BASE/.tandem-relay"; git -C "$BASE" init -q
+git -C "$BASE" config user.email t@t; git -C "$BASE" config user.name t
+printf '.tandem-relay/\n' > "$BASE/.gitignore"; write_builder "$BASE/.tandem-relay"
+printf '# Plan\n\n**Goal:** g.\n\n### Task 1: First\n\nfirst thing\n' > "$BASE/plan.md"
+git -C "$BASE" add . && git -C "$BASE" commit -qm plan
+
+TAB=$(printf '\t'); DRIVER=""
+stop_driver() { [ -z "$DRIVER" ] || { kill "$DRIVER" 2>/dev/null; wait "$DRIVER" 2>/dev/null; DRIVER=""; }; }
+td() { env PATH="$TMP/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$R" TANDEM_BUILD_ENGINE=durable TANDEM_STATE_HOME="$TMP/state-$C" tandem "$@"; }
+# pass [N]: N bridge passes. Each one ticks the run and tells the planner of a new pause.
+pass() {
+  local i
+  for ((i = 0; i < ${1:-1}; i++)); do
+    env PATH="$TMP/bin:$ROOT_DIR/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$R" HERDR_ENV=1 TANDEM_BUILD_ENGINE=durable \
+      TANDEM_STATE_HOME="$TMP/state-$C" HERDR_BRIDGE_PROMPT_TIMEOUT_MS=3000 \
+      "$ROOT_DIR/bin/tandem-bridge" --mailbox "$R/.tandem-relay" --planner planner --once >>"$TMP/bridge.log" 2>&1
+  done
+}
+state() { td build status --root "$R" --json | jq -r '.state + "/" + (.pause_code // "")'; }
+sent_to() { local n; n=$(grep -c "^$1$TAB" "$FAKE/prompts" 2>/dev/null); echo "${n:-0}"; }
+last_note() {
+  local n; n=$(grep -n "^planner$TAB" "$FAKE/prompts" | tail -1 | cut -d: -f1)
+  [ -z "$n" ] || cat "$FAKE/prompt.$n.txt"
+}
+# new_case NAME CHECK: a fresh checkout with a run that has not been ticked.
+new_case() {
+  C=$1; R="$TMP/$1"; cp -R "$BASE" "$R"
+  rm -rf "$FAKE/prompts" "$FAKE"/prompt.*.txt "$FAKE/resets" "$FAKE/pane" "$FAKE/swallow" "$CODEX_HOME"
+  fake_set_state idle; fake_pin planner idle 10
+  td build start --plan "$R/plan.md" --root "$R" --builder builder --planner planner --builder-kind codex \
+    --reviewer reviewer --reviewer-kind claude --check "$2" >/dev/null 2>"$TMP/err" || nope "$1: start failed: $(cat "$TMP/err")"
+}
+# once_only: another pass does not repeat the note.
+once_only() { local before; before=$(sent_to planner); pass 2; [ "$(sent_to planner)" = "$before" ] && ok "$1: and never again" || nope "$1: the note was repeated"; }
+field() { printf '%s' "$1" | grep -o -- "--$2 [0-9a-f]*" | head -1 | cut -d' ' -f2; }
+# builder_turn: the builder reads its prompt, works, and hands in a report.
+builder_turn() {
+  local pl att job eff nonce
+  pass 4
+  pl=$(cat "$FAKE/prompt.1.txt"); att=$(field "$pl" attempt); job=$(field "$pl" job); eff=$(field "$pl" effect); nonce=$(field "$pl" nonce)
+  [ -n "$att" ] && [ -n "$nonce" ] || { nope "$C: no identity in the task prompt"; return 1; }
+  td build event new --root "$R" --kind builder_started --task 1 --attempt "$att" --job "$job" --effect "$eff" --nonce "$nonce" >/dev/null 2>&1
+  printf 'work\n' > "$R/file1.txt"; printf 'done\n' > "$TMP/report.md"
+  td build event new --root "$R" --kind builder_submitted --task 1 --attempt "$att" --job "$job" --effect "$eff" --nonce "$nonce" --payload "$TMP/report.md" >/dev/null 2>&1
+  fake_set_state idle
+  pass 4
+}
+
+printf '== a provider that rejects every turn: dispatch_failed ==\n'
+new_case provider true
+printf 'There is an issue with the selected model.\n' > "$FAKE/pane"
+# Each prompt's turn ends 0.3 s after it is typed, as a rejected model does.
+( exec 2>/dev/null; n=0; while :; do c=$(wc -l < "$FAKE/prompts" 2>/dev/null || echo 0)
+    [ "$c" -le "$n" ] || { n=$c; sleep 0.3; fake_set_state idle; }; sleep 0.05; done ) &
+DRIVER=$!
+# The fake logs each prompt, and a retry would find the last log and count as work.
+for _ in 1 2 3 4 5 6 7 8; do [ "$(state)" = paused/dispatch_failed ] && break; rm -rf "$CODEX_HOME"; pass; sleep 1; done
+stop_driver
+[ "$(state)" = paused/dispatch_failed ] && ok "the run pauses dispatch_failed after its retries" || nope "state $(state)"
+NOTE=$(last_note)
+[ "$(sent_to planner)" = 1 ] && ok "the planner got one note" || nope "notes: $(sent_to planner)"
+has "it says the task never reached a working builder" "$NOTE" "stopped: the task never reached a working builder."
+has "it shows what the pane said" "$NOTE" "There is an issue with the selected model."
+has "it names the builder pane" "$NOTE" "Builder pane: builder"
+once_only provider
+
+printf '\n== a startup dialog: the send becomes delivery_unknown ==\n'
+new_case dialog true
+# A pane at a native dialog reports idle and swallows the prompt.
+: > "$FAKE/swallow"
+pass
+[ "$(state)" = paused/writer_unknown ] && ok "the run pauses writer_unknown" || nope "state $(state)"
+has "the send is delivery_unknown" "$(td state export --run "$(td build status --root "$R" --json | jq -r .run_id)" --output "$TMP/exp-dialog" --root "$R" | jq -r '.unresolved[]')" "delivery_unknown"
+[ "$(sent_to builder)" = 1 ] && ok "the task was typed once" || nope "builder prompts: $(sent_to builder)"
+NOTE=$(last_note)
+[ "$(sent_to planner)" = 1 ] && ok "the planner got one note" || nope "notes: $(sent_to planner)"
+has "it says tandem cannot tell if the builder got the task" "$NOTE" "tandem cannot tell whether the builder received the task."
+has "it names the builder pane" "$NOTE" "Builder pane: builder"
+has "and tells the planner to look at that pane" "$NOTE" "Look at the builder pane builder."
+once_only dialog
+rm -f "$FAKE/swallow"
+
+printf '\n== a failed check names the task ==\n'
+new_case check false
+builder_turn
+[ "$(state)" = paused/check_failed ] && ok "the run pauses check_failed" || nope "state $(state)"
+NOTE=$(last_note)
+[ "$(sent_to planner)" = 1 ] && ok "the planner got one note" || nope "notes: $(sent_to planner)"
+has "it says the check failed" "$NOTE" "stopped: the check for the task failed."
+has "it names the task" "$NOTE" "Task: task-1"
+# A waiver does not move a paused run (pause-note.sh), so the note must not offer one.
+lack "it offers no waiver" "$NOTE" "--waive"
+has "it ends in the restart route" "$NOTE" "tandem state archive --run"
+once_only check
+
+printf '\n== a plan edited mid-run: plan_changed ==\n'
+new_case plan true
+pass 2
+printf '\nA line added after the run started.\n' >> "$R/plan.md"
+pass 2
+[ "$(state)" = paused/plan_changed ] && ok "the run pauses plan_changed" || nope "state $(state)"
+NOTE=$(last_note)
+[ "$(sent_to planner)" = 1 ] && ok "the planner got one note" || nope "notes: $(sent_to planner)"
+has "it says the plan changed" "$NOTE" "stopped: the plan file changed after the run started."
+has "it says to put the plan back and continue" "$NOTE" "tandem build recover --root"
+once_only plan
+
+printf '\n== a deliberate stop: stopped ==\n'
+new_case stop true
+pass 2
+td build stop --root "$R" >/dev/null 2>&1
+pass 2
+fake_set_state idle
+pass 3
+[ "$(state)" = paused/stopped ] && ok "the run pauses stopped" || nope "state $(state)"
+NOTE=$(last_note)
+[ "$(sent_to planner)" = 1 ] && ok "the planner got one note" || nope "notes: $(sent_to planner)"
+has "it reports stopped" "$NOTE" "stopped: someone asked it to stop."
+has "it offers tandem-unpair to close the pair" "$NOTE" "tandem-unpair"
+once_only stop
+
+printf '\n== changes_requested starts a repair and sends no note ==\n'
+new_case repair true
+builder_turn
+RV=$(grep "^reviewer$TAB" "$FAKE/prompts" | head -1 | cut -f2-)
+rf() { printf '%s' "$RV" | grep -o "\"$1\":\"[0-9a-f]*\"" | head -1 | cut -d'"' -f4; }
+printf '{"schema_version":1,"job_id":"%s","attempt_id":"%s","patch_hash":"%s","tree_hash":"%s","status":"changes_requested","findings":[{"severity":"high","path":"file1.txt","disposition":"open","message":"fix it","start_line":null,"end_line":null}]}\n' \
+  "$(rf job_id)" "$(rf attempt_id)" "$(rf patch_hash)" "$(rf tree_hash)" > "$TMP/review.json"
+fake_set_state idle
+td build review-record --root "$R" --result "$TMP/review.json" >/dev/null 2>"$TMP/err" && ok "the reviewer's changes_requested is recorded" || nope "review-record: $(cat "$TMP/err")"
+pass 4
+[ "$(td build status --root "$R" --json | jq '[.tasks[].attempts[]?] | length')" = 2 ] && ok "a repair attempt starts" || nope "attempts: $(td build status --root "$R" --json | jq -c '.tasks')"
+[ "$(state)" = running/ ] && ok "and the run keeps running" || nope "state $(state)"
+[ "$(sent_to planner)" = 0 ] && ok "the planner was told nothing" || nope "notes: $(sent_to planner)"
+td build stop --root "$R" >/dev/null 2>&1
+pass 2
+fake_set_state idle
+pass 3
+[ "$(sent_to planner)" = 1 ] && has "the first note is the stop that follows" "$(last_note)" "stopped: someone asked it to stop." || nope "notes after the stop: $(sent_to planner) state $(state)"
+
+printf '\ntests/test-pause-note-cases: passed %d, failed %d\n' "$PASS" "$FAIL"
+[ "$FAIL" -eq 0 ]

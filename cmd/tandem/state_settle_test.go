@@ -87,8 +87,8 @@ func TestSettleDeliveryCLINeedsTheOwnersStatement(t *testing.T) {
 	}
 }
 
-// An observed busy builder has the prompt, or may yet, so nobody can say it was
-// not read. A later idle pane lets the same command through.
+// A busy builder may be working on the prompt, so the owner cannot abandon it.
+// A later idle pane lets the same command through.
 func TestSettleDeliveryCLIRefusesAWorkingPane(t *testing.T) {
 	e, pt, run := paneCLI(t)
 	eff := e.attempt("task-1").effect

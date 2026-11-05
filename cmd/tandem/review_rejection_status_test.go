@@ -74,3 +74,34 @@ func TestDurableStatusExplainsReviewRejection(t *testing.T) {
 		t.Fatalf("cleared: %+v %v", got, err)
 	}
 }
+
+// A rejection reason is the reviewer's own text, so it is cleaned like every
+// other fact a pause note quotes.
+func TestDurableStatusCleansReviewRejection(t *testing.T) {
+	d := durableRepo(t)
+	open, err := openDurable(d.root, d.home, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer open.close()
+	ctx := context.Background()
+	attempts, err := open.st.TaskAttempts(ctx, d.run, "receipt-store")
+	if err != nil || len(attempts) != 1 {
+		t.Fatalf("attempts: %+v %v", attempts, err)
+	}
+	hash := attempts[0].PacketHash
+	if err := open.st.InsertJob(ctx, workflow.Job{ID: d.job, AttemptID: d.attempt, Kind: "reviewer", State: "running", InputHash: hash, ConfigHash: hash, PatchHash: hash, TreeHash: hash, RunnerKind: "pane"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := open.st.SetRunPausedFor(ctx, d.run, "review_unknown", d.job, d.effect); err != nil {
+		t.Fatal(err)
+	}
+	reason := "bad \x1b[31mred\x1b[0m result\x00\a"
+	if err := open.st.RecordReviewRejection(ctx, state.ReviewRejection{RunID: d.run, AttemptID: d.attempt, JobID: d.job, EffectID: d.effect, PayloadHash: hash, Reason: reason}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := durableStatus(open)
+	if err != nil || got.PauseReason != "bad red result" {
+		t.Fatalf("pause reason %q, want it cleaned: %v", got.PauseReason, err)
+	}
+}

@@ -170,7 +170,7 @@ func (e *settleEnv) noIntervention(t *testing.T) {
 }
 
 // Each kind of prompt ends the job that waits on it, and no other.
-func TestSettleDeliveryEndsOnlyItsOwnJob(t *testing.T) {
+func TestAbandonEndsOnlyItsOwnJob(t *testing.T) {
 	e := newSettleEnv(t)
 	review := hexID(2004)
 	e.sd.exec(t, `INSERT INTO jobs(id,attempt_id,kind,state,input_hash,config_hash,runner_kind) VALUES(?,?,'reviewer','running',?,?,'test')`,

@@ -114,7 +114,7 @@ func durableStatus(d *openRun) (statusDurableOut, error) {
 		out.Tasks = append(out.Tasks, to)
 	}
 	if run.State == "paused" && run.PauseCode == "review_unknown" && pauseRejection != "" {
-		out.PauseReason = pauseRejection
+		out.PauseReason = clean(pauseRejection)
 	}
 	if run.State == "paused" && out.PauseReason == "" {
 		out.PauseReason = pauseFacts(ctx, d, run.PauseCode, out.Task)

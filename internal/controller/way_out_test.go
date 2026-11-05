@@ -84,9 +84,9 @@ func (e *cenv) stopToPaused() {
 	}
 }
 
-// settleNotRead abandons a prompt. A pane the test said nothing about is idle,
+// abandonPrompt abandons a prompt. A pane the test said nothing about is idle,
 // because a pane in an unknown status refuses.
-func (e *cenv) settleNotRead(effectID string) error {
+func (e *cenv) abandonPrompt(effectID string) error {
 	for _, pane := range []string{"builder-session", "reviewer-session"} {
 		if _, ok := e.tr.agents[pane]; !ok {
 			e.tr.setAgent(pane, runner.Observation{State: runner.ObsCompleted})
@@ -149,7 +149,7 @@ func TestEveryPauseHasAWayOut(t *testing.T) {
 						t.Fatalf("the prompt is %s", got.State)
 					}
 					e.archiveRefused(eff.ID)
-					if err := e.settleNotRead(eff.ID); err != nil {
+					if err := e.abandonPrompt(eff.ID); err != nil {
 						t.Fatalf("settle: %v", err)
 					}
 				}
@@ -167,14 +167,14 @@ func TestEveryPauseHasAWayOut(t *testing.T) {
 func TestWriterUnknownSettlesOnlyAfterTheStop(t *testing.T) {
 	e := newCEnv(t)
 	eff := e.seedPause(pauseWriterUnknown, true)
-	if err := e.settleNotRead(eff.ID); !errors.Is(err, workflow.ErrBusy) || !strings.Contains(err.Error(), "tandem build stop") {
+	if err := e.abandonPrompt(eff.ID); !errors.Is(err, workflow.ErrBusy) || !strings.Contains(err.Error(), "tandem build stop") {
 		t.Fatalf("settling under a held lease: %v", err)
 	}
 	if got, err := e.st.GetEffect(ctx, eff.ID); err != nil || got.State != "delivery_unknown" {
 		t.Fatalf("the prompt is %s (%v)", got.State, err)
 	}
 	e.stopToPaused()
-	if err := e.settleNotRead(eff.ID); err != nil {
+	if err := e.abandonPrompt(eff.ID); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -221,7 +221,7 @@ func TestStopFinishedBeforeTheUpgradeLeavesThroughSettleDelivery(t *testing.T) {
 		t.Fatalf("the prompt is %s (%v)", got.State, err)
 	}
 	e.archiveRefused(prompt.ID)
-	if err := e.settleNotRead(prompt.ID); err != nil {
+	if err := e.abandonPrompt(prompt.ID); err != nil {
 		t.Fatal(err)
 	}
 	if err := e.st.ArchiveRun(ctx, e.runID); err != nil {
@@ -253,7 +253,7 @@ func TestGoneBuilderPaneLeavesAStopThroughTandemPair(t *testing.T) {
 				t.Fatalf("the run is %s", st)
 			}
 			if open {
-				if err := e.settleNotRead(eff.ID); !errors.Is(err, workflow.ErrBusy) {
+				if err := e.abandonPrompt(eff.ID); !errors.Is(err, workflow.ErrBusy) {
 					t.Fatalf("settling while the stop holds the writer: %v", err)
 				}
 			}
@@ -272,7 +272,7 @@ func TestGoneBuilderPaneLeavesAStopThroughTandemPair(t *testing.T) {
 			}
 			if open {
 				e.archiveRefused(eff.ID)
-				if err := e.settleNotRead(eff.ID); err != nil {
+				if err := e.abandonPrompt(eff.ID); err != nil {
 					t.Fatal(err)
 				}
 			}

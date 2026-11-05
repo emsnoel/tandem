@@ -45,7 +45,7 @@ func TestAQueuedMessageClosesTheDeliveryOnAStoppedRun(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			e, eff := queuedOnStopped(t, tc.kind, tc.taken)
-			err := e.settleNotRead(eff.ID)
+			err := e.abandonPrompt(eff.ID)
 			if !errors.Is(err, workflow.ErrBusy) || !strings.Contains(err.Error(), "tandem state recover --run "+e.runID) {
 				t.Fatalf("abandoning with a message queued: %v", err)
 			}
@@ -95,7 +95,7 @@ func TestAQueuedMessageWithTheWrongNonceDoesNotBlockAbandoning(t *testing.T) {
 	if err := os.WriteFile(files[0], raw, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.settleNotRead(eff.ID); err != nil {
+	if err := e.abandonPrompt(eff.ID); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -129,7 +129,7 @@ func (e *cenv) sourceOf(eff workflow.Effect) state.Source {
 // reservation goes back, the source ends, and the collaboration can close.
 func TestAbandoningWithNoSessionReleasesTheReservationAndEndsTheSource(t *testing.T) {
 	e, eff := admittedOpenPrompt(t, true)
-	if err := e.settleNotRead(eff.ID); err != nil {
+	if err := e.abandonPrompt(eff.ID); err != nil {
 		t.Fatal(err)
 	}
 	if got := e.codexBudget().InputReserved; got != 0 {
@@ -154,7 +154,7 @@ func TestAbandoningWithNoSessionReleasesTheReservationAndEndsTheSource(t *testin
 func TestAbandoningWithABoundSessionLeavesTheReservation(t *testing.T) {
 	e, eff := admittedOpenPrompt(t, false)
 	before := e.sourceOf(eff).Status
-	if err := e.settleNotRead(eff.ID); err != nil {
+	if err := e.abandonPrompt(eff.ID); err != nil {
 		t.Fatal(err)
 	}
 	if got := e.codexBudget().InputReserved; got != 60 {

@@ -67,7 +67,7 @@ br() {
   : > "$CALLS"
   OUT=$(env -i PATH="$TMP/bin:/usr/bin:/bin" HOME="$HOME" HERDR_ENV=1 CALLS="$CALLS" TANDEM_REAL="$TMP/tandem-real" \
           RUN_ID="$RUN" PROMPTS="$PROMPTS" FAILS_LEFT="$FAILS_LEFT" STATUS_OUT="$STATUS_OUT" TICK_OUT="$TICK_OUT" \
-          "$BRIDGE" --mailbox "$REL" --planner planner --once 2>&1)
+          "$BRIDGE" --mailbox "$REL" --planner planner --once 2>&1); RC=$?
 }
 sent() { ls "$PROMPTS" | wc -l | tr -d ' '; }
 ticks() { grep -c '^build tick' "$CALLS"; }
@@ -132,6 +132,20 @@ STATUS_OUT='paused|stuck'; TICK_OUT="$RUN|paused|stuck"; br "$REL"
 [ -f "$RD/pause-retry-at" ] && ok "the failed note left a retry time" || nope "no retry time"
 TICK_OUT="$RUN|running"; br "$REL"
 [ ! -e "$RD/pause-retry-at" ] && [ ! -e "$RD/pause-retry-delay" ] && [ ! -e "$RD/pause-reported" ] && ok "a running run clears all three files" || nope "files remain: $(ls "$RD")"
+
+printf '\n== a damaged retry file does not stop the bridge ==\n'
+# The wait is read from a file, so a value that is not a plain number must not
+# reach the arithmetic, where "abc" or "08" would abort the loop under set -e.
+STATUS_OUT='paused|stuck'; TICK_OUT="$RUN|paused|stuck"
+for bad in abc 08 -5 'a[0]' ''; do
+  reset 99
+  br "$REL"; printf '%s\t%s\n' "$bad" "$RUN stuck" > "$RD/pause-retry-delay"; due; br "$REL"
+  [ "$RC" -eq 0 ] && [ "$(cut -f1 "$RD/pause-retry-delay")" = 30 ] \
+    && ok "a retry wait of '$bad' is dropped and the wait starts again at 30" || nope "wait '$bad': rc $RC, delay $(cat "$RD/pause-retry-delay"): $OUT"
+done
+reset 99
+br "$REL"; echo abc > "$RD/pause-retry-at"; br "$REL"
+[ "$RC" -eq 0 ] && [[ "$(cat "$RD/pause-retry-at")" =~ ^[0-9]+$ ]] && ok "a retry time that is not a number is ignored and replaced" || nope "retry time: rc $RC, $(cat "$RD/pause-retry-at")"
 
 printf '\n== a changed code is not held back by the old retry time ==\n'
 reset 1
