@@ -108,6 +108,7 @@ _pn_what() {
     writer_unknown)     echo "tandem cannot tell whether the builder received the task." ;;
     dispatch_failed)    echo "the task never reached a working builder." ;;
     builder_silent)     echo "the builder started this task, then went idle for 10 minutes without handing anything back. A provider failure, an expired login, used-up quota or a turn that ended early can do this." ;;
+    builder_blocked)    echo "the builder is waiting on an approval or question dialog in its pane." ;;
     agent_exited)       echo "the builder or reviewer CLI quit, so its pane no longer runs it." ;;
     agent_unsupported)  echo "the run uses an agent kind tandem no longer supports." ;;
     no_reviewer)        echo "the run has no reviewer pane, and the builder never reviews." ;;
@@ -164,6 +165,16 @@ _pn_builder_silent() {
   _pn_read_log "If the builder handed back and the run did not take it, the bridge log says why. A tree tandem cannot capture exactly holds it, such as an untracked nested repository, a file over 64 MB or a changed submodule. Fix that and the handback applies by itself. The second search shows any other reason a handback waits." "cannot be captured exactly" "busy:"
   _pn_step "If the builder is doing real work, or asked a question you answered in its pane, the run can go on. A handback continues the run by itself. To have tandem watch the builder again before that, run this once the builder has started a new turn. Until it has, the run stays paused." \
     "tandem build recover --root $(printf %q "$2")"
+  restart_steps "$1" "$2" alt
+}
+
+# A recover clears this pause once the pane is past its dialog. Tandem never
+# answers a dialog or presses anything in the pane.
+_pn_builder_blocked() {
+  _pn_read_pane "$3" "Look at the builder pane ${3:-NAME}. It shows an approval or question dialog."
+  _pn_step "Answer the dialog in that pane yourself. Tandem never answers it or presses anything there. A stop waits for the dialog too, so answer or close it whichever way you go on."
+  _pn_step "Then let the run go on. This clears the pause once the pane is no longer blocked. While it still is, the run stays paused." \
+    "tandem state recover --run $1 --root $(printf %q "$2")"
   restart_steps "$1" "$2" alt
 }
 
@@ -226,6 +237,7 @@ pause_note() {
       restart_steps "$run" "$root" ;;
     writer_unknown) _pn_writer_unknown "$run" "$root" "$task" "$builder" ;;
     builder_silent) _pn_builder_silent "$run" "$root" "$builder" ;;
+    builder_blocked) _pn_builder_blocked "$run" "$root" "$builder" ;;
     dispatch_failed)
       _pn_step "Fix the builder pane ${builder:-NAME}. A model the CLI rejects, an expired login, a used-up quota or a startup dialog looks like this. Re-run tandem-pair if the pane is gone."
       _pn_step "If the pair has no reviewer: $REVIEWER_REMEDY"

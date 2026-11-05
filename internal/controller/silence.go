@@ -6,6 +6,8 @@ package controller
 // attempt, so a builder whose turn ended early would leave the run looking alive
 // forever. Each tick therefore watches the current attempt's pane and pauses the
 // run once the pane has stayed settled, in one unchanged turn, for SilenceWindow.
+// A pane that stays blocked at an approval or question dialog for the same
+// window pauses it too, as builder_blocked. Tandem never answers the dialog.
 //
 // Ticks are separate processes and the store's schema stays as it is, so the
 // clock is a small file in the run's directory. It only ever delays a pause: a
@@ -28,21 +30,25 @@ import (
 )
 
 const (
-	pauseBuilderSilent = "builder_silent"
-	silenceClockFile   = "builder-silence.json"
+	pauseBuilderSilent  = "builder_silent"
+	pauseBuilderBlocked = "builder_blocked"
+	silenceClockFile    = "builder-silence.json"
 )
 
-// SilenceWindow is how long a started builder's pane may stay settled with
-// nothing handed back. A variable so the shell tests can shorten it
+// SilenceWindow is how long a started builder's pane may stay settled, or
+// blocked at a dialog, with nothing handed back. A variable so the shell tests can shorten it
 // (TANDEM_SILENCE_WINDOW_MS, cmd/tandem/confirm_start.go).
 var SilenceWindow = 10 * time.Minute
 
 // silenceClock is the turn being timed and when it was first and last seen.
+// Pause is the code the turn would pause with, which tells an idle pane from a
+// blocked one.
 type silenceClock struct {
 	AttemptID string `json:"attempt_id"`
 	Version   int64  `json:"version"`
 	Seq       int    `json:"seq"`
 	Session   string `json:"session"`
+	Pause     string `json:"pause"`
 	// Queued names the run's queued messages, so a new one restarts the clock
 	// once and one that stays queued does not hold it off.
 	Queued  []string `json:"queued"`
@@ -52,7 +58,7 @@ type silenceClock struct {
 
 func (k silenceClock) sameTurn(o silenceClock) bool {
 	return k.AttemptID == o.AttemptID && k.Version == o.Version && k.Seq == o.Seq && k.Session == o.Session &&
-		strings.Join(k.Queued, "\n") == strings.Join(o.Queued, "\n")
+		k.Pause == o.Pause && strings.Join(k.Queued, "\n") == strings.Join(o.Queued, "\n")
 }
 
 // queuedNames is the run's queue by message, sorted. A claimed file and its
@@ -139,12 +145,30 @@ func (c *Controller) observeBuilder(ctx context.Context, run state.Run, att work
 	return runner.Observation{}, errors.New("the attempt has no task prompt")
 }
 
+// quietPause is the code a started builder's pane would pause with: settled is
+// builder_silent, blocked at a dialog is builder_blocked, and anything else is
+// not quiet.
+func quietPause(obs runner.Observation) string {
+	switch {
+	case obs.State == runner.ObsCompleted:
+		return pauseBuilderSilent
+	case obs.State == runner.ObsRunning && obs.Blocked:
+		return pauseBuilderBlocked
+	}
+	return ""
+}
+
+// quietCode reports whether code is one of the two pauses this file sets.
+func quietCode(code string) bool {
+	return code == pauseBuilderSilent || code == pauseBuilderBlocked
+}
+
 // watchSilence is the end of a running run's pass. It keeps the clock while the
-// current builder has started, not submitted and sits settled with its queue
-// unchanged, and pauses the run once that has lasted SilenceWindow. A handback
-// the tree keeps from applying stays queued, so it counts as silence after the
-// clock restarts once for it: the note says where the bridge logs why. Nothing is typed
-// and nothing is ended, so a late handback still applies.
+// current builder has started, not submitted and sits settled or blocked with
+// its queue unchanged, and pauses the run once that has lasted SilenceWindow. A
+// handback the tree keeps from applying stays queued, so it counts as silence
+// after the clock restarts once for it: the note says where the bridge logs why.
+// Nothing is typed and nothing is ended, so a late handback still applies.
 func (c *Controller) watchSilence(ctx context.Context, runID string, cfg runConfig) error {
 	run, err := c.d.State.GetRun(ctx, runID)
 	if err != nil || run.State != "running" {
@@ -159,13 +183,14 @@ func (c *Controller) watchSilence(ctx context.Context, runID string, cfg runConf
 		return nil
 	}
 	obs, err := c.observeBuilder(ctx, run, att)
-	if err != nil || obs.State != runner.ObsCompleted {
+	code := quietPause(obs)
+	if err != nil || code == "" {
 		restartSilenceClock(run, cfg)
 		return nil
 	}
 	now := c.d.Now().UnixMilli()
 	seen := silenceClock{AttemptID: att.ID, Version: att.Version, Seq: obs.StateSeq, Session: obs.Session,
-		Queued: queuedNames(run, cfg), SinceMS: now, SeenMS: now}
+		Pause: code, Queued: queuedNames(run, cfg), SinceMS: now, SeenMS: now}
 	path := silenceClockPath(run, cfg)
 	// A gap as long as the window is not watching, as when the machine slept.
 	if last, ok := readSilenceClock(path); ok && last.sameTurn(seen) && now-last.SeenMS <= SilenceWindow.Milliseconds() {
@@ -181,15 +206,15 @@ func (c *Controller) watchSilence(ctx context.Context, runID string, cfg runConf
 	if now-seen.SinceMS < SilenceWindow.Milliseconds() {
 		return nil
 	}
-	return c.d.State.SetRunState(ctx, run.ID, "paused", pauseBuilderSilent)
+	return c.d.State.SetRunState(ctx, run.ID, "paused", code)
 }
 
-// continueAfterHandback clears a silent pause once the builder's handback has
+// continueAfterHandback clears a silent or blocked pause once the builder's handback has
 // been applied, whichever process applied it. Only that clears it on a tick: a
 // pane that merely moved waits for a recover, which a person asks for.
 func (c *Controller) continueAfterHandback(ctx context.Context, runID string) error {
 	run, err := c.d.State.GetRun(ctx, runID)
-	if err != nil || run.State != "paused" || run.PauseCode != pauseBuilderSilent {
+	if err != nil || run.State != "paused" || !quietCode(run.PauseCode) {
 		return err
 	}
 	att, found, err := c.builderAttempt(ctx, run)
@@ -201,14 +226,15 @@ func (c *Controller) continueAfterHandback(ctx context.Context, runID string) er
 
 // recoverSilence is a recover's part. Whoever recovers, nobody can say the pane
 // was watched before it, so the clock starts again: that is how a restart of the
-// bridge restarts it. The exception is a run paused as builder_silent, which needs
-// the clock to tell whether the turn moved on, and clears if it did.
+// bridge restarts it. The exceptions are the two quiet pauses. builder_silent
+// needs the clock to tell whether the turn moved on, and clears if it did.
+// builder_blocked clears once the pane is seen past its dialog.
 func (c *Controller) recoverSilence(ctx context.Context, runID string) error {
 	run, cfg, err := c.load(ctx, runID)
 	if err != nil {
 		return err
 	}
-	if run.State != "paused" || run.PauseCode != pauseBuilderSilent {
+	if run.State != "paused" || !quietCode(run.PauseCode) {
 		restartSilenceClock(run, cfg)
 		return nil
 	}
@@ -220,22 +246,23 @@ func (c *Controller) recoverSilence(ctx context.Context, runID string) error {
 	return c.d.State.SetRunState(ctx, run.ID, "running", "")
 }
 
-// turnMovedOn compares the silent attempt's pane with the turn the clock last
-// timed. With no clock to compare, only a pane seen working has moved. A pane the
-// host cannot answer for has not.
+// turnMovedOn compares the quiet attempt's pane with the turn the clock last
+// timed. A blocked pause has moved once the pane is working or settled and no
+// longer blocked. For a silent one, with no clock to compare, only a pane seen
+// working has moved. A pane the host cannot answer for has not.
 func (c *Controller) turnMovedOn(ctx context.Context, run state.Run, cfg runConfig) (bool, error) {
 	att, found, err := c.builderAttempt(ctx, run)
 	if err != nil || !found || att.Implementation != workflow.ImplementationRunning {
 		return false, err // a handback applied is continueAfterHandback's to clear
 	}
 	obs, err := c.observeBuilder(ctx, run, att)
-	if err != nil {
+	if err != nil || obs.Blocked {
 		return false, nil
 	}
-	if obs.State == runner.ObsRunning {
+	if obs.State == runner.ObsRunning || (run.PauseCode == pauseBuilderBlocked && obs.State == runner.ObsCompleted) {
 		return true, nil
 	}
 	last, ok := readSilenceClock(silenceClockPath(run, cfg))
-	now := silenceClock{AttemptID: att.ID, Version: att.Version, Seq: obs.StateSeq, Session: obs.Session, Queued: last.Queued}
+	now := silenceClock{AttemptID: att.ID, Version: att.Version, Seq: obs.StateSeq, Session: obs.Session, Pause: pauseBuilderSilent, Queued: last.Queued}
 	return ok && obs.State == runner.ObsCompleted && !last.sameTurn(now), nil
 }

@@ -54,13 +54,15 @@ const (
 // tell, which differs from stopped. ExternalID names the agent by session, else
 // by pane. Session is only the conversation id the CLI reported. StateSeq is the
 // host's count of the agent's status changes, so a turn that started and ended
-// between two observations still shows; 0 when the host reports none.
+// between two observations still shows; 0 when the host reports none. Blocked
+// is a running agent the host says waits on an approval or question dialog.
 type Observation struct {
 	State      string
 	Nonce      string
 	ExternalID string
 	Session    string
 	StateSeq   int
+	Blocked    bool
 }
 
 // Transport sends prompts and observes agents. Implementations exist per

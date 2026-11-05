@@ -201,6 +201,23 @@ The run continues in one of two ways:
 Otherwise stop, recover and archive the run, then hand the plan off again. The note prints each
 step. The new run starts again at task 1.
 
+## A builder waiting on a dialog
+
+A builder can stop at an approval or question dialog, such as a permission prompt. Herdr
+reports its pane as blocked. If it stays blocked for 10 minutes, in the same turn, the run
+pauses as `builder_blocked` and the planner gets one note. The same clock file and the same
+restarts apply as for a silent builder. Going from blocked to idle is a status change, so
+the idle window starts from then.
+
+Tandem never answers the dialog or presses anything in the pane. Answer it yourself, then
+continue the run. The recover clears the pause once the pane is no longer blocked. While it
+still is, the run stays paused. A handback also continues the run by itself.
+
+    tandem state recover --run ID --root DIR
+
+A stop waits for the builder's turn, and a dialog holds the turn, so answer or close the
+dialog before a restart too.
+
 ## Raising a budget
 
 Limits count total input tokens and are stored in the run. Zero is off. A task limit
