@@ -92,6 +92,7 @@ printf '\n== a bridge that ends by itself gives the mailbox back ==\n'
 printf "\n== tandem-pair's start_bridge ==\n"
 # start_bridge with the globals tandem-pair sets.
 pair_start() {
+  # shellcheck disable=SC2016 # the inner script expands its own arguments
   "${BENV[@]}" bash -c '
     info() { printf "tandem-pair: %s\n" "$*"; }; die() { info "$*"; exit 1; }
     . "$1/bin/lib/relay.sh"; . "$1/bin/lib/pair-records.sh"; . "$1/bin/lib/bridge-lock.sh"
