@@ -107,7 +107,7 @@ _pn_what() {
     repairs_exhausted)  echo "the repairs for the task ran out and it is still not accepted." ;;
     writer_unknown)     echo "tandem cannot tell whether the builder received the task." ;;
     dispatch_failed)    echo "the task never reached a working builder." ;;
-    builder_silent)     echo "the builder started this task, then went idle for 10 minutes without handing anything back. A provider failure, an expired login, used-up quota or a turn that ended early can do this." ;;
+    builder_silent)     echo "the builder started this task, then went idle without handing anything back. A provider failure, an expired login, used-up quota or a turn that ended early can do this." ;;
     builder_blocked)    echo "the builder is waiting on an approval or question dialog in its pane." ;;
     agent_exited)       echo "the builder or reviewer CLI quit, so its pane no longer runs it." ;;
     agent_unsupported)  echo "the run uses an agent kind tandem no longer supports." ;;

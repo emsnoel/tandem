@@ -58,7 +58,7 @@ func pauseFacts(ctx context.Context, d *openRun, code, taskID string) string {
 	switch code {
 	case "recovery_blocked":
 		return clean(incidentWhy(ctx, d))
-	case "builder_blocked":
+	case "builder_silent", "builder_blocked":
 		return quietFact(code)
 	case "check_failed", "review_failed", "repairs_exhausted", "verification_identity", "verification_stale":
 	default:
@@ -91,7 +91,10 @@ func pauseFacts(ctx context.Context, d *openRun, code, taskID string) string {
 // quietFact is how long the builder's pane stayed quiet before the run paused,
 // in the window this process was given (TANDEM_SILENCE_WINDOW_MS can shorten it).
 func quietFact(code string) string {
-	how := "blocked at a dialog"
+	how := "idle in the same turn"
+	if code == "builder_blocked" {
+		how = "blocked at a dialog"
+	}
 	return "The builder's pane stayed " + how + " for " + windowText(controller.SilenceWindow) + "."
 }
 

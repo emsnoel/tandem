@@ -100,6 +100,9 @@ has "and for any other busy reason on a second line" "$OUT" "tail -n 5
 lack "builder_silent says nothing twice" "$OUT" "if it needs an answer"
 OUT=$(pause_note builder_silent "$RUN" /r task-7 bldr rev "")
 has "builder_silent with no relay names the log" "$OUT" "It is bridge.log in the relay folder."
+lack "builder_silent states no fixed window of its own" "$OUT" "10 minutes"
+OUT=$(pause_note builder_silent "$RUN" /r task-7 bldr rev "The builder's pane stayed idle in the same turn for 4 minutes.")
+has "builder_silent gives the window from its fact" "$OUT" "stayed idle in the same turn for 4 minutes."
 OUT=$(pause_note builder_blocked "$RUN" /r task-7 bldr rev "The builder's pane stayed blocked at a dialog for 10 minutes.")
 has "builder_blocked says the builder waits on a dialog" "$OUT" "stopped: the builder is waiting on an approval or question dialog in its pane."
 has "builder_blocked gives the window from its fact" "$OUT" "stayed blocked at a dialog for 10 minutes."
