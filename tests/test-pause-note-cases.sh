@@ -40,13 +40,13 @@ git -C "$BASE" add . && git -C "$BASE" commit -qm plan
 
 TAB=$(printf '\t'); DRIVER=""
 stop_driver() { [ -z "$DRIVER" ] || { kill "$DRIVER" 2>/dev/null; wait "$DRIVER" 2>/dev/null; DRIVER=""; }; }
-td() { env PATH="$TMP/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$R" TANDEM_BUILD_ENGINE=durable TANDEM_STATE_HOME="$TMP/state-$C" tandem "$@"; }
+td() { env PATH="$TMP/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$R" TANDEM_BUILD_ENGINE=durable TANDEM_STATE_HOME="$TMP/state-$C" TANDEM_ACK_WINDOW_MS="${ACK_MS:-}" tandem "$@"; }
 # pass [N]: N bridge passes. Each one ticks the run and tells the planner of a new pause.
 pass() {
   local i
   for ((i = 0; i < ${1:-1}; i++)); do
     env PATH="$TMP/bin:$ROOT_DIR/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$R" HERDR_ENV=1 TANDEM_BUILD_ENGINE=durable \
-      TANDEM_STATE_HOME="$TMP/state-$C" HERDR_BRIDGE_PROMPT_TIMEOUT_MS=3000 \
+      TANDEM_STATE_HOME="$TMP/state-$C" TANDEM_ACK_WINDOW_MS="${ACK_MS:-}" HERDR_BRIDGE_PROMPT_TIMEOUT_MS=3000 \
       "$ROOT_DIR/bin/tandem-bridge" --mailbox "$R/.tandem-relay" --planner planner --once >>"$TMP/bridge.log" 2>&1
   done
 }
@@ -87,7 +87,10 @@ printf 'There is an issue with the selected model.\n' > "$FAKE/pane"
 ( exec 2>/dev/null; n=0; while :; do c=$(wc -l < "$FAKE/prompts" 2>/dev/null || echo 0)
     [ "$c" -le "$n" ] || { n=$c; sleep 0.3; fake_set_state idle; }; sleep 0.05; done ) &
 DRIVER=$!
-# The fake logs each prompt, and a retry would find the last log and count as work.
+# Each retry resets into a new conversation, so two logs hold the prompt's nonce.
+# SessionContaining refuses two matches, the transport drops that error, and
+# usedTokens then reads the empty session as "might have worked". Deleting the
+# logs leaves one match per attempt.
 for _ in 1 2 3 4 5 6 7 8; do [ "$(state)" = paused/dispatch_failed ] && break; rm -rf "$CODEX_HOME"; pass; sleep 1; done
 stop_driver
 [ "$(state)" = paused/dispatch_failed ] && ok "the run pauses dispatch_failed after its retries" || nope "state $(state)"
@@ -97,6 +100,23 @@ has "it says the task never reached a working builder" "$NOTE" "stopped: the tas
 has "it shows what the pane said" "$NOTE" "There is an issue with the selected model."
 has "it names the builder pane" "$NOTE" "Builder pane: builder"
 once_only provider
+
+printf '\n== a sent prompt nobody acknowledges: writer_unknown once the window passes ==\n'
+# The window is 10 minutes (state.AckWindow); TANDEM_ACK_WINDOW_MS shortens it.
+for pane in working idle; do
+  ACK_MS=1500; new_case "ack-$pane" true
+  pass
+  [ "$(sent_to builder)" = 1 ] && ok "$pane: the task is typed once" || nope "$pane: builder prompts: $(sent_to builder)"
+  [ "$pane" = idle ] && fake_set_state idle
+  [ "$(sent_to planner)" = 0 ] && ok "$pane: nothing is said inside the window" || nope "$pane: early note"
+  sleep 2; pass 2
+  [ "$(state)" = paused/writer_unknown ] && ok "$pane: the run pauses writer_unknown after the window" || nope "$pane: state $(state)"
+  [ "$(sent_to planner)" = 1 ] && ok "$pane: the planner got one note" || nope "$pane: notes: $(sent_to planner)"
+  has "$pane: it says tandem cannot tell if the builder got the task" "$(last_note)" "tandem cannot tell whether the builder received the task."
+  has "$pane: it names the builder pane" "$(last_note)" "Builder pane: builder"
+  once_only "ack-$pane"
+  ACK_MS=""
+done
 
 printf '\n== a startup dialog: the send becomes delivery_unknown ==\n'
 new_case dialog true

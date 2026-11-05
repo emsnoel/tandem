@@ -17,15 +17,17 @@ const (
 	// every HeartbeatInterval while it works.
 	LeaseDuration     = 30 * time.Second
 	HeartbeatInterval = 10 * time.Second
-	// AckWindow is how long a prompt the transport accepted may wait for the
-	// builder's nonce-bound acknowledgement before the effect is treated as
-	// unconfirmed.
-	AckWindow = 10 * time.Minute
 	// ReconcileDelay spaces repeated reconciliation of one unknown effect.
 	ReconcileDelay = 30 * time.Second
 	// MaxSendFailures is how many definite not-sent failures an effect gets.
 	MaxSendFailures = 3
 )
+
+// AckWindow is how long a prompt the transport accepted may wait for the
+// builder's nonce-bound acknowledgement before the effect is treated as
+// unconfirmed. It is a variable only so the shell tests can shorten it
+// (TANDEM_ACK_WINDOW_MS, cmd/tandem/confirm_start.go).
+var AckWindow = 10 * time.Minute
 
 var (
 	// ErrNoEffect: nothing is claimable now.

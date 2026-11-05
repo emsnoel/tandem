@@ -129,7 +129,7 @@ _pn_agent_unsupported() {
   printf 'Tandem types nothing more into this run. If a supported agent in it quit, bring it back first with tandem-pair, because a stop waits for it.\n'
   printf '\nWhat to do:\n'
   _pn_teardown "$1" "$2"
-  _pn_step "Pair a supported agent (Codex, Claude or Copilot) with tandem-pair, then hand the plan off again." "tandem-pair"
+  _pn_step "Pair a supported agent (Codex, Claude or Copilot) with tandem-pair." "tandem-pair"
   _pn_handoff
 }
 
@@ -209,7 +209,7 @@ pause_note() {
       restart_steps "$run" "$root" ;;
     writer_unknown) _pn_writer_unknown "$run" "$root" "$task" "$builder" ;;
     dispatch_failed)
-      _pn_step "Fix the builder pane ${builder:-NAME}. A model the CLI rejects, an expired login or a used-up quota looks like this. Re-run tandem-pair if the pane is gone."
+      _pn_step "Fix the builder pane ${builder:-NAME}. A model the CLI rejects, an expired login, a used-up quota or a startup dialog looks like this. Re-run tandem-pair if the pane is gone."
       _pn_step "If the pair has no reviewer: $REVIEWER_REMEDY"
       restart_steps "$run" "$root" ;;
     agent_exited) _pn_agent_exited "$run" "$root" "$builder" "$reviewer" ;;

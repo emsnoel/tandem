@@ -21,6 +21,7 @@ import (
 	"github.com/emsnoel/tandem/internal/controller"
 	"github.com/emsnoel/tandem/internal/exitcode"
 	"github.com/emsnoel/tandem/internal/herdr"
+	"github.com/emsnoel/tandem/internal/state"
 )
 
 // failWithin is how long a started turn must keep running to count. The Claude
@@ -35,6 +36,17 @@ func failWithinFromEnv() time.Duration {
 	}
 	return failWithin
 }
+
+// ackWindowFromEnv lets TANDEM_ACK_WINDOW_MS shorten state.AckWindow for the
+// shell tests. A value that is not a positive whole number keeps the default.
+func ackWindowFromEnv() time.Duration {
+	if ms, err := strconv.Atoi(os.Getenv("TANDEM_ACK_WINDOW_MS")); err == nil && ms > 0 {
+		return time.Duration(ms) * time.Millisecond
+	}
+	return state.AckWindow
+}
+
+func init() { state.AckWindow = ackWindowFromEnv() }
 
 // paneLines is how much of the pane a turn that ended at once reports.
 const paneLines = 20
