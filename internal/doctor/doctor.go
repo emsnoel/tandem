@@ -44,7 +44,11 @@ var roleOrder = map[agent.Role]int{agent.RolePlanner: 0, agent.RoleBuilder: 1, a
 func (u Uses) kinds() []string {
 	out := make([]string, 0, len(u))
 	for k := range u {
-		out = append(out, k)
+		// A kind with no adapter cannot be installed, integrated or trusted into
+		// working. launch refuses it, and that one line is all a person needs.
+		if agent.FirstUnsupported(k) == "" {
+			out = append(out, k)
+		}
 	}
 	first := func(k string) int {
 		n := len(roleOrder)

@@ -5,10 +5,13 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/emsnoel/tandem/internal/agent"
 	"github.com/emsnoel/tandem/internal/config"
 	"github.com/emsnoel/tandem/internal/exitcode"
+	"github.com/emsnoel/tandem/internal/paths"
 )
 
 // cmdRecordBuilder resolves the builder as `config resolve` does and writes
@@ -29,6 +32,7 @@ func cmdRecordBuilder(args []string) int {
 		return exitcode.Usage
 	}
 	r := l.Resolved
+	configured := r
 	if *adopted != "" {
 		r = r.MarkAdopted(*adopted)
 	}
@@ -36,7 +40,22 @@ func cmdRecordBuilder(args []string) int {
 	if strings.TrimSpace(rec.Kind) == "" || strings.TrimSpace(rec.Autonomy) == "" {
 		return exitcode.BuilderUnresolved
 	}
+	// tandem-pair refuses these panes first, so this only stops a record no later
+	// command could use.
+	if agent.FirstUnsupported(configured.Kind.Value, *adopted) != "" {
+		fmt.Fprintf(os.Stderr, "tandem: %s\n", recordRefusal(configured, *adopted, filepath.Base(paths.Manifest(l.Root))))
+		return exitcode.NarrowingRefused
+	}
 	return printRecord(rec, *dryRun, func() error { return config.WriteBuilder(*relay, rec) }, rec.Kind, rec.Autonomy)
+}
+
+// recordRefusal says why the builder cannot be recorded: the kind tandem asked
+// for, or the kind already running in the adopted pane.
+func recordRefusal(r config.Resolved, adopted, manifest string) string {
+	if agent.FirstUnsupported(adopted) != "" {
+		return fmt.Sprintf("the running builder is %q, which is not supported. Close its pane and use one of the supported kinds: %s", adopted, supportedKinds())
+	}
+	return kindRefusal(r, manifest)
 }
 
 // cmdReviewerRecord writes reviewer.json for the reviewer pane bin/tandem-pair

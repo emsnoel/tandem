@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/emsnoel/tandem/internal/agent"
 	"github.com/emsnoel/tandem/internal/exitcode"
 	"github.com/emsnoel/tandem/internal/herdr"
 )
@@ -60,7 +61,9 @@ func cmdAgentPlanner(args []string) int {
 }
 
 // cmdAgentAdoptable prints the pane and kind of the one unnamed agent
-// bin/tandem-pair may adopt as the builder, or nothing.
+// bin/tandem-pair may adopt as the builder, or nothing. An unnamed agent beside
+// the planner with a kind tandem cannot run exits NarrowingRefused and prints
+// that agent's pane and kind instead, so the person learns why it was not used.
 func cmdAgentAdoptable(args []string) int {
 	fs := flag.NewFlagSet("agent adoptable", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -74,6 +77,12 @@ func cmdAgentAdoptable(args []string) int {
 	agents, rc := listAgents()
 	if rc != exitcode.OK {
 		return rc
+	}
+	for _, a := range herdr.Unnamed(agents, *exclude, *tab) {
+		if agent.FirstUnsupported(a.Kind) != "" {
+			writeFields(os.Stdout, a.PaneID, a.Kind)
+			return exitcode.NarrowingRefused
+		}
 	}
 	if a := herdr.Adoptable(agents, *exclude, *tab, *kind); a != nil {
 		writeFields(os.Stdout, a.PaneID, a.Kind)

@@ -24,6 +24,9 @@ func Repo(root, cwd string, r Roles, getenv func(string) string) []Result {
 	// the launch settings, even when the builder runs; a running reviewer gets
 	// neither.
 	for _, res := range r.launched() {
+		if agent.FirstUnsupported(res.Kind.Value) != "" {
+			continue // launch refuses it, and approving it could not help
+		}
 		if res.Role == agent.RoleBuilder || (res.Role == agent.RoleReviewer && r.starts(res.Role)) {
 			rs = append(rs, approval(r.user, root, res))
 		}
@@ -144,6 +147,11 @@ func gates(r Roles, root, cwd, kind string, getenv func(string) string) []Result
 func launch(res config.Resolved, cwd string) Result {
 	r := Result{Name: "launch:" + string(res.Role)}
 	a, err := agent.Get(res.Kind.Value)
+	if agent.FirstUnsupported(res.Kind.Value) != "" {
+		r.Status, r.Fix = Fail, "use one of the supported kinds: "+strings.Join(agent.Kinds(), ", ")
+		r.Detail = fmt.Sprintf("%s kind %s (%s) is not supported", res.Role, res.Kind.Value, from(res.Kind))
+		return r
+	}
 	if err == nil {
 		var l agent.Launch
 		l, err = a.Resolve(res.Spec(cwd))

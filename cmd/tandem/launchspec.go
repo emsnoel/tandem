@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -42,24 +43,31 @@ func cmdLaunchSpec(args []string) int {
 		fmt.Fprintf(os.Stderr, "tandem: %s\n", w)
 	}
 
+	refuse := refuseJSON
+	if *asFields {
+		refuse = refuseRemedy
+	}
+	// A kind with no adapter is refused first: approving it could not help.
+	manifest := filepath.Base(paths.Manifest(absRoot))
+	a, err := agent.Get(r.Kind.Value)
+	if err != nil {
+		var unknown *agent.Error
+		if errors.As(err, &unknown) {
+			unknown.Remedy = kindRefusal(r, manifest)
+		}
+		return refuse(err)
+	}
+
 	// A kind the repository asked for is confirmed once per repository. A kind the
 	// user supplied is their own decision and is never challenged.
 	if user, err := config.LoadUser(config.UserConfigPath()); err == nil && user.NeedsApproval(absRoot, r) {
 		fmt.Fprintf(os.Stderr,
 			"tandem: %s asks for %s kind %q, which you have not approved for this repository.\n"+
 				"        Approve once with:  tandem-pair --approve-kind %s\n",
-			filepath.Base(paths.Manifest(absRoot)), r.Role, r.Kind.Value, r.Kind.Value)
+			manifest, r.Role, r.Kind.Value, r.Kind.Value)
 		return exitcode.KindUnapproved
 	}
 
-	refuse := refuseJSON
-	if *asFields {
-		refuse = refuseRemedy
-	}
-	a, err := agent.Get(r.Kind.Value)
-	if err != nil {
-		return refuse(err)
-	}
 	spec := r.Spec(cwd)
 	// Only unattended roles get a session id. If entropy cannot be read, the
 	// adapter emits no --session-id.

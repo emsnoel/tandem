@@ -22,7 +22,14 @@ passes. Neither default is changed by this release.
 The builder kinds are Codex, Claude and Copilot. Each has a verified way to start a fresh
 conversation; Copilot's is confirmed from its own process log, because Herdr cannot see it.
 `tandem build start` refuses any other kind, such as the discontinued OpenCode, before it
-creates anything.
+creates anything. `tandem-handoff` refuses a pair recorded with one on either engine, and
+`tandem-pair` refuses to use a pane running one.
+
+A run an older tandem started with such a kind pauses as `agent_unsupported`, and tandem types
+nothing more into it. To close it, run `tandem build stop`, `tandem build tick`, `tandem state
+recover --run ID` and `tandem state archive --run ID`. A stop waits for the builder's pane to
+settle. If a discontinued builder's pane is gone, tandem counts it as stopped. A supported
+builder in a mixed run has to come back first, because a person can restart it.
 
 ## Where things live
 
@@ -358,7 +365,7 @@ recorded as unverified.
 ## Rollout gates
 
 The default engine changes only in a separate, reviewed release patch after all of these
-hold: the correctness gates, all four builders verified live, the recovery gates, and the
+hold: the correctness gates, every supported builder verified live, the recovery gates, and the
 measured cost targets (a provisional 25% median uncached-input improvement and 30%
 total-input improvement on long builds, small builds no worse than 10%, p95 latency no
 worse than 20%, at least ten paired runs per main scenario). If quality is worse, the
