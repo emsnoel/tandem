@@ -68,7 +68,7 @@ func durableRepo(t *testing.T) *durable {
 		return h
 	}
 	// A run names its builder: ingest builds the run's transport from it.
-	plan, cfg, brief, packet, start, ev := put("plan"), put(`{"root":"`+root+`","builder_kind":"codex","builder_session":"builder","planner_session":"planner","reviewer_kind":"claude","reviewer_session":"reviewer"}`),
+	plan, cfg, brief, packet, start, ev := put("plan"), put(`{"root":"`+root+`","plan_path":"docs/my plan.md","collaboration":"`+strings.Repeat("7", 32)+`","builder_kind":"codex","builder_session":"builder","planner_session":"planner","reviewer_kind":"claude","reviewer_session":"reviewer"}`),
 		put("brief"), put("packet"), put("start"), put("dispatch event")
 	for _, q := range []struct {
 		sql  string

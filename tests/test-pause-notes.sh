@@ -29,7 +29,7 @@ printf '== every pause code has a note ==\n'
 while IFS= read -r -d '' code; do
   out=$(pause_note "$code" "$RUN" "$SPACED" task-2 builder reviewer "")
   first=$(printf '%s\n' "$out" | sed -n 1p)
-  case "$first" in "[build] Run $RUN stopped: "*) ok "$code: first line names the run" ;; *) nope "$code: first line: $first" ;; esac
+  case "$first" in "[build] Run $RUN stopped: "*|"[build] Run $RUN is stopping: "*) ok "$code: first line names the run" ;; *) nope "$code: first line: $first" ;; esac
   case "$out" in *$'\nWhat to do:\n'*) ok "$code: has What to do:" ;; *) nope "$code: no What to do:" ;; esac
   printf '%s\n' "$out" | grep -q '^1\. ' && ok "$code: has a numbered step" || nope "$code: no numbered step"
   case "$out" in *"—"*) nope "$code: has an em dash" ;; *) ok "$code: no em dash" ;; esac
@@ -63,7 +63,9 @@ done
 printf '\n== what each note carries ==\n'
 OUT=$(pause_note check_failed "$RUN" /r task-7 b r "")
 has "check_failed names the task" "$OUT" "task-7"
-has "check_failed waives that task's check" "$OUT" "tandem build accept --task task-7 --waive check"
+lack "check_failed does not offer a waive that leaves the run paused" "$OUT" "--waive"
+has "check_failed shows the log facts it was given" "$(pause_note check_failed "$RUN" /r task-7 b r "The check exited 1. The end of its log:
+FAIL TestX")" "FAIL TestX"
 OUT=$(pause_note review_unknown "$RUN" /r task-7 b rev "No valid review in the pane.")
 has "review_unknown includes the reason facts" "$OUT" "No valid review in the pane."
 has "review_unknown reads the reviewer pane" "$OUT" "herdr agent read rev"
@@ -84,7 +86,55 @@ has "dispatch_failed restarts" "$OUT" "tandem state archive --run $RUN --root /r
 OUT=$(pause_note context_too_large "$RUN" /r task-1 b r "")
 has "context_too_large offers a larger limit" "$OUT" "--context-limit N"
 OUT=$(restart_steps "$RUN" /r)
-has "restart_steps hands the plan off again" "$OUT" "tandem-handoff PLAN"
+has "restart_steps hands the plan off again" "$OUT" "tandem-handoff"
+
+printf '\n== the rulings ==\n'
+for c in check_failed review_failed stuck repairs_exhausted source_mutated recovery_blocked; do
+  OUT=$(pause_note "$c" "$RUN" /r task-7 b r "")
+  lack "$c does not offer waive" "$OUT" "--waive"
+  lack "$c has no SCOPE placeholder" "$OUT" "SCOPE"
+done
+OUT=$(pause_note review_unknown "$RUN" /r task-7 b r "")
+has "review_unknown keeps the waive, which clears it" "$OUT" "tandem build accept --task task-7 --waive review --because WHY --root /r"
+has "review_unknown says a mailbox review waits 5 minutes" "$OUT" "waits 5"
+OUT=$(pause_note check_failed "$RUN" /r task-7 b r "" "/plans/my plan.md" "" /m)
+has "the hand-off names the real plan, quoted" "$OUT" 'tandem-handoff /plans/my\ plan.md'
+OUT=$(pause_note check_failed "$RUN" /r task-7 b r "" "" "" /m)
+case "$OUT" in *$'\n    tandem-handoff') ok "a run with no plan path hands off with tandem-handoff alone" ;; *) nope "no-plan hand-off: $OUT" ;; esac
+OUT=$(pause_note context_too_large "$RUN" /r task-7 b r "" /p.md "" /m)
+has "context_too_large puts the limit before the plan" "$OUT" "tandem-handoff --context-limit N /p.md"
+OUT=$(pause_note scheduling_blocked "$RUN" /r task-7 b r "" /p.md COLL1 /m)
+has "scheduling_blocked names the collaboration" "$OUT" "tandem collaboration resume --collaboration COLL1 "
+OUT=$(pause_note scheduling_blocked "$RUN" /r task-7 b r "" /p.md "" /m)
+lack "and offers no resume when there is none" "$OUT" "collaboration resume"
+OUT=$(pause_note stopping "$RUN" /r task-7 b r "")
+lack "stopping is not called stopped" "$OUT" "stopped:"
+has "stopping says it waits for the current turn" "$OUT" "waiting for the builder's current turn"
+OUT=$(restart_steps "$RUN" /r)
+stop_at=$(printf '%s\n' "$OUT" | grep -n 'tandem build stop' | cut -d: -f1)
+wait_at=$(printf '%s\n' "$OUT" | grep -n 'tandem build wait --root /r --until paused --tick' | cut -d: -f1)
+rec_at=$(printf '%s\n' "$OUT" | grep -n 'tandem state recover' | cut -d: -f1)
+[ -n "$stop_at" ] && [ -n "$wait_at" ] && [ "$stop_at" -lt "$wait_at" ] && [ "$wait_at" -lt "$rec_at" ] \
+  && ok "restart waits for the stop to settle before it ends the open jobs" || nope "restart order: $OUT"
+OUT=$(pause_note no_reviewer "$RUN" /r "" b "" "")
+heading=$(printf '%s\n' "$OUT" | grep -n '^What to do:' | cut -d: -f1)
+prose=$(printf '%s\n' "$OUT" | grep -n 'started before every run needed' | cut -d: -f1)
+[ -n "$prose" ] && [ "$prose" -lt "$heading" ] && ok "no_reviewer prose comes above the heading" || nope "prose line $prose, heading $heading"
+OUT=$(pause_note dispatch_failed "$RUN" /r "" b r "")
+has "dispatch_failed gives the reviewer remedy" "$OUT" "If the pair has no reviewer: $REVIEWER_REMEDY"
+OUT=$(pause_note writer_unknown "$RUN" /r task-7 bldr rev "")
+has "writer_unknown: a working builder is cleared by recover" "$OUT" "tandem state recover --run $RUN --root /r"
+has "writer_unknown: the export goes to a new folder" "$OUT" "--output /tmp/tandem-export-$RUN"
+has "writer_unknown: pick the builder's effect" "$OUT" "builder's task prompt"
+lack "writer_unknown no longer says wait and stop" "$OUT" "wait and stop here"
+OUT=$(pause_note memory_conflict "$RUN" /r task-7 b r "" /p.md "" "/my relay")
+has "memory_conflict points at the real bridge log" "$OUT" 'tail -n 30 /my\ relay/bridge.log'
+OUT=$(pause_note recovery_blocked "$RUN" /r task-7 b r "Why recovery stopped: nope")
+has "recovery_blocked shows the stored cause" "$OUT" "Why recovery stopped: nope"
+has "recovery_blocked says what it means" "$OUT" "repair allowance is used up"
+OUT=$(pause_note source_mutated "$RUN" /r task-7 b r "")
+lack "source_mutated does not say outside the run" "$OUT" "outside"
+has "source_mutated names a check that edits files" "$OUT" "A check that edits files"
 
 printf '\n== tandem-pause-note reads the run status ==\n'
 # A stand-in for tandem that answers the three questions the command asks.
@@ -102,16 +152,17 @@ STUB
 chmod +x "$TMP/bin/tandem"
 ln -s "$ROOT_DIR/bin/tandem-pause-note" "$TMP/bin/tandem-pause-note"
 PN() { env PATH="$TMP/bin:$PATH" "$@"; }
-fields() { printf '%s\0%s\0%s\0%s\0%s\0%s\0%s\0' "$@" > "$TMP/status"; }
+fields() { printf '%s\0%s\0%s\0%s\0%s\0%s\0%s\0%s\0%s\0' "$@" > "$TMP/status"; }
 
-fields paused stuck sent "It said stuck." task-3 bldr rev
+fields paused stuck sent "It said stuck." task-3 bldr rev "/p/my plan.md" COLL9
 OUT=$(PN STATE_FILE="$TMP/status" tandem-pause-note --root "$SPACED" 2>&1); RC=$?
 [ "$RC" -eq 0 ] && ok "a paused run prints its note and exits 0" || nope "rc $RC: $OUT"
 has "the note names the run" "$OUT" "[build] Run $RUN stopped: the builder said it could not finish the task."
 has "it carries the task" "$OUT" "Task: task-3"
 has "it carries the reason" "$OUT" "It said stuck."
 has "and quotes the root" "$OUT" 'tandem build stop --root /tmp/a\ b/repo'
-fields running "" sent "" task-3 bldr rev
+has "it hands off the run's real plan" "$OUT" 'tandem-handoff /p/my\ plan.md'
+fields running "" sent "" task-3 bldr rev "" ""
 OUT=$(PN STATE_FILE="$TMP/status" tandem-pause-note --root /r 2>&1); RC=$?
 [ "$RC" -eq 0 ] && has "a running run is not paused" "$OUT" "is running, not paused" || nope "running: rc $RC: $OUT"
 OUT=$(PN NO_RUN=1 tandem-pause-note --root /r 2>&1); RC=$?

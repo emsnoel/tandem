@@ -165,6 +165,8 @@ case "$NOTE" in
   *"stopped: the builder or reviewer CLI quit"*"tandem-pair"*"tandem build recover --root $R4"*) ok "tandem-pause-note says to restart it with tandem-pair, then recover" ;;
   *) nope "pause note: $NOTE" ;;
 esac
+PLAN_FIELD=$(td4 build status --root "$R4" --fields | tr '\0' '\n' | sed -n 8p)
+[ "$PLAN_FIELD" = "$R4/plan.md" ] && ok "status carries the plan the run was started with" || nope "plan field: $PLAN_FIELD"
 td4 build recover --root "$R4" >/dev/null 2>&1
 ST=$(td4 build status --root "$R4" --json | jq -r .state)
 [ "$ST" = paused ] && ok "recover leaves the run paused while the builder is still gone" || nope "state after recover with builder gone: $ST"

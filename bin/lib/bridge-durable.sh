@@ -68,7 +68,7 @@ drive_durable() {
 # the mark. The mark is written before sending, so a lost notice is not resent
 # every second. The words come from pause_note, which tandem-pause-note prints too.
 report_pause() {
-  local root="$1" run="$2" state="$3" code="$4" mark key reason="" task="" builder="" reviewer="" msg _
+  local root="$1" run="$2" state="$3" code="$4" mark key reason="" task="" builder="" reviewer="" plan="" collab="" msg _
   [[ -n "$run" && -d "$MAILBOX/durable/$run" ]] || return 0
   mark="$MAILBOX/durable/$run/pause-reported"
   if [[ "$state" != paused ]]; then
@@ -78,11 +78,11 @@ report_pause() {
   key="$run ${code:-paused}"
   [[ "$(cat "$mark" 2>/dev/null)" == "$key" ]] && return 0
   printf '%s\n' "$key" > "$mark"
-  # The status fields are state, code, dispatch, reason, task, builder, reviewer.
+  # The status fields are state, code, dispatch, reason, task, builder, reviewer, plan, collaboration.
   if tandem build status --root "$root" --fields >"$FIELDS" 2>/dev/null; then
-    { read_field _; read_field _; read_field _; read_field reason; read_field task; read_field builder; read_field reviewer; } <"$FIELDS"
+    { read_field _; read_field _; read_field _; read_field reason; read_field task; read_field builder; read_field reviewer; read_field plan; read_field collab; } <"$FIELDS"
   fi
-  msg=$(pause_note "$code" "$run" "$root" "$task" "$builder" "$reviewer" "$reason")
+  msg=$(pause_note "$code" "$run" "$root" "$task" "$builder" "$reviewer" "$reason" "$plan" "$collab" "$MAILBOX")
   log "run $run paused ($code); telling $PLANNER_NAME"
   send_planner "pause-$run-${code:-paused}" notice tandem "$msg"
 }

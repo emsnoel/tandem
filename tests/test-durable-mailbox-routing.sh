@@ -274,7 +274,9 @@ has "it carries the reason" "$(last)" "There's an issue with the selected model 
 has "and the way on" "$(last)" "tandem build stop --root $B"
 has "then ends the stopped run's open jobs" "$(last)" "tandem state recover --run $RUN --root $B"
 has "then archives it" "$(last)" "tandem state archive --run $RUN --root $B"
-has "and hands the plan off again" "$(last)" "tandem-handoff PLAN"
+has "and waits for the stop to settle" "$(last)" "tandem build wait --root $B --until paused --tick"
+has "and re-pairs with a reviewer before handing off" "$(last)" "tandem-pair --reviewer KIND"
+has "and hands the plan off again" "$(last)" "tandem-handoff"
 TICK_OUT="$PAUSED" br "$REL"
 [ "$(sent)" = 1 ] && ok "the same pause is not reported again, across a restart" || nope "messages sent: $(sent)"
 TICK_OUT="$RUNNING" br "$REL"
@@ -282,7 +284,7 @@ TICK_OUT="$PAUSED" br "$REL"
 [ "$(sent)" = 2 ] && ok "a run that resumed and paused again is reported again" || nope "messages sent: $(sent)"
 STATUS_OUT='paused|review_unknown'
 TICK_OUT="$RUN|paused|review_unknown" br "$REL"
-[ "$(sent)" = 3 ] && has "any pause is reported, not only a failed dispatch" "$(last)" "[build] Run $RUN stopped: no valid review result came back in 10 minutes." || nope "messages sent: $(sent)"
+[ "$(sent)" = 3 ] && has "any pause is reported, not only a failed dispatch" "$(last)" "[build] Run $RUN stopped: no valid review result was recorded in time." || nope "messages sent: $(sent)"
 has "a review pause is told how to record the review" "$(last)" "tandem build review-record --result FILE --root $B"
 unset PROMPTS STATUS_OUT
 

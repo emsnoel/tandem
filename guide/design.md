@@ -480,7 +480,7 @@ second agent.
 
 Part of this harness is compiled. `tandem` holds the herdr JSON decoding, the Codex
 hook-trust classification, the four teardown gate verdicts, and the resolution of where
-tandem's own files live (`internal/paths`); the twelve commands in `bin/` stay bash. It is
+tandem's own files live (`internal/paths`); the thirteen commands in `bin/` stay bash. It is
 also their front door — `tandem pair` hands over to `tandem-pair` — but that is routing,
 not deciding, and it is a PATH lookup precisely so the binary never has to know what the
 scripts are. The rule that draws the line is:

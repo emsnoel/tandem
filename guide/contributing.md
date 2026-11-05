@@ -86,7 +86,7 @@ builders.
 ## Layout
 
 ```
-bin/          the twelve commands, in bash. install.sh links them, so edits take effect at once
+bin/          the thirteen commands, in bash. install.sh links them, so edits take effect at once
 cmd/tandem/   the compiled binary's entry points: its own subcommands, the handover to
               the bash commands (dispatch.go), and the exit codes
 internal/
