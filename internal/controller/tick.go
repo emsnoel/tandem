@@ -119,12 +119,11 @@ func (c *Controller) pass(ctx context.Context, runID string) error {
 	case "paused", "finished":
 		return mailErr
 	}
-	// A kind with no adapter cannot be typed into. The run waits for a person
-	// before any effect is delivered, and a paused run is left as it is.
-	for _, kind := range []string{cfg.BuilderKind, cfg.ReviewerKind} {
-		if _, err := agent.Get(kind); kind != "" && err != nil {
-			return errors.Join(mailErr, c.d.State.SetRunState(ctx, run.ID, "paused", pauseAgentUnsupported))
-		}
+	// A kind with no adapter cannot be typed into. An older tandem may already
+	// have delivered this run's prompts, but this tick delivers nothing more: the
+	// run waits for a person, and a paused run is left as it is.
+	if agent.FirstUnsupported(cfg.BuilderKind, cfg.ReviewerKind) != "" {
+		return errors.Join(mailErr, c.d.State.SetRunState(ctx, run.ID, "paused", pauseAgentUnsupported))
 	}
 	// A run an older tandem started has no reviewer pane in its pinned
 	// configuration, and the builder never reviews. It waits for a person
