@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.5.0](https://github.com/emsnoel/tandem/compare/v0.4.0...v0.5.0) (2026-11-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* discontinue OpenCode support
+
+### Features
+
+* discontinue OpenCode support ([9fd05be](https://github.com/emsnoel/tandem/commit/9fd05be3b7c0084213236c0757c76a98c9e499f2))
+
+
+### Bug Fixes
+
+* cancel open deliveries to a discontinued pane when a stop finishes ([3339ea7](https://github.com/emsnoel/tandem/commit/3339ea7a7d82d54dbb8e83836c3b3b3fcfa85662))
+* keep planner deliveries open and hold recovery on a discontinued run ([de249c4](https://github.com/emsnoel/tandem/commit/de249c498055dbdfd7b85d6107d7554fa1f2e887))
+* let a stop finish on a run with a discontinued agent kind ([2bde2c5](https://github.com/emsnoel/tandem/commit/2bde2c50dc44f86601a88b06052e34972cc28d17))
+* pause a run whose agent kind is no longer supported ([b8b2d52](https://github.com/emsnoel/tandem/commit/b8b2d52d25680a616ff1300a56d9852c6ddce962))
+* refuse a discontinued kind everywhere a pair or handoff can reach it ([0ad7bf7](https://github.com/emsnoel/tandem/commit/0ad7bf728f3bb612c92e421b6fb6eeab8d366334))
+
 ## [0.4.0](https://github.com/emsnoel/tandem/compare/v0.3.4...v0.4.0) (2026-11-01)
 
 
