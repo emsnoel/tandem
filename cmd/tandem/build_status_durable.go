@@ -38,6 +38,8 @@ type statusDurableOut struct {
 	Task           string    `json:"task,omitempty"`
 	Builder        string    `json:"builder,omitempty"`
 	Reviewer       string    `json:"reviewer,omitempty"`
+	Plan           string    `json:"plan,omitempty"`
+	Collaboration  string    `json:"collaboration,omitempty"`
 	TaskInputLimit int64     `json:"task_input_limit"`
 	RunInputLimit  int64     `json:"run_input_limit"`
 	Tasks          []taskOut `json:"tasks"`
@@ -63,6 +65,9 @@ func durableStatus(d *openRun) (statusDurableOut, error) {
 	}
 	if ag, err := controller.RunAgents(ctx, d.st, d.art, run.ID); err == nil {
 		out.Builder, out.Reviewer = ag.BuilderSession, ag.ReviewerSession
+	}
+	if plan, collab, err := controller.RunPlan(ctx, d.st, d.art, run.ID); err == nil {
+		out.Plan, out.Collaboration = plan, collab
 	}
 	effects, err := d.st.RunEffects(ctx, run.ID)
 	if err != nil {
@@ -113,6 +118,11 @@ func durableStatus(d *openRun) (statusDurableOut, error) {
 	if run.State == "paused" && run.PauseCode == "review_unknown" && pauseRejection != "" {
 		out.PauseReason = pauseRejection
 	}
+	if run.State == "paused" && out.PauseReason == "" {
+		if out.PauseReason, err = pauseFacts(ctx, d, run.PauseCode, out.Task); err != nil {
+			return statusDurableOut{}, err
+		}
+	}
 	return out, nil
 }
 
@@ -122,7 +132,7 @@ func cmdBuildStatusDurable(args []string) int {
 	var f durableFlags
 	f.register(fs)
 	asJSON := fs.Bool("json", false, "print the status as one JSON object")
-	asFields := fs.Bool("fields", false, "print NUL-separated fields for bash (state, pause_code, dispatch, pause_reason, task, builder, reviewer)")
+	asFields := fs.Bool("fields", false, "print NUL-separated fields for bash (state, pause_code, dispatch, pause_reason, task, builder, reviewer, plan, collaboration)")
 	if err := fs.Parse(args); err != nil {
 		return exitcode.Usage
 	}

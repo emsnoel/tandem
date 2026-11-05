@@ -105,8 +105,8 @@ func TestBuildWaitFieldsSettled(t *testing.T) {
 	out, rc := captureStdoutRC(t, func() int {
 		return cmdBuild([]string{"wait", "--root", d.root, "--state-home", d.home, "--until", "running", "--timeout", "1000", "--fields"})
 	})
-	if f := strings.Split(out, "\x00"); rc != exitcode.OK || len(f) != 8 || f[0] != "running" || f[1] != "" {
-		t.Fatalf("rc %d, fields %q: want state, pause_code, dispatch, pause_reason, task, builder, reviewer", rc, f)
+	if f := strings.Split(out, "\x00"); rc != exitcode.OK || len(f) != 10 || f[0] != "running" || f[1] != "" {
+		t.Fatalf("rc %d, fields %q: want state, pause_code, dispatch, pause_reason, task, builder, reviewer, plan, collaboration", rc, f)
 	}
 }
 
@@ -117,7 +117,7 @@ func TestBuildWaitFieldsTimeout(t *testing.T) {
 	out, rc := captureStdoutRC(t, func() int {
 		return cmdBuild([]string{"wait", "--root", d.root, "--state-home", d.home, "--until", "finished", "--timeout", "0", "--fields"})
 	})
-	if f := strings.Split(out, "\x00"); rc != exitcode.ManualGate || len(f) != 8 || f[0] != "running" {
+	if f := strings.Split(out, "\x00"); rc != exitcode.ManualGate || len(f) != 10 || f[0] != "running" {
 		t.Fatalf("rc %d, fields %q", rc, f)
 	}
 }
@@ -136,7 +136,7 @@ func TestBuildWaitFieldsDispatch(t *testing.T) {
 	out, _ := captureStdoutRC(t, func() int {
 		return cmdBuild([]string{"wait", "--root", d.root, "--state-home", d.home, "--until", "finished", "--timeout", "0", "--fields"})
 	})
-	if f := strings.Split(out, "\x00"); len(f) != 8 || f[2] != v.dispatch() {
+	if f := strings.Split(out, "\x00"); len(f) != 10 || f[2] != v.dispatch() {
 		t.Fatalf("fields %q, want dispatch %q", f, v.dispatch())
 	}
 }

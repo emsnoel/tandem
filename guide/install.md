@@ -12,7 +12,7 @@ This installs the latest release. You need `curl`, `tar` and `shasum` (or
 3. It unpacks the tarball into `~/.local/share/tandem/<version>`. Set `$XDG_DATA_HOME` or
    `TANDEM_SHARE_DIR` to put it somewhere else.
 4. It points `~/.local/share/tandem/current` at that version, and links the `tandem` binary
-   and the twelve commands from `~/.local/bin` into it.
+   and the thirteen commands from `~/.local/bin` into it.
 
 The installer replaces nothing until the download passes its checksum and the new binary
 runs. If an upgrade fails, the old version keeps working.
@@ -55,7 +55,7 @@ cd tandem
 ./install.sh --from-source
 ```
 
-`--from-source` links the twelve commands to the checkout, so an edit under `bin/` takes
+`--from-source` links the thirteen commands to the checkout, so an edit under `bin/` takes
 effect at once. **The links store absolute paths. If you move or rename the clone, run
 `./install.sh --from-source` again from its new location.** Plain `./install.sh` in a
 checkout installs a release instead, and says so.

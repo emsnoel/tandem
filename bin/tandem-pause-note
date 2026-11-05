@@ -12,9 +12,9 @@ _self="${BASH_SOURCE[0]}"
 while [[ -L "$_self" ]]; do
   _link=$(readlink "$_self"); [[ "$_link" == /* ]] && _self="$_link" || _self="${_self%/*}/$_link"
 done
-# shellcheck source=lib/reviewer.sh
+# shellcheck source=/dev/null
 . "${_self%/*}/lib/reviewer.sh"
-# shellcheck source=lib/pause-note.sh
+# shellcheck source=/dev/null
 . "${_self%/*}/lib/pause-note.sh"
 
 usage() {
@@ -57,10 +57,10 @@ if [[ -z "$RUN" ]]; then
 fi
 tandem build status --root "$ROOT" --fields >"$FIELDS" 2>/dev/null \
   || die "could not read the status of run $RUN. Try: tandem build status --root $(printf %q "$ROOT")"
-state=""; code=""; reason=""; task=""; builder=""; reviewer=""
-{ read_field state; read_field code; read_field _; read_field reason; read_field task; read_field builder; read_field reviewer; } <"$FIELDS"
+state=""; code=""; reason=""; task=""; builder=""; reviewer=""; plan=""; collab=""
+{ read_field state; read_field code; read_field _; read_field reason; read_field task; read_field builder; read_field reviewer; read_field plan; read_field collab; } <"$FIELDS"
 if [[ "$state" != paused ]]; then
   printf 'tandem-pause-note: run %s is %s, not paused.\n' "$RUN" "${state:-in an unknown state}"
   exit 0
 fi
-pause_note "$code" "$RUN" "$ROOT" "$task" "$builder" "$reviewer" "$reason"
+pause_note "$code" "$RUN" "$ROOT" "$task" "$builder" "$reviewer" "$reason" "$plan" "$collab" "$MAILBOX"

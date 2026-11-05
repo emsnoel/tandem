@@ -86,7 +86,7 @@ goes through the same steps in detail.
 | `tandem-unpair` | Runs the check, then closes the builder and reviewer panes |
 
 `tandem pair` and `tandem-pair` do the same thing. Run `tandem` on its own to list every
-command. [guide/commands.md](guide/commands.md) describes all twelve commands and their flags.
+command. [guide/commands.md](guide/commands.md) describes all thirteen commands and their flags.
 
 ## Guides
 

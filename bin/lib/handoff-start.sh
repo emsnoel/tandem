@@ -140,8 +140,8 @@ MSG
       --timeout "$(( WAIT_S * 1000 ))" --fields >"$FIELDS" 2>"$_werr" || rc=$?
     _werrtxt=$(cat "$_werr" 2>/dev/null || true); rm -f "$_werr"
     # Printed at the timeout too: the state, its pause code, the first unfinished
-    # task's dispatch, the pause reason, the task and the builder and reviewer panes.
-    { read_field _state; read_field _code; read_field _disp; read_field _reason; read_field _task; read_field _builder; read_field _reviewer; } <"$FIELDS"
+    # task's dispatch, the pause reason, the task, the builder and reviewer panes, the plan and the collaboration.
+    { read_field _state; read_field _code; read_field _disp; read_field _reason; read_field _task; read_field _builder; read_field _reviewer; read_field _plan; read_field _collab; } <"$FIELDS"
     if [[ "$_disp" == sent ]]; then
       printf 'tandem-handoff: durable run %s %s for %s.\n' "$RUN_ID" "$verb" "$BUILDER_NAME"
       exit 0
@@ -154,7 +154,7 @@ MSG
         printf 'tandem-handoff: durable run %s paused (%s) and needs a person; the task was not confirmed as sent.\n\n' "$RUN_ID" "${_code:-no code}" >&2
         _rc=23
       fi
-      pause_note "$_code" "$RUN_ID" "$ROOT" "$_task" "$_builder" "$_reviewer" "$_reason" >&2
+      pause_note "$_code" "$RUN_ID" "$ROOT" "$_task" "$_builder" "$_reviewer" "$_reason" "$_plan" "$_collab" "$MAILBOX" >&2
       exit "$_rc"
     fi
     if [[ -n "$_state" && "$_state" != running ]]; then
