@@ -88,7 +88,7 @@ func TestTickFieldsPaused(t *testing.T) {
 	}
 }
 
-// Field order: state, pause_code, dispatch, pause_reason, as build wait.
+// Field order: state, pause_code, dispatch, pause_reason, task, builder, reviewer, as build wait.
 func TestStatusFieldsMatchWait(t *testing.T) {
 	e := newCLI(t)
 	t.Setenv("TANDEM_BUILD_ENGINE", "durable")
@@ -104,7 +104,7 @@ func TestStatusFieldsMatchWait(t *testing.T) {
 	if status != wait {
 		t.Fatalf("status %q, wait %q", status, wait)
 	}
-	if f := nulFields(t, status); len(f) != 4 || f[0] != "paused" || f[1] != "plan_changed" {
+	if f := nulFields(t, status); len(f) != 7 || f[0] != "paused" || f[1] != "plan_changed" || f[4] != "task-1" {
 		t.Fatalf("fields %q", f)
 	}
 }

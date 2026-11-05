@@ -179,22 +179,3 @@ func TestDurableStartRefusesWithoutAReviewerPane(t *testing.T) {
 		t.Fatal("a refused start sent something")
 	}
 }
-
-func TestNoReviewerPauseNamesTheWayOn(t *testing.T) {
-	why := fixedPauseReason("no_reviewer")
-	for _, want := range []string{"tandem state archive --run ID", "tandem-pair --reviewer KIND"} {
-		if !strings.Contains(why, want) {
-			t.Errorf("the pause reason %q does not say %q", why, want)
-		}
-	}
-	// The full restart sequence, in order: an archive refuses while a stopped
-	// run's builder job is open, and state recover ends it.
-	last := -1
-	for _, step := range []string{"tandem build stop", "tandem state recover --run ID", "tandem state archive --run ID", "tandem-pair --reviewer KIND", "hand off again"} {
-		i := strings.Index(why, step)
-		if i <= last {
-			t.Errorf("the pause reason %q does not say %q after the step before it", why, step)
-		}
-		last = i
-	}
-}

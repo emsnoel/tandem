@@ -20,6 +20,9 @@ type statusView struct {
 	State       string `json:"state"`
 	PauseCode   string `json:"pause_code"`
 	PauseReason string `json:"pause_reason"`
+	Task        string `json:"task"`
+	Builder     string `json:"builder"`
+	Reviewer    string `json:"reviewer"`
 	Tasks       []struct {
 		Accepted bool `json:"accepted"`
 		Attempts []struct {
@@ -46,7 +49,7 @@ func (v statusView) dispatch() string {
 }
 
 // writeStatusFields prints a run's status as the NUL fields `build status` and
-// `build wait` share: state, pause_code, dispatch, pause_reason.
+// `build wait` share: state, pause_code, dispatch, pause_reason, task, builder, reviewer.
 func writeStatusFields(w io.Writer, out statusDurableOut) int {
 	raw, err := json.Marshal(out)
 	if err != nil {
@@ -56,7 +59,7 @@ func writeStatusFields(w io.Writer, out statusDurableOut) int {
 	if err := json.Unmarshal(raw, &v); err != nil {
 		return fail(err)
 	}
-	writeFields(w, out.State, out.PauseCode, v.dispatch(), out.PauseReason)
+	writeFields(w, out.State, out.PauseCode, v.dispatch(), out.PauseReason, out.Task, out.Builder, out.Reviewer)
 	return exitcode.OK
 }
 

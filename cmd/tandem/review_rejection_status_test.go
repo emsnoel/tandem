@@ -30,7 +30,7 @@ func TestDurableStatusExplainsReviewRejection(t *testing.T) {
 		t.Fatal(err)
 	}
 	before, err := durableStatus(open)
-	if err != nil || before.PauseReason != fixedPauseReason("review_unknown") {
+	if err != nil || before.PauseReason != "" {
 		t.Fatalf("fallback: %+v %v", before, err)
 	}
 	reason := "review result: job_id and attempt_id must be 32 lowercase hex characters"
@@ -38,7 +38,7 @@ func TestDurableStatusExplainsReviewRejection(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := durableStatus(open)
-	if err != nil || !strings.Contains(got.PauseReason, reason) {
+	if err != nil || got.PauseReason != reason {
 		t.Fatalf("pause: %+v %v", got, err)
 	}
 	if len(got.Tasks) != 1 || len(got.Tasks[0].Attempts) != 1 || got.Tasks[0].Attempts[0].ReviewRejection != reason {
@@ -49,14 +49,14 @@ func TestDurableStatusExplainsReviewRejection(t *testing.T) {
 		t.Fatalf("JSON status: %d %s %s", rc, out, stderr)
 	}
 	rc, out, stderr = runCapture(t, "build", "status", "--root", d.root, "--state-home", d.home)
-	if rc != exitcode.OK || !strings.Contains(out, reason) {
+	if rc != exitcode.OK || !strings.Contains(out, reason) || !strings.Contains(out, "For what to do, run: tandem-pause-note --root "+d.root) {
 		t.Fatalf("human status: %d %s %s", rc, out, stderr)
 	}
 	if err := open.st.SetRunPausedFor(ctx, d.run, "review_unknown", strings.Repeat("9", 32), ""); err != nil {
 		t.Fatal(err)
 	}
 	got, err = durableStatus(open)
-	if err != nil || got.PauseReason != fixedPauseReason("review_unknown") {
+	if err != nil || got.PauseReason != "" {
 		t.Fatalf("unrelated pause job: %+v %v", got, err)
 	}
 	if err := open.st.SetRunPausedFor(ctx, d.run, "review_unknown", "", ""); err != nil {
@@ -70,7 +70,7 @@ func TestDurableStatusExplainsReviewRejection(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err = durableStatus(open)
-	if err != nil || got.Tasks[0].Attempts[0].ReviewRejection != "" || got.PauseReason != fixedPauseReason("review_unknown") {
+	if err != nil || got.Tasks[0].Attempts[0].ReviewRejection != "" || got.PauseReason != "" {
 		t.Fatalf("cleared: %+v %v", got, err)
 	}
 }
