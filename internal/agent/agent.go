@@ -269,6 +269,17 @@ func Get(kind string) (Adapter, error) {
 	return a, nil
 }
 
+// FirstUnsupported returns the first kind that is set but has no adapter, such
+// as a kind tandem no longer supports, or "" when every set kind has one.
+func FirstUnsupported(kinds ...string) string {
+	for _, kind := range kinds {
+		if _, ok := registry[kind]; kind != "" && !ok {
+			return kind
+		}
+	}
+	return ""
+}
+
 func Kinds() []string {
 	out := make([]string, 0, len(registry))
 	for k := range registry {
