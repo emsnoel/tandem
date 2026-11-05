@@ -79,7 +79,7 @@ has "agent_exited continues with recover" "$OUT" "tandem build recover --root /r
 OUT=$(pause_note no_reviewer "$RUN" /r "" bldr "" "")
 has "no_reviewer gives the reviewer remedy" "$OUT" "$REVIEWER_REMEDY"
 OUT=$(pause_note agent_unsupported "$RUN" /r "" bldr "" "")
-for s in "build stop" "build tick" "state recover --run $RUN" "state archive --run $RUN"; do has "agent_unsupported lists $s" "$OUT" "tandem $s"; done
+for s in "build stop" "build wait" "state recover --run $RUN" "state archive --run $RUN"; do has "agent_unsupported lists $s" "$OUT" "tandem $s"; done
 OUT=$(pause_note dispatch_failed "$RUN" /r "" bldr "" "pane says: bad model")
 has "dispatch_failed keeps the reason" "$OUT" "pane says: bad model"
 has "dispatch_failed restarts" "$OUT" "tandem state archive --run $RUN --root /r"
@@ -128,17 +128,29 @@ has "writer_unknown: the export goes to a new folder" "$OUT" "--output /tmp/tand
 has "writer_unknown: pick the builder's effect" "$OUT" "builder's task prompt"
 lack "writer_unknown no longer says wait and stop" "$OUT" "wait and stop here"
 OUT=$(pause_note memory_conflict "$RUN" /r task-7 b r "" /p.md "" "/my relay")
-has "memory_conflict points at the real bridge log" "$OUT" 'tail -n 30 /my\ relay/bridge.log'
+has "memory_conflict greps the real bridge log for the error" "$OUT" "grep -F 'was not started' /my\\ relay/bridge.log | tail -n 5"
 OUT=$(pause_note recovery_blocked "$RUN" /r task-7 b r "Why recovery stopped: nope")
 has "recovery_blocked shows the stored cause" "$OUT" "Why recovery stopped: nope"
 has "recovery_blocked says what it means" "$OUT" "repair allowance is used up"
 OUT=$(pause_note source_mutated "$RUN" /r task-7 b r "")
 lack "source_mutated does not say outside the run" "$OUT" "outside"
-has "source_mutated names a check that edits files" "$OUT" "A check that edits files"
+lack "source_mutated does not point at a check log" "$OUT" "log"
+has "source_mutated says what is true of every cause" "$OUT" "changed after tandem measured them"
+has "source_mutated names a person, a tool or a check" "$OUT" "A person, another tool or a check that edits files"
+has "source_mutated says to set stray changes aside first" "$OUT" "Commit any stray changes or set them aside"
+for c in check_failed review_failed repairs_exhausted recovery_blocked verification_identity verification_stale; do
+  OUT=$(pause_note "$c" "$RUN" /r task-7 b r "")
+  lack "$c with no stored fact never says above" "$OUT" "above"
+  OUT=$(pause_note "$c" "$RUN" /r task-7 b r "A stored fact.")
+  case "$c" in verification_*|recovery_blocked|check_failed|review_failed|repairs_exhausted) has "$c with a fact points at it" "$OUT" "above" ;; esac
+done
+OUT=$(pause_note agent_unsupported "$RUN" /r "" bldr "" "")
+lack "agent_unsupported uses the shared wait, not a bare tick" "$OUT" "tandem build tick"
+has "agent_unsupported waits until paused" "$OUT" "tandem build wait --root /r --until paused --tick"
 
 printf '\n== tandem-pause-note reads the run status ==\n'
 # A stand-in for tandem that answers the three questions the command asks.
-# STATE_FILE holds the status, as seven NUL-separated fields.
+# STATE_FILE holds the status, as nine NUL-separated fields.
 mkdir -p "$TMP/bin"
 cat > "$TMP/bin/tandem" <<STUB
 #!/usr/bin/env bash
@@ -162,6 +174,12 @@ has "it carries the task" "$OUT" "Task: task-3"
 has "it carries the reason" "$OUT" "It said stuck."
 has "and quotes the root" "$OUT" 'tandem build stop --root /tmp/a\ b/repo'
 has "it hands off the run's real plan" "$OUT" 'tandem-handoff /p/my\ plan.md'
+# Status drops a fact it cannot read (a missing or damaged log), leaving the reason empty.
+fields paused check_failed sent "" task-3 bldr rev "/p/plan.md" ""
+OUT=$(PN STATE_FILE="$TMP/status" tandem-pause-note --root /r 2>&1); RC=$?
+[ "$RC" -eq 0 ] && has "a paused run whose log was unreadable still gets a note" "$OUT" "What to do:" || nope "unreadable log: rc $RC: $OUT"
+lack "and the note does not point at a log above" "$OUT" "above"
+has "and says where else to look" "$OUT" "Run the task's check command yourself"
 fields running "" sent "" task-3 bldr rev "" ""
 OUT=$(PN STATE_FILE="$TMP/status" tandem-pause-note --root /r 2>&1); RC=$?
 [ "$RC" -eq 0 ] && has "a running run is not paused" "$OUT" "is running, not paused" || nope "running: rc $RC: $OUT"

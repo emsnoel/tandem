@@ -63,7 +63,7 @@ _pn_read_pane() {
 # tick that could not start the task is written.
 _pn_read_log() {
   if [[ -n "$_pn_mailbox" ]]; then
-    _pn_step "$1" "tail -n 30 $(printf %q "$_pn_mailbox/bridge.log")"
+    _pn_step "$1" "grep -F 'was not started' $(printf %q "$_pn_mailbox/bridge.log") | tail -n 5"
   else
     _pn_step "$1 It is bridge.log in the relay folder."
   fi
@@ -83,7 +83,7 @@ _pn_what() {
     agent_unsupported)  echo "the run uses an agent kind tandem no longer supports." ;;
     no_reviewer)        echo "the run has no reviewer pane, and the builder never reviews." ;;
     plan_changed)       echo "the plan file changed after the run started." ;;
-    source_mutated)     echo "the files changed while the check ran. A check that edits files does this." ;;
+    source_mutated)     echo "the files changed after tandem measured them. A person, another tool or a check that edits files can do this." ;;
     scheduling_blocked) echo "a budget limit or a held launch is blocking the next step." ;;
     context_too_large)  echo "the task's instructions are larger than the context limit." ;;
     context_incomplete) echo "the task's instructions could not be built, because evidence for them is incomplete." ;;
@@ -106,7 +106,8 @@ _pn_agent_unsupported() {
   printf 'Tandem types nothing more into this run. If a supported agent in it quit, bring it back first with tandem-pair, because a stop waits for it.\n'
   printf '\nWhat to do:\n'
   _pn_step "Stop the run." "tandem build stop --root $q"
-  _pn_step "Tick the run so the stop settles." "tandem build tick --root $q"
+  _pn_step "Wait until the run is paused. A stop waits for the builder's current turn and the wait ticks the run, so it can take a few minutes. If it times out, run it again." \
+    "tandem build wait --root $q --until paused --tick --timeout 120000"
   _pn_step "End its open jobs." "tandem state recover --run $1 --root $q"
   _pn_step "Archive the run." "tandem state archive --run $1 --root $q"
   _pn_step "Pair a supported agent (Codex, Claude or Copilot) with tandem-pair, then hand the plan off again." "tandem-pair"
@@ -149,11 +150,22 @@ pause_note() {
   esac
   printf '\nWhat to do:\n'
   case "$code" in
-    check_failed|source_mutated)
-      _pn_step "Read the end of the check's log above. Fix the cause in the code or the check."
+    check_failed)
+      if [[ -n "$reason" ]]; then
+        _pn_step "Read the end of the check's log above. Fix the cause in the code or the check."
+      else
+        _pn_step "The check's log could not be read here. Run the task's check command yourself in the repo and read its output. Fix the cause in the code or the check."
+      fi
+      restart_steps "$run" "$root" ;;
+    source_mutated)
+      _pn_step "Look at what changed with git status. Commit any stray changes or set them aside, such as with git stash."
       restart_steps "$run" "$root" ;;
     review_failed)
-      _pn_read_pane "$reviewer" "Read the findings above, and the reviewer pane for the rest."
+      if [[ -n "$reason" ]]; then
+        _pn_read_pane "$reviewer" "Read the findings above, and the reviewer pane for the rest."
+      else
+        _pn_read_pane "$reviewer" "Read the reviewer pane for what it found."
+      fi
       restart_steps "$run" "$root" ;;
     review_unknown)
       _pn_read_pane "$reviewer" "Read the reviewer pane for its reply."
@@ -164,7 +176,11 @@ pause_note() {
       _pn_read_pane "$builder" "Read the builder pane for its report."
       restart_steps "$run" "$root" ;;
     repairs_exhausted)
-      _pn_step "Read the findings above that kept failing."
+      if [[ -n "$reason" ]]; then
+        _pn_step "Read what kept failing, above."
+      else
+        _pn_read_pane "$reviewer" "Read the reviewer pane for what kept failing."
+      fi
       restart_steps "$run" "$root" ;;
     writer_unknown) _pn_writer_unknown "$run" "$root" "$task" "$builder" ;;
     dispatch_failed)
@@ -188,10 +204,14 @@ pause_note() {
       _pn_teardown "$run" "$root"
       _pn_handoff "--context-limit N" ;;
     context_incomplete|memory_conflict)
-      _pn_read_log "Read the error tandem logged when it tried to build the task."
+      _pn_read_log "Read the error tandem logged when it could not build the task."
       restart_steps "$run" "$root" ;;
     recovery_blocked|verification_identity|verification_stale)
-      _pn_step "Read the cause above."
+      if [[ -n "$reason" ]]; then
+        _pn_step "Read the cause above."
+      else
+        _pn_step "Read where the task stands." "tandem build status --root $q"
+      fi
       restart_steps "$run" "$root" ;;
     stopped)
       restart_steps "$run" "$root"

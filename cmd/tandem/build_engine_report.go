@@ -193,12 +193,14 @@ func dispatchOf(ctx context.Context, st *state.Store, effects []workflow.Effect,
 }
 
 // dispatchFailure is why the run's last failed effect could not be sent, or ""
-// when none kept a reason. A pane whose turn ended at once gave what it
-// showed, so the planner can see a rejected model without reading the pane.
-func dispatchFailure(ctx context.Context, st *state.Store, art *artifact.Store, runID string) (string, error) {
+// when none kept a reason or it cannot be read. A pane whose turn ended at once
+// gave what it showed, so the planner can see a rejected model without reading
+// the pane. A fact that cannot be read is dropped, never an error: status is
+// read-only and must work on a damaged record.
+func dispatchFailure(ctx context.Context, st *state.Store, art *artifact.Store, runID string) string {
 	effects, err := st.RunEffects(ctx, runID)
 	if err != nil {
-		return "", err
+		return ""
 	}
 	for i := len(effects) - 1; i >= 0; i-- {
 		if effects[i].State != "failed" {
@@ -206,19 +208,19 @@ func dispatchFailure(ctx context.Context, st *state.Store, art *artifact.Store, 
 		}
 		hash, ok, err := st.EffectNotSentReason(ctx, effects[i].ID)
 		if err != nil || !ok {
-			return "", err
+			return ""
 		}
 		b, err := art.ReadAll(ctx, hash, 1<<20)
 		if err != nil {
-			return "", err
+			return ""
 		}
 		var r struct {
 			Error string `json:"error"`
 		}
-		if err := json.Unmarshal(b, &r); err != nil {
-			return "", err
+		if json.Unmarshal(b, &r) != nil {
+			return ""
 		}
-		return r.Error, nil
+		return clip(clean(r.Error), 2000)
 	}
-	return "", nil
+	return ""
 }
