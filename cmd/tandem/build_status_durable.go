@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/emsnoel/tandem/internal/controller"
 	"github.com/emsnoel/tandem/internal/exitcode"
 	"github.com/emsnoel/tandem/internal/vcs"
 )
@@ -34,6 +35,9 @@ type statusDurableOut struct {
 	State          string    `json:"state"`
 	PauseCode      string    `json:"pause_code,omitempty"`
 	PauseReason    string    `json:"pause_reason,omitempty"`
+	Task           string    `json:"task,omitempty"`
+	Builder        string    `json:"builder,omitempty"`
+	Reviewer       string    `json:"reviewer,omitempty"`
 	TaskInputLimit int64     `json:"task_input_limit"`
 	RunInputLimit  int64     `json:"run_input_limit"`
 	Tasks          []taskOut `json:"tasks"`
@@ -57,10 +61,8 @@ func durableStatus(d *openRun) (statusDurableOut, error) {
 			return statusDurableOut{}, err
 		}
 	}
-	if run.State == "paused" {
-		if why := fixedPauseReason(run.PauseCode); why != "" {
-			out.PauseReason = why
-		}
+	if ag, err := controller.RunAgents(ctx, d.st, d.art, run.ID); err == nil {
+		out.Builder, out.Reviewer = ag.BuilderSession, ag.ReviewerSession
 	}
 	effects, err := d.st.RunEffects(ctx, run.ID)
 	if err != nil {
@@ -95,6 +97,9 @@ func durableStatus(d *openRun) (statusDurableOut, error) {
 			}
 			rejection := ""
 			if a.Current {
+				if out.Task == "" && !to.Accepted {
+					out.Task = t.ID
+				}
 				rejection = latestRejection[a.ID]
 				if run.PauseJobID == "" && rejection != "" {
 					pauseRejection = rejection
@@ -106,7 +111,7 @@ func durableStatus(d *openRun) (statusDurableOut, error) {
 		out.Tasks = append(out.Tasks, to)
 	}
 	if run.State == "paused" && run.PauseCode == "review_unknown" && pauseRejection != "" {
-		out.PauseReason += ": " + pauseRejection
+		out.PauseReason = pauseRejection
 	}
 	return out, nil
 }
@@ -117,7 +122,7 @@ func cmdBuildStatusDurable(args []string) int {
 	var f durableFlags
 	f.register(fs)
 	asJSON := fs.Bool("json", false, "print the status as one JSON object")
-	asFields := fs.Bool("fields", false, "print NUL-separated fields for bash (state, pause_code, dispatch, pause_reason)")
+	asFields := fs.Bool("fields", false, "print NUL-separated fields for bash (state, pause_code, dispatch, pause_reason, task, builder, reviewer)")
 	if err := fs.Parse(args); err != nil {
 		return exitcode.Usage
 	}
@@ -147,7 +152,7 @@ func cmdBuildStatusDurable(args []string) int {
 		fmt.Printf(" (%s)", out.PauseCode)
 	}
 	if out.PauseReason != "" {
-		fmt.Printf("\nreason: %s", out.PauseReason)
+		fmt.Printf("\nreason: %s\nFor what to do, run: tandem-pause-note --root %s", out.PauseReason, f.root)
 	}
 	fmt.Printf("\n\n| Task | Accepted | Attempt | Implementation | Check | Review |\n| --- | --- | --- | --- | --- | --- |\n")
 	for _, t := range out.Tasks {

@@ -157,8 +157,9 @@ ST=$(td4 build status --root "$R4" --json | jq -r '.state')
 OUT=$(td4 build tick --root "$R4" --observe-agents 2>"$TMP/err")
 [ "$(printf '%s' "$OUT" | jq -r .pause_code)" = agent_exited ] && ok "the observing tick pauses the run as agent_exited" || nope "tick out: $OUT $(cat "$TMP/err")"
 ST=$(td4 build status --root "$R4" --json)
-[ "$(printf '%s' "$ST" | jq -r .state)" = paused ] && printf '%s' "$ST" | jq -r .pause_reason | grep -q 'tandem-pair' \
-  && ok "status says paused, with the way back" || nope "status: $ST"
+# What to do about the pause is tandem-pause-note's job; status reports the facts.
+[ "$(printf '%s' "$ST" | jq -r '.state + " " + .pause_code + " " + .builder')" = "paused agent_exited builder" ] \
+  && ok "status says paused, with the code and the builder's pane" || nope "status: $ST"
 td4 build recover --root "$R4" >/dev/null 2>&1
 ST=$(td4 build status --root "$R4" --json | jq -r .state)
 [ "$ST" = paused ] && ok "recover leaves the run paused while the builder is still gone" || nope "state after recover with builder gone: $ST"

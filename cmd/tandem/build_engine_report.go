@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/emsnoel/tandem/internal/artifact"
-	"github.com/emsnoel/tandem/internal/config"
 	"github.com/emsnoel/tandem/internal/controller"
 	"github.com/emsnoel/tandem/internal/exitcode"
 	"github.com/emsnoel/tandem/internal/paths"
@@ -191,24 +190,6 @@ func dispatchOf(ctx context.Context, st *state.Store, effects []workflow.Effect,
 		}
 	}
 	return "", nil
-}
-
-// fixedPauseReason is the reason for a pause whose cause is always the same, or
-// "" when the pause needs the run's own record to be explained.
-func fixedPauseReason(code string) string {
-	switch code {
-	case "agent_exited":
-		return "The builder or reviewer CLI quit; its pane no longer runs it. Restart it with tandem-pair, then tandem build recover."
-	case "no_reviewer":
-		return "This run was started before every run needed a reviewer pane, and the builder never reviews. Stop it (tandem build stop), " +
-			"end its open jobs (tandem state recover --run ID), archive it (tandem state archive --run ID), " +
-			"and re-pair with a reviewer. " + config.NoReviewerRemedy + ". Then hand off again."
-	case "review_unknown":
-		return "A review prompt was delivered, but no valid review result was found in the reviewer's pane within " + state.AckWindow.String() + ". " +
-			"Read its reply (herdr agent read NAME --source recent-unwrapped --lines 120), save the whole JSON object to a file, " +
-			"then run tandem build review-record --result FILE. Or overrule it with tandem build accept --task N --waive review --because WHY."
-	}
-	return ""
 }
 
 // dispatchFailure is why the run's last failed effect could not be sent, or ""

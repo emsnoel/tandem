@@ -19,12 +19,13 @@ import (
 	"time"
 
 	"github.com/emsnoel/tandem/internal/build"
+	"github.com/emsnoel/tandem/internal/controller"
 	"github.com/emsnoel/tandem/internal/exitcode"
 	"github.com/emsnoel/tandem/internal/paths"
 	"github.com/emsnoel/tandem/internal/vcs"
 )
 
-const buildUse = "usage: tandem build <start|roles|sent|review-sent|advance|accept|stop|status|archive|event|tick|recover|review-record|usage|budget> --root DIR ..."
+const buildUse = "usage: tandem build <start|roles|sent|review-sent|advance|accept|stop|status|archive|event|tick|recover|review-record|usage|budget> --root DIR ...\n       tandem build pause-codes"
 
 func cmdBuild(args []string) int {
 	if len(args) == 0 {
@@ -60,6 +61,9 @@ func cmdBuild(args []string) int {
 		return cmdBuildArchive(args[1:])
 	case "event":
 		return cmdBuildEvent(args[1:])
+	case "pause-codes":
+		writeFields(os.Stdout, controller.PauseCodes()...)
+		return exitcode.OK
 	}
 	fmt.Fprintln(os.Stderr, buildUse)
 	return exitcode.Usage
