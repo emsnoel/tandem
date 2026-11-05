@@ -135,7 +135,8 @@ func incidentWhy(ctx context.Context, d *openRun) string {
 	return "Why recovery stopped: " + clip(clean(incidents[len(incidents)-1].Reason), incidentBytes)
 }
 
-// checkTail is the end of the attempt's latest check log.
+// checkTail is the end of the attempt's latest check log. A log that was read
+// and is empty, or blank, says so: only a log that cannot be read gives nothing.
 func checkTail(ctx context.Context, d *openRun, att workflow.Attempt) string {
 	cert, ok, err := d.st.AttemptCheckCertificate(ctx, att.ID)
 	if err != nil || !ok {
@@ -144,6 +145,9 @@ func checkTail(ctx context.Context, d *openRun, att workflow.Attempt) string {
 	head, err := d.art.Read(ctx, cert.LogHash, 0, 1)
 	if err != nil {
 		return ""
+	}
+	if head.TotalBytes == 0 {
+		return fmt.Sprintf("The check exited %d and printed nothing.", cert.ExitCode)
 	}
 	off := head.TotalBytes - checkTailBytes
 	if off < 0 {
@@ -163,7 +167,7 @@ func checkTail(ctx context.Context, d *openRun, att workflow.Attempt) string {
 	}
 	text = strings.TrimRight(text, "\n")
 	if strings.TrimSpace(text) == "" {
-		return ""
+		return fmt.Sprintf("The check exited %d and printed only blank lines.", cert.ExitCode)
 	}
 	return fmt.Sprintf("The check exited %d. The end of its log:\n%s", cert.ExitCode, text)
 }
