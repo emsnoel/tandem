@@ -87,7 +87,7 @@ func (c *Controller) pass(ctx context.Context, runID string) error {
 		mailErr = errors.Join(mailErr, rerr)
 	}
 	if run, err = c.d.State.GetRun(ctx, runID); err != nil {
-		return err
+		return errors.Join(mailErr, err)
 	}
 	// A staged review result is applied here, not by the mailbox. A run that
 	// was paused when this pass began applies it and schedules nothing more
@@ -98,7 +98,7 @@ func (c *Controller) pass(ctx context.Context, runID string) error {
 		mailErr = errors.Join(mailErr, rerr)
 	}
 	if run, err = c.d.State.GetRun(ctx, runID); err != nil {
-		return err
+		return errors.Join(mailErr, err)
 	}
 	wasPaused := run.State == "paused"
 	if rerr := c.reconcileReviews(ctx, run, cfg); rerr != nil {
@@ -114,7 +114,7 @@ func (c *Controller) pass(ctx context.Context, runID string) error {
 		return mailErr
 	}
 	if run, err = c.d.State.GetRun(ctx, runID); err != nil {
-		return err
+		return errors.Join(mailErr, err)
 	}
 	switch run.State {
 	case "stopping":
@@ -144,10 +144,10 @@ func (c *Controller) pass(ctx context.Context, runID string) error {
 func (c *Controller) step(ctx context.Context, run state.Run, cfg runConfig) error {
 	for i := 0; i < maxSettlePasses; i++ {
 		progressed, err := c.settle(ctx, run, cfg)
-		if err != nil || !progressed {
-			if err != nil {
-				return err
-			}
+		if err != nil {
+			return err
+		}
+		if !progressed {
 			break
 		}
 		if run, err = c.d.State.GetRun(ctx, run.ID); err != nil {
