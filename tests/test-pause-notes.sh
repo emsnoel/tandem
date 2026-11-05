@@ -87,6 +87,10 @@ OUT=$(pause_note context_too_large "$RUN" /r task-1 b r "")
 has "context_too_large offers a larger limit" "$OUT" "--context-limit N"
 OUT=$(restart_steps "$RUN" /r)
 has "restart_steps hands the plan off again" "$OUT" "tandem-handoff"
+has "the restart says a gone builder pane holds the stop" "$OUT" "If the builder's pane is gone, the stop cannot finish"
+has "and brings the agent back" "$OUT" "bring the agent back with tandem-pair"
+has "the restart names settle-delivery for an archive refusal" "$OUT" "settle-delivery"
+has "and says only for a prompt never read" "$OUT" "never read the prompt"
 
 printf '\n== the rulings ==\n'
 for c in check_failed review_failed stuck repairs_exhausted source_mutated recovery_blocked; do
@@ -105,11 +109,18 @@ OUT=$(pause_note context_too_large "$RUN" /r task-7 b r "" /p.md "" /m)
 has "context_too_large puts the limit before the plan" "$OUT" "tandem-handoff --context-limit N /p.md"
 OUT=$(pause_note scheduling_blocked "$RUN" /r task-7 b r "" /p.md COLL1 /m)
 has "scheduling_blocked names the collaboration" "$OUT" "tandem collaboration resume --collaboration COLL1 "
+has "a ceiling needs an amendment, which a resume does not give" "$OUT" "tandem collaboration amend --collaboration COLL1 --provider PROVIDER --input-ceiling N --actor you --reason WHY --root /r"
+has "scheduling_blocked can always restart" "$OUT" "Or restart the run instead"
+has "and its restart reaches the hand-off" "$OUT" "tandem-handoff /p.md"
 OUT=$(pause_note scheduling_blocked "$RUN" /r task-7 b r "" /p.md "" /m)
 lack "and offers no resume when there is none" "$OUT" "collaboration resume"
+lack "and no amendment either" "$OUT" "collaboration amend"
+has "and can still restart" "$OUT" "Or restart the run instead"
 OUT=$(pause_note stopping "$RUN" /r task-7 b r "")
 lack "stopping is not called stopped" "$OUT" "stopped:"
 has "stopping says it waits for the current turn" "$OUT" "waiting for the builder's current turn"
+has "stopping says what a gone builder pane needs" "$OUT" "bring the agent back with tandem-pair"
+has "and how to finish the stop" "$OUT" "tandem build wait --root /r --until paused --tick --timeout 120000"
 OUT=$(restart_steps "$RUN" /r)
 stop_at=$(printf '%s\n' "$OUT" | grep -n 'tandem build stop' | cut -d: -f1)
 wait_at=$(printf '%s\n' "$OUT" | grep -n 'tandem build wait --root /r --until paused --tick' | cut -d: -f1)
@@ -126,6 +137,15 @@ OUT=$(pause_note writer_unknown "$RUN" /r task-7 bldr rev "")
 has "writer_unknown: a working builder is cleared by recover" "$OUT" "tandem state recover --run $RUN --root /r"
 has "writer_unknown: the export goes to a new folder" "$OUT" "--output /tmp/tandem-export-$RUN"
 has "writer_unknown: pick the builder's effect" "$OUT" "builder's task prompt"
+# A paused run holds the writer lease, which only a finished stop releases, and
+# settle-delivery refuses a held lease. So the stop comes first.
+wait_at=$(printf '%s\n' "$OUT" | grep -n 'tandem build wait --root /r --until paused --tick' | cut -d: -f1)
+settle_at=$(printf '%s\n' "$OUT" | grep -n 'tandem state settle-delivery' | cut -d: -f1)
+export_at=$(printf '%s\n' "$OUT" | grep -n 'tandem state export' | cut -d: -f1)
+arch_at=$(printf '%s\n' "$OUT" | grep -n 'tandem state archive' | cut -d: -f1)
+[ -n "$wait_at" ] && [ "$wait_at" -lt "$settle_at" ] && [ "$export_at" -lt "$settle_at" ] && [ "$settle_at" -lt "$arch_at" ] \
+  && ok "writer_unknown settles after the stop and before the archive" || nope "writer_unknown order: $OUT"
+[ "$(printf '%s\n' "$OUT" | grep -c 'tandem build stop')" -eq 1 ] && ok "writer_unknown stops once" || nope "writer_unknown stops twice: $OUT"
 lack "writer_unknown no longer says wait and stop" "$OUT" "wait and stop here"
 OUT=$(pause_note memory_conflict "$RUN" /r task-7 b r "" /p.md "" "/my relay")
 has "memory_conflict greps the real bridge log for the error" "$OUT" "grep -F 'was not started' /my\\ relay/bridge.log | tail -n 5"
@@ -147,6 +167,7 @@ done
 OUT=$(pause_note agent_unsupported "$RUN" /r "" bldr "" "")
 lack "agent_unsupported uses the shared wait, not a bare tick" "$OUT" "tandem build tick"
 has "agent_unsupported waits until paused" "$OUT" "tandem build wait --root /r --until paused --tick"
+has "agent_unsupported says how to end an open delivery" "$OUT" "settle-delivery"
 
 printf '\n== tandem-pause-note reads the run status ==\n'
 # A stand-in for tandem that answers the three questions the command asks.

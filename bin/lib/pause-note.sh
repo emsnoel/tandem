@@ -23,15 +23,29 @@ _pn_step() {
   [[ -z "${2:-}" ]] || printf '    %s\n' "$2"
 }
 
-# _pn_teardown RUN ROOT: stop the run, wait for it to settle, end its open
-# jobs, archive it. The wait ticks the run, which is what finishes a stop.
-_pn_teardown() {
-  local q; q=$(printf %q "$2")
+# _pn_stop_wait ROOT: stop the run and wait for it to settle. The wait ticks the
+# run, which is what finishes a stop and frees the writer. A builder pane that is
+# gone holds the stop, and only bringing the agent back ends that.
+_pn_stop_wait() {
+  local q; q=$(printf %q "$1")
   _pn_step "Stop the run." "tandem build stop --root $q"
-  _pn_step "Wait until the run is paused. A stop waits for the builder's current turn and the wait ticks the run, so it can take a few minutes. If it times out, run it again." \
+  _pn_step "Wait until the run is paused. A stop waits for the builder's current turn and the wait ticks the run, so it can take a few minutes. If it times out, run it again. If the builder's pane is gone, the stop cannot finish, so bring the agent back with tandem-pair first." \
     "tandem build wait --root $q --until paused --tick --timeout 120000"
+}
+
+# _pn_end_run RUN ROOT: end its open jobs and archive it. An open delivery stops
+# the archive, and the refusal prints the settle-delivery command with its ids.
+_pn_end_run() {
+  local q; q=$(printf %q "$2")
   _pn_step "End its open jobs. An open job blocks the archive." "tandem state recover --run $1 --root $q"
-  _pn_step "Archive the run." "tandem state archive --run $1 --root $q"
+  _pn_step "Archive the run. If it refuses because a delivery is open, the refusal prints a settle-delivery command. Run it only if the agent never read the prompt, then archive again." \
+    "tandem state archive --run $1 --root $q"
+}
+
+# _pn_teardown RUN ROOT: the whole way to a run that is history.
+_pn_teardown() {
+  _pn_stop_wait "$2"
+  _pn_end_run "$1" "$2"
 }
 
 # _pn_handoff FLAGS: hand the plan off again, which starts at task 1. A run
@@ -102,27 +116,27 @@ _pn_agent_exited() {
 }
 
 _pn_agent_unsupported() {
-  local q; q=$(printf %q "$2")
   printf 'Tandem types nothing more into this run. If a supported agent in it quit, bring it back first with tandem-pair, because a stop waits for it.\n'
   printf '\nWhat to do:\n'
-  _pn_step "Stop the run." "tandem build stop --root $q"
-  _pn_step "Wait until the run is paused. A stop waits for the builder's current turn and the wait ticks the run, so it can take a few minutes. If it times out, run it again." \
-    "tandem build wait --root $q --until paused --tick --timeout 120000"
-  _pn_step "End its open jobs." "tandem state recover --run $1 --root $q"
-  _pn_step "Archive the run." "tandem state archive --run $1 --root $q"
+  _pn_teardown "$1" "$2"
   _pn_step "Pair a supported agent (Codex, Claude or Copilot) with tandem-pair, then hand the plan off again." "tandem-pair"
   _pn_handoff
 }
 
+# A paused run holds the writer lease until a stop finishes, and settle-delivery
+# refuses a held lease, so the stop comes before the settle.
 _pn_writer_unknown() {
   local q; q=$(printf %q "$2")
   _pn_read_pane "$4" "Look at the builder pane ${4:-NAME}. If the builder is working on the task, it read the prompt. Do step 2 once its turn has ended, and then you are done."
   _pn_step "Let tandem see that the prompt was read." "tandem state recover --run $1 --root $q"
-  _pn_step "If the builder never read the prompt, clear what blocks it, such as a startup dialog or a provider error. Then export the run to a folder that does not exist yet. The output lists the unresolved deliveries on screen, each with an effect id. Pick the one for the builder's task prompt, not a reviewer prompt or a notice." \
+  _pn_step "If the builder never read the prompt, clear what blocks it, such as a startup dialog or a provider error. Then stop the run with the next two steps."
+  _pn_stop_wait "$2"
+  _pn_step "Export the run to a folder that does not exist yet. The output lists the unresolved deliveries on screen, each with an effect id. Pick the one for the builder's task prompt, not a reviewer prompt or a notice." \
     "tandem state export --run $1 --output /tmp/tandem-export-$1 --root $q"
   _pn_step "Record that the builder did not read the prompt." \
     "tandem state settle-delivery --run $1 --effect EFFECT --not-read --because WHY --root $q"
-  restart_steps "$1" "$2"
+  _pn_end_run "$1" "$2"
+  _pn_handoff
 }
 
 # pause_note CODE RUN ROOT TASK BUILDER REVIEWER REASON PLAN COLLABORATION MAILBOX
@@ -198,8 +212,10 @@ pause_note() {
     scheduling_blocked)
       _pn_step "If a budget stopped it, raise the limit. Use --scope run for the run's limit." "tandem build budget --scope task --limit N --root $q"
       if [[ -n "$collab" ]]; then
-        _pn_step "If the collaboration holds the launch, resume it." "tandem collaboration resume --collaboration $collab --actor you --reason WHY --root $q"
-      fi ;;
+        _pn_step "If the collaboration was stopped, resume it." "tandem collaboration resume --collaboration $collab --actor you --reason WHY --root $q"
+        _pn_step "If a provider's ceiling holds the launch, a resume holds it again, so raise the ceiling." "tandem collaboration amend --collaboration $collab --provider PROVIDER --input-ceiling N --actor you --reason WHY --root $q"
+      fi
+      restart_steps "$run" "$root" alt ;;
     context_too_large)
       _pn_teardown "$run" "$root"
       _pn_handoff "--context-limit N" ;;
@@ -217,7 +233,9 @@ pause_note() {
       restart_steps "$run" "$root"
       printf '\nTo close the pair instead, run tandem-unpair.\n' ;;
     stopping)
-      _pn_step "Nothing yet. Check again in a minute." "tandem build status --root $q" ;;
+      _pn_step "Nothing yet. Check again in a minute." "tandem build status --root $q"
+      _pn_step "If it stays stopping and the builder's pane is gone, the stop cannot finish, so bring the agent back with tandem-pair. Then let the stop finish." \
+        "tandem build wait --root $q --until paused --tick --timeout 120000" ;;
     *)
       _pn_step "Read why it stopped." "tandem build status --root $q" ;;
   esac

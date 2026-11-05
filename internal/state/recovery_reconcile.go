@@ -134,8 +134,8 @@ func (s *Store) ReconcileAttempt(ctx context.Context, req ReconcileRequest) (Rec
 	return Reconciliation{ID: req.ID, AttemptID: req.Attempt.ID}, nil
 }
 
-// ManualInterventions counts a run's reconciles, for the evaluation's
-// intervention figure.
+// ManualInterventions counts a run's reconciles and settled deliveries, for the
+// evaluation's intervention figure.
 func (s *Store) ManualInterventions(ctx context.Context, runID string) (int, error) {
 	var n int
 	err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM manual_interventions WHERE run_id=?`, runID).Scan(&n)

@@ -124,8 +124,11 @@ func (c *Controller) Recover(ctx context.Context, runID string) error {
 	}
 	// A finished run has nothing to drive, and a stopped one released its
 	// writer on purpose: taking the lease back would only block its archive.
-	if run.State == "finished" || stopped {
+	if run.State == "finished" {
 		return nil
+	}
+	if stopped {
+		return c.d.State.EndStoppedRunJobs(ctx, run.ID)
 	}
 	if err := c.checkPlan(ctx, run); err != nil {
 		return err
@@ -188,8 +191,15 @@ func (c *Controller) Recover(ctx context.Context, runID string) error {
 }
 
 // hasUnknownWriter reports whether a builder prompt's delivery is unconfirmed,
-// after trying to confirm each by observation.
+// after reading what the builder queued, which is what proves one was read, and
+// trying to confirm the rest by observation.
 func (c *Controller) hasUnknownWriter(ctx context.Context, run state.Run) (bool, error) {
+	cfg, err := c.config(ctx, run)
+	if err != nil {
+		return false, err
+	}
+	// A message that fails here is tried, and reported, by the pass that follows.
+	_ = c.processMailbox(ctx, run, cfg)
 	clear, err := c.reconcileWriter(ctx, run)
 	return !clear, err
 }

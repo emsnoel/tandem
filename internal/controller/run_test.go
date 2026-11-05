@@ -38,6 +38,10 @@ type fakeTransport struct {
 	agents map[string]runner.Observation
 	// panes is what each named agent's pane shows.
 	panes map[string]string
+	// obsErr, when set, is what observing the builder's pane answers, and
+	// agentErrs is the same by agent name.
+	obsErr    error
+	agentErrs map[string]error
 }
 
 // ReadAgent is what the named agent's pane shows.
@@ -60,10 +64,22 @@ func (f *fakeTransport) setPane(name, text string) {
 func (f *fakeTransport) ObserveAgent(_ context.Context, name string) (runner.Observation, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if err := f.agentErrs[name]; err != nil {
+		return runner.Observation{}, err
+	}
 	if o, ok := f.agents[name]; ok {
 		return o, nil
 	}
 	return runner.Observation{State: runner.ObsUnknown}, nil
+}
+
+func (f *fakeTransport) setAgentErr(name string, err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.agentErrs == nil {
+		f.agentErrs = map[string]error{}
+	}
+	f.agentErrs[name] = err
 }
 
 func (f *fakeTransport) setAgent(name string, o runner.Observation) {
@@ -94,6 +110,9 @@ func (f *fakeTransport) Send(_ context.Context, d runner.Delivery) (runner.Recei
 func (f *fakeTransport) Observe(_ context.Context, id string) (runner.Observation, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.obsErr != nil {
+		return runner.Observation{}, f.obsErr
+	}
 	if o, ok := f.obs[id]; ok {
 		return o, nil
 	}
