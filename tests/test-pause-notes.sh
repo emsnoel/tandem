@@ -84,7 +84,9 @@ for s in "build stop" "build wait" "state recover --run $RUN" "state archive --r
 OUT=$(pause_note builder_silent "$RUN" /r task-7 bldr rev "" "" "" /r/.tandem-relay)
 has "builder_silent names the builder pane" "$OUT" "Look at the builder pane bldr."
 has "builder_silent says a handback goes on by itself" "$OUT" "A handback continues the run by itself."
-has "builder_silent greps the log for a stuck handback" "$OUT" "grep -F 'busy:' /r/.tandem-relay/bridge.log | tail -n 5"
+has "builder_silent greps the log for a tree it cannot capture" "$OUT" "    grep -F 'cannot be captured exactly' /r/.tandem-relay/bridge.log | tail -n 5"
+has "and for any other busy reason on a second line" "$OUT" "tail -n 5
+    grep -F 'busy:' /r/.tandem-relay/bridge.log | tail -n 5"
 lack "builder_silent says nothing twice" "$OUT" "if it needs an answer"
 OUT=$(pause_note builder_silent "$RUN" /r task-7 bldr rev "")
 has "builder_silent with no relay names the log" "$OUT" "It is bridge.log in the relay folder."
