@@ -107,8 +107,8 @@ with `writer_unknown`, and no new task starts while a writer is uncertain.
    This is the one way to close a delivery without its nonce, and it holds whether or not the
    agent read the prompt. `--abandon` and `--because` are required. It refuses a pane seen
    working or at a dialog, a pane Herdr cannot answer for, a pane that reports no status, and
-   a prompt with an acknowledgement still queued, which `state recover` takes. A pane that is gone is
-   allowed, because a discontinued pane can never come back. The planner's pane is not looked
+   a prompt with an acknowledgement still queued, which `state recover` takes. A pane that is
+   gone is allowed, because a discontinued pane can never come back. The planner's pane is not looked
    at, because the planner is who runs the command. The prompt is cancelled, the job waiting
    on it ends, and the statement is kept as a `delivery_abandoned` event in the run's log and
    export. With no session bound, the launch's reservation goes back and its source ends. With
@@ -142,8 +142,8 @@ The refusal names the remedy: declare a `reviewer` block in `.tandem.json` and r
 
 A run started before this rule has no reviewer pane in its stored configuration, so tandem
 types nothing more into it. On its next tick while running it pauses as `no_reviewer`, and
-`tandem build status` gives the way on as the pause's reason. Stop it, let it settle, archive it, re-pair with a reviewer, and
-hand off again. `state recover` ends any builder job left open, which would block the archive:
+`tandem build status` gives the way on as the pause's reason. Stop it, let it settle, archive
+it, re-pair with a reviewer, and hand off again. `state recover` ends any builder job left open, which would block the archive:
 
     tandem build stop --root DIR
     tandem state recover --run ID --root DIR

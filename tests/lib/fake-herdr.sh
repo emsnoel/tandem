@@ -31,6 +31,8 @@ fake_status() { local s _; read -r s _ < "$FAKE/state"; printf '%s\n' "$s"; }
 #
 # FAKE/swallow: a typed prompt is logged but the status never moves, as when a
 # startup dialog Herdr cannot see takes the keystrokes. A reset still works.
+# That is one of two routes. A dialog can also end as dispatch_failed, with the
+# reset unconfirmed, and this switch does not model that one.
 #
 # FAKE/end_after N: the Nth read after a prompt finds the agent idle again, as
 # for a rejected model. `agent read` prints FAKE/pane.
