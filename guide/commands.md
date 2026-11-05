@@ -139,7 +139,9 @@ durable run is active. A command that changes rows in the run's state leaves a `
 in the state root when it closes the store. That way a planner command such as
 `tandem build stop` or `review-record` wakes the bridge at once.
 `HERDR_BRIDGE_BACKSTOP_SECONDS` (default 30) sets the longest the bridge waits if it misses a
-file event. `HERDR_BRIDGE_POLL_SECONDS` (default 1) sets the pause before the next pass after a
+file event. Keep it under 600. A durable run pauses as `builder_silent` only when ticks
+come at most 10 minutes apart, so a backstop of 600 or more can keep that pause from ever
+happening. `HERDR_BRIDGE_POLL_SECONDS` (default 1) sets the pause before the next pass after a
 failed watch. The bridge writes `$MAILBOX/bridge.ready` once it is running, and
 `tandem-pair` waits for that file.
 

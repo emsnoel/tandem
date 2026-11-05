@@ -120,8 +120,9 @@ func TestQueuedHandbackBeatsSilence(t *testing.T) {
 	}
 }
 
-// A message the queue still holds is a builder that spoke, applied or not.
-func TestMessageStillQueuedRestartsTheClock(t *testing.T) {
+// A message that arrives in the queue restarts the clock once. One that stays
+// there, because it cannot be applied yet, does not hold the clock off for good.
+func TestNewQueuedMessageRestartsTheClockOnce(t *testing.T) {
 	e := newCEnv(t)
 	e.startedBuilder(runner.ObsCompleted)
 	e.watch(SilenceWindow - time.Minute)
@@ -129,16 +130,20 @@ func TestMessageStillQueuedRestartsTheClock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	queued := filepath.Join(RunDir(e.relay, run.ID), "q", "waiting.json")
-	write(t, filepath.Dir(queued), "waiting.json", "{}")
-	e.clk.advance(2 * time.Minute)
-	if err := e.c.watchSilence(ctx, run.ID, cfg); err != nil {
-		t.Fatal(err)
+	write(t, filepath.Join(RunDir(e.relay, run.ID), "q"), "waiting.json", "{}")
+	// Ticks would quarantine this file, so the watch is called alone.
+	watch := func(d time.Duration) {
+		for left := d; left > 0; left -= time.Minute {
+			e.clk.advance(time.Minute)
+			if err := e.c.watchSilence(ctx, run.ID, cfg); err != nil {
+				t.Fatal(err)
+			}
+		}
 	}
+	watch(SilenceWindow - time.Minute)
 	e.wantRun("running", "")
-	if _, err := os.Stat(e.clockPath()); !os.IsNotExist(err) {
-		t.Fatalf("the clock is still there: %v", err)
-	}
+	watch(2 * time.Minute)
+	e.wantRun("paused", pauseBuilderSilent)
 }
 
 func TestUnreadableClockRestarts(t *testing.T) {
