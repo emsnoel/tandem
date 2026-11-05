@@ -108,7 +108,8 @@ deletes a run.
 
 `archive` refuses while a run is running or stopping, or has an open job or delivery. A
 refused delivery prints the `settle-delivery` command, which is for giving up on a prompt
-whose agent is idle and handed nothing back. An archive renames the relay's marker to `active-run.<run id>.archived.json`.
+whose agent is idle and handed nothing back. An archive renames the relay's marker to
+`active-run.<run id>.archived.json`.
 
 ## Closing a durable run
 

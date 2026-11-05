@@ -12,15 +12,15 @@ import (
 	"github.com/emsnoel/tandem/internal/workflow"
 )
 
-// Every kind of open delivery can be settled on a stopped run, and settling one
-// types nothing: tandem never retypes an uncertain prompt.
-func TestSettleDeliveryOnEveryOpenKind(t *testing.T) {
+// Every kind of open delivery can be abandoned on a stopped run, and abandoning
+// one types nothing: tandem never retypes an uncertain prompt.
+func TestAbandonOnEveryOpenKind(t *testing.T) {
 	check := func(t *testing.T, e *cenv, eff workflow.Effect) {
 		t.Helper()
 		e.stopToPaused()
 		e.archiveRefused(eff.ID)
 		sends := len(e.tr.sends)
-		if err := e.settleNotRead(eff.ID); err != nil {
+		if err := e.abandonPrompt(eff.ID); err != nil {
 			t.Fatal(err)
 		}
 		if got, err := e.st.GetEffect(ctx, eff.ID); err != nil || got.State != "cancelled" {
@@ -47,7 +47,7 @@ func TestSettleDeliveryOnEveryOpenKind(t *testing.T) {
 		att, prompt := e.openReviewPrompt()
 		e.stopToPaused()
 		e.archiveRefused(prompt.ID)
-		if err := e.settleNotRead(prompt.ID); err != nil {
+		if err := e.abandonPrompt(prompt.ID); err != nil {
 			t.Fatal(err)
 		}
 		if got := e.reviewerJobStates(att); len(got) != 1 || got[0] != "cancelled" {
@@ -71,7 +71,7 @@ func TestSettleDeliveryOnEveryOpenKind(t *testing.T) {
 // for or reports no status for. A gone one stays allowed because the route needs
 // it: a discontinued pane that is gone can never come back. The planner's pane is not looked
 // at, because the planner is who runs this command, so it is always working.
-func TestSettleDeliveryLooksAtThePaneThePromptWentTo(t *testing.T) {
+func TestAbandonLooksAtThePaneThePromptWentTo(t *testing.T) {
 	gone := fmt.Errorf("%w: pane", runner.ErrAgentGone)
 	for name, tc := range map[string]struct {
 		pane    runner.Observation
@@ -92,7 +92,7 @@ func TestSettleDeliveryLooksAtThePaneThePromptWentTo(t *testing.T) {
 			if tc.err != nil {
 				e.tr.setAgentErr("reviewer-session", tc.err)
 			}
-			err := e.settleNotRead(prompt.ID)
+			err := e.abandonPrompt(prompt.ID)
 			if tc.refused != (err != nil) || (tc.refused && !errors.Is(err, workflow.ErrBusy)) {
 				t.Fatalf("err = %v", err)
 			}
@@ -110,7 +110,7 @@ func TestSettleDeliveryLooksAtThePaneThePromptWentTo(t *testing.T) {
 		eff := e.openPlannerDelivery(effectNotify, true)
 		e.stopToPaused()
 		e.tr.setAgent("planner-session", runner.Observation{State: runner.ObsRunning})
-		if err := e.settleNotRead(eff.ID); err != nil {
+		if err := e.abandonPrompt(eff.ID); err != nil {
 			t.Fatal(err)
 		}
 	})
@@ -162,7 +162,7 @@ func TestAbandoningIsAnEventAnExportCarries(t *testing.T) {
 	e := newCEnv(t)
 	eff := e.seedPause(pauseDispatch, true)
 	e.stopToPaused()
-	if err := e.settleNotRead(eff.ID); err != nil {
+	if err := e.abandonPrompt(eff.ID); err != nil {
 		t.Fatal(err)
 	}
 	events, err := e.st.RunEvents(ctx, e.runID)

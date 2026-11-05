@@ -95,6 +95,16 @@ has "and says when to give up on a prompt" "$OUT" "idle and handed nothing back"
 has "and that its files are not accepted work" "$OUT" "aren't counted as accepted work"
 has "and to check them first" "$OUT" "git status"
 has "a pair with a custom name says how to bring it back" "$OUT" "HERDR_BUILDER_NAME"
+lack "the archive step no longer carries the git status advice" "$(_pn_n=0; _pn_end_run "$RUN" /r)" "git status"
+# Every route that hands the plan off again says to check the tree first.
+n=0
+while IFS= read -r -d '' code; do
+  OUT=$(pause_note "$code" "$RUN" /r task-2 b r "" /r/plan.md)
+  case "$OUT" in *"tandem-handoff"*) ;; *) continue ;; esac
+  n=$((n+1))
+  case "${OUT%%tandem-handoff*}" in *"check git status before you hand off"*) ;; *) nope "$code: no git status step before the hand-off" ;; esac
+done < "$CODES"
+[ "$n" -gt 10 ] && ok "$n routes warn about the tree before they hand off" || nope "only $n routes hand the plan off"
 
 printf '\n== the rulings ==\n'
 for c in check_failed review_failed stuck repairs_exhausted source_mutated recovery_blocked; do
@@ -144,8 +154,8 @@ has "writer_unknown: the export goes to a new folder" "$OUT" "--output /tmp/tand
 has "writer_unknown: pick the builder's effect" "$OUT" "builder's task prompt"
 has "writer_unknown: a working builder is waited for" "$OUT" "If the builder is working"
 has "writer_unknown: an idle one that handed nothing back is given up on" "$OUT" "If it's idle and handed nothing back, abandon the prompt"
-has "writer_unknown: its files stay" "$OUT" "Any files it changed stay in your tree and aren't counted as accepted work"
-has "writer_unknown: check them before restarting" "$OUT" "check git status before restarting"
+has "writer_unknown: its files stay" "$OUT" "Any files the run changed stay in your tree and aren't counted as accepted work"
+has "writer_unknown: check them before the hand-off" "$OUT" "check git status before you hand off"
 has "writer_unknown: a late acknowledgement can close it" "$OUT" "Skip this step if the export lists nothing open"
 lack "writer_unknown no longer claims to know it was not read" "$OUT" "never read the prompt"
 # A paused run holds the writer lease, which only a finished stop releases, and

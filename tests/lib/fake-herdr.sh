@@ -29,6 +29,9 @@ fake_status() { local s _; read -r s _ < "$FAKE/state"; printf '%s\n' "$s"; }
 # planner and reviewer in panes w1:<name>. Names in FAKE/absent have no pane
 # and get agent_not_found (exit 10).
 #
+# FAKE/swallow: a typed prompt is logged but the status never moves, as when a
+# startup dialog Herdr cannot see takes the keystrokes. A reset still works.
+#
 # FAKE/end_after N: the Nth read after a prompt finds the agent idle again, as
 # for a rejected model. `agent read` prints FAKE/pane.
 #
@@ -138,7 +141,7 @@ case "$1 $2" in
     fi
     printf '%s\t%s\n' "$3" "$(printf '%s' "$4" | tr '\n' ' ')" >> "$FAKE/prompts"
     printf '%s' "$4" > "$FAKE/prompt.$(wc -l < "$FAKE/prompts" | tr -d ' ').txt"
-    [ "$st" = blocked ] || { put_state working "$((seq+1))"; }
+    [ "$st" = blocked ] || [ -f "$FAKE/swallow" ] || { put_state working "$((seq+1))"; }
     lock; put "$FAKE/gets" 0; unlock
     exit 0 ;;
   "agent read")

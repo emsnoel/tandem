@@ -86,11 +86,14 @@ report_pause() {
   [[ "$(cat "$mark" 2>/dev/null)" == "$key" ]] && return 0
   now=$(date +%s)
   { IFS=$'\t' read -r delay dkey <"$dir/pause-retry-delay"; } 2>/dev/null || true
+  # Both files are read back as numbers, so a damaged one is dropped, never run
+  # through the arithmetic below.
+  [[ "$delay" =~ ^[0-9]+$ ]] || delay=""
   at=$(cat "$dir/pause-retry-at" 2>/dev/null || true)
   # A retry time belongs to the pause that failed, not to a different code.
   if [[ "$dkey" != "$key" ]]; then
     delay=""
-  elif [[ "$at" =~ ^[0-9]+$ ]] && (( now < at )); then
+  elif [[ "$at" =~ ^[0-9]+$ ]] && (( now < 10#$at )); then
     return 0
   fi
   # The status fields are state, code, dispatch, reason, task, builder, reviewer, plan, collaboration.
@@ -104,7 +107,7 @@ report_pause() {
     rm -f "$dir/pause-retry-at" "$dir/pause-retry-delay"
     return 0
   fi
-  delay=$(( ${delay:-0} * 2 )); (( delay >= 30 )) || delay=30; (( delay <= 300 )) || delay=300
+  delay=$(( 10#${delay:-0} * 2 )); (( delay >= 30 )) || delay=30; (( delay <= 300 )) || delay=300
   printf '%s\n' "$(( now + delay ))" > "$dir/pause-retry-at"
   printf '%s\t%s\n' "$delay" "$key" > "$dir/pause-retry-delay"
   log "run $run: the pause note will be sent again in ${delay}s"

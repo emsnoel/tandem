@@ -36,16 +36,17 @@ _pn_stop_wait() {
     "tandem build wait --root $q --until paused --tick --timeout 120000"
 }
 
-# _pn_recover RUN ROOT: end its open jobs, and read any late acknowledgement.
+# _pn_recover RUN ROOT: end its open jobs, and acknowledge a prompt whose nonce
+# the agent queued late.
 _pn_recover() {
-  _pn_step "End its open jobs and read any message the agent queued. An open job blocks the archive." "tandem state recover --run $1 --root $(printf %q "$2")"
+  _pn_step "End its open jobs and acknowledge any prompt whose nonce the agent queued. An open job blocks the archive." "tandem state recover --run $1 --root $(printf %q "$2")"
 }
 
 # _pn_end_run RUN ROOT: end its open jobs and archive it. An open delivery stops
 # the archive, and the refusal prints the settle-delivery command with its ids.
 _pn_end_run() {
   _pn_recover "$1" "$2"
-  _pn_step "Archive the run. If it refuses because a delivery is open, the refusal prints a settle-delivery command. Run it only if the agent is idle and handed nothing back and you are giving up on the prompt. Any files it changed stay in your tree and aren't counted as accepted work, so check git status before you hand off. Then archive again." \
+  _pn_step "Archive the run. If it refuses because a delivery is open, the refusal prints a settle-delivery command. Run it only if the agent is idle and handed nothing back and you are giving up on the prompt. Then archive again." \
     "tandem state archive --run $1 --root $(printf %q "$2")"
 }
 
@@ -57,8 +58,10 @@ _pn_teardown() {
 
 # _pn_handoff FLAGS: hand the plan off again, which starts at task 1. A run
 # with no stored plan path prints tandem-handoff alone, which picks a plan.
+# The files the old run left are the new run's start, so a step warns first.
 _pn_handoff() {
   local cmd="tandem-handoff"
+  _pn_step "Any files the run changed stay in your tree and aren't counted as accepted work, so check git status before you hand off. Keep or discard them."
   [[ -z "${1:-}" ]] || cmd="$cmd $1"
   [[ -z "$_pn_plan" ]] || cmd="$cmd $(printf %q "$_pn_plan")"
   _pn_step "Hand the plan off again. The run starts again at task 1." "$cmd"
@@ -136,7 +139,7 @@ _pn_writer_unknown() {
   local q; q=$(printf %q "$2")
   _pn_read_pane "$4" "Look at the builder pane ${4:-NAME}. If the builder is working on the task, it read the prompt, so wait. Do step 2 once its turn has ended, and then you are done."
   _pn_step "Let tandem see that the prompt was read." "tandem state recover --run $1 --root $q"
-  _pn_step "If it's idle and handed nothing back, abandon the prompt. Any files it changed stay in your tree and aren't counted as accepted work, so check git status before restarting. Clear what blocks the pane first, such as a startup dialog or a provider error. Then stop the run with the next two steps."
+  _pn_step "If it's idle and handed nothing back, abandon the prompt. Clear what blocks the pane first, such as a startup dialog or a provider error. Then stop the run with the next two steps."
   _pn_stop_wait "$2"
   _pn_recover "$1" "$2"
   _pn_step "Export the run to a folder that does not exist yet. The output lists the unresolved deliveries on screen, each with an effect id. Pick the one for the builder's task prompt, not a reviewer prompt or a notice." \

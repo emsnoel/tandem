@@ -24,9 +24,9 @@ func (c *Controller) AbandonDelivery(ctx context.Context, runID, effectID, becau
 	}
 	// An effect that cannot be read, or is another run's, is the store's refusal.
 	if eff, err := c.d.State.GetEffect(ctx, effectID); err == nil && eff.RunID == run.ID {
-		// A queued message with this nonce proves the prompt was read.
+		// A queued message with this nonce acknowledges the prompt.
 		if _, queued := c.queuedAcknowledgements(ctx, run, cfg)[eff.ID]; queued {
-			return fmt.Errorf("%w: the agent queued a message for this prompt, so it read it. Run tandem state recover --run %s, which reads the message and closes the delivery", workflow.ErrBusy, runID)
+			return fmt.Errorf("%w: the agent queued a message that acknowledges this prompt. Run tandem state recover --run %s, which acknowledges it and closes the delivery", workflow.ErrBusy, runID)
 		}
 		if !forPlanner(eff) {
 			_, pane := cfg.agentFor(eff)
