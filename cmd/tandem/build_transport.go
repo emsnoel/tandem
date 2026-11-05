@@ -255,8 +255,8 @@ func externalID(a *herdr.Agent) string {
 	return a.PaneID
 }
 
-// Observe reports on the builder's pane. A working or blocked pane is running;
-// a settled one is completed, which means nothing is writing. Anything Herdr
+// Observe reports on the builder's pane. A working or blocked pane is running,
+// and a blocked one waits on a dialog; a settled one is completed, which means nothing is writing. Anything Herdr
 // cannot say is unknown. A pane Herdr cannot find is an error, not a stopped
 // builder, so a stop never frees the writer on a guess.
 func (t *herdrTransport) Observe(ctx context.Context, _ string) (runner.Observation, error) {
@@ -283,7 +283,7 @@ func (t *herdrTransport) ObserveAgent(_ context.Context, name string) (runner.Ob
 	obs := runner.Observation{State: runner.ObsUnknown, ExternalID: externalID(a), Session: a.Conversation(), StateSeq: a.StateChangeSeq}
 	switch st := a.StatusString(); {
 	case st == "working" || st == "blocked":
-		obs.State = runner.ObsRunning
+		obs.State, obs.Blocked = runner.ObsRunning, st == "blocked"
 	case agent.Settled(st):
 		obs.State = runner.ObsCompleted
 	}

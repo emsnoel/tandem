@@ -152,8 +152,8 @@ bridge tick -> controller accepts the task and sends the next
 ### Run states
 
 `running`, `paused` (with a `pause_code`), `stopping`, `finished` and `archived`. Common pause
-codes: `stopped`, `writer_unknown`, `builder_silent`, `check_failed`, `source_mutated`,
-`repairs_exhausted`, `plan_changed`, `context_too_large`, `memory_conflict`,
+codes: `stopped`, `writer_unknown`, `builder_silent`, `builder_blocked`, `check_failed`,
+`source_mutated`, `repairs_exhausted`, `plan_changed`, `context_too_large`, `memory_conflict`,
 `scheduling_blocked`, `no_reviewer`.
 
 ## Command map
@@ -210,6 +210,10 @@ Known limits of the durable engine:
 - A provider failure after the builder acknowledges its task pauses the run as
   `builder_silent` once the pane has been idle for 10 minutes. A failure that leaves the turn
   running, so the pane still shows it working, stays silent with no timeout.
+- A builder held at an approval or question dialog pauses the run as `builder_blocked` once
+  Herdr has reported its pane blocked for 10 minutes. Tandem never answers the dialog. Answer
+  it in the pane, then `tandem state recover --run ID --root DIR` continues the run. A dialog
+  Herdr reports as idle is timed as `builder_silent` instead.
 - Herdr can report a pane as idle while an agent startup dialog is up. Start the agent to its
   prompt before starting a run.
 - A stop waits for the builder's current turn.

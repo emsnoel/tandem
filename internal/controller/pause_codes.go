@@ -16,7 +16,7 @@ func PauseCodes() []string {
 		pauseSourceMutated, pauseWriterUnknown, pauseRepairs, pauseDispatch, pauseReview,
 		pauseStopped, pausePlanChanged, pauseContext, pauseMemory, pauseIncomplete,
 		pauseAgentExited, pauseNoReviewer, pauseAgentUnsupported, pauseRecovery,
-		pauseVerificationIdentity, pauseVerificationStale, pauseBuilderSilent,
+		pauseVerificationIdentity, pauseVerificationStale, pauseBuilderSilent, pauseBuilderBlocked,
 	}
 	sort.Strings(codes)
 	return codes

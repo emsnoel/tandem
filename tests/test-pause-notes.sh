@@ -90,6 +90,13 @@ has "and for any other busy reason on a second line" "$OUT" "tail -n 5
 lack "builder_silent says nothing twice" "$OUT" "if it needs an answer"
 OUT=$(pause_note builder_silent "$RUN" /r task-7 bldr rev "")
 has "builder_silent with no relay names the log" "$OUT" "It is bridge.log in the relay folder."
+OUT=$(pause_note builder_blocked "$RUN" /r task-7 bldr rev "The builder's pane stayed blocked at a dialog for 10 minutes.")
+has "builder_blocked says the builder waits on a dialog" "$OUT" "stopped: the builder is waiting on an approval or question dialog in its pane."
+has "builder_blocked gives the window from its fact" "$OUT" "stayed blocked at a dialog for 10 minutes."
+has "builder_blocked names the builder pane" "$OUT" "Look at the builder pane bldr."
+has "builder_blocked says to answer it in the pane" "$OUT" "Answer the dialog in that pane yourself."
+has "builder_blocked continues with state recover" "$OUT" "tandem state recover --run $RUN --root /r"
+has "builder_blocked offers the restart route" "$OUT" "Or restart the run instead:"
 OUT=$(pause_note dispatch_failed "$RUN" /r "" bldr "" "pane says: bad model")
 has "dispatch_failed keeps the reason" "$OUT" "pane says: bad model"
 has "dispatch_failed restarts" "$OUT" "tandem state archive --run $RUN --root /r"

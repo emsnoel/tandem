@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 	"unicode/utf8"
 
+	"github.com/emsnoel/tandem/internal/controller"
 	"github.com/emsnoel/tandem/internal/workflow"
 )
 
@@ -56,6 +58,8 @@ func pauseFacts(ctx context.Context, d *openRun, code, taskID string) string {
 	switch code {
 	case "recovery_blocked":
 		return clean(incidentWhy(ctx, d))
+	case "builder_blocked":
+		return quietFact(code)
 	case "check_failed", "review_failed", "repairs_exhausted", "verification_identity", "verification_stale":
 	default:
 		return ""
@@ -82,6 +86,28 @@ func pauseFacts(ctx context.Context, d *openRun, code, taskID string) string {
 		add(fmt.Sprintf("The review result is for attempt %d of %s.", att.Ordinal, taskID))
 	}
 	return clean(strings.Join(parts, "\n"))
+}
+
+// quietFact is how long the builder's pane stayed quiet before the run paused,
+// in the window this process was given (TANDEM_SILENCE_WINDOW_MS can shorten it).
+func quietFact(code string) string {
+	how := "blocked at a dialog"
+	return "The builder's pane stayed " + how + " for " + windowText(controller.SilenceWindow) + "."
+}
+
+// windowText is a duration as a person says it: whole minutes, else seconds.
+func windowText(d time.Duration) string {
+	unit, n := "second", int64(d.Round(time.Second)/time.Second)
+	if d >= time.Minute && d%time.Minute == 0 {
+		unit, n = "minute", int64(d/time.Minute)
+	}
+	if n < 1 {
+		n = 1
+	}
+	if n == 1 {
+		return "1 " + unit
+	}
+	return fmt.Sprintf("%d %ss", n, unit)
 }
 
 func currentAttempt(ctx context.Context, d *openRun, taskID string) (workflow.Attempt, error) {
