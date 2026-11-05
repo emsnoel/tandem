@@ -15,10 +15,19 @@ import (
 
 // seedDispatchedRun leaves a run the way an older tandem did: stored with
 // builderKind and reviewerKind, with its first task prompt typed and the builder
-// having acknowledged it. The seed uses the deliverer directly, because a tick
-// now refuses to deliver for a kind with no adapter. stopped also records a stop
-// before the upgrade, so the run is already stopping.
+// having acknowledged it. stopped also records a stop before the upgrade, so the
+// run is already stopping.
 func seedDispatchedRun(t *testing.T, e *cliEnv, builderKind, reviewerKind string, stopped bool) string {
+	t.Helper()
+	return seedRun(t, e, builderKind, reviewerKind, stopped, func(st *state.Store, eff workflow.Effect) error {
+		return st.AcknowledgeEffect(context.Background(), eff.ID, eff.Nonce)
+	})
+}
+
+// seedRun starts a run with these kinds and types its first task prompt, then
+// lets after decide what became of that prompt. It uses the deliverer directly,
+// because a tick now refuses to deliver for a kind with no adapter.
+func seedRun(t *testing.T, e *cliEnv, builderKind, reviewerKind string, stopped bool, after func(*state.Store, workflow.Effect) error) string {
 	t.Helper()
 	ctx := context.Background()
 	id, err := state.ResolveIdentity(e.root, e.home)
@@ -54,7 +63,7 @@ func seedDispatchedRun(t *testing.T, e *cliEnv, builderKind, reviewerKind string
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := st.AcknowledgeEffect(ctx, eff.ID, eff.Nonce); err != nil {
+	if err := after(st, eff); err != nil {
 		t.Fatal(err)
 	}
 	if stopped {
