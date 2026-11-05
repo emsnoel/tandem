@@ -2,7 +2,7 @@
 # A builder that waits for a subagent or a command must wait once, not poll.
 #
 # Each poll re-sends the builder's whole context to learn nothing. The prompt
-# names no tool or number, because one template drives four CLIs with
+# names no tool or number, because one template drives three CLIs with
 # different wait options. Under Codex there are two yields, so it says "raise
 # every one of them".
 set -uo pipefail
@@ -51,7 +51,7 @@ chkp "says to use the longest timeout available"  \
 chkp "gives the reason: a reissued wait re-sends the context" \
      "re-sends your whole context"
 
-# One template drives four builder kinds, so it names no CLI's tool or value.
+# One template drives three builder kinds, so it names no CLI's tool or value.
 printf '\n== stays builder-neutral ==\n'
 chkno "names no builder-specific wait tool" "wait_agent"
 chkno "names no hardcoded millisecond value" "3600000"
