@@ -83,11 +83,15 @@ _pn_read_pane() {
   _pn_step "$2" "herdr agent read ${1:-NAME} --source recent-unwrapped --lines 120"
 }
 
-# _pn_read_log TEXT [MATCH]: the step that reads the bridge log, where the error
-# of a tick that could not start the task, or apply a handback, is written.
+# _pn_read_log TEXT [MATCH [WIDER]]: the step that reads the bridge log, where
+# the error of a tick that could not start the task, or apply a handback, is
+# written. WIDER is a second, broader search on its own line.
 _pn_read_log() {
+  local log
   if [[ -n "$_pn_mailbox" ]]; then
-    _pn_step "$1" "grep -F '${2:-was not started}' $(printf %q "$_pn_mailbox/bridge.log") | tail -n 5"
+    log=$(printf %q "$_pn_mailbox/bridge.log")
+    _pn_step "$1" "grep -F '${2:-was not started}' $log | tail -n 5"
+    [[ -z "${3:-}" ]] || printf '    %s\n' "grep -F '$3' $log | tail -n 5"
   else
     _pn_step "$1 It is bridge.log in the relay folder."
   fi
@@ -153,10 +157,11 @@ _pn_writer_unknown() {
 
 # A recover clears this pause only once the builder has taken a new turn, and a
 # handback clears it on its own, so both are told apart from the restart. A
-# handback the tree keeps from applying stays queued and logs busy: each pass.
+# handback the tree keeps from applying stays queued, and each pass logs that the
+# tree cannot be captured exactly. Other waits log busy: too.
 _pn_builder_silent() {
   _pn_read_pane "$3" "Look at the builder pane ${3:-NAME}."
-  _pn_read_log "If the builder handed back and the run did not take it, the bridge log says why. A tree tandem cannot capture exactly holds it, such as an untracked nested repository, a file over 64 MB or a changed submodule. Fix that and the handback applies by itself." "busy:"
+  _pn_read_log "If the builder handed back and the run did not take it, the bridge log says why. A tree tandem cannot capture exactly holds it, such as an untracked nested repository, a file over 64 MB or a changed submodule. Fix that and the handback applies by itself. The second search shows any other reason a handback waits." "cannot be captured exactly" "busy:"
   _pn_step "If the builder is doing real work, or asked a question you answered in its pane, the run can go on. A handback continues the run by itself. To have tandem watch the builder again before that, run this once the builder has started a new turn. Until it has, the run stays paused." \
     "tandem build recover --root $(printf %q "$2")"
   restart_steps "$1" "$2" alt
