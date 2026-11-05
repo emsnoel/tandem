@@ -66,10 +66,16 @@ func RecordedReviewerPane(relay string, req StartRequest) (kind, session string,
 	return req.ReviewerKind, req.ReviewerSession, nil
 }
 
+// forPlanner reports whether an effect is delivered to the planner's pane. The
+// stored planner kind is the literal "planner", which is not an adapter's kind.
+func forPlanner(e workflow.Effect) bool {
+	return e.Kind == effectNotify || e.Kind == effectVerifyPrompt || e.Kind == effectRecoveryDecision
+}
+
 // agentFor is the agent kind and session an effect is delivered to.
 func (cfg runConfig) agentFor(e workflow.Effect) (string, string) {
 	switch {
-	case e.Kind == effectNotify || e.Kind == effectVerifyPrompt || e.Kind == effectRecoveryDecision:
+	case forPlanner(e):
 		return cfg.PlannerKind, cfg.PlannerSession
 	case e.Kind == effectReviewPrompt:
 		return cfg.ReviewerKind, cfg.ReviewerSession

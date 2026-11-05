@@ -11,14 +11,15 @@ import (
 // whose kind has no adapter. That pane can never return the nonce that would
 // settle them, and tandem can never type to it again, so nothing else can. It
 // runs only once the writer is seen to be quiet. A delivery addressed to a
-// supported kind's pane, in a mixed run too, keeps the nonce rule.
+// supported kind's pane, in a mixed run too, keeps the nonce rule, and so does
+// every delivery to the planner.
 func (c *Controller) cancelDeliveriesToDiscontinued(ctx context.Context, run state.Run, cfg runConfig) error {
 	effects, err := c.d.State.RunEffects(ctx, run.ID)
 	if err != nil {
 		return err
 	}
 	for _, e := range effects {
-		if e.State != "delivering" && e.State != "delivery_unknown" {
+		if (e.State != "delivering" && e.State != "delivery_unknown") || forPlanner(e) {
 			continue
 		}
 		kind, _ := cfg.agentFor(e)
