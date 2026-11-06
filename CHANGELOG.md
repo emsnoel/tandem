@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.6.0](https://github.com/emsnoel/tandem/compare/v0.5.0...v0.6.0) (2026-11-06)
+
+
+### Features
+
+* end a run whose prompt was never read ([c92edfb](https://github.com/emsnoel/tandem/commit/c92edfbb84f5b4040b81d716863907403fcad93e))
+* pause a run whose builder waits on a dialog ([94f0bf1](https://github.com/emsnoel/tandem/commit/94f0bf11c00e52a8f5245a06495bd5280ad8009e))
+* pause a run whose started builder goes silent ([8c17ce3](https://github.com/emsnoel/tandem/commit/8c17ce3c9f867154667d65adb2b44cf76f90fa57))
+* tell the planner what stopped a run and what to do ([f30a0c0](https://github.com/emsnoel/tandem/commit/f30a0c0d42e6eb5755f823591f30826deceed776))
+
+
+### Bug Fixes
+
+* abandon a prompt as an event and close every printed route ([cab538e](https://github.com/emsnoel/tandem/commit/cab538eb4e1d8df3272dea18230837b7bc5322b7))
+* keep pause notes true when a fact cannot be read ([1ee19cc](https://github.com/emsnoel/tandem/commit/1ee19cc21080fdf2aab0d661285fc9fa7869f3bc))
+* let a stopping bridge pass a removed mailbox quietly ([804fb76](https://github.com/emsnoel/tandem/commit/804fb764121ac0efda45f1a49787f693086cf39d))
+* let a stuck handback still pause a silent builder ([5c634ca](https://github.com/emsnoel/tandem/commit/5c634cafeffd3f3ba1063e20ee21f56ae976df73))
+* let the bridge note a prompt nobody acknowledged ([30cdfcb](https://github.com/emsnoel/tandem/commit/30cdfcbe093d74fc979d8c847f28bcf3cea26243))
+* make pause notes accurate and fillable ([2f8da82](https://github.com/emsnoel/tandem/commit/2f8da82ae502bfb3812c340255cb43b5464b44fc))
+* point the silent note at the log line for a tree tandem cannot capture ([01ac093](https://github.com/emsnoel/tandem/commit/01ac0937a6e147379acd360d17d1460e4f68a0bb))
+* report a pause made by a tick that also failed ([5857158](https://github.com/emsnoel/tandem/commit/585715896cf13a793def79d83003a736e4653ed2))
+* retry a pause note the planner did not receive ([4ae3d3c](https://github.com/emsnoel/tandem/commit/4ae3d3cb75daa779b7b705af02299986db55dce2))
+* run one bridge per mailbox ([afe604a](https://github.com/emsnoel/tandem/commit/afe604ad49bd01178bdcbabbd1b162fe2ae1df87))
+* say a failed check printed nothing instead of calling its log unreadable ([afd8e5f](https://github.com/emsnoel/tandem/commit/afd8e5fe3789b36532fa8294b972123e97d4d677))
+* start the stopped note at the recover step ([8c3c2bd](https://github.com/emsnoel/tandem/commit/8c3c2bdba0c0f9f2774c3e17987ddf32d4d72179))
+* state the silence window the run used in the silent note ([e28731d](https://github.com/emsnoel/tandem/commit/e28731de4ec10c1817970d3b2c6849543edc8f3e))
+
 ## [0.5.0](https://github.com/emsnoel/tandem/compare/v0.4.0...v0.5.0) (2026-11-05)
 
 
