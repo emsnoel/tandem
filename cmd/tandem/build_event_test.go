@@ -30,7 +30,7 @@ type durable struct {
 // state rows an attempt waiting on its builder dispatch needs.
 func durableRepo(t *testing.T) *durable {
 	t.Helper()
-	root, _ := buildRepo(t, "", 0)
+	root := pairedRepo(t)
 	os.RemoveAll(filepath.Join(root, ".tandem-relay", "build")) // a durable run has no legacy build
 	d := &durable{root: root, home: filepath.Join(t.TempDir(), "state-home"), relay: paths.Relay(root),
 		run: strings.Repeat("a", 32), project: strings.Repeat("b", 32), attempt: strings.Repeat("c", 32),
@@ -168,7 +168,7 @@ func TestBuildEventNewRefusesWhatABuilderMustNotSend(t *testing.T) {
 		t.Errorf("a refused call queued %v", left)
 	}
 	// Without a durable run there is nothing to write to.
-	plain, _ := buildRepo(t, "", 0)
+	plain := pairedRepo(t)
 	rc, _, _ := runCapture(t, "build", "event", "new", "--root", plain, "--kind", "builder_started", "--task", "1", "--attempt", d.attempt, "--job", d.job, "--effect", d.effect, "--nonce", d.nonce)
 	if rc == exitcode.OK {
 		t.Error("an event for a relay with no durable run")

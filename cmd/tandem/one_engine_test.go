@@ -86,3 +86,16 @@ func TestCommandsWithNoRunSayNoRun(t *testing.T) {
 		}
 	}
 }
+
+func TestRemovedCommandsAreUnknown(t *testing.T) {
+	rc, _, errOut := runCapture(t, "check")
+	if rc != exitcode.Usage {
+		t.Errorf("tandem check: rc %d %q", rc, errOut)
+	}
+	_, _, usage := runCapture(t, "build", "--help")
+	for _, verb := range []string{"sent", "advance", "roles", "archive"} {
+		if strings.Contains(usage, verb) {
+			t.Errorf("build --help still names %s: %q", verb, usage)
+		}
+	}
+}

@@ -111,20 +111,3 @@ func TestRelayReadNeedsFile(t *testing.T) {
 		t.Errorf("rc %d", rc)
 	}
 }
-
-// What the relay writers write, relay read reads back with its types.
-func TestRelayReadWhatRelayWriteWrote(t *testing.T) {
-	mb := t.TempDir()
-	captureStdout(t, func() int {
-		return cmdRelay([]string{"write", "task", "--mailbox", mb, "--id", "t9", "--from", "reviewer",
-			"--task", "2", "--report", "r & <s>.md", "--plan", "p.md", "--review", "--verdict", "objections"})
-	})
-	got, rc := relayReadPath(t, filepath.Join(mb, "q", "t9.json"))
-	if rc != exitcode.OK || len(got) != 11 {
-		t.Fatalf("rc %d, got %q", rc, got)
-	}
-	want := []string{"t9", "task", "reviewer", "task", "", got[5], "2", "r & <s>.md", "false", "true", "objections"}
-	if !reflect.DeepEqual(got, want) || got[5] == "" {
-		t.Errorf("got %q, want %q", got, want)
-	}
-}

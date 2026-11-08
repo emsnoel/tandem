@@ -13,7 +13,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/emsnoel/tandem/internal/build"
 	"github.com/emsnoel/tandem/internal/exitcode"
 	"github.com/emsnoel/tandem/internal/state"
 )
@@ -143,7 +142,7 @@ func seedPausedRun(t *testing.T, root, home string) state.Identity {
 
 func TestStateStatusJSONIsReadOnly(t *testing.T) {
 	t.Run("fresh: nothing exists yet", func(t *testing.T) {
-		root, _ := buildRepo(t, "", 0)
+		root := pairedRepo(t)
 		home := filepath.Join(t.TempDir(), "never-created")
 		rc, out, errOut := runCapture(t, "state", "status", "--json", "--root", root, "--state-home", home)
 		if rc != exitcode.OK {
@@ -162,7 +161,7 @@ func TestStateStatusJSONIsReadOnly(t *testing.T) {
 	})
 
 	t.Run("paused run", func(t *testing.T) {
-		root, _ := buildRepo(t, "", 0)
+		root := pairedRepo(t)
 		home := filepath.Join(t.TempDir(), "state-home")
 		seedPausedRun(t, root, home)
 		before := snapshot(t, home)
@@ -188,7 +187,7 @@ func TestStateStatusJSONIsReadOnly(t *testing.T) {
 	})
 
 	t.Run("a newer schema is reported, not read", func(t *testing.T) {
-		root, _ := buildRepo(t, "", 0)
+		root := pairedRepo(t)
 		home := filepath.Join(t.TempDir(), "state-home")
 		id := seedPausedRun(t, root, home)
 		db, _ := sql.Open("sqlite", filepath.Join(id.StateRoot, "state.sqlite"))
@@ -213,7 +212,7 @@ func TestStateStatusJSONIsReadOnly(t *testing.T) {
 }
 
 func TestStateDispatchUsage(t *testing.T) {
-	root, _ := buildRepo(t, "", 0)
+	root := pairedRepo(t)
 	for name, args := range map[string][]string{
 		"no subcommand":      {"state"},
 		"unknown subcommand": {"state", "bogus"},
@@ -241,77 +240,5 @@ func TestStateDispatchUsage(t *testing.T) {
 	}
 	if !found {
 		t.Error("coreSubcommands does not list state")
-	}
-}
-
-// archiveOf archives the fixture build, which has a report and check log.
-func archiveOf(t *testing.T, root, dir string, finish bool) string {
-	t.Helper()
-	b := load(t, dir)
-	for i := range b.Tasks {
-		b.Tasks[i].Status = build.StatusDone
-	}
-	b.Tasks[0].Report = filepath.Join(dir, "r.md")
-	if err := os.WriteFile(b.Tasks[0].Report, []byte("the report"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if finish {
-		b.State = build.StateFinished
-	}
-	if err := b.Save(dir); err != nil {
-		t.Fatal(err)
-	}
-	res, err := build.Archive(root, dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return res.Dir
-}
-
-func TestStateImportLegacyCLI(t *testing.T) {
-	root, dir := buildRepo(t, "", 0)
-	archive := archiveOf(t, root, dir, true)
-	home := filepath.Join(t.TempDir(), "state-home")
-
-	rc, out, errOut := runCapture(t, "state", "import-legacy", "--archive", archive, "--root", root, "--state-home", home)
-	if rc != exitcode.OK {
-		t.Fatalf("exit %d: %s", rc, errOut)
-	}
-	first := oneJSON(t, out)
-	if first["imported"] != true || len(first["run_id"].(string)) != 32 || first["tasks"] != float64(3) {
-		t.Fatalf("first import %v", first)
-	}
-	rc, out, errOut = runCapture(t, "state", "import-legacy", "--archive", archive, "--root", root, "--state-home", home)
-	if rc != exitcode.OK {
-		t.Fatalf("second exit %d: %s", rc, errOut)
-	}
-	second := oneJSON(t, out)
-	if second["imported"] != false || second["run_id"] != first["run_id"] {
-		t.Fatalf("second import %v, first %v", second, first)
-	}
-	// status now sees the checkout, and still reports the legacy engine: no
-	// import switches the active build engine.
-	rc, out, _ = runCapture(t, "state", "status", "--json", "--root", root, "--state-home", home)
-	got := oneJSON(t, out)
-	if rc != exitcode.OK || got["initialized"] != true || got["engine"] != "legacy" || got["current_run"] != nil {
-		t.Fatalf("status after import: rc %d %v", rc, got)
-	}
-}
-
-func TestStateImportLegacyRefusals(t *testing.T) {
-	root, dir := buildRepo(t, "", 0)
-	home := filepath.Join(t.TempDir(), "state-home")
-	running := archiveOf(t, root, dir, false) // the fixture build is still running
-	rc, out, errOut := runCapture(t, "state", "import-legacy", "--archive", running, "--root", root, "--state-home", home)
-	if rc != exitcode.ManualGate || out != "" || !strings.Contains(errOut, "running") {
-		t.Fatalf("an active build: exit %d stdout %q stderr %q", rc, out, errOut)
-	}
-	rc, out, _ = runCapture(t, "state", "import-legacy", "--archive", filepath.Join(t.TempDir(), "missing"), "--root", root, "--state-home", home)
-	if rc == exitcode.OK || out != "" {
-		t.Fatalf("a missing archive: exit %d stdout %q", rc, out)
-	}
-	rc, _, _ = runCapture(t, "state", "import-legacy", "--archive", archiveOf(t, root, dir, true), "--root", t.TempDir(), "--state-home", home)
-	if rc == exitcode.OK {
-		t.Fatal("imported into a directory that is not a git checkout")
 	}
 }
