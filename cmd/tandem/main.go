@@ -56,8 +56,6 @@ func run(args []string) int {
 		return cmdBuild(args[1:])
 	case "collaboration":
 		return cmdCollaboration(args[1:])
-	case "check":
-		return cmdCheck(args[1:])
 	case "artifact":
 		return cmdArtifact(args[1:])
 	case "task":

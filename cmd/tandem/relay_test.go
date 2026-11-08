@@ -8,8 +8,6 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-
-	"github.com/emsnoel/tandem/internal/exitcode"
 )
 
 // relayFile runs a relay verb that must succeed and returns the file it wrote,
@@ -34,22 +32,6 @@ func keysInOrder(raw string) []string {
 		keys = append(keys, m[1])
 	}
 	return keys
-}
-
-// Review focus 2: the bridge tests task with ^[0-9]+$ and stuck/review with
-// == true, so their JSON types must not change.
-func TestRelayWriteTaskShape(t *testing.T) {
-	mb := t.TempDir()
-	raw, m := relayFile(t, filepath.Join(mb, "q", "id1.json"), "write", "task", "--mailbox", mb, "--id", "id1",
-		"--from", "builder", "--task", "3", "--report", "/r.md", "--plan", "/p.md", "--review", "--verdict", "clean")
-	want := []string{"id", "kind", "from", "question", "task", "stuck", "review", "verdict", "report_path", "plan", "created"}
-	if got := keysInOrder(raw); !reflect.DeepEqual(got, want) {
-		t.Errorf("keys %q, want %q", got, want)
-	}
-	if m["kind"] != "task" || m["question"] != "task" || m["task"] != 3.0 || m["stuck"] != false ||
-		m["review"] != true || m["verdict"] != "clean" || m["report_path"] != "/r.md" || m["plan"] != "/p.md" {
-		t.Errorf("got %v", m)
-	}
 }
 
 func TestRelayWriteHandbackShape(t *testing.T) {
@@ -101,16 +83,6 @@ func TestRelayWriteLeavesNoTmp(t *testing.T) {
 		"--from", "b", "--to", "p", "--question", "q")
 	if _, err := os.Stat(filepath.Join(mb, "q", "id6.json.tmp")); !os.IsNotExist(err) {
 		t.Error("the temporary file was left behind")
-	}
-}
-
-func TestRelayWriteBadTask(t *testing.T) {
-	_, rc := captureStdoutRC(t, func() int {
-		return cmdRelay([]string{"write", "task", "--mailbox", t.TempDir(), "--id", "x", "--from", "b",
-			"--task", "two", "--report", "/r", "--plan", "/p"})
-	})
-	if rc != exitcode.Usage {
-		t.Errorf("rc %d, want usage", rc)
 	}
 }
 

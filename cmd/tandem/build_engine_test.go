@@ -60,8 +60,7 @@ type cliEnv struct {
 // for the durable commands for the length of the test.
 func newCLI(t *testing.T) *cliEnv {
 	t.Helper()
-	root, dir := buildRepo(t, "", 0)
-	os.RemoveAll(dir) // no legacy build: this checkout starts fresh
+	root := pairedRepo(t)
 	plan := filepath.Join(root, "plan.md")
 	os.WriteFile(plan, []byte(cliPlan), 0o644)
 	for _, args := range [][]string{{"add", "."}, {"commit", "-qm", "plan"}} {

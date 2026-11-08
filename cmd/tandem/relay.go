@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"github.com/emsnoel/tandem/internal/exitcode"
@@ -15,20 +14,6 @@ import (
 // The relay's message shapes, keys in the order the scripts always wrote them.
 // tandem-bridge reads them, so a key, a value's type or created's format
 // changes only with the bridge.
-type relayTask struct {
-	ID         string `json:"id"`
-	Kind       string `json:"kind"`
-	From       string `json:"from"`
-	Question   string `json:"question"`
-	Task       int    `json:"task"`
-	Stuck      bool   `json:"stuck"`
-	Review     bool   `json:"review"`
-	Verdict    string `json:"verdict"`
-	ReportPath string `json:"report_path"`
-	Plan       string `json:"plan"`
-	Created    string `json:"created"`
-}
-
 type relayHandback struct {
 	ID         string `json:"id"`
 	Kind       string `json:"kind"`
@@ -74,8 +59,7 @@ type relayLog struct {
 	Answer   string `json:"answer"`
 }
 
-const relayUse = "usage: tandem relay write task --mailbox DIR --id ID --from NAME --task N --report PATH --plan PATH [--stuck] [--review --verdict V]\n" +
-	"       tandem relay write handback --mailbox DIR --id ID --from NAME --to NAME --message TEXT --report PATH --plan PATH\n" +
+const relayUse = "usage: tandem relay write handback --mailbox DIR --id ID --from NAME --to NAME --message TEXT --report PATH --plan PATH\n" +
 	"       tandem relay write verdict --mailbox DIR --id ID --from NAME --to NAME --message TEXT --plan PATH --review-path PATH\n" +
 	"       tandem relay write question --mailbox DIR --id ID --from NAME --to NAME --question TEXT\n" +
 	"       tandem relay log --dir DIR --id ID --from NAME --to NAME --question TEXT --answer TEXT\n" +
@@ -105,9 +89,8 @@ func cmdRelay(args []string) int {
 	fs.SetOutput(os.Stderr)
 	str := func(n string) *string { return fs.String(n, "", n) }
 	mailbox, dir, id, from, to := str("mailbox"), str("dir"), str("id"), str("from"), str("to")
-	task, report, plan, verdict := str("task"), str("report"), str("plan"), str("verdict")
+	report, plan := str("report"), str("plan")
 	message, question, answer, reviewPath := str("message"), str("question"), str("answer"), str("review-path")
-	stuck, review := fs.Bool("stuck", false, "stuck"), fs.Bool("review", false, "review")
 	if err := fs.Parse(args); err != nil || fs.NArg() != 0 || *id == "" {
 		fmt.Fprintln(os.Stderr, relayUse)
 		return exitcode.Usage
@@ -116,13 +99,6 @@ func cmdRelay(args []string) int {
 	var v any
 	path := filepath.Join(*mailbox, "q", *id+".json")
 	switch name {
-	case "write task":
-		n, err := strconv.Atoi(*task)
-		if err != nil || n < 0 || *mailbox == "" {
-			fmt.Fprintln(os.Stderr, relayUse)
-			return exitcode.Usage
-		}
-		v = relayTask{*id, "task", *from, "task", n, *stuck, *review, *verdict, *report, *plan, now}
 	case "write handback":
 		v = relayHandback{*id, "handback", *from, *to, "handback", *message, *report, *plan, now}
 	case "write verdict":
