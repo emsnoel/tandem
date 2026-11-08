@@ -53,9 +53,6 @@ args_have --acceptance-policy "$TMP/absolute policy.json" && ok 'absolute policy
 manifest '{"build_engine":"durable"}'
 run
 no_review_args && ok 'unset configuration adds no defaults or invented identifiers' || nope 'unset configuration invented review arguments'
-manifest '{"build_engine":"legacy","review_delivery":"mailbox","acceptance_policy":"missing.json","collaboration":"c"}'
-run
-no_review_args && ok 'legacy handoff receives none of the durable review flags' || nope 'legacy received durable review flags'
 manifest '{"build_engine":"durable","review_delivery":"mailbox"}'
 REAL_START=1 run
 [[ "$RC" != 0 && "$OUT" == *'--collaboration'* && ! -f "$RELAY/active-run.json" ]] \

@@ -3,7 +3,7 @@
 #
 # The run delivers its own prompts, so handoff only starts or continues it and
 # ticks once. It must not send a prompt, reset the builder or write a legacy
-# build record, and a legacy start must not get flags it does not know.
+# build record.
 #
 # Herdr and `tandem build` are stubbed and the start answer is scripted.
 set -uo pipefail
@@ -38,11 +38,11 @@ printf '%s\n' "$*" >> "$CALLS"
 case "$1" in
   paths) printf '%s\n' "$RELAY"; exit 0 ;;
     # root plans_dir check_command conventions_file builder_kind prompt_extra
-  # task_input_budget context_limit build_engine review_delivery
+  # task_input_budget context_limit review_delivery
   # acceptance_policy collaboration source invalid_manifest
   config)
     case "$2" in
-      project) printf '%s\0' "$REPO" docs/plans ./check.sh AGENTS.md codex "" 3000000 "${PROJ_CTX:-0}" "${PROJ_ENGINE:-}" "" "" "" stub "" ;;
+      project) printf '%s\0' "$REPO" docs/plans ./check.sh AGENTS.md codex "" 3000000 "${PROJ_CTX:-0}" "" "" "" stub "" ;;
       builder) printf '%s\0' "$(sed -n 's/.*"kind":"\([^"]*\)".*/\1/p' "$RELAY/builder.json")" auto ;;
     esac
     exit 0 ;;
@@ -90,7 +90,6 @@ start_out() {
   printf '%s' "$out"
 }
 RUN=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-LEGACY=$(start_out "" "" "" 1 1 One /b/1.md)
 DURABLE=$(start_out durable "$RUN")
 run() { # run <env assignments...> -- <handoff args...>
   local envs=()
@@ -150,17 +149,14 @@ run TANDEM_BUILD_ENGINE=durable START_OUT="$DURABLE" TICK_RC=3 --
 [ "$RC" -eq 7 ] && ok "a first tick that fails exits 7: the run exists but nothing was delivered" || nope "tick failure rc $RC: $OUT"
 has "and says the bridge or recover continues it" "$OUT" "tandem build recover"
 
-run TANDEM_BUILD_ENGINE=durable START_OUT="" START_RC=1 START_ERR="tandem build: an unfinished legacy build (stopped) in $RELAY/build owns this relay" --
-has "a refused start shows tandem build's own reason" "$OUT" "an unfinished legacy build (stopped)"
+run TANDEM_BUILD_ENGINE=durable START_OUT="" START_RC=1 START_ERR="tandem build: this relay cannot start a run" --
+has "a refused start shows tandem build's own reason" "$OUT" "this relay cannot start a run"
 has "and points at it, not at the install first" "$OUT" "the reason is above"
 
-printf '\n== build_engine in .tandem.json ==\n'
-run PROJ_ENGINE=durable START_OUT="$DURABLE" --
-grep -q '^build start .*--builder-kind codex' "$CALLS" && ok "a repo that says durable starts durable with no variable set" || nope "build_engine ignored ($(cat "$CALLS"))"
-run PROJ_ENGINE=durable TANDEM_BUILD_ENGINE=legacy START_OUT="$LEGACY" -- --dry-run
-grep '^build start' "$CALLS" | grep -q -- '--builder-kind' && nope "the variable did not override the file ($(cat "$CALLS"))" || ok "TANDEM_BUILD_ENGINE=legacy overrides the file"
-run START_OUT="$LEGACY" -- --dry-run
-grep '^build start' "$CALLS" | grep -q -- '--builder-kind' && nope "no setting still started durable" || ok "with neither, the default stays legacy"
+printf '\n== no engine setting ==\n'
+run START_OUT="$DURABLE" --
+grep -q '^build start .*--builder-kind codex' "$CALLS" && ok "with no setting a handoff starts a durable run and names the builder kind" || nope "no --builder-kind with no setting ($(cat "$CALLS"))"
+grep -q "^build tick --root $REPO" "$CALLS" && ok "and gives it its first tick" || nope "no tick with no setting ($(cat "$CALLS"))"
 
 printf '\n== a durable dry run ==\n'
 run TANDEM_BUILD_ENGINE=durable START_OUT="$(start_out durable "" true)" -- --dry-run
@@ -181,8 +177,6 @@ run TANDEM_BUILD_ENGINE=durable START_OUT="$DURABLE" PROJ_CTX=15000 -- --context
 grep -q '^build start .*--context-limit 30000' "$CALLS" && ! grep -q -- '--context-limit 15000' "$CALLS" && ok "the flag wins over the project setting" || nope "precedence ($(cat "$CALLS"))"
 run TANDEM_BUILD_ENGINE=durable START_OUT="$DURABLE" --
 grep '^build start' "$CALLS" | grep -q -- '--context-limit' && nope "an unset limit was passed ($(cat "$CALLS"))" || ok "with neither, start keeps its own default"
-run START_OUT="$LEGACY" PROJ_CTX=15000 -- --context-limit 20000 --dry-run
-grep '^build start' "$CALLS" | grep -q -- '--context-limit' && nope "a legacy start was handed --context-limit" || ok "a legacy start is not handed --context-limit"
 run TANDEM_BUILD_ENGINE=durable START_OUT="$DURABLE" -- --context-limit lots
 [ "$RC" -ne 0 ] && has "a limit that is not a number is refused" "$OUT" "--context-limit" || nope "bad limit rc $RC"
 grep -q '^build start' "$CALLS" && nope "and start was still called" || ok "before anything starts"
@@ -226,14 +220,7 @@ write_reviewer "$RELAY"
 run TANDEM_BUILD_ENGINE=durable START_OUT="$DURABLE" --
 grep '^build start' "$CALLS" | grep -q -- '--reviewer' && nope "handoff read reviewer.json itself and passed --reviewer ($(cat "$CALLS"))" \
   || ok "a durable start reads the recorded reviewer pane itself"
-run START_OUT="$LEGACY" -- --dry-run
-grep '^build start' "$CALLS" | grep -q -- '--reviewer' && nope "a legacy start was handed --reviewer" || ok "a legacy start is not handed --reviewer"
 
-printf '\n== a legacy start ==\n'
-run START_OUT="$LEGACY" -- --dry-run
-grep -q '^build start' "$CALLS" && ! grep '^build start' "$CALLS" | grep -q -- '--builder-kind' \
-  && ok "a legacy start is not handed --builder-kind" || nope "legacy start args ($(cat "$CALLS"))"
-grep -q '^build tick' "$CALLS" && nope "a legacy run was ticked" || ok "a legacy run is never ticked"
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

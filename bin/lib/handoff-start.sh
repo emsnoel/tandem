@@ -56,24 +56,19 @@ start_build() {
   [[ "${HERDR_JUDGE:-0}" == 1 && -n "${TYPESAFE_API_KEY:-}" ]] && BARGS+=( --judge )
   (( CONTINUE )) && BARGS+=( --resume-only )
   (( DRY_RUN )) && BARGS+=( --dry-run )
-  # A durable run needs the builder's kind to choose its transport. The legacy
-  # engine does not accept the flag. The variable overrides build_engine.
-  DURABLE_START=0
-  if [[ "${TANDEM_BUILD_ENGINE:-$PROJ_BUILD_ENGINE}" == durable || -f "$MAILBOX/active-run.json" ]]; then
-    DURABLE_START=1
-    BARGS+=( --builder-kind "$BUILDER_KIND" )
-    [[ -n "$CONTEXT_LIMIT" ]] && BARGS+=( --context-limit "$CONTEXT_LIMIT" )
-    # Only new runs read these settings. A persisted run keeps its own.
-    if [[ ! -f "$MAILBOX/active-run.json" ]]; then
-      [[ -n "$REVIEW_DELIVERY" ]] && BARGS+=( --review-delivery "$REVIEW_DELIVERY" )
-      if [[ -n "$ACCEPTANCE_POLICY" ]]; then
-        [[ "$ACCEPTANCE_POLICY" == /* ]] || ACCEPTANCE_POLICY="$ROOT/$ACCEPTANCE_POLICY"
-        BARGS+=( --acceptance-policy "$ACCEPTANCE_POLICY" )
-      fi
-      [[ -n "$COLLABORATION" ]] && BARGS+=( --collaboration "$COLLABORATION" )
+  # The run chooses its transport from the builder's kind.
+  BARGS+=( --builder-kind "$BUILDER_KIND" )
+  [[ -n "$CONTEXT_LIMIT" ]] && BARGS+=( --context-limit "$CONTEXT_LIMIT" )
+  # Only new runs read these settings. A persisted run keeps its own.
+  if [[ ! -f "$MAILBOX/active-run.json" ]]; then
+    [[ -n "$REVIEW_DELIVERY" ]] && BARGS+=( --review-delivery "$REVIEW_DELIVERY" )
+    if [[ -n "$ACCEPTANCE_POLICY" ]]; then
+      [[ "$ACCEPTANCE_POLICY" == /* ]] || ACCEPTANCE_POLICY="$ROOT/$ACCEPTANCE_POLICY"
+      BARGS+=( --acceptance-policy "$ACCEPTANCE_POLICY" )
     fi
+    [[ -n "$COLLABORATION" ]] && BARGS+=( --collaboration "$COLLABORATION" )
   fi
-  # Both engines refuse with 23 when no reviewer pane is recorded.
+  # A start refuses with 23 when no reviewer pane is recorded.
   rc=0
   tandem build start "${BARGS[@]}" --fields >"$FIELDS" || rc=$?
   # The fields are printed on a refusal too, so read them whatever the exit code.
@@ -87,11 +82,7 @@ start_build() {
     fi
     if (( rc == 23 )) && [[ -z "$RUN_ID" ]]; then
       # Refused before anything was created. The start printed why.
-      if (( DURABLE_START )); then
-        printf 'tandem-handoff: no durable run was started; the reason is above. Nothing was sent. A task too large for the context limit is raised with --context-limit N, or context_limit in .tandem.json.\n' >&2
-      else
-        printf 'tandem-handoff: the build was not started; the reason is above. Nothing was sent.\n' >&2
-      fi
+      printf 'tandem-handoff: no durable run was started; the reason is above. Nothing was sent. A task too large for the context limit is raised with --context-limit N, or context_limit in .tandem.json.\n' >&2
       exit "$rc"
     fi
     if (( rc == 23 )); then

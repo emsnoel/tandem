@@ -25,7 +25,7 @@ import (
 	"github.com/emsnoel/tandem/internal/vcs"
 )
 
-const buildUse = "usage: tandem build <start|roles|sent|review-sent|advance|accept|stop|status|archive|event|tick|recover|review-record|usage|budget> --root DIR ...\n       tandem build pause-codes"
+const buildUse = "usage: tandem build <start|roles|accept|stop|status|event|tick|wait|recover|review-record|reconcile|usage|budget> --root DIR ...\n       tandem build pause-codes"
 
 func cmdBuild(args []string) int {
 	if len(args) == 0 {
@@ -37,28 +37,14 @@ func cmdBuild(args []string) int {
 			return cmdBuildStartFields(rest)
 		}
 	}
-	if rc, handled := routeBuild(args[0], args[1:]); handled {
+	if rc, handled := runCommand(args[0], args[1:]); handled {
 		return rc
 	}
 	switch args[0] {
 	case "roles":
 		return cmdBuildRoles(args[1:])
 	case "start":
-		return cmdBuildStart(args[1:])
-	case "sent":
-		return cmdBuildSent(args[1:])
-	case "review-sent":
-		return cmdBuildReviewSent(args[1:])
-	case "advance":
-		return cmdBuildAdvance(liveAdvanceDeps, args[1:])
-	case "accept":
-		return cmdBuildAccept(args[1:])
-	case "stop":
-		return cmdBuildStop(args[1:])
-	case "status":
-		return cmdBuildStatus(args[1:])
-	case "archive":
-		return cmdBuildArchive(args[1:])
+		return cmdBuildStartDurable(args[1:])
 	case "event":
 		return cmdBuildEvent(args[1:])
 	case "pause-codes":

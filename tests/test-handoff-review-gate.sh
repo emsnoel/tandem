@@ -49,10 +49,10 @@ case "$1 $2" in
   # reviewer review_pending review_prompt
   "build start") nul "" "" "" 1 1 "the plan" /relay/build/task-1.md "" "" "" "" "" "" ""; exit 0 ;;
   # root plans_dir check_command conventions_file builder_kind prompt_extra
-  # task_input_budget context_limit build_engine review_delivery
+  # task_input_budget context_limit review_delivery
   # acceptance_policy collaboration source invalid_manifest
   "config project")
-    nul "$REPO" docs/plans "$(cat "$_here/check-command")" "" "" "$(cat "$_here/prompt-extra")" "" "" "" "" "" "" stub ""
+    nul "$REPO" docs/plans "$(cat "$_here/check-command")" "" "" "$(cat "$_here/prompt-extra")" "" "" "" "" "" stub ""
     exit 0 ;;
   "config builder") nul codex auto; exit 0 ;;
   "gate ruling"|"gate rule") exec "$REAL_TANDEM" "$@" ;;

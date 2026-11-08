@@ -721,58 +721,6 @@ func TestUnknownWriterBlocksNewTask(t *testing.T) {
 	}
 }
 
-func TestEngineSelectionPersistsAcrossEnvChange(t *testing.T) {
-	relay := filepath.Join(t.TempDir(), ".tandem-relay")
-	os.MkdirAll(relay, 0o755)
-	choose := func(env string) (Engine, error) { return SelectEngine(relay, env) }
-
-	if got, err := choose(""); err != nil || got != EngineLegacy {
-		t.Fatalf("a fresh relay with the variable unset: %v %v", got, err)
-	}
-	if got, err := choose("durable"); err != nil || got != EngineDurable {
-		t.Fatalf("a fresh relay opting in: %v %v", got, err)
-	}
-	if got, err := choose("legacy"); err != nil || got != EngineLegacy {
-		t.Fatalf("explicitly legacy: %v %v", got, err)
-	}
-	if _, err := choose("sometimes"); err == nil {
-		t.Fatal("an unknown engine name was accepted")
-	}
-
-	// A durable run is marked; from then on the variable is irrelevant.
-	if _, err := InitRunDir(relay, ActiveRun{RunID: strings.Repeat("a", 32), ProjectID: strings.Repeat("b", 32)},
-		RunManifest{RunID: strings.Repeat("a", 32), Tasks: []ManifestTask{{Ordinal: 1, ID: "task-1"}}}); err != nil {
-		t.Fatal(err)
-	}
-	for _, env := range []string{"", "legacy", "durable", "garbage"} {
-		if got, err := choose(env); err != nil || got != EngineDurable {
-			t.Errorf("a durable run with TANDEM_BUILD_ENGINE=%q: %v %v", env, got, err)
-		}
-	}
-
-	// A legacy build keeps its engine even if the variable is later turned on.
-	legacy := filepath.Join(t.TempDir(), ".tandem-relay")
-	os.MkdirAll(filepath.Join(legacy, "build"), 0o755)
-	os.WriteFile(filepath.Join(legacy, "build", "build.json"), []byte("{}"), 0o644)
-	for _, env := range []string{"", "durable"} {
-		if got, err := SelectEngine(legacy, env); err != nil || got != EngineLegacy {
-			t.Errorf("a legacy build with TANDEM_BUILD_ENGINE=%q: %v %v", env, got, err)
-		}
-	}
-	// Both at once is a mixed run: refused, never guessed.
-	os.WriteFile(filepath.Join(relay, "x"), nil, 0o644)
-	os.MkdirAll(filepath.Join(relay, "build"), 0o755)
-	os.WriteFile(filepath.Join(relay, "build", "build.json"), []byte("{}"), 0o644)
-	if _, err := choose("durable"); err == nil || !strings.Contains(err.Error(), "both") {
-		t.Fatalf("a relay with both engines: %v", err)
-	}
-	// A marker that cannot be read stops the choice.
-	os.WriteFile(filepath.Join(relay, ActiveRunFile), []byte("{broken"), 0o644)
-	if _, err := choose("legacy"); err == nil {
-		t.Fatal("a corrupt marker fell back to another engine")
-	}
-}
-
 func TestTickRequiresTheWriterLease(t *testing.T) {
 	e := newCEnv(t)
 	e.start()
@@ -1098,28 +1046,6 @@ func TestASubmissionSentMidTurnWaitsForTheTurnToEnd(t *testing.T) {
 	e.tick()
 	if cur := e.current(task.ID); cur.Implementation != workflow.ImplementationSubmitted || cur.PatchHash == "" {
 		t.Fatalf("once the turn ended the submission was not applied: %+v", cur)
-	}
-}
-
-func TestSelectEngineWhySaysWhatDecided(t *testing.T) {
-	relay := t.TempDir()
-	for _, tc := range []struct {
-		env, repo string
-		want      Engine
-		why       string
-	}{
-		{"", "", EngineLegacy, "the default"},
-		{"", "durable", EngineDurable, ".tandem.json"},
-		{"legacy", "durable", EngineLegacy, "TANDEM_BUILD_ENGINE"},
-		{"durable", "legacy", EngineDurable, "TANDEM_BUILD_ENGINE"},
-	} {
-		got, why, err := SelectEngineWhy(relay, tc.env, tc.repo)
-		if err != nil || got != tc.want || why != tc.why {
-			t.Errorf("env %q repo %q: got %s %q %v, want %s %q", tc.env, tc.repo, got, why, err, tc.want, tc.why)
-		}
-	}
-	if _, _, err := SelectEngineWhy(relay, "", "newest"); err == nil {
-		t.Error("an unknown repo engine was accepted")
 	}
 }
 

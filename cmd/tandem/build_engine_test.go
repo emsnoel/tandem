@@ -109,59 +109,6 @@ func (e *cliEnv) sub(verb string, extra ...string) (int, string, string) {
 	return e.run(append([]string{"build", verb, "--root", e.root, "--state-home", e.home}, extra...)...)
 }
 
-func TestDurableStartIsOptInAndCreatesNoLegacyRecord(t *testing.T) {
-	e := newCLI(t)
-	t.Setenv("TANDEM_BUILD_ENGINE", "")
-	// Without the opt-in a start is the legacy start and writes a legacy build.
-	rc, out, _ := e.run("build", "start", "--plan", e.plan, "--root", e.root)
-	if rc != exitcode.OK || !strings.Contains(out, `"task"`) {
-		t.Fatalf("legacy start: rc %d %q", rc, out)
-	}
-	if _, err := os.Stat(filepath.Join(paths.Relay(e.root), "build", "build.json")); err != nil {
-		t.Fatal("the default start is no longer legacy")
-	}
-	if ar, _ := controller.ReadActiveRun(paths.Relay(e.root)); ar != nil {
-		t.Fatal("a legacy start wrote a durable marker")
-	}
-}
-
-func TestEngineSelectionPersistsAcrossEnvChangeThroughTheCLI(t *testing.T) {
-	e := newCLI(t)
-	t.Setenv("TANDEM_BUILD_ENGINE", "durable")
-	rc, got, errOut := e.start()
-	if rc != exitcode.OK || got["engine"] != "durable" || len(got["run_id"].(string)) != 32 {
-		t.Fatalf("durable start: rc %d %v %s", rc, got, errOut)
-	}
-	relay := paths.Relay(e.root)
-	if _, err := os.Stat(filepath.Join(relay, "build", "build.json")); !os.IsNotExist(err) {
-		t.Fatal("a durable start wrote a legacy build.json")
-	}
-	if ar, _ := controller.ReadActiveRun(relay); ar == nil || ar.RunID != got["run_id"] {
-		t.Fatalf("marker %+v", ar)
-	}
-
-	// The variable now says legacy, or nothing. The run is durable regardless.
-	for _, env := range []string{"legacy", "", "garbage"} {
-		t.Setenv("TANDEM_BUILD_ENGINE", env)
-		rc, out, errOut := e.sub("status")
-		if rc != exitcode.OK || !strings.Contains(out, got["run_id"].(string)) || !strings.Contains(out, "running") {
-			t.Fatalf("TANDEM_BUILD_ENGINE=%q: status rc %d %q %q", env, rc, out, errOut)
-		}
-		// Legacy-only commands refuse a durable run rather than corrupt it.
-		for _, verb := range []string{"sent", "review-sent", "advance"} {
-			rc, _, errOut := e.run("build", verb, "--root", e.root, "--task", "1")
-			if rc == exitcode.OK || !strings.Contains(errOut, "durable") {
-				t.Errorf("TANDEM_BUILD_ENGINE=%q: build %s on a durable run: rc %d %q", env, verb, rc, errOut)
-			}
-		}
-	}
-	// A second start does not replace the active run.
-	t.Setenv("TANDEM_BUILD_ENGINE", "durable")
-	if rc, _, errOut := e.start(); rc == exitcode.OK || !strings.Contains(errOut, got["run_id"].(string)) {
-		t.Fatalf("a second durable start: rc %d %q", rc, errOut)
-	}
-}
-
 func TestADurableStartNeedsATransportForItsKindAndCreatesNothingWithout(t *testing.T) {
 	e := newCLI(t)
 	durableTransport = defaultDurableTransport // what ships
@@ -267,24 +214,6 @@ func TestDurableAcceptTakesTheTaskAsStatusPrintsIt(t *testing.T) {
 	for _, bad := range []string{"task-", "task-x", "0", "task-0", "two"} {
 		if rc, _, _ := e.sub("accept", "--task", bad, "--waive", "review", "--because", "x"); rc != exitcode.Usage {
 			t.Errorf("--task %q: rc %d, want usage", bad, rc)
-		}
-	}
-}
-
-func TestLegacyRelayIgnoresTheDurableOptIn(t *testing.T) {
-	root, dir := buildRepo(t, "", 0)
-	t.Setenv("TANDEM_BUILD_ENGINE", "durable")
-	rc, out, _ := runCapture(t, "build", "status", "--root", root)
-	if rc != exitcode.OK || !strings.Contains(out, "state:") || strings.Contains(out, "engine") {
-		t.Fatalf("a legacy build under TANDEM_BUILD_ENGINE=durable: rc %d %q", rc, out)
-	}
-	if _, err := os.Stat(filepath.Join(dir, "build.json")); err != nil {
-		t.Fatal(err)
-	}
-	// And durable-only verbs say there is no durable run.
-	for _, verb := range []string{"tick", "recover"} {
-		if rc, _, errOut := runCapture(t, "build", verb, "--root", root); rc == exitcode.OK || !strings.Contains(errOut, "durable") {
-			t.Errorf("build %s on a legacy relay: rc %d %q", verb, rc, errOut)
 		}
 	}
 }

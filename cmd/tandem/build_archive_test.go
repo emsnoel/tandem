@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,38 +9,6 @@ import (
 	"github.com/emsnoel/tandem/internal/build"
 	"github.com/emsnoel/tandem/internal/paths"
 )
-
-func TestBuildArchiveCommandPrintsTheArchive(t *testing.T) {
-	root, dir := buildRepo(t, "", 0)
-	b := load(t, dir)
-	b.Tasks[0].Report = filepath.Join(paths.Relay(root), "r.md")
-	if err := os.WriteFile(b.Tasks[0].Report, []byte("kept"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := b.Save(dir); err != nil {
-		t.Fatal(err)
-	}
-	out := captureStdout(t, func() int { return cmdBuild([]string{"archive", "--root", root, "--json"}) })
-	var res build.ArchiveResult
-	if err := json.Unmarshal([]byte(out), &res); err != nil || res.Dir == "" || res.Files == 0 {
-		t.Fatalf("printed %q: %v", out, err)
-	}
-	if err := build.VerifyArchive(res.Dir); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(filepath.Join(dir, "build.json")); err != nil {
-		t.Fatal("archiving must not remove the source; teardown does that")
-	}
-}
-
-func TestBuildArchiveWithNoBuildSucceedsQuietly(t *testing.T) {
-	root := t.TempDir()
-	out := captureStdout(t, func() int { return cmdBuild([]string{"archive", "--root", root, "--json"}) })
-	var res build.ArchiveResult
-	if err := json.Unmarshal([]byte(out), &res); err != nil || res.Dir != "" {
-		t.Fatalf("printed %q: %v", out, err)
-	}
-}
 
 func TestBuildArchiveFailureIsAnError(t *testing.T) {
 	root, dir := buildRepo(t, "", 0)

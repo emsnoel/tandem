@@ -30,12 +30,12 @@ if [ "$1 $2" = "build start" ]; then
 fi
 case "$1 $2" in
   # root plans_dir check_command conventions_file builder_kind prompt_extra
-  # task_input_budget context_limit build_engine review_delivery
+  # task_input_budget context_limit review_delivery
   # acceptance_policy collaboration source invalid_manifest
   # The JSON is what bin/tandem-project prints.
   "config project")
     case " $* " in
-      *" --fields "*) nul "$REPO" docs/plans "${STUB_CHECK-true}" "" "" "${STUB_PROMPT_EXTRA-}" "" "" "" "" "" "" stub "" ;;
+      *" --fields "*) nul "$REPO" docs/plans "${STUB_CHECK-true}" "" "" "${STUB_PROMPT_EXTRA-}" "" "" "" "" "" stub "" ;;
       *) printf '{"root":"%s","plans_dir":"docs/plans","check_command":"%s","conventions_file":"","prompt_extra":"%s","source":"stub"}\n' \
            "$REPO" "${STUB_CHECK-true}" "${STUB_PROMPT_EXTRA-}" ;;
     esac

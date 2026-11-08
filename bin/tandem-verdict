@@ -83,9 +83,9 @@ PLAN_ABS=$(cd "$(dirname "$PLAN")" && printf '%s/%s' "$(pwd)" "$(basename "$PLAN
 # the same mailbox tandem-handoff reads.
 tandem config project --root "$PWD" --fields >"$FIELDS" 2>/dev/null \
   || die "could not resolve project settings for $PWD."
-# Field 1 is the root; 14 names a manifest that is not a JSON object.
+# Field 1 is the root; 13 names a manifest that is not a JSON object.
 { read_field ROOT
-  for _ in 2 3 4 5 6 7 8 9 10 11 12 13; do read_field _; done
+  for _ in 2 3 4 5 6 7 8 9 10 11 12; do read_field _; done
   read_field _invalid_manifest; } <"$FIELDS"
 if [[ -n "$_invalid_manifest" ]]; then
   printf 'tandem-verdict: %s is not a JSON object, so its settings were ignored.\n' "$_invalid_manifest" >&2

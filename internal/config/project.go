@@ -13,7 +13,7 @@ import (
 // overlaid by its manifest. bin/tandem-project prints it as JSON.
 type Project struct {
 	Root, PlansDir, CheckCommand, ConventionsFile, BuilderKind, PromptExtra string
-	BuildEngine, ReviewDelivery, AcceptancePolicy, Collaboration            string
+	ReviewDelivery, AcceptancePolicy, Collaboration                         string
 	// Source is "manifest" when a manifest supplied values, else "detected".
 	Source string
 	// InvalidManifest is the manifest's path when it exists but is not a JSON
@@ -57,7 +57,7 @@ func ResolveProject(root, manifest string) Project {
 				*dst = v
 			}
 		}
-		p.BuildEngine, p.ReviewDelivery = str("build_engine"), str("review_delivery")
+		p.ReviewDelivery = str("review_delivery")
 		p.AcceptancePolicy, p.Collaboration = str("acceptance_policy"), str("collaboration")
 		// Only a number replaces the default, so a typo cannot turn the budget off.
 		if n, ok := wholeNumber(raw["task_input_budget"]); ok {

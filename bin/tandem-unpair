@@ -71,15 +71,15 @@ USAGE
 
 die()  { printf 'tandem-unpair: %s\n' "$*" >&2; exit 1; }
 
-# Refuse when the relay was written by an engine or protocol this install
-# does not understand.
-engine_guard() {
+# Refuse when the relay's run marker was written by an engine or protocol this
+# install does not understand.
+relay_guard() {
   local rc=0
-  tandem state engine --root "$1" >/dev/null || rc=$?
+  tandem state active-run --relay "$1" >/dev/null || rc=$?
   case "$rc" in
     0) ;;
     23) exit 23 ;;
-    *) die "the installed tandem cannot check which engine owns this relay (rc $rc); re-run install.sh." ;;
+    *) die "the installed tandem cannot read this relay's run marker (rc $rc); re-run install.sh." ;;
   esac
 }
 info() { printf 'tandem-unpair: %s\n' "$*"; }

@@ -42,9 +42,9 @@ case "$1 $2" in
   "gate review")    printf '20260910-000001-1-1\n'; exit 0 ;;
   "gate ruling"|"gate rule") exec "$REAL_TANDEM" "$@" ;;
   # root plans_dir check_command conventions_file builder_kind prompt_extra
-  # task_input_budget context_limit build_engine review_delivery
+  # task_input_budget context_limit review_delivery
   # acceptance_policy collaboration source invalid_manifest
-  "config project") nul "$REPO" docs/plans true "" "" "$STUB_EXTRA" "" "" "" "" "" "" stub ""; exit 0 ;;
+  "config project") nul "$REPO" docs/plans true "" "" "$STUB_EXTRA" "" "" "" "" "" stub ""; exit 0 ;;
 esac
 case "$1" in
   paths)  printf '%s/.tandem-relay\n' "$REPO"; exit 0 ;;

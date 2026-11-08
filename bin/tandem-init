@@ -53,11 +53,11 @@ read_field() {
 
 tandem config project --root "$ROOT" --fields >"$FIELDS" 2>/dev/null \
   || die "the installed tandem is behind these commands (no 'tandem config project'); re-run install.sh."
-# Fields 1 to 13 are the settings in the order tandem-project prints them,
-# apart from check_paths, which come last; 14 names a manifest that is not a
+# Fields 1 to 12 are the settings in the order tandem-project prints them,
+# apart from check_paths, which come last; 13 names a manifest that is not a
 # JSON object.
 KEYS=(root plans_dir check_command conventions_file builder_kind prompt_extra
-      task_input_budget context_limit build_engine review_delivery acceptance_policy
+      task_input_budget context_limit review_delivery acceptance_policy
       collaboration source)
 VALUES=()
 CHECK_PATHS=""; _v=""

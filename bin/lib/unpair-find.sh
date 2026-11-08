@@ -33,7 +33,7 @@ resolve_mailboxes() {
   MB_ROOT=$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$ROOT")
   MAILBOX=$(tandem paths relay --root "$MB_ROOT") \
     || die "the installed tandem is behind these commands (no 'tandem paths'); re-run install.sh."
-  engine_guard "$MB_ROOT"
+  relay_guard "$MAILBOX"
 
   # A pair writes to two mailboxes. $MAILBOX is the relay one at the git
   # toplevel (q/, a/, bridge.pid). builder.json and reviews/ sit at the builder's

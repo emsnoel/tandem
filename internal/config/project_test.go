@@ -42,12 +42,12 @@ func TestResolveProjectManifestOverlay(t *testing.T) {
 	root := writeFiles(t, map[string]string{".tandem.json": `{
 		"plans_dir": "p", "check_command": "make ci", "check_paths": ["src"], "conventions_file": "C.md",
 		"builder_kind": "claude", "prompt_extra": "be brief", "task_input_budget": 5000, "context_limit": 9000,
-		"build_engine": "durable", "review_delivery": "mailbox", "acceptance_policy": "a.json", "collaboration": "c1"}`})
+		"review_delivery": "mailbox", "acceptance_policy": "a.json", "collaboration": "c1"}`})
 	got := ResolveProject(root, filepath.Join(root, ".tandem.json"))
 	want := Project{
 		Root: root, PlansDir: "p", CheckCommand: "make ci", CheckPaths: []string{"src"}, ConventionsFile: "C.md",
 		BuilderKind: "claude", PromptExtra: "be brief", TaskInputBudget: 5000, ContextLimit: 9000,
-		BuildEngine: "durable", ReviewDelivery: "mailbox", AcceptancePolicy: "a.json", Collaboration: "c1", Source: "manifest",
+		ReviewDelivery: "mailbox", AcceptancePolicy: "a.json", Collaboration: "c1", Source: "manifest",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got  %+v\nwant %+v", got, want)

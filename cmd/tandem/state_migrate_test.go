@@ -216,56 +216,6 @@ func TestStateMigrationEndToEnd(t *testing.T) {
 	}
 }
 
-func TestStateEngineRefusesWhatItDoesNotSpeak(t *testing.T) {
-	// The engine selector reads TANDEM_BUILD_ENGINE first. The cases here are
-	// about what the relay holds, so an operator's exported choice must not
-	// decide them.
-	t.Setenv("TANDEM_BUILD_ENGINE", "")
-	for name, tc := range map[string]struct {
-		marker string
-		legacy bool
-		want   int
-		engine string
-	}{
-		"no relay at all":           {want: exitcode.OK, engine: "legacy"},
-		"a legacy build":            {legacy: true, want: exitcode.OK, engine: "legacy"},
-		"engine 99":                 {marker: `{"engine_version":99,"protocol_version":99,"run_id":"` + strings.Repeat("a", 32) + `"}`, want: exitcode.ManualGate},
-		"protocol 3 on engine 2":    {marker: `{"engine_version":2,"protocol_version":3,"run_id":"` + strings.Repeat("a", 32) + `"}`, want: exitcode.ManualGate},
-		"a marker that is not JSON": {marker: `{not json`, want: exitcode.ManualGate},
-		"a marker beside a legacy build": {marker: `{"engine_version":2,"protocol_version":2,"run_id":"` + strings.Repeat("a", 32) + `"}`, legacy: true,
-			want: exitcode.ManualGate},
-		"a marker this tandem speaks": {marker: `{"engine_version":2,"protocol_version":2,"run_id":"` + strings.Repeat("a", 32) + `"}`, want: exitcode.OK, engine: "durable"},
-	} {
-		t.Run(name, func(t *testing.T) {
-			root, _ := stoppedLegacy(t)
-			relay := paths.Relay(root)
-			if !tc.legacy {
-				os.RemoveAll(filepath.Join(relay, "build"))
-			}
-			if tc.marker != "" {
-				if err := os.WriteFile(filepath.Join(relay, "active-run.json"), []byte(tc.marker), 0o644); err != nil {
-					t.Fatal(err)
-				}
-			}
-			before := snapshot(t, relay)
-			rc, out, errOut := runCapture(t, "state", "engine", "--root", root)
-			if rc != tc.want {
-				t.Fatalf("rc %d, want %d (stderr %q)", rc, tc.want, errOut)
-			}
-			if tc.want == exitcode.OK {
-				if v := oneJSON(t, out); v["engine"] != tc.engine {
-					t.Errorf("%v", v)
-				}
-			} else if out != "" || !strings.Contains(errOut, "install.sh") || !strings.Contains(errOut, "Nothing was changed") {
-				t.Errorf("a refusal prints no result and the remedy: %q / %q", out, errOut)
-			}
-			if !sameSnapshot(before, snapshot(t, relay)) {
-				t.Error("the check wrote to the relay")
-			}
-		})
-	}
-}
-
 func TestStateArchiveEndsARunWithoutLosingIt(t *testing.T) {
 	root, home := stoppedLegacy(t)
 	withProbe(t, "idle", nil)
