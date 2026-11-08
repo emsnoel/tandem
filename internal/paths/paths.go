@@ -93,6 +93,10 @@ func NearestManifest(from, boundary string) string {
 // Relay resolves the mailbox directory under root.
 func Relay(root string) string { return pick(root, RelayName, legacyRelayName) }
 
+// LegacyBuildRecord is where the removed legacy engine kept its build record
+// in relay. It only names the path. Nothing reads that file.
+func LegacyBuildRecord(relay string) string { return filepath.Join(relay, "build", "build.json") }
+
 // HookBaseline resolves the recorded Codex hook baseline under codexHome.
 func HookBaseline(codexHome string) string {
 	return pick(codexHome, HookBaselineName, legacyHookBaselineName)

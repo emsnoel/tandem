@@ -14,10 +14,10 @@ import (
 func startFields(t *testing.T, out string) []string {
 	t.Helper()
 	f := strings.Split(out, "\x00")
-	if len(f) != 15 || f[14] != "" {
-		t.Fatalf("want 14 NUL-terminated fields, got %q", f)
+	if len(f) != 5 || f[4] != "" {
+		t.Fatalf("want 4 NUL-terminated fields, got %q", f)
 	}
-	return f[:14]
+	return f[:4]
 }
 
 func TestBuildStartFieldsDurableDryRun(t *testing.T) {
@@ -33,7 +33,7 @@ func TestBuildStartFieldsDurableDryRun(t *testing.T) {
 	}
 }
 
-// A refusal keeps its exit code and still prints 14 fields.
+// A refusal keeps its exit code and still prints its fields.
 func TestBuildStartFieldsOnRefusal(t *testing.T) {
 	e := newCLI(t)
 	t.Setenv("TANDEM_BUILD_ENGINE", "")

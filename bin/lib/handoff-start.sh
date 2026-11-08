@@ -42,10 +42,16 @@ check_recorded_kinds() {
   exit 20
 }
 
-# start_build: the task to send.
-# Each handoff sends one task brief to a fresh conversation, and the relay
-# bridge sends the next after handback. A stopped build resumes at its first
-# unfinished task.
+# legacy_leftover_note: tandem refused because the removed legacy engine left
+# its build record in this relay. %q keeps the printed command pasteable.
+legacy_leftover_note() {
+  printf 'tandem-handoff: this relay still holds a build from the legacy engine: %s\n' "$LEGACY_BUILD" >&2
+  printf '  The legacy engine is gone, so tandem cannot continue that build. Nothing was sent.\n' >&2
+  printf '  To finish it, install the last release that has legacy: install.sh --version v0.6.0\n' >&2
+  printf '  To start a new run instead, remove the file: rm %q\n' "$LEGACY_BUILD" >&2
+}
+
+# start_build: start the run, or continue the one in this relay.
 start_build() {
   BUILDER_KIND=""
   if tandem config builder --relay "$MAILBOX" >"$FIELDS" 2>/dev/null; then
@@ -72,8 +78,12 @@ start_build() {
   rc=0
   tandem build start "${BARGS[@]}" --fields >"$FIELDS" || rc=$?
   # The fields are printed on a refusal too, so read them whatever the exit code.
-  { read_field B_ENGINE; read_field RUN_ID; read_field B_DRY_RUN; } <"$FIELDS"
+  { read_field B_ENGINE; read_field RUN_ID; read_field B_DRY_RUN; read_field LEGACY_BUILD; } <"$FIELDS"
   if (( rc != 0 )); then
+    if (( rc == 23 )) && [[ -n "$LEGACY_BUILD" ]]; then
+      legacy_leftover_note
+      exit "$rc"
+    fi
     if (( CONTINUE && rc == 23 )); then
       printf 'tandem-handoff: the durable run is paused and needs a person (for example the plan file changed); nothing was sent. See `tandem build status --root %s`.\n' "$ROOT" >&2
       exit "$rc"
