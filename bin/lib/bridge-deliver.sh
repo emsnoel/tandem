@@ -38,9 +38,7 @@ deliver() {
     return
   fi
   if [[ "$kind" == task ]]; then
-    advance_build "$qfile"
-    # Mark handled whatever the outcome. Startup recovery replays only .taken.
-    if [[ -f "$qfile" ]]; then mv -n "$qfile" "${qfile%.taken}.done"; fi
+    quarantine_v1 "$qfile"
     return
   fi
 

@@ -19,17 +19,11 @@ HANDOFF_LIB="${_self%/*}/lib"
 . "$HANDOFF_LIB/handoff-gate.sh"
 # shellcheck source=lib/handoff-start.sh
 . "$HANDOFF_LIB/handoff-start.sh"
-# shellcheck source=lib/handoff-prompt.sh
-. "$HANDOFF_LIB/handoff-prompt.sh"
-# shellcheck source=lib/handoff-send.sh
-. "$HANDOFF_LIB/handoff-send.sh"
 
 BUILDER_NAME="${HERDR_BUILDER_NAME:-builder}"
 PLANNER_NAME="${HERDR_PLANNER_NAME:-planner}"
-PROMPT_TIMEOUT_MS="${HERDR_HANDOFF_TIMEOUT_MS:-120000}"
 
 DRY_RUN=0
-WAIT=0
 CONTINUE=0
 CONTEXT_LIMIT_ARG=""
 PLAN_ARG=""
@@ -41,7 +35,7 @@ DRY_OVERRIDE_OK=0
 
 usage() {
   cat <<'USAGE'
-usage: tandem-handoff [plan-path] [--dry-run] [--wait] [--continue]
+usage: tandem-handoff [plan-path] [--dry-run] [--continue]
                       [--context-limit N]
 
 Sends the builder one task of an implementation plan, in a fresh
@@ -51,8 +45,7 @@ picks the most recently reviewed plan, else the most recently modified file
 in the project's plans directory (see tandem-project; configure with .tandem.json / tandem-init). A plan whose
 build stopped part-way resumes at its first task that is not done.
 
-  --dry-run   print the plan and prompt without sending anything
-  --wait      block until the builder settles (idle/done/blocked)
+  --dry-run   decide and print what would start, sending nothing
   --continue  send the next task of the build already running for this
               plan; refuses rather than start a new one (the relay bridge
               uses this)
@@ -96,7 +89,6 @@ read_field() {
 while (( $# )); do
   case "$1" in
     --dry-run) DRY_RUN=1; shift ;;
-    --wait)    WAIT=1; shift ;;
     --continue) CONTINUE=1; shift ;;
     --context-limit) [[ -n "${2:-}" ]] || die "--context-limit needs a number of bytes."
                      CONTEXT_LIMIT_ARG="$2"; shift 2 ;;
@@ -159,8 +151,8 @@ ROOT="${BUILDER_CWD:-$PWD}"
 
 tandem config project --root "$ROOT" --fields >"$FIELDS" 2>/dev/null \
   || die "could not resolve project settings for $ROOT"
-{ read_field ROOT; read_field _plans_dir; read_field CHECK_COMMAND; read_field CONVENTIONS_FILE
-  read_field _; read_field PROMPT_EXTRA; read_field TASK_BUDGET; read_field _context_limit
+{ read_field ROOT; read_field _plans_dir; read_field CHECK_COMMAND; read_field _
+  read_field _; read_field _; read_field TASK_BUDGET; read_field _context_limit
   read_field REVIEW_DELIVERY; read_field ACCEPTANCE_POLICY
   read_field COLLABORATION; read_field PROJ_SOURCE; read_field _invalid_manifest; } <"$FIELDS"
 if [[ -n "$_invalid_manifest" ]]; then
@@ -207,7 +199,3 @@ adopt_standing_ruling
 check_planner
 start_build
 follow_durable_run
-check_task
-send_pending_review
-build_prompt
-send_task

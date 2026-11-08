@@ -31,9 +31,7 @@ cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
 case "$1 $2" in
   "reviewer show") exec "$REAL_TANDEM" "$@" ;;
-  # `build archive` is what tandem-unpair must run before it deletes a relay.
   # ARCHIVE_FAIL models a copy that could not be verified.
-  "build archive") printf '%s\n' "$*" >> "$ARCHIVE_LOG"; [[ -n "${ARCHIVE_FAIL:-}" ]] && exit 1; exit 0 ;;
   # DEAD models a builder pane that is gone (rc 10, no cwd). The reviewer pane
   # answers only to its own name, when FAKE_REVIEWER_STATUS says it runs.
   "agent snapshot")
@@ -82,7 +80,7 @@ run() { # run <builder-cwd> <extra-args...>
   local bcwd="$1"; shift
   # With a dead pane, tandem-unpair falls back to $PWD.
   OUT=$(cd "$REPO" && PATH="$TMP/bin:$PATH" HERDR_ENV=1 BCWD="$bcwd" \
-          DEAD="$DEAD" ARCHIVE_LOG="$TMP/archive.log" ARCHIVE_FAIL="${ARCHIVE_FAIL:-}" \
+          DEAD="$DEAD" \
           PANE_LOG="$TMP/panes.log" FAKE_REVIEWER_STATUS="$FAKE_REVIEWER_STATUS" \
           CHECK_SILENT="${CHECK_SILENT:-}" "$UNPAIR" "$@" 2>&1); RC=$?
 }
@@ -165,40 +163,6 @@ run "$REPO"
 chk "an unrecoverable cwd is reported, not passed over" "WARNING the builder pane is gone"
 DEAD=""
 
-# --- a legacy build is archived before its relay is deleted ---
-# The relay holds the only copy of the build record and its reports.
-with_build() { mkdir -p "$1/.tandem-relay/build" && printf '{"id":"b1"}\n' > "$1/.tandem-relay/build/build.json"; }
-
-fixture "$REPO"; with_build "$REPO"; rm -f "$TMP/archive.log"
-run "$REPO/sub" --dry-run
-chk "the dry run says the build would be archived" "tandem build archive --root"
-[ -f "$TMP/archive.log" ] && nope "a dry run archived" || ok "a dry run archives nothing"
-
-fixture "$REPO"; with_build "$REPO"; rm -f "$TMP/archive.log"
-run "$REPO/sub"
-grep -q -- "build archive --root $REPO_PHYS" "$TMP/archive.log" 2>/dev/null \
-  && ok "teardown archives the build, naming the repository root" || nope "teardown did not archive the build"
-[ -d "$REPO/.tandem-relay" ] && nope "the relay survived a verified archive" || ok "the relay is removed once the archive succeeds"
-
-# A failed archive must leave everything in place.
-fixture "$REPO"; with_build "$REPO"; rm -f "$TMP/archive.log"
-ARCHIVE_FAIL=1
-run "$REPO/sub"
-chk "a failed archive is reported" "archive"
-if [ -f "$REPO/.tandem-relay/build/build.json" ] && [ -d "$REPO/sub/.tandem-relay" ]; then
-  ok "a failed archive leaves both mailboxes in place"
-else
-  nope "a failed archive still deleted evidence"
-fi
-ARCHIVE_FAIL=""
-
-fixture "$REPO"; with_build "$REPO"; rm -f "$TMP/archive.log"
-run "$REPO/sub" --keep-relay
-[ -f "$TMP/archive.log" ] && nope "--keep-relay archived a relay it kept" || ok "--keep-relay does not archive"
-
-fixture "$REPO"; rm -f "$TMP/archive.log"
-run "$REPO/sub"
-[ -f "$TMP/archive.log" ] && nope "a pair with no build was archived" || ok "a pair with no build asks for no archive"
 
 # --- a reviewer pane closes with the builder ---
 # Only the recorded reviewer pane is closed.

@@ -3,8 +3,7 @@
 # run: it ingests the run's messages, ticks it, and tells the planner when it
 # pauses.
 
-# durable_run prints the active durable run. A legacy task message that arrives
-# during one is set aside with its reason.
+# durable_run prints the active durable run.
 durable_run() {
   [[ -f "$MAILBOX/active-run.json" ]] || return 1
   local id
@@ -13,13 +12,15 @@ durable_run() {
   printf '%s\n' "$id"
 }
 
+# quarantine_v1 FILE: set aside a task message from the legacy engine, with its
+# reason. Nothing can act on one, and the bridge keeps running.
 quarantine_v1() {
   local f="$1" dest
   mkdir -p "$MAILBOX/quarantine-v1"
-  dest="$MAILBOX/quarantine-v1/$(basename "$f")"
+  dest="$MAILBOX/quarantine-v1/$(basename "${f%.taken}")"
   mv -n "$f" "$dest" 2>/dev/null || true
-  printf 'a legacy (v1) task message arrived while durable run %s is active; a v2 run rejects v1 messages\n' "$2" > "$dest.reason"
-  log "set aside $(basename "$f"): a v1 task message cannot drive durable run $2"
+  printf 'a legacy task message arrived, and legacy is gone\n' > "$dest.reason"
+  log "set aside $(basename "$dest"): a legacy task message, and legacy is gone"
 }
 
 # ingest_durable TAKEN: apply one claimed protocol-2 message.

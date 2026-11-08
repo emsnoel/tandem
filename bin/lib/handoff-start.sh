@@ -72,9 +72,7 @@ start_build() {
   rc=0
   tandem build start "${BARGS[@]}" --fields >"$FIELDS" || rc=$?
   # The fields are printed on a refusal too, so read them whatever the exit code.
-  { read_field B_ENGINE; read_field RUN_ID; read_field B_DRY_RUN; read_field TASK; read_field TOTAL
-    read_field TASK_TITLE; read_field BRIEF; read_field LEDGER_TEXT; read_field RESUMED; read_field REPLACED
-    read_field B_JUDGE; read_field REVIEWER_TARGET; read_field REVIEW_PENDING; read_field REVIEW_PROMPT_FILE; } <"$FIELDS"
+  { read_field B_ENGINE; read_field RUN_ID; read_field B_DRY_RUN; } <"$FIELDS"
   if (( rc != 0 )); then
     if (( CONTINUE && rc == 23 )); then
       printf 'tandem-handoff: the durable run is paused and needs a person (for example the plan file changed); nothing was sent. See `tandem build status --root %s`.\n' "$ROOT" >&2
@@ -102,118 +100,63 @@ start_build() {
 # A durable run delivers its own prompts, so handoff only ticks it once to
 # send the first task. The bridge keeps ticking.
 follow_durable_run() {
-  if [[ -n "$RUN_ID" ]]; then
-    if (( DRY_RUN )); then
-      printf 'tandem-handoff: [dry-run] durable run %s would continue for %s; nothing was sent.\n' "$RUN_ID" "$BUILDER_NAME"
-      exit 0
-    fi
-    rc=0
-    tandem build tick --root "$ROOT" >/dev/null 2>"$MAILBOX/.handoff_tick_error" || rc=$?
-    if (( rc != 0 )); then
-      cat >&2 <<MSG
+  [[ -n "$RUN_ID" ]] || die "the start named no run. The installed tandem may be behind these commands; re-run install.sh."
+  if (( DRY_RUN )); then
+    printf 'tandem-handoff: [dry-run] durable run %s would continue for %s; nothing was sent.\n' "$RUN_ID" "$BUILDER_NAME"
+    exit 0
+  fi
+  rc=0
+  tandem build tick --root "$ROOT" >/dev/null 2>"$MAILBOX/.handoff_tick_error" || rc=$?
+  if (( rc != 0 )); then
+    cat >&2 <<MSG
 tandem-handoff: WARNING durable run $RUN_ID exists but its first step failed (rc $rc): $(tail -1 "$MAILBOX/.handoff_tick_error" 2>/dev/null)
 
   Nothing was recorded as delivered. The relay bridge keeps ticking the run;
   \`tandem build recover --root $ROOT\` continues it by hand, and
   \`tandem build status --root $ROOT\` shows where it is.
 MSG
-      exit 7
-    fi
-    verb=started; (( CONTINUE )) && verb=continued
-    # Wait until the first send is confirmed or fails for good, so a builder whose
-    # turn ends at once is reported instead of "started". Only poll here: ticking
-    # would hold the run's lease and starve the bridge.
-    WAIT_S="${TANDEM_DISPATCH_WAIT_S:-120}"
-    [[ "$WAIT_S" =~ ^[1-9][0-9]*$ ]] || WAIT_S=120
-    rc=0
-    _werr=$(mktemp "${TMPDIR:-/tmp}/tandem-handoff-wait.XXXXXX")
-    tandem build wait --root "$ROOT" --until sent --until-not running \
-      --timeout "$(( WAIT_S * 1000 ))" --fields >"$FIELDS" 2>"$_werr" || rc=$?
-    _werrtxt=$(cat "$_werr" 2>/dev/null || true); rm -f "$_werr"
-    # Printed at the timeout too: the state, its pause code, the first unfinished
-    # task's dispatch, the pause reason, the task, the builder and reviewer panes, the plan and the collaboration.
-    { read_field _state; read_field _code; read_field _disp; read_field _reason; read_field _task; read_field _builder; read_field _reviewer; read_field _plan; read_field _collab; } <"$FIELDS"
-    if [[ "$_disp" == sent ]]; then
-      printf 'tandem-handoff: durable run %s %s for %s.\n' "$RUN_ID" "$verb" "$BUILDER_NAME"
-      exit 0
-    fi
-    if [[ "$_state" == paused ]]; then
-      if [[ "$_code" == dispatch_failed ]]; then
-        printf 'tandem-handoff: WARNING durable run %s could not deliver its task to %s, so nothing is building the plan.\n\n' "$RUN_ID" "$BUILDER_NAME" >&2
-        _rc=8
-      else
-        printf 'tandem-handoff: durable run %s paused (%s) and needs a person; the task was not confirmed as sent.\n\n' "$RUN_ID" "${_code:-no code}" >&2
-        _rc=23
-      fi
-      pause_note "$_code" "$RUN_ID" "$ROOT" "$_task" "$_builder" "$_reviewer" "$_reason" "$_plan" "$_collab" "$MAILBOX" >&2
-      exit "$_rc"
-    fi
-    if [[ -n "$_state" && "$_state" != running ]]; then
-      printf 'tandem-handoff: durable run %s is %s.\n' "$RUN_ID" "$_state"
-      exit 0
-    fi
-    if (( rc == 23 )); then
-      printf 'tandem-handoff: durable run %s %s for %s, but its task was not confirmed as sent within %ss. The relay bridge keeps trying and tells you if it fails; `tandem build status --root %s` shows where it is.\n' \
-        "$RUN_ID" "$verb" "$BUILDER_NAME" "$WAIT_S" "$ROOT"
-      exit 0
-    fi
-    if (( rc != 0 )); then
-      printf 'tandem-handoff: could not read durable run %s: %s\n' "$RUN_ID" "${_werrtxt:-tandem build wait exited $rc}" >&2
-      exit 0
-    fi
+    exit 7
   fi
-}
-
-# check_task: the legacy build named a task to send.
-check_task() {
-  [[ -n "$REPLACED" ]] && info "WARNING an unfinished build of $REPLACED was replaced; this plan starts again at task 1."
-  [[ "$TASK" =~ ^[0-9]+$ && "$TOTAL" =~ ^[0-9]+$ && -n "$BRIEF" ]] \
-    || die "the build record gave no task to send. The installed tandem may be behind these commands; re-run install.sh."
-}
-
-# A task paused on its review budget already has its implementation. Send the
-# stored review prompt to the reviewer pane, with no reset and no `build sent`.
-send_pending_review() {
-  if [[ "$REVIEW_PENDING" == true ]]; then
-    # REVIEWER_TARGET is never empty: the start refused above without a reviewer.
-    printf 'tandem-handoff: task    %s of %s: %s is paused at its review; sending the review, not the task.\n' "$TASK" "$TOTAL" "$TASK_TITLE"
-    if (( DRY_RUN )); then
-      # A dry run writes nothing, so the prompt file does not exist yet.
-      printf 'tandem-handoff: [dry-run] the stored review prompt would go to %s; nothing was sent.\n' "$REVIEWER_TARGET"
-      exit 0
+  verb=started; (( CONTINUE )) && verb=continued
+  # Wait until the first send is confirmed or fails for good, so a builder whose
+  # turn ends at once is reported instead of "started". Only poll here: ticking
+  # would hold the run's lease and starve the bridge.
+  WAIT_S="${TANDEM_DISPATCH_WAIT_S:-120}"
+  [[ "$WAIT_S" =~ ^[1-9][0-9]*$ ]] || WAIT_S=120
+  rc=0
+  _werr=$(mktemp "${TMPDIR:-/tmp}/tandem-handoff-wait.XXXXXX")
+  tandem build wait --root "$ROOT" --until sent --until-not running \
+    --timeout "$(( WAIT_S * 1000 ))" --fields >"$FIELDS" 2>"$_werr" || rc=$?
+  _werrtxt=$(cat "$_werr" 2>/dev/null || true); rm -f "$_werr"
+  # Printed at the timeout too: the state, its pause code, the first unfinished
+  # task's dispatch, the pause reason, the task, the builder and reviewer panes, the plan and the collaboration.
+  { read_field _state; read_field _code; read_field _disp; read_field _reason; read_field _task; read_field _builder; read_field _reviewer; read_field _plan; read_field _collab; } <"$FIELDS"
+  if [[ "$_disp" == sent ]]; then
+    printf 'tandem-handoff: durable run %s %s for %s.\n' "$RUN_ID" "$verb" "$BUILDER_NAME"
+    exit 0
+  fi
+  if [[ "$_state" == paused ]]; then
+    if [[ "$_code" == dispatch_failed ]]; then
+      printf 'tandem-handoff: WARNING durable run %s could not deliver its task to %s, so nothing is building the plan.\n\n' "$RUN_ID" "$BUILDER_NAME" >&2
+      _rc=8
+    else
+      printf 'tandem-handoff: durable run %s paused (%s) and needs a person; the task was not confirmed as sent.\n\n' "$RUN_ID" "${_code:-no code}" >&2
+      _rc=23
     fi
-    [[ -n "$REVIEW_PROMPT_FILE" && -r "$REVIEW_PROMPT_FILE" ]] \
-      || die "task $TASK is paused at its review but its review prompt is missing ($REVIEW_PROMPT_FILE). Re-run install.sh if tandem is out of date."
-    REVIEWER_PANE=""; REVIEWER_STATUS=""
-    rc=0
-    _rsnap=$(tandem agent snapshot "$REVIEWER_TARGET" 2>/dev/null) || rc=$?
-    (( rc == 0 )) || die "no agent named '$REVIEWER_TARGET', the reviewer pane this build records. Re-run tandem-pair, then hand off again. Nothing was sent."
-    IFS=$'\t' read -r REVIEWER_PANE _ REVIEWER_STATUS <<<"$_rsnap"
-    [[ "$REVIEWER_STATUS" == blocked ]] \
-      && die "$REVIEWER_TARGET is blocked at an approval or question dialog. Inspect pane $REVIEWER_PANE and clear it first."
-    # --as proves the prompt started a turn that keeps running.
-    rc=0
-    _pres=$(tandem agent prompt "$REVIEWER_TARGET" "$(cat "$REVIEW_PROMPT_FILE")" --as review 2>&1) || rc=$?
-    IFS=$'\t' read -r _code _msg <<<"$_pres"
-    case "$rc" in
-      0)
-        tandem build review-sent --root "$ROOT" --task "$TASK" >/dev/null 2>&1 \
-          || info "WARNING could not record the review of task $TASK as sent."
-        info "review of task $TASK handed to '$REVIEWER_TARGET' (now $_msg)."
-        exit 0 ;;
-      25)
-        cat >&2 <<MSG
-tandem-handoff: WARNING the review was accepted but $REVIEWER_TARGET never started working.
-
-  It is most likely sitting at a native dialog that Herdr cannot see. Check
-  pane $REVIEWER_PANE, clear any dialog, then re-run this command. The review
-  is still recorded as pending, so nothing is sent twice.
-MSG
-        exit 7 ;;
-      26)
-        turn_ended_at_once "the review of task $TASK" "The review is still recorded as pending, so a re-run sends it again." reviewer "$REVIEWER_PANE"
-        exit 8 ;;
-    esac
-    die "could not send the review to $REVIEWER_TARGET: ${_msg:-${_code:-unknown error}}. Nothing was recorded as sent."
+    pause_note "$_code" "$RUN_ID" "$ROOT" "$_task" "$_builder" "$_reviewer" "$_reason" "$_plan" "$_collab" "$MAILBOX" >&2
+    exit "$_rc"
+  fi
+  if [[ -n "$_state" && "$_state" != running ]]; then
+    printf 'tandem-handoff: durable run %s is %s.\n' "$RUN_ID" "$_state"
+    exit 0
+  fi
+  if (( rc == 23 )); then
+    printf 'tandem-handoff: durable run %s %s for %s, but its task was not confirmed as sent within %ss. The relay bridge keeps trying and tells you if it fails; `tandem build status --root %s` shows where it is.\n' \
+      "$RUN_ID" "$verb" "$BUILDER_NAME" "$WAIT_S" "$ROOT"
+    exit 0
+  fi
+  if (( rc != 0 )); then
+    printf 'tandem-handoff: could not read durable run %s: %s\n' "$RUN_ID" "${_werrtxt:-tandem build wait exited $rc}" >&2
+    exit 0
   fi
 }

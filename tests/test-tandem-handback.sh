@@ -32,12 +32,7 @@ cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$MARKER"
 case "$1 $2" in
-  # The real binary writes the messages and reads the run marker and the build.
-  # ROLES_SLOW pauses before the last field, so a reader that stops early
-  # makes this writer die of SIGPIPE.
-  "build roles")
-    [ -z "${ROLES_SLOW:-}" ] && exec "$TANDEM_REAL" "$@"
-    printf '%s\0' /p.md builder reviewer; sleep 1; printf '%s\0' planner; exit 0 ;;
+  # The real binary writes the messages and reads the run marker.
   "relay write"|"state active-run") exec "$TANDEM_REAL" "$@" ;;
   "agent snapshot")
     rc="${AGENT_SNAPSHOT_RC:-0}"
@@ -115,22 +110,14 @@ OUT=$(env -i PATH="$TMP/bin:/usr/bin:/bin" HOME="$HOME" \
 [[ "$RC" == 1 ]] && ok "outside Herdr exits 1" || nope "outside Herdr exits 1 (got $RC)"
 chk "outside Herdr names the reason" "not running inside a Herdr-managed pane"
 
-# An engine setting cannot exempt legacy task delivery from the pane guard.
-mkdir -p "$TMP/mailbox/build"
-printf '{"state":"running"}\n' > "$TMP/mailbox/build/build.json"
-ENV=(HERDR_ENV= TANDEM_BUILD_ENGINE=durable)
-run "$HANDBACK_BIN" --task 2 --report "$REPORT"
-[[ "$RC" != 0 ]] && ok "legacy task without pane environment is refused" || nope "legacy task bypassed pane guard"
-chk "legacy task names the pane guard" "HERDR_ENV != 1"
-[ -z "$(find "$TMP/mailbox" -type f ! -name build.json)" ] && ok "legacy refusal writes no queue or report" || nope "legacy refusal wrote files"
-
+mkdir -p "$TMP/mailbox"
 # A whole-plan call never gains the durable task exception.
 printf '{"protocol_version":2,"run_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}\n' > "$TMP/mailbox/active-run.json"
 ENV=(HERDR_ENV=)
 run "$HANDBACK_BIN" --report "$REPORT"
 [[ "$RC" != 0 ]] && ok "whole-plan handback with durable marker is refused outside Herdr" || nope "whole-plan handback bypassed pane guard"
 chk "whole-plan call still names the pane guard" "HERDR_ENV != 1"
-[ -z "$(find "$TMP/mailbox" -type f ! -name build.json ! -name active-run.json)" ] && ok "whole-plan refusal writes no queue or report" || nope "whole-plan refusal wrote files"
+[ -z "$(find "$TMP/mailbox" -type f ! -name active-run.json)" ] && ok "whole-plan refusal writes no queue or report" || nope "whole-plan refusal wrote files"
 rm -rf "$TMP/mailbox"; mkdir -p "$TMP/mailbox"
 
 # --- a missing prompt template is refused, not sent empty ------------------
@@ -321,139 +308,26 @@ else
   ok "no .tmp report files were left behind (atomic rename)"
 fi
 
-# --- one task of a build ---
-# A task handback always goes to the relay bridge, which drives the build.
-TB="$TMP/mailbox/build"
+# --- one task needs a run ---
+# A task handback belongs to the active run. With none there is no task.
 ENV=(HERDR_ROLE=builder)
-rm -rf "$TB" "$TMP/mailbox/q"
+rm -rf "$TMP/mailbox/q"
 run "$HANDBACK_BIN" --task 2 --report "$REPORT"
-[[ "$RC" == 1 ]] && ok "--task with no build running exits 1" || nope "--task with no build running exits 1 (got $RC)"
-chk "--task with no build says so" "no build is running"
+[[ "$RC" == 1 ]] && ok "--task with no run exits 1" || nope "--task with no run exits 1 (got $RC)"
+chk "--task with no run says no run is active" "no run is active"
+[ ! -d "$TMP/mailbox/q" ] && ok "--task with no run queues nothing" || nope "--task with no run queued something"
 
-mkdir -p "$TB"; printf '{"state":"running"}\n' > "$TB/build.json"
-run "$HANDBACK_BIN" --task 2 --report "$REPORT" --plan "$PLAN"
-[[ "$RC" == 0 ]] && ok "--task exits 0" || nope "--task exits 0 (got $RC): $OUT"
-Q=$(ls "$TMP/mailbox/q"/*.json 2>/dev/null | head -1)
-# The bridge tests task with ^[0-9]+$ and stuck with == true, so the types matter.
-if [[ -n "$Q" ]] && jq -e '.kind=="task" and .task==2 and (.task|type)=="number" and .stuck==false and (.review|type)=="boolean" and (.report_path|endswith("build/task-2.report.md"))' "$Q" >/dev/null; then
-  ok "--task queues a task event for the bridge"
-else
-  nope "--task queues a task event for the bridge ($(cat "$Q" 2>/dev/null))"
-fi
-[[ "$(cat "$TB/task-2.report.md" 2>/dev/null)" == "all tasks done, suite green" ]] \
-  && ok "the task report lands beside the build" || nope "the task report lands beside the build"
-grep -q "agent prompt" "$MARKER" && nope "a task handback prompted the planner directly" \
-  || ok "a task handback never prompts the planner"
-chk "--task tells the builder to stop" "Stop here"
-
-rm -rf "$TMP/mailbox/q"
-run "$HANDBACK_BIN" --task 2 --stuck --report "$REPORT"
-Q=$(ls "$TMP/mailbox/q"/*.json 2>/dev/null | head -1)
-jq -e '.stuck==true' "$Q" >/dev/null 2>&1 && ok "--stuck is carried to the bridge" || nope "--stuck is carried to the bridge"
-
-# A review comes from the reviewer pane and must not overwrite the builder's
-# handback.
-printf '{"state":"running","builder":"builder","reviewer":"reviewer"}\n' > "$TB/build.json"
-REVIEW_REPORT="$TMP/review.md"; printf 'review found a bug\n' > "$REVIEW_REPORT"
-rm -rf "$TMP/mailbox/q"
-ENV=(HERDR_ROLE=reviewer)
-run "$HANDBACK_BIN" --task 2 --review --verdict changes --report "$REVIEW_REPORT"
-[[ "$RC" == 0 ]] && ok "--review exits 0" || nope "--review exits 0 (got $RC): $OUT"
-Q=$(ls "$TMP/mailbox/q"/*.json 2>/dev/null | head -1)
-if [[ -n "$Q" ]] && jq -e '.kind=="task" and .task==2 and .review==true and .verdict=="changes" and .from=="reviewer" and (.report_path|endswith("build/task-2.review.md"))' "$Q" >/dev/null; then
-  ok "--review queues the reviewer's verdict and its separate report path"
-else
-  nope "--review queues the reviewer's verdict and its separate report path ($(cat "$Q" 2>/dev/null))"
-fi
-[[ "$(cat "$TB/task-2.report.md" 2>/dev/null)" == "all tasks done, suite green" ]] \
-  && ok "--review preserves the first report" || nope "--review preserves the first report"
-[[ "$(cat "$TB/task-2.review.md" 2>/dev/null)" == "review found a bug" ]] \
-  && ok "--review writes the second report" || nope "--review writes the second report"
-# Reading only the fields it needs must not cut build roles off mid-answer.
-rm -rf "$TMP/mailbox/q"
-ENV=(HERDR_ROLE=reviewer ROLES_SLOW=1)
-run "$HANDBACK_BIN" --task 2 --review --verdict clean --report "$REVIEW_REPORT"
-[[ "$RC" == 0 ]] && ok "a slow build roles answer still names the reviewer" || nope "a slow build roles answer lost the reviewer (rc $RC): $OUT"
-# --role names the pane when the CLI does not pass HERDR_ROLE to its commands.
-rm -rf "$TMP/mailbox/q"
-ENV=()
-run "$HANDBACK_BIN" --task 2 --review --role reviewer --verdict clean --report "$REVIEW_REPORT"
-Q=$(ls "$TMP/mailbox/q"/*.json 2>/dev/null | head -1)
-[[ "$RC" == 0 ]] && jq -e '.from=="reviewer" and .verdict=="clean"' "$Q" >/dev/null 2>&1 \
-  && ok "--role reviewer identifies the reviewer pane" || nope "--role reviewer identifies the reviewer pane (rc $RC): $OUT"
-# Where Herdr can name the pane, that decides, not a claimed role.
-for env_case in "HERDR_PANE_ID=w1:p1" "HERDR_PANE_ID=w1:p1 HERDR_ROLE=reviewer"; do
-  rm -rf "$TMP/mailbox/q"
-  read -r -a ENV <<<"$env_case"
-  run "$HANDBACK_BIN" --task 2 --review --role reviewer --verdict clean --report "$REVIEW_REPORT"
-  [[ "$RC" == 1 && ! -d "$TMP/mailbox/q" ]] && ok "a builder claiming the reviewer role is refused ($env_case)" \
-    || nope "a builder claiming the reviewer role is refused ($env_case): rc $RC, $OUT"
+for removed in --review "--verdict clean"; do
+  # shellcheck disable=SC2086
+  run "$HANDBACK_BIN" --task 2 $removed --report "$REPORT"
+  [[ "$RC" == 1 ]] && chk "$removed is an unknown argument" "unknown argument" || nope "$removed exits 1 (got $RC)"
 done
-chk "the refusal says the review runs in the reviewer pane" "Run this from the reviewer pane"
-chk "and that the builder never reviews" "The builder never reviews. NOTHING WAS SENT."
-case "$OUT" in *"--role"*) nope "the refusal coaches a --role: $OUT" ;; *) ok "the refusal coaches no --role" ;; esac
-rm -rf "$TMP/mailbox/q"
-ENV=(HERDR_PANE_ID=w1:p2)
-run "$HANDBACK_BIN" --task 2 --review --verdict clean --report "$REVIEW_REPORT"
-Q=$(ls "$TMP/mailbox/q"/*.json 2>/dev/null | head -1)
-[[ "$RC" == 0 ]] && jq -e '.from=="reviewer"' "$Q" >/dev/null 2>&1 \
-  && ok "the pane Herdr names as the reviewer needs no --role" || nope "the pane Herdr names as the reviewer needs no --role (rc $RC): $OUT"
-# In a Herdr pane, a failed, timed-out or empty lookup fails closed.
-for env_case in "HERDR_PANE_ID=w1:p1 HERDR_FAKE=error" "HERDR_PANE_ID=w1:p9" "HERDR_PANE_ID=w1:p1 HERDR_FAKE=timeout"; do
-  rm -rf "$TMP/mailbox/q"
-  read -r -a ENV <<<"$env_case"
-  run "$HANDBACK_BIN" --task 2 --review --role reviewer --verdict clean --report "$REVIEW_REPORT"
-  [[ "$RC" == 1 && ! -d "$TMP/mailbox/q" ]] && ok "a pane Herdr cannot name is refused, nothing queued ($env_case)" \
-    || nope "a pane Herdr cannot name is refused ($env_case): rc $RC, $OUT"
-  chk "the refusal says to retry ($env_case)" "try again"
-  chk "and to check Herdr is running ($env_case)" "Herdr is running"
-done
-# A sandboxed reviewer has no HERDR_PANE_ID, so its role names it.
-rm -rf "$TMP/mailbox/q"
-ENV=()
-run "$HANDBACK_BIN" --task 2 --review --role reviewer --verdict clean --report "$REVIEW_REPORT"
-[[ "$RC" == 0 ]] && ok "with no pane id, --role reviewer is still accepted" || nope "with no pane id, --role reviewer is still accepted (rc $RC): $OUT"
-rm -rf "$TMP/mailbox/q"
-run "$HANDBACK_BIN" --task 2 --review --role builder --verdict clean --report "$REVIEW_REPORT"
-[[ "$RC" == 1 && ! -d "$TMP/mailbox/q" ]] && ok "with no pane id, --role builder is refused" || nope "with no pane id, --role builder is refused (rc $RC): $OUT"
-# A sandboxed Codex reviewer can see a pane id from its shared daemon while
-# its sandbox denies the socket. Its role names it, with a warning.
-rm -rf "$TMP/mailbox/q"
-ENV=(HERDR_PANE_ID=w1:p1 HERDR_FAKE=denied)
-run "$HANDBACK_BIN" --task 2 --review --role reviewer --verdict clean --report "$REVIEW_REPORT"
-Q=$(ls "$TMP/mailbox/q"/*.json 2>/dev/null | head -1)
-[[ "$RC" == 0 ]] && jq -e '.from=="reviewer"' "$Q" >/dev/null 2>&1 \
-  && ok "an unreachable socket falls back to --role reviewer" || nope "an unreachable socket falls back to --role reviewer (rc $RC): $OUT"
-chk "and warns that Herdr cannot be reached" "warning: Herdr cannot be reached from this shell"
-rm -rf "$TMP/mailbox/q"
-run "$HANDBACK_BIN" --task 2 --review --role builder --verdict clean --report "$REVIEW_REPORT"
-[[ "$RC" == 1 && ! -d "$TMP/mailbox/q" ]] && ok "an unreachable socket with --role builder is refused" \
-  || nope "an unreachable socket with --role builder is refused (rc $RC): $OUT"
-ENV=(HERDR_ROLE=reviewer)
-for bad in "" maybe; do
-  rm -rf "$TMP/mailbox/q"
-  run "$HANDBACK_BIN" --task 2 --review ${bad:+--verdict "$bad"} --report "$REVIEW_REPORT"
-  [[ "$RC" == 1 && ! -d "$TMP/mailbox/q" ]] && ok "--review with verdict '${bad}' is refused, nothing queued" \
-    || nope "--review with verdict '${bad}' is refused (rc $RC)"
-done
-chk "it names the two verdicts" "--verdict clean or --verdict changes"
-rm -rf "$TMP/mailbox/q"
-run "$HANDBACK_BIN" --task 2 --review --verdict clean --stuck --report "$REVIEW_REPORT"
-[[ "$RC" == 1 && ! -d "$TMP/mailbox/q" ]] && ok "--review with --stuck is refused" || nope "--review with --stuck is refused (rc $RC)"
-run "$HANDBACK_BIN" --task 2 --review --stuck --run r1 --attempt a --job j --effect e --nonce n
-[[ "$RC" == 1 ]] && ok "--review with --stuck is refused for a durable handback too" || nope "--review with --stuck is refused for a durable handback (rc $RC)"
-chk "and says why" "--review takes no --stuck"
-run "$HANDBACK_BIN" --task 2 --verdict clean --report "$REPORT"
-[[ "$RC" == 1 ]] && ok "--verdict without --review exits 1" || nope "--verdict without --review exits 1 (got $RC)"
-ENV=(HERDR_ROLE=builder)
-run "$HANDBACK_BIN" --review --report "$REPORT"
-[[ "$RC" == 1 ]] && ok "--review without --task exits 1" || nope "--review without --task exits 1 (got $RC)"
 
 run "$HANDBACK_BIN" --task two --report "$REPORT"
 [[ "$RC" == 1 ]] && ok "a task that is not a number exits 1" || nope "a task that is not a number exits 1 (got $RC)"
 run "$HANDBACK_BIN" --stuck --report "$REPORT"
 [[ "$RC" == 1 ]] && ok "--stuck without --task exits 1" || nope "--stuck without --task exits 1 (got $RC)"
-rm -rf "$TB" "$TMP/mailbox/q"
+rm -rf "$TMP/mailbox/q"
 
 printf '\ntandem-handback: passed %d, failed %d\n' "$PASS" "$FAIL"
 (( FAIL == 0 ))
