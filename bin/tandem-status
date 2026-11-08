@@ -82,10 +82,10 @@ fi
 
 tandem config project --root "$ROOT" --fields >"$FIELDS" 2>/dev/null \
   || die "could not resolve project settings for $ROOT."
-# Fields 1 and 2 are root and plans dir; 14 names a manifest that is not a
+# Fields 1 and 2 are root and plans dir; 13 names a manifest that is not a
 # JSON object.
 { read_field ROOT; read_field _plans_dir
-  for _ in 3 4 5 6 7 8 9 10 11 12 13; do read_field _; done
+  for _ in 3 4 5 6 7 8 9 10 11 12; do read_field _; done
   read_field _invalid_manifest; } <"$FIELDS"
 if [[ -n "$_invalid_manifest" ]]; then
   printf 'tandem-status: %s is not a JSON object, so its settings were ignored.\n' "$_invalid_manifest" >&2
@@ -198,14 +198,6 @@ else
     info "plan     none found, and no plans_dir is set"
   fi
 fi
-
-# --- build engine --------------------------------------------------------------
-# Which engine the next build here would use, and what decided it.
-_engine=""; _because=""
-if tandem state engine --root "$ROOT" --fields >"$FIELDS" 2>/dev/null; then
-  { read_field _engine; read_field _because; } <"$FIELDS"
-fi
-[[ -z "$_engine" ]] || info "engine   $_engine ($_because)"
 
 # --- mailbox activity ----------------------------------------------------------
 if [[ -n "$MAILBOX" && -d "$MAILBOX" ]]; then

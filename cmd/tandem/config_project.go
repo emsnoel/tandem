@@ -23,7 +23,6 @@ type projectJSON struct {
 	CheckPaths       []string `json:"check_paths"`
 	TaskInputBudget  int64    `json:"task_input_budget"`
 	ContextLimit     int64    `json:"context_limit"`
-	BuildEngine      string   `json:"build_engine"`
 	ReviewDelivery   string   `json:"review_delivery"`
 	AcceptancePolicy string   `json:"acceptance_policy"`
 	Collaboration    string   `json:"collaboration"`
@@ -64,7 +63,7 @@ func resolveProjectFlags(name string, args []string) (config.Project, bool, int)
 // cmdConfigProject answers "what are this project's settings" for
 // bin/tandem-project and bin/tandem-handoff. With --fields it prints root,
 // plans_dir, check_command, conventions_file, builder_kind, prompt_extra,
-// task_input_budget, context_limit, build_engine, review_delivery,
+// task_input_budget, context_limit, review_delivery,
 // acceptance_policy, collaboration, source and invalid_manifest, then each
 // check path, every one NUL-terminated.
 func cmdConfigProject(args []string) int {
@@ -75,12 +74,12 @@ func cmdConfigProject(args []string) int {
 	if asFields {
 		writeFields(os.Stdout, append([]string{p.Root, p.PlansDir, p.CheckCommand, p.ConventionsFile,
 			p.BuilderKind, p.PromptExtra, strconv.FormatInt(p.TaskInputBudget, 10),
-			strconv.FormatInt(p.ContextLimit, 10), p.BuildEngine, p.ReviewDelivery, p.AcceptancePolicy,
+			strconv.FormatInt(p.ContextLimit, 10), p.ReviewDelivery, p.AcceptancePolicy,
 			p.Collaboration, p.Source, p.InvalidManifest}, p.CheckPaths...)...)
 		return exitcode.OK
 	}
 	out := projectJSON{p.Root, p.PlansDir, p.CheckCommand, p.ConventionsFile, p.BuilderKind, p.PromptExtra,
-		p.CheckPaths, p.TaskInputBudget, p.ContextLimit, p.BuildEngine, p.ReviewDelivery, p.AcceptancePolicy,
+		p.CheckPaths, p.TaskInputBudget, p.ContextLimit, p.ReviewDelivery, p.AcceptancePolicy,
 		p.Collaboration, p.Source}
 	if out.CheckPaths == nil {
 		out.CheckPaths = []string{}

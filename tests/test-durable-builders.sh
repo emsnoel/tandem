@@ -131,41 +131,6 @@ for K in $KINDS; do
   else nope "$K: stop went $ST then $ST2 (prompts $N2 -> $(nprompts))"; cell "$K" durable stop FAIL; fi
 done
 
-# ---------------------------------------------------------------------------
-printf '\n== TestLegacyBuilderConformance ==\n'
-for K in $KINDS; do
-  printf '\n-- %s, legacy --\n' "$K"
-  R="$TMP/l-$K"; mkrepo "$R" "$K"; R=$(cd "$R" && pwd -P)
-  # A legacy build reviews in the pair's reviewer pane; the builder never does.
-  write_reviewer "$R/.tandem-relay" codex
-  reset_fake
-  # The reviewer pane runs its own conversation, never the builder's.
-  printf 'sess-r\n' > "$FAKE/session.reviewer"
-  tl() { env PATH="$TMP/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$R" CODEX_HOME="$CODEX_HOME" TANDEM_STATE_HOME="$TMP/state-l-$K" tandem "$@"; }
-  OUT=$(tl build start --plan "$R/plan.md" --root "$R" --builder builder --planner planner --check true 2>&1)
-  if [ "$(printf '%s' "$OUT" | jq -r '"\(.task)/\(.total)"' 2>/dev/null)" = "1/2" ] && [ ! -f "$R/.tandem-relay/active-run.json" ]; then
-    ok "$K: legacy launch (a build record, no durable marker)"; cell "$K" legacy launch pass
-    [ "$(jq -r .reviewer "$R/.tandem-relay/build/build.json")" = reviewer ] && ok "$K: the build records the reviewer pane" || nope "$K: the build records no reviewer pane"
-  else nope "$K: legacy start: $OUT"; cell "$K" legacy launch FAIL; continue; fi
-  # Fresh task: the legacy handoff asks `tandem agent explain-reset`.
-  EX=$(tl agent explain-reset "$K" --for build 2>&1)
-  case "$EX" in *"fresh conversation"*|*reset*|*new*) ok "$K: fresh task (an adapter reset exists)"; cell "$K" legacy "fresh task" "adapter reset" ;; *) nope "$K: explain-reset: $EX"; cell "$K" legacy "fresh task" FAIL ;; esac
-  tl build sent --root "$R" --task 1 >/dev/null 2>&1
-  fake_set_state idle
-  RED=$(env PATH="$TMP/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$R" CODEX_HOME="$CODEX_HOME" tandem build advance --root "$R" --task 1 2>&1)
-  # Every task is reviewed in the reviewer pane, which passes it here.
-  case "$RED" in "review 1 "*)
-    RED=$(env PATH="$TMP/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$R" CODEX_HOME="$CODEX_HOME" tandem build advance --root "$R" --task 1 --event review-1 --review --verdict clean --from reviewer 2>&1) ;;
-  esac
-  case "$RED" in "next 2"*) ok "$K: handback of task 1 is checked, reviewed, and task 2 is next"; cell "$K" legacy "submit + check" pass ;; *) nope "$K: advance: $RED"; cell "$K" legacy "submit + check" FAIL ;; esac
-  [ "$(jq -r '.tasks[0].status' "$R/.tandem-relay/build/build.json")" = done ] && ok "$K: the record shows task 1 done" || nope "$K: record"
-  tl build stop --root "$R" --reason test >/dev/null 2>&1
-  [ "$(jq -r .state "$R/.tandem-relay/build/build.json")" = stopped ] && ok "$K: stop is recorded" && cell "$K" legacy stop "recorded" || { nope "$K: stop"; cell "$K" legacy stop FAIL; }
-  OUT=$(tl build start --plan "$R/plan.md" --root "$R" --builder builder --planner planner --check true 2>&1)
-  if [ "$(printf '%s' "$OUT" | jq -r '"\(.task) \(.resumed)"' 2>/dev/null)" = "2 true" ]; then ok "$K: restart resumes at task 2 and repeats nothing"; cell "$K" legacy restart "resumes at 2"
-  else nope "$K: restart: $OUT"; cell "$K" legacy restart FAIL; fi
-done
-
 printf '\n== matrix (fixture results; live verification: none, every kind UNVERIFIED live) ==\n'
 printf '%s' "$MATRIX" | awk -F'|' 'NF==4 { printf "  %-9s %-8s %-22s %s\n", $1, $2, $3, $4 }'
 

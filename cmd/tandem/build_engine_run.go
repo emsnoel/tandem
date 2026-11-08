@@ -8,7 +8,6 @@ import (
 	"os"
 
 	"github.com/emsnoel/tandem/internal/artifact"
-	"github.com/emsnoel/tandem/internal/build"
 	"github.com/emsnoel/tandem/internal/controller"
 	"github.com/emsnoel/tandem/internal/exitcode"
 	"github.com/emsnoel/tandem/internal/paths"
@@ -16,10 +15,8 @@ import (
 	"github.com/emsnoel/tandem/internal/workflow"
 )
 
-// cmdBuildStartDurable starts a durable run. retireLegacy, when set, is the
-// directory of a finished legacy build: it is archived and verified, then
-// removed from the relay, before the run is created.
-func cmdBuildStartDurable(args []string, retireLegacy string) int {
+// cmdBuildStartDurable starts a durable run.
+func cmdBuildStartDurable(args []string) int {
 	fs := flag.NewFlagSet("build start", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	var f durableFlags
@@ -53,6 +50,9 @@ func cmdBuildStartDurable(args []string, retireLegacy string) int {
 	if *recoveryPath != "" && *collab == "" {
 		fmt.Fprintln(os.Stderr, "tandem build start: --recovery-policy needs --collaboration: the repair allowance belongs to a collaboration's budget groups")
 		return exitcode.Usage
+	}
+	if err := checkEngineSettings(f.root); err != nil {
+		return fail(err)
 	}
 	relay := paths.Relay(f.root)
 	if run, err := controller.ReadActiveRun(relay); err != nil {
@@ -102,11 +102,7 @@ func cmdBuildStartDurable(args []string, retireLegacy string) int {
 		return fail(err)
 	}
 	if *dry {
-		out := map[string]any{"engine": "durable", "dry_run": true}
-		if retireLegacy != "" {
-			out["archives_legacy"] = retireLegacy
-		}
-		return printJSON(out)
+		return printJSON(map[string]any{"engine": "durable", "dry_run": true})
 	}
 	// The kind is checked before anything is created.
 	spec := transportSpec{Kind: *kind, Builder: *builder, Planner: *planner, Root: f.root, ReviewerKind: req.ReviewerKind, Reviewer: req.ReviewerSession}
@@ -132,19 +128,6 @@ func cmdBuildStartDurable(args []string, retireLegacy string) int {
 	if err != nil {
 		return fail(err)
 	}
-	archived := ""
-	if retireLegacy != "" {
-		// The same verified copy a new legacy start makes of the build it
-		// replaces. Only once it is verified does the relay copy go.
-		res, err := build.Archive(f.root, retireLegacy)
-		if err != nil {
-			return fail(fmt.Errorf("archiving the finished legacy build before the durable run: %w", err))
-		}
-		if err := os.RemoveAll(retireLegacy); err != nil {
-			return fail(err)
-		}
-		archived = res.Dir
-	}
 	c, err := controller.New(controller.Dependencies{State: st, Artifacts: art, Transport: tr, CheckExecutor: controller.NewCheckExecutor(art), Owner: cliOwner})
 	if err != nil {
 		return fail(err)
@@ -162,11 +145,7 @@ func cmdBuildStartDurable(args []string, retireLegacy string) int {
 		}
 		return fail(err)
 	}
-	out := map[string]any{"engine": "durable", "run_id": runID}
-	if archived != "" {
-		out["archived_legacy"] = archived
-	}
-	return printJSON(out)
+	return printJSON(map[string]any{"engine": "durable", "run_id": runID})
 }
 
 func cmdBuildStopDurable(args []string) int {

@@ -55,5 +55,11 @@ GOT=$(limit_for '{ "check_command": "true", "context_limit": "big" }')
 GOT=$(limit_for '{ "check_command": "true", "context_limit": -5 }')
 [[ "$GOT" == 0 ]] && ok "a negative context_limit falls back to 0" || nope "negative context_limit (got $GOT)"
 
+# The real binary's field layout: the script must find the invalid-manifest
+# field where tandem puts it.
+printf '[]\n' > "$TMP/repo/.tandem.json"
+ERR=$("$PROJECT" --root "$TMP/repo" 2>&1 >/dev/null)
+[[ "$ERR" == *"not a JSON object"* ]] && ok "the real field layout still names an invalid manifest" || nope "invalid manifest not named (got $ERR)"
+
 printf '\ntandem-project context_limit: passed %d, failed %d\n' "$PASS" "$FAIL"
 (( FAIL == 0 ))

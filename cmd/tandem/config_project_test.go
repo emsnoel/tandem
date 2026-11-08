@@ -17,7 +17,7 @@ func TestConfigProjectJSONKeyOrder(t *testing.T) {
 		keys = append(keys, m[1])
 	}
 	want := []string{"root", "plans_dir", "check_command", "conventions_file", "builder_kind", "prompt_extra",
-		"check_paths", "task_input_budget", "context_limit", "build_engine", "review_delivery",
+		"check_paths", "task_input_budget", "context_limit", "review_delivery",
 		"acceptance_policy", "collaboration", "source"}
 	if !reflect.DeepEqual(keys, want) {
 		t.Errorf("keys %q\nwant %q", keys, want)
@@ -33,7 +33,7 @@ func TestConfigProjectFields(t *testing.T) {
 	out := captureStdout(t, func() int { return cmdConfig([]string{"project", "--root", dir, "--fields"}) })
 	got := strings.Split(out, "\x00")
 	// The trailing newline goes, as $(...) dropped it on main; the inner one stays.
-	want := []string{dir, "", "true", "", "codex", "line one\nline two", "3000000", "0", "", "", "", "",
+	want := []string{dir, "", "true", "", "codex", "line one\nline two", "3000000", "0", "", "", "",
 		"manifest", "", "src dir", ""}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("fields %q\nwant   %q", got, want)

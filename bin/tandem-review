@@ -100,10 +100,10 @@ esac
 ROOT="${BUILDER_CWD:-$PWD}"
 tandem config project --root "$ROOT" --fields >"$FIELDS" 2>/dev/null \
   || die "could not resolve project settings for $ROOT"
-# Fields 1 to 3 are root, plans dir and check command; 14 names a manifest
+# Fields 1 to 3 are root, plans dir and check command; 13 names a manifest
 # that is not a JSON object.
 { read_field ROOT; read_field _plans_dir; read_field CHECK_COMMAND
-  for _ in 4 5 6 7 8 9 10 11 12 13; do read_field _; done
+  for _ in 4 5 6 7 8 9 10 11 12; do read_field _; done
   read_field _invalid_manifest; } <"$FIELDS"
 if [[ -n "$_invalid_manifest" ]]; then
   info "WARNING $_invalid_manifest is not a JSON object, so its settings were ignored."

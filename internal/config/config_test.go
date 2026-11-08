@@ -142,22 +142,17 @@ func TestLoadRepoWarnsWhenBothKindFormsPresent(t *testing.T) {
 	}
 }
 
-func TestLoadRepoBuildEngine(t *testing.T) {
-	for _, tc := range []struct{ body, want string }{
-		{`{}`, ""},
-		{`{"build_engine":"legacy"}`, "legacy"},
-		{`{"build_engine":"durable"}`, "durable"},
-	} {
-		r, _, err := LoadRepo(writeRepo(t, tc.body))
-		if err != nil || r.BuildEngine != tc.want {
-			t.Errorf("%s: got %q, %v; want %q", tc.body, r.BuildEngine, err, tc.want)
+func TestEngineSettingRulesInManifest(t *testing.T) {
+	for _, body := range []string{`{}`, `{"build_engine":"durable"}`} {
+		if _, _, err := LoadRepo(writeRepo(t, body)); err != nil {
+			t.Errorf("%s: %v", body, err)
 		}
 	}
-}
-
-func TestLoadRepoRefusesAnUnknownBuildEngine(t *testing.T) {
-	if _, _, err := LoadRepo(writeRepo(t, `{"build_engine":"durabel"}`)); err == nil || !strings.Contains(err.Error(), "build_engine") {
-		t.Fatalf("an unknown build_engine was accepted: %v", err)
+	for _, body := range []string{`{"build_engine":"legacy"}`, `{"build_engine":"durabel"}`} {
+		_, _, err := LoadRepo(writeRepo(t, body))
+		if err == nil || !strings.Contains(err.Error(), "build_engine") || !strings.Contains(err.Error(), "legacy engine is gone") {
+			t.Errorf("%s: %v", body, err)
+		}
 	}
 }
 

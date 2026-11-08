@@ -28,12 +28,18 @@ type Repo struct {
 	ConventionsFile string
 	PromptExtra     string
 	BuilderKind     string // legacy; superseded by Builder.Kind
-	// BuildEngine is "legacy", "durable" or "" for the default. It chooses the
-	// engine of a new build; TANDEM_BUILD_ENGINE overrides it.
-	BuildEngine string
-	Planner     *RepoRole
-	Builder     *RepoRole
-	Reviewer    *RepoRole
+	Planner         *RepoRole
+	Builder         *RepoRole
+	Reviewer        *RepoRole
+}
+
+// CheckEngineSetting allows an old "durable" setting, so files that have one
+// keep working, and refuses every other value by name.
+func CheckEngineSetting(name, value string) error {
+	if value == "" || value == "durable" {
+		return nil
+	}
+	return fmt.Errorf("%s is set to %q, but the legacy engine is gone and durable is the only build engine; remove this setting", name, value)
 }
 
 // repoRoleAllowed lists keys a repository may set on a role block.
@@ -81,12 +87,9 @@ func LoadRepo(path string) (*Repo, []string, error) {
 		ConventionsFile: str("conventions_file"),
 		PromptExtra:     str("prompt_extra"),
 		BuilderKind:     str("builder_kind"),
-		BuildEngine:     str("build_engine"),
 	}
-	// Refused, not ignored: a typo would otherwise run the build on the other
-	// engine without a word.
-	if e := r.BuildEngine; e != "" && e != "legacy" && e != "durable" {
-		return nil, nil, fmt.Errorf("%s: build_engine %q is not legacy or durable", path, e)
+	if err := CheckEngineSetting("build_engine", str("build_engine")); err != nil {
+		return nil, nil, fmt.Errorf("%s: %w", path, err)
 	}
 
 	var warns []string

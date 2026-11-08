@@ -8,87 +8,10 @@ import (
 	"time"
 
 	"github.com/emsnoel/tandem/internal/build"
-	"github.com/emsnoel/tandem/internal/exitcode"
-	"github.com/emsnoel/tandem/internal/paths"
 )
 
 // The legacy review round runs in the reviewer pane. The builder never
 // reviews: its handback opens the round, the reviewer's verdict closes it.
-
-func TestBuildStartRefusesWithoutAReviewer(t *testing.T) {
-	root, dir := buildRepo(t, "", 0)
-	planPath := filepath.Join(root, "p.md")
-	if err := os.WriteFile(planPath, []byte(threeTaskPlan), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Remove(filepath.Join(paths.Relay(root), "reviewer.json")); err != nil {
-		t.Fatal(err)
-	}
-	before, _ := os.ReadFile(filepath.Join(dir, "build.json"))
-	for _, extra := range [][]string{nil, {"--dry-run"}} {
-		rc, out, errText := runCapture(t, append([]string{"build", "start", "--plan", planPath, "--root", root}, extra...)...)
-		if rc != exitcode.ManualGate || out != "" {
-			t.Fatalf("%v: rc %d, stdout %q; want %d and nothing started", extra, rc, out, exitcode.ManualGate)
-		}
-		for _, want := range []string{"builder never reviews", `"reviewer" block in .tandem.json`, "tandem-pair --reviewer KIND"} {
-			if !strings.Contains(errText, want) {
-				t.Errorf("%v: the refusal lacks %q:\n%s", extra, want, errText)
-			}
-		}
-	}
-	if after, _ := os.ReadFile(filepath.Join(dir, "build.json")); string(after) != string(before) {
-		t.Fatal("a refused start changed the build")
-	}
-}
-
-// A reviewer named the same as the builder or the planner is that agent, and
-// would review its own work or plan. ValidateReviewerPane's rule refuses it.
-func TestBuildStartRefusesAReviewerNamedAsTheBuilderOrPlanner(t *testing.T) {
-	for _, name := range []string{"builder", "planner"} {
-		root, dir := buildRepo(t, "", 0)
-		planPath := filepath.Join(root, "p.md")
-		if err := os.WriteFile(planPath, []byte(threeTaskPlan), 0o644); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(paths.Relay(root), "reviewer.json"), []byte(`{"kind":"codex","name":"`+name+`"}`+"\n"), 0o644); err != nil {
-			t.Fatal(err)
-		}
-		before, _ := os.ReadFile(filepath.Join(dir, "build.json"))
-		rc, out, errText := runCapture(t, "build", "start", "--plan", planPath, "--root", root)
-		if rc != exitcode.ManualGate || out != "" {
-			t.Fatalf("%s: rc %d, stdout %q; want %d and nothing started", name, rc, out, exitcode.ManualGate)
-		}
-		for _, want := range []string{"the reviewer pane " + name + " is the " + name, `"reviewer" block in .tandem.json`, "tandem-pair --reviewer KIND"} {
-			if !strings.Contains(errText, want) {
-				t.Errorf("%s: the refusal lacks %q:\n%s", name, want, errText)
-			}
-		}
-		if after, _ := os.ReadFile(filepath.Join(dir, "build.json")); string(after) != string(before) {
-			t.Fatalf("%s: a refused start changed the build", name)
-		}
-	}
-}
-
-func TestBuildStartRecordsTheReviewerPane(t *testing.T) {
-	root, dir := buildRepo(t, "", 0)
-	planPath := filepath.Join(root, "p.md")
-	if err := os.WriteFile(planPath, []byte(threeTaskPlan), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(paths.Relay(root), "reviewer.json"), []byte(`{"kind":"codex","name":"critic"}`+"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	rc, out, errText := runCapture(t, "build", "start", "--plan", planPath, "--root", root)
-	if rc != 0 {
-		t.Fatalf("rc %d: %s", rc, errText)
-	}
-	if got := oneJSON(t, out); got["reviewer"] != "critic" {
-		t.Fatalf("start printed %v", got)
-	}
-	if b := load(t, dir); b.Reviewer != "critic" {
-		t.Fatalf("build reviewer %q", b.Reviewer)
-	}
-}
 
 // inReview runs task 1's builder handback, so task 1 is in review, delivered.
 func inReview(t *testing.T, f *fakeAdvance) (root, dir string) {

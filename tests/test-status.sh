@@ -28,14 +28,14 @@ export REAL_TANDEM; REAL_TANDEM=$(command -v tandem) || { echo "need an installe
 cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
 case "$1 $2" in
-  "reviewer show"|"config builder"|"state engine") exec "$REAL_TANDEM" "$@" ;;
+  "reviewer show"|"config builder") exec "$REAL_TANDEM" "$@" ;;
   "config project")
     root=""; shift 2
     while [ $# -gt 0 ]; do
       case "$1" in --root) root="$2"; shift 2 ;; *) shift ;; esac
     done
     printf '%s\0docs/plans\0' "$root"
-    for _ in 1 2 3 4 5 6 7 8 9 10 11; do printf '\0'; done
+    for _ in 1 2 3 4 5 6 7 8 9 10; do printf '\0'; done
     printf '%s\0' "${INVALID_MANIFEST:-}"
     exit 0 ;;
   "agent snapshot")
@@ -98,7 +98,6 @@ chk "it shows a clean review"       "clean (id 20260918-000001-1-1)"
 chk "it names the plan"             "docs/plans/p.md"
 chk "it shows zero mailbox activity" "0 handback report(s), 0 question(s)"
 chk "it shows the bridge not running" "bridge   not running"
-chk "it shows the engine and why" "engine   legacy (the default)"
 nchk "it calls no jq" "jq was called"
 nchk "it does not claim a subdirectory pairing at the repo root" "paired from a subdirectory"
 

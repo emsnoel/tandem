@@ -728,25 +728,6 @@ func TestARepeatBeforeDeliveryDoesNotResendAnOlderDifferentEvent(t *testing.T) {
 	}
 }
 
-func TestBuildStopNamesTheRightTaskAndLetsAcceptResolveIt(t *testing.T) {
-	root, dir := buildRepo(t, "check", 0)
-	judgeOn(t, dir)
-	f := &fakeAdvance{statuses: []string{"idle"}, judgeVerdict: Verdict{RecordID: "r1"}}
-	advance(t, f, root, reviewArgs("e1", "")...)
-	if rc := cmdBuild([]string{"stop", "--root", root, "--task", "1", "--reason", "review-delivery"}); rc != 0 {
-		t.Fatalf("stop: %d", rc)
-	}
-	if b := load(t, dir); b.StopTask != 1 || b.Tasks[0].Status != build.StatusStuck {
-		t.Fatalf("build %+v", b)
-	}
-	if rc := cmdBuildAccept([]string{"--root", root, "--task", "1", "--because", "reviewed manually"}); rc != 0 {
-		t.Fatalf("accept: %d", rc)
-	}
-	if b := load(t, dir); b.Current != 2 || b.Tasks[0].Status != build.StatusDone {
-		t.Fatalf("build %+v", b)
-	}
-}
-
 func TestBuildStopWithoutTaskKeepsTheCompletedTaskDone(t *testing.T) {
 	root, dir := buildRepo(t, "check", 0)
 	f := &fakeAdvance{statuses: []string{"idle"}}
@@ -756,19 +737,6 @@ func TestBuildStopWithoutTaskKeepsTheCompletedTaskDone(t *testing.T) {
 	}
 	if b := load(t, dir); b.StopTask != 1 || b.Tasks[0].Status != build.StatusDone {
 		t.Fatalf("build %+v", b)
-	}
-}
-
-func TestBuildReviewSentRecordsDelivery(t *testing.T) {
-	root, dir := buildRepo(t, "check", 0)
-	judgeOn(t, dir)
-	f := &fakeAdvance{statuses: []string{"idle"}, judgeVerdict: Verdict{RecordID: "r1"}}
-	advance(t, f, root, reviewArgs("e1", "")...)
-	if rc := cmdBuild([]string{"review-sent", "--root", root, "--task", "1"}); rc != 0 {
-		t.Fatalf("review-sent: %d", rc)
-	}
-	if !load(t, dir).Tasks[0].Review.Delivered {
-		t.Fatal("delivery not recorded")
 	}
 }
 

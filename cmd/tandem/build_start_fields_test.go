@@ -20,22 +20,6 @@ func startFields(t *testing.T, out string) []string {
 	return f[:14]
 }
 
-func TestBuildStartFieldsLegacy(t *testing.T) {
-	e := newCLI(t)
-	t.Setenv("TANDEM_BUILD_ENGINE", "")
-	rc, out, errOut := e.run("build", "start", "--plan", e.plan, "--root", e.root, "--judge", "--fields")
-	if rc != exitcode.OK {
-		t.Fatalf("rc %d: %s", rc, errOut)
-	}
-	f := startFields(t, out)
-	// engine, run_id, dry_run, task, total, title, brief, ledger, resumed,
-	// replaced, judge, reviewer, review_pending, review_prompt
-	if f[0] != "" || f[1] != "" || f[2] != "" || f[3] != "1" || f[4] != "2" || f[5] != "First" ||
-		!strings.HasSuffix(f[6], "task-1.md") || f[8] != "" || f[10] != "true" || f[11] != "reviewer" || f[12] != "" {
-		t.Errorf("fields %q", f)
-	}
-}
-
 func TestBuildStartFieldsDurableDryRun(t *testing.T) {
 	e := newCLI(t)
 	t.Setenv("TANDEM_BUILD_ENGINE", "durable")
@@ -54,7 +38,7 @@ func TestBuildStartFieldsOnRefusal(t *testing.T) {
 	e := newCLI(t)
 	t.Setenv("TANDEM_BUILD_ENGINE", "")
 	os.Remove(filepath.Join(paths.Relay(e.root), "reviewer.json"))
-	rc, out, _ := e.run("build", "start", "--plan", e.plan, "--root", e.root, "--fields")
+	rc, out, _ := e.run("build", "start", "--plan", e.plan, "--root", e.root, "--builder-kind", "codex", "--state-home", e.home, "--fields")
 	if rc != exitcode.ManualGate {
 		t.Fatalf("rc %d, want 23", rc)
 	}
@@ -82,8 +66,9 @@ func TestBuildStartFieldsCarryTheRun(t *testing.T) {
 func TestBuildStartWithoutFieldsUnchanged(t *testing.T) {
 	e := newCLI(t)
 	t.Setenv("TANDEM_BUILD_ENGINE", "")
-	rc, out, _ := e.run("build", "start", "--plan", e.plan, "--root", e.root)
-	if rc != exitcode.OK || !strings.HasPrefix(out, `{"task":1,`) {
+	rc, out, _ := e.run("build", "start", "--plan", e.plan, "--root", e.root, "--builder-kind", "codex",
+		"--reviewer", "reviewer", "--reviewer-kind", "claude", "--state-home", e.home, "--dry-run")
+	if rc != exitcode.OK || !strings.Contains(out, `"engine":"durable"`) {
 		t.Errorf("rc %d, out %q", rc, out)
 	}
 }

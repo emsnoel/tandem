@@ -42,11 +42,11 @@ case "$1 $2" in
     [[ "${GATE_RECORD_RC:-0}" == 0 ]] || exit "$GATE_RECORD_RC"
     exec "$TANDEM_REAL" "$@" ;;
   "config project")
-    # Field 1 is the root, echoed from --root; 14 is an invalid manifest.
+    # Field 1 is the root, echoed from --root; 13 is an invalid manifest.
     root=""; shift 2
     while (( $# )); do [[ "$1" == --root ]] && root="$2"; shift; done
     printf '%s\0' "$root"
-    for _ in 2 3 4 5 6 7 8 9 10 11 12 13; do printf '\0'; done
+    for _ in 2 3 4 5 6 7 8 9 10 11 12; do printf '\0'; done
     printf '%s\0' "${INVALID_MANIFEST:-}"
     exit 0 ;;
   "agent snapshot")

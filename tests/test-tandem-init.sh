@@ -40,7 +40,7 @@ case "$1 $2" in
     else
       printf '%s\0docs/plans\0true\0AGENTS.md\0codex\0' "$root"
     fi
-    printf '%s\0' "" 6000 200000 legacy "" "" "" detected "${INVALID_MANIFEST:-}" a b
+    printf '%s\0' "" 6000 200000 "" "" "" detected "${INVALID_MANIFEST:-}" a b
     exit 0 ;;
 esac
 case "$1" in
@@ -106,7 +106,7 @@ case "$OUT" in *"jq was called"*) nope "it calls no jq: $OUT" ;; *) ok "it calls
 chk "the listing shows check_paths as a list" "    check_paths: a, b"
 chk "the listing shows an empty value as (none)" "    prompt_extra: (none)"
 for k in root plans_dir check_command conventions_file builder_kind task_input_budget context_limit \
-         build_engine review_delivery acceptance_policy collaboration source; do
+         review_delivery acceptance_policy collaboration source; do
   chk "the listing shows $k" "    $k: "
 done
 chk "the listing shows a number" "    task_input_budget: 6000"

@@ -167,9 +167,6 @@ func TestImportDoesNotInventSnapshot(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "build.json")); !os.IsNotExist(err) {
 		t.Error("the legacy record is still where the engine looks for it")
 	}
-	if eng, err := SelectEngine(e.relay, ""); err != nil || eng != EngineDurable {
-		t.Fatalf("engine %s %v", eng, err)
-	}
 
 	tasks := e.tasks()
 	carried := e.current("task-1")

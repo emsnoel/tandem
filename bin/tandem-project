@@ -7,7 +7,7 @@
 #
 # Keys: root, plans_dir, check_command, check_paths, conventions_file,
 #       builder_kind, prompt_extra, task_input_budget, context_limit,
-#       build_engine, review_delivery, acceptance_policy, collaboration
+#       review_delivery, acceptance_policy, collaboration
 set -euo pipefail
 
 ROOT=""
@@ -52,9 +52,9 @@ FIELDS=$(mktemp)
 trap 'rm -f "$FIELDS"' EXIT
 tandem config project --root "$ROOT" --from "$SEARCH_FROM" --fields >"$FIELDS" 2>/dev/null \
   || { echo "$BEHIND" >&2; exit 1; }
-# Field 14 names a manifest that is not a JSON object, which tandem ignored.
+# Field 13 names a manifest that is not a JSON object, which tandem ignored.
 INVALID=""
-{ for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13; do IFS= read -r -d '' _ || true; done
+{ for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do IFS= read -r -d '' _ || true; done
   IFS= read -r -d '' INVALID || true; } <"$FIELDS"
 if [[ -n "$INVALID" ]]; then
   printf 'tandem-project: %s is not a JSON object, so its settings were ignored.\n' "$INVALID" >&2

@@ -70,15 +70,15 @@ USAGE
 
 die()  { printf 'tandem-handoff: %s\n' "$*" >&2; exit 1; }
 
-# Refuse when the relay was written by an engine or protocol this install
-# does not understand.
-engine_guard() {
+# Refuse when the relay's run marker was written by an engine or protocol this
+# install does not understand.
+relay_guard() {
   local rc=0
-  tandem state engine --root "$1" >/dev/null || rc=$?
+  tandem state active-run --relay "$1" >/dev/null || rc=$?
   case "$rc" in
     0) ;;
     23) exit 23 ;;
-    *) die "the installed tandem cannot check which engine owns this relay (rc $rc); re-run install.sh." ;;
+    *) die "the installed tandem cannot read this relay's run marker (rc $rc); re-run install.sh." ;;
   esac
 }
 info() { printf 'tandem-handoff: %s\n' "$*"; }
@@ -161,7 +161,7 @@ tandem config project --root "$ROOT" --fields >"$FIELDS" 2>/dev/null \
   || die "could not resolve project settings for $ROOT"
 { read_field ROOT; read_field _plans_dir; read_field CHECK_COMMAND; read_field CONVENTIONS_FILE
   read_field _; read_field PROMPT_EXTRA; read_field TASK_BUDGET; read_field _context_limit
-  read_field PROJ_BUILD_ENGINE; read_field REVIEW_DELIVERY; read_field ACCEPTANCE_POLICY
+  read_field REVIEW_DELIVERY; read_field ACCEPTANCE_POLICY
   read_field COLLABORATION; read_field PROJ_SOURCE; read_field _invalid_manifest; } <"$FIELDS"
 if [[ -n "$_invalid_manifest" ]]; then
   info "WARNING $_invalid_manifest is not a JSON object, so its settings were ignored."
@@ -198,7 +198,7 @@ PLAN_ABS=$(cd "$(dirname "$PLAN")" && printf '%s/%s' "$(pwd)" "$(basename "$PLAN
 # runs it too. internal/paths owns the relay name, including the legacy one.
 MAILBOX=$(tandem paths relay --root "$ROOT") \
   || die "the installed tandem is behind these commands (no 'tandem paths'); re-run install.sh."
-engine_guard "$ROOT"
+relay_guard "$MAILBOX"
 check_recorded_kinds
 
 record_override
