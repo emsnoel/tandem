@@ -249,3 +249,74 @@ real CLI.
 - **Gates still not met:** a full plan with a repair on every kind, a controller crash
   during a send on a real Herdr, measured cost targets, direct reviewer execution, and a
   command that reconciles a plan edited mid-run.
+
+## Live proof, 2026-11-08
+
+Run from a real Herdr 0.9.5 pane on macOS, on `main` at 5edc627 plus the two fixes on
+`fix/unconfirmed-builder-send`. CLI versions: Codex 0.167.0, Claude Code 2.1.319, Copilot
+1.0.107. Every run used a new scratch repo with `"build_engine": "durable"`, a throwaway
+Claude Haiku planner, and a separate reviewer kind. Nobody touched a pane after the handoff.
+
+**Forcing a repair.** Each repo held one review rule in a file only the reviewer loads:
+`CLAUDE.local.md` for a Claude reviewer and `AGENTS.md` for a Codex reviewer. The rule asks for
+one exact line in `scripts/bye.sh`, and applies only to patch reviews. It lives in a file, so
+it survives the conversation reset before each review. Its first version also applied to plan
+reviews, and the planner added the line to the plan, so it now names patch reviews only.
+
+### Full plan with a repair
+
+| Builder | Reviewer | Tasks accepted | `repair_started` | Input (cached) | Output | Result |
+|---|---|---|---|---|---|---|
+| Codex, GPT-6-Sol, low | Claude Sonnet 5.5, low | 3 of 3 | task-2, task-3 | 744,101 (645,376) | 4,861 | pass |
+| Claude Sonnet 5.5, low | Codex GPT-6-Sol, low | 3 of 3 | task-2 | 890,478 (771,405) | 5,192 | pass |
+| Copilot, GPT-5.6 Terra | Claude Sonnet 5.5, low | 3 of 3 | task-2 | 558,642 (505,392) | 3,737 | pass, after the fixes below |
+
+Every passing run shows the final notice in the planner pane. The token figures are the
+builder and repair turns. Reviewer tokens are not counted.
+
+### What the Copilot runs found
+
+Three Copilot runs on 5edc627 stopped at the same step. Task 1 was accepted, then task 2 paused
+as `writer_unknown`. The prompt had arrived: in the first run the builder acknowledged it 9
+seconds after the pause. Herdr reported the pane as `idle` throughout, so tandem saw no turn
+start. Updating Herdr's Copilot integration from v3 to v4 did not change this. Why Herdr shows
+no turn for this pane is still not known.
+
+After following the note, the first run paused again as `scheduling_blocked`. Its usage was
+only partly known at that moment, far below the 3,000,000 limit.
+
+Two fixes followed. A builder prompt that may have been sent now waits 90 seconds for the
+builder's own acknowledgement before the run pauses. A budget block is looked at again on each
+pass, and clears when known usage allows the work. One Copilot run on the fixed build passed.
+
+### Failed check
+
+A Claude builder with a check that fails once task 1 exists. The run paused as `check_failed`
+and the planner pane showed the note with `task-1`, exit code 1 and the end of the check's log.
+The plan needed `--override-review`, because the reviewer correctly objected to it.
+
+### Controller crash during a send
+
+Claude builder, Codex reviewer, two tasks. A wrapper around `herdr` stalled the task-2 prompt
+at each point. The bridge, its `tandem` child and the wrapper were then killed with `kill -9`,
+and the bridge was started again.
+
+| Killed | Prompt seen by the builder | Outcome |
+|---|---|---|
+| Before typing | Never | Paused `writer_unknown` with the note. The planner followed it to a new run, which finished 2 of 2 |
+| During typing | Once | Finished 2 of 2 |
+| Right after typing | Once | Finished 2 of 2 |
+
+A prompt prints its nonce twice, in the acknowledge and hand-back commands, so one prompt shows
+on two lines. These runs used the build before the fixes, and the one-engine branch repeats them.
+
+State directories, for the runs above: Codex a44ba8548b4d3464144b9dbe2f1e10b5, Claude
+316678fc69559fb887305d91d6e39fe9, Copilot failures 8bbbf8bfd2d6cb325af2338d9e999242,
+18d0c63720b6816749a8c0634fa1d96b and 649be5c2caa222e7c951653aa1cd44ca, Copilot pass
+2f60fe4a95d93266dcdbc04a005fe73c, failed check ea75fbcb7ae7fa80ec835d678286952f, crash before
+4494412d1591d4ba5197a6dfe3cb306c, during 7fd14388bbca01a6c0ed8f4d3eaa20a7, after
+1c2c7c75acd9cbbe8ee89aed2db7f246.
+
+**Gates now met:** a full plan with a repair on every kind, and a crash during a send on a real
+Herdr. **Still not met:** measured cost targets including reviewer tokens, direct reviewer
+execution, and a command that reconciles a plan edited mid-run.

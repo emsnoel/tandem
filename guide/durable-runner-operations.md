@@ -75,7 +75,9 @@ review states. `build usage` prints null for what is unknown. Unknown usage is n
 
 A prompt that was typed but not confirmed is `delivery_unknown`. Tandem never types it
 again: only the builder returning the prompt's nonce proves it was read. The run pauses
-with `writer_unknown`, and no new task starts while a writer is uncertain.
+with `writer_unknown`, and no new task starts while a writer is uncertain. A builder prompt typed
+but not seen to start first waits 90 seconds for the builder's own acknowledgement, because Herdr
+does not always show a turn starting.
 
 1. Look at the pane. If the builder is working on the task, it read the prompt.
 2. Export the run and read the manifest. Every unresolved delivery is listed under
@@ -389,20 +391,30 @@ keeps the state.
 
 ## Live smoke procedure
 
-Last run on 2026-10-03, one two-task plan per kind, against Herdr 0.8.2. The results and
-what has changed since are in [durable-runner-rollout-report.md](durable-runner-rollout-report.md).
-The fixtures prove compatibility against a fake Herdr. They do not prove any agent CLI
-works. A live pair is authorised by a person and costs real tokens. For each kind, record
-the OS, the Herdr version, the agent CLI version, the model and settings, and the
-transport. Then observe:
+Last run on 2026-11-08. The results are in
+[durable-runner-rollout-report.md](durable-runner-rollout-report.md). The fixtures prove
+compatibility against a fake Herdr. They do not prove any agent CLI works. A live pair is
+authorised by a person and costs real tokens.
 
-1. launch with the same model, effort and autonomy flags as before;
-2. a fresh task (a reset, or a new session, seen before the prompt);
-3. the acknowledgement carrying the attempt's nonce;
-4. a submit that reaches the queue, and the controller running the check;
-5. a pane review whose result is read from a settled pane;
-6. a stop that is seen to end the builder's turn before the writer is released;
-7. a restart (`tandem state recover`) that resends nothing.
+Run from a real Herdr pane. Each run gets a new scratch repo with `"build_engine": "durable"`
+in `.tandem.json`, a passing `check_command` and a separate reviewer kind. Start each agent to
+its prompt, press Esc on any Codex update or hooks dialog, then hand off and touch nothing.
+Record the OS, the Herdr version, each CLI's version, the models and the token usage.
+
+1. **A full plan with a repair, per builder kind.** Use at least 3 tasks. Put a review rule for
+   patch reviews in the file only the reviewer loads, so one task gets `changes_requested`:
+   `CLAUDE.local.md` for a Claude reviewer, `AGENTS.md` for a Codex reviewer. Pass means every
+   task is accepted in `tandem build status --json`, `repair_started` is in the run's `events`
+   table (read with `sqlite3 'file:PATH?immutable=1'`), and the planner pane shows the final
+   notice.
+2. **A failed check, on any kind.** Use a check that fails once the task's file exists, and keep
+   it outside the repo so the builder cannot edit it. Pass means a `check_failed` pause and a
+   note with the task's name.
+3. **A crash during a send, on one kind.** Put a wrapper around `herdr` first on `PATH` for
+   `tandem-pair`, so the bridge inherits it. Stall `agent prompt` for a later task before typing,
+   during, and right after. At each point `kill -9` the bridge, its `tandem` child and the
+   wrapper, then start `tandem-bridge` again. Pass means the prompt is typed at most once and
+   the run finishes, or pauses as `writer_unknown` with a note whose steps reach a finished run.
 
 Reading a pane review by hand: each tick already reads the reply itself (see
 [A review not recorded in time](#a-review-not-recorded-in-time)). To record one yourself,
