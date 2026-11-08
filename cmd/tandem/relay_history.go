@@ -20,7 +20,7 @@ var relayHistoryKeys = []string{"id", "ts", "from", "to", "question", "answer"}
 
 // cmdRelayHistory prints the Q&A log for bin/tandem-relaylog, oldest first.
 // Ids start with the date and time, so sorting the names sorts the records.
-// Review triage writes judge-<id>.json beside them; those are left out. Each
+// Old judge-<id>.json records may sit beside them; those are left out. Each
 // record is 8 NUL fields: the file, its JSON on one line, then id, ts, from,
 // to, question and answer, read as `relay read` reads a value. A file that is
 // not a JSON object prints its path and seven empty fields, so the script can

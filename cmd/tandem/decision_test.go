@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/emsnoel/tandem/internal/decision"
 )
@@ -121,4 +123,24 @@ func TestDecisionStatusCarriesTheErrorReason(t *testing.T) {
 	if out != "" || lines[0] != "error" || !strings.Contains(st, "timed out") {
 		t.Fatalf("stdout %q, status %q; want nothing and error with the reason", out, st)
 	}
+}
+
+// fakeJudge stands in for the Jev client: it counts calls and returns what
+// it is told to, so the tests can see whether a request was made at all.
+type fakeJudge struct {
+	calls   int
+	answers map[string]decision.Answer
+	err     error
+}
+
+func (f *fakeJudge) Ask(context.Context, string, any, map[string]decision.Question) (map[string]decision.Answer, error) {
+	f.calls++
+	return f.answers, f.err
+}
+
+func useFakeJudge(t *testing.T, f *fakeJudge) {
+	t.Helper()
+	orig := newJevClient
+	newJevClient = func(string, time.Duration) jevClient { return f }
+	t.Cleanup(func() { newJevClient = orig })
 }

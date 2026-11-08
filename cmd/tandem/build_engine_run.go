@@ -35,7 +35,6 @@ func cmdBuildStartDurable(args []string) int {
 	delivery := fs.String("review-delivery", "", "how reviews come back: manual (default) or mailbox (direct handback; needs --collaboration and --acceptance-policy)")
 	recoveryPath := fs.String("recovery-policy", "", "opt in to bounded recovery: one automatic repair per piece of work, then one decision (needs --collaboration)")
 	policyPath := fs.String("acceptance-policy", "", "the two-stage acceptance policy file a mailbox run is pinned to")
-	_ = fs.Bool("judge", false, "accepted and ignored: durable runs always review in the pane")
 	resumeOnly := fs.Bool("resume-only", false, "refuse unless a durable run exists to continue")
 	dry := fs.Bool("dry-run", false, "decide and print, write nothing")
 	if err := fs.Parse(args); err != nil || *planPath == "" || f.root == "" || *ctxLimit < 0 {

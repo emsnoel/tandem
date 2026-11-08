@@ -59,7 +59,6 @@ start_build() {
   fi
   BARGS=( --plan "$PLAN_ABS" --root "$ROOT" --builder "$BUILDER_NAME" --planner "$PLANNER_NAME"
           --check "$CHECK_COMMAND" --budget "${TASK_BUDGET:-0}" )
-  [[ "${HERDR_JUDGE:-0}" == 1 && -n "${TYPESAFE_API_KEY:-}" ]] && BARGS+=( --judge )
   (( CONTINUE )) && BARGS+=( --resume-only )
   (( DRY_RUN )) && BARGS+=( --dry-run )
   # The run chooses its transport from the builder's kind.

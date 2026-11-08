@@ -38,8 +38,6 @@ func run(args []string) int {
 		return cmdDoctor(args[1:])
 	case "decision":
 		return cmdDecision(args[1:])
-	case "triage":
-		return cmdTriage(args[1:])
 	case "paths":
 		return cmdPaths(args[1:])
 	case "relay":

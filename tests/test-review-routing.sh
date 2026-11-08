@@ -40,7 +40,7 @@ REVIEWER_REC='{"kind":"codex","name":"reviewer"}'
 review() {
   rm -f "$FAKE/prompts" "$FAKE/resets" "$FAKE"/prompt.*.txt
   fake_set_state idle
-  OUT=$(cd "$REPO" && env -u HERDR_DECISION -u HERDR_JUDGE PATH="$TMP/bin:$ROOT_DIR/bin:/usr/bin:/bin" \
+  OUT=$(cd "$REPO" && env -u HERDR_DECISION PATH="$TMP/bin:$ROOT_DIR/bin:/usr/bin:/bin" \
         HERDR_ENV=1 FAKE="$FAKE" REPO="$REPO" tandem-review "$PLAN" "$@" 2>&1); RC=$?
 }
 sent_to()  { cut -f1 "$FAKE/prompts" 2>/dev/null | tr '\n' ' '; }
