@@ -5,6 +5,7 @@
 # fake Herdr run one pass at a time (--once). The planner's pane is pinned idle
 # and the checks are what it was typed, to whom, and how many times:
 #   - a provider that rejects every turn pauses dispatch_failed;
+#   - a send nobody saw start waits for an acknowledgement before any note is typed;
 #   - a startup dialog leaves the send delivery_unknown, and the note names the builder;
 #   - a failed check names the task and offers no waiver that cannot move the run;
 #   - a plan edited mid-run, and a deliberate stop, each get their own note;
@@ -52,11 +53,23 @@ for pane in working idle; do
   ACK_MS=""
 done
 
+printf '\n== a send nobody saw start: no note while an acknowledgement can arrive ==\n'
+new_case waiting true
+: > "$FAKE/swallow"
+pass
+[ "$(state)" = running/ ] && ok "the run keeps running" || nope "state $(state)"
+[ "$(sent_to builder)" = 1 ] && ok "the task was typed once" || nope "builder prompts: $(sent_to builder)"
+[ "$(sent_to planner)" = 0 ] && ok "the planner got no note" || nope "notes: $(sent_to planner)"
+rm -f "$FAKE/swallow"
+
 printf '\n== a startup dialog: the send becomes delivery_unknown ==\n'
 new_case dialog true
 # A pane at a native dialog reports idle and swallows the prompt.
 : > "$FAKE/swallow"
-pass
+# The grace is shortened to 1 ms, so the second pass finds it over.
+GRACE_MS=1
+pass 2
+GRACE_MS=""
 [ "$(state)" = paused/writer_unknown ] && ok "the run pauses writer_unknown" || nope "state $(state)"
 has "the send is delivery_unknown" "$(td state export --run "$(td build status --root "$R" --json | jq -r .run_id)" --output "$TMP/exp-dialog" --root "$R" | jq -r '.unresolved[]')" "delivery_unknown"
 [ "$(sent_to builder)" = 1 ] && ok "the task was typed once" || nope "builder prompts: $(sent_to builder)"

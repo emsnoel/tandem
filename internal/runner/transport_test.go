@@ -249,7 +249,7 @@ func TestAmbiguousSendErrorGoesStraightToUnknownWithEvidence(t *testing.T) {
 	e := newEnv(t)
 	tr := &fakeTransport{sendErrs: []error{errors.New("connection reset after the write")}}
 	out, err := e.deliverer(tr, "w").Tick(ctx)
-	if err != nil || out.Kind != Unknown {
+	if err != nil || out.Kind != AwaitingAck {
 		t.Fatalf("%+v %v", out, err)
 	}
 	if eff := e.effect(t); eff.State != "delivery_unknown" {

@@ -28,6 +28,10 @@ const (
 	Failed OutcomeKind = "failed"
 	// Unknown: the send may have happened; the effect is delivery_unknown.
 	Unknown OutcomeKind = "unknown"
+	// AwaitingAck: a builder prompt that may have been sent. It is delivery_unknown
+	// and nothing reconciles it for state.BuilderAckGrace, so the builder's own
+	// acknowledgement can settle it before the run pauses.
+	AwaitingAck OutcomeKind = "awaiting_ack"
 	// Acknowledged: reconciliation saw this effect's nonce.
 	Acknowledged OutcomeKind = "acknowledged"
 	// StillUnknown: reconciliation learned nothing; operator action may be needed.
@@ -207,10 +211,14 @@ func (d *Deliverer) send(ctx context.Context, eff workflow.Effect) (Outcome, err
 	default:
 		// Not provably unsent, so it may have been sent. Keep the evidence and
 		// do not retry.
-		if err := d.Store.MarkDeliveryUnknown(ctx, id, fence, d.storeError(ctx, id, sendErr)); err != nil {
+		kind, wait := Unknown, time.Duration(0)
+		if eff.Kind == workflow.EffectBuilderDispatch {
+			kind, wait = AwaitingAck, state.BuilderAckGrace
+		}
+		if err := d.Store.MarkDeliveryUnknownFor(ctx, id, fence, d.storeError(ctx, id, sendErr), wait); err != nil {
 			return Outcome{EffectID: id}, err
 		}
-		return Outcome{Kind: Unknown, EffectID: id}, nil
+		return Outcome{Kind: kind, EffectID: id}, nil
 	}
 }
 
