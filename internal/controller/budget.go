@@ -166,6 +166,23 @@ func (c *Controller) SetBudget(ctx context.Context, runID, scope string, limit i
 	return d, nil
 }
 
+// clearBudgetBlock lets a run go on when the budget that paused it now allows
+// the work, which happens when usage that was not known yet has become known.
+// A collaboration can hold a launch for other reasons, and only its own commands
+// release those, so its runs are left alone. The next tick starts the work.
+func (c *Controller) clearBudgetBlock(ctx context.Context, run state.Run, cfg runConfig) error {
+	p := budgetPolicy(run)
+	if run.State != "paused" || run.PauseCode != workflow.PauseScheduling || cfg.Collaboration != "" ||
+		(p.TaskInputLimit == 0 && p.RunInputLimit == 0) {
+		return nil
+	}
+	d, err := c.budgetDecision(ctx, run, cfg, c.currentTask(ctx, run))
+	if err != nil || !d.SchedulingAllowed {
+		return err
+	}
+	return c.d.State.SetRunState(ctx, run.ID, "running", "")
+}
+
 // currentTask is the task being worked on: the first not yet accepted.
 func (c *Controller) currentTask(ctx context.Context, run state.Run) string {
 	tasks, err := c.d.State.RunTasks(ctx, run.ID)
