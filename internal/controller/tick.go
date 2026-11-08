@@ -110,6 +110,9 @@ func (c *Controller) pass(ctx context.Context, runID string) error {
 	if rerr := c.sendReviewRejections(ctx, run, cfg); rerr != nil {
 		mailErr = errors.Join(mailErr, rerr)
 	}
+	if rerr := c.clearBudgetBlock(ctx, run, cfg); rerr != nil {
+		mailErr = errors.Join(mailErr, rerr)
+	}
 	if wasPaused {
 		return mailErr
 	}
