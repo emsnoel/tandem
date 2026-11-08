@@ -37,7 +37,7 @@ ok() { printf '  ok   %s\n' "$1"; PASS=$((PASS+1)); }
 nope() { printf '  FAIL %s\n' "$1"; FAIL=$((FAIL+1)); }
 run() {
   rm -f "$TMP/calls"
-  OUT=$(env -u TANDEM_BUILD_ENGINE PATH="$TMP/bin:$PATH" HERDR_ENV=1 HERDR_JUDGE=0 REPO="$REPO" RELAY="$RELAY" CALLS="$TMP/calls" TANDEM_REAL="$TMP/tandem-real" REAL_START="${REAL_START:-0}" "$ROOT_DIR/bin/tandem-handoff" "$REPO/docs/plans/p.md" --dry-run "$@" 2>&1); RC=$?
+  OUT=$(env -u TANDEM_BUILD_ENGINE PATH="$TMP/bin:$PATH" HERDR_ENV=1 REPO="$REPO" RELAY="$RELAY" CALLS="$TMP/calls" TANDEM_REAL="$TMP/tandem-real" REAL_START="${REAL_START:-0}" "$ROOT_DIR/bin/tandem-handoff" "$REPO/docs/plans/p.md" --dry-run "$@" 2>&1); RC=$?
 }
 args_have() { jq -e --arg f "$1" --arg v "$2" 'index($f) as $i | $i != null and .[$i+1] == $v' "$TMP/calls" >/dev/null; }
 no_review_args() { ! jq -e 'any(.[]; . == "--review-delivery" or . == "--acceptance-policy" or . == "--collaboration")' "$TMP/calls" >/dev/null; }

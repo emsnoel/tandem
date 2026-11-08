@@ -9,10 +9,10 @@ ok()   { printf '  ok   %s\n' "$1"; PASS=$((PASS+1)); }
 nope() { printf '  FAIL %s\n' "$1"; FAIL=$((FAIL+1)); }
 
 # The outer environment turns every control on, then the scrub runs.
-OUT=$(HERDR_TRIAGE_SKIP=1 HERDR_JUDGE=1 HERDR_DECISION=1 TYPESAFE_API_KEY=ts-x \
+OUT=$(HERDR_DECISION=1 TYPESAFE_API_KEY=ts-x \
       TANDEM_BUILD_ENGINE=durable TANDEM_STATE_HOME=/nonexistent \
-      bash -c '. "$1"; printf "%s|%s|%s|%s|%s|%s" "${HERDR_TRIAGE_SKIP-unset}" "${HERDR_JUDGE-unset}" "${HERDR_DECISION-unset}" "${TYPESAFE_API_KEY-unset}" "${TANDEM_BUILD_ENGINE-unset}" "${TANDEM_STATE_HOME-unset}"' _ "$ROOT_DIR/tests/lib/clean-env.sh")
-[ "$OUT" = "unset|unset|unset|unset|unset|unset" ] \
+      bash -c '. "$1"; printf "%s|%s|%s|%s" "${HERDR_DECISION-unset}" "${TYPESAFE_API_KEY-unset}" "${TANDEM_BUILD_ENGINE-unset}" "${TANDEM_STATE_HOME-unset}"' _ "$ROOT_DIR/tests/lib/clean-env.sh")
+[ "$OUT" = "unset|unset|unset|unset" ] \
   && ok "the scrub clears every feature switch an outer shell can set" \
   || nope "the scrub left some set: $OUT"
 
@@ -36,14 +36,14 @@ OUT=$(HERDR_ENV=1 HERDR_PANE_ID=w1:p1 HERDR_TAB_ID=w1:t1 HERDR_WORKSPACE_ID=w1 \
 grep -q 'lib/clean-env.sh' "$ROOT_DIR/tests/run.sh" \
   && ok "run.sh sources the scrub" || nope "run.sh does not source tests/lib/clean-env.sh"
 
-# The suite itself, started with HERDR_TRIAGE_SKIP=1, sees it unset.
+# The suite itself, started with HERDR_DECISION=1, sees it unset.
 SCRATCH=$(mktemp -d); trap 'rm -rf "$SCRATCH"' EXIT
 mkdir -p "$SCRATCH/tests/lib"
 cp "$ROOT_DIR/tests/lib/clean-env.sh" "$SCRATCH/tests/lib/"
 sed -n '/^\. .*clean-env\.sh/p' "$ROOT_DIR/tests/run.sh" > "$SCRATCH/tests/header.sh"
-printf 'printf "%%s" "${HERDR_TRIAGE_SKIP-unset}"\n' >> "$SCRATCH/tests/header.sh"
-OUT=$(cd "$SCRATCH/tests" && HERDR_TRIAGE_SKIP=1 bash -c '. ./header.sh' 2>&1)
-[ "$OUT" = unset ] && ok "run.sh's own line leaves HERDR_TRIAGE_SKIP unset under an inherited 1" || nope "inherited HERDR_TRIAGE_SKIP survived run.sh's scrub line: '$OUT'"
+printf 'printf "%%s" "${HERDR_DECISION-unset}"\n' >> "$SCRATCH/tests/header.sh"
+OUT=$(cd "$SCRATCH/tests" && HERDR_DECISION=1 bash -c '. ./header.sh' 2>&1)
+[ "$OUT" = unset ] && ok "run.sh's own line leaves HERDR_DECISION unset under an inherited 1" || nope "inherited HERDR_DECISION survived run.sh's scrub line: '$OUT'"
 
 # A suite that exits non-zero without a FAIL line is still named.
 mkdir -p "$SCRATCH/loop/tests"

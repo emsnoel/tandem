@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 
 	"github.com/emsnoel/tandem/internal/config"
@@ -189,29 +188,6 @@ func TestApproveKindPrintsTheCanonicalPath(t *testing.T) {
 	}
 	if !u.KindApproved(real, "codex") {
 		t.Error("approved via the printed repo value, but KindApproved(real, ...) is false")
-	}
-}
-
-func TestLaunchSpecNeverScopesTheBuilderNetwork(t *testing.T) {
-	dir := withFixture(t, "{}", "")
-	args := []string{"--role", "builder", "--kind", "codex", "--autonomy", "auto", "--root", dir, "--cwd", dir, "--dry-run"}
-	t.Setenv("HERDR_JUDGE", "")
-	off := captureStdout(t, func() int { return cmdLaunchSpec(args) })
-	t.Setenv("HERDR_JUDGE", "1")
-	t.Setenv("TYPESAFE_API_KEY", "k")
-	on := captureStdout(t, func() int { return cmdLaunchSpec(args) })
-	var plain, judged map[string]any
-	if err := json.Unmarshal([]byte(off), &plain); err != nil {
-		t.Fatal(err)
-	}
-	if err := json.Unmarshal([]byte(on), &judged); err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(plain, judged) {
-		t.Fatalf("judging changed the builder launch: off=%s on=%s", off, on)
-	}
-	if _, exists := judged["network_allow"]; exists {
-		t.Fatalf("launch still records a network scope: %s", on)
 	}
 }
 

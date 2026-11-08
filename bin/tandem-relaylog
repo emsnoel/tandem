@@ -42,7 +42,7 @@ if [[ ! -d "$LOG_DIR" ]]; then
 fi
 
 # tandem sorts the records oldest first, keeps the last LIMIT, and leaves out
-# review triage's judge-<id>.json files. Each record is 8 NUL-separated fields.
+# old judge-<id>.json records. Each record is 8 NUL-separated fields.
 FIELDS=$(mktemp)
 trap 'rm -f "$FIELDS"' EXIT
 tandem relay history --dir "$LOG_DIR" --limit "$LIMIT" >"$FIELDS" 2>/dev/null \

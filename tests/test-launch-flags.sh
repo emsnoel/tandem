@@ -273,8 +273,7 @@ nchk "--builder codex does not adopt a claude agent"  "adopting the running"
 run_pair env FAKE_TAB=t1 FAKE_KIND=codex -- --builder codex
 chk  "--builder codex adopts a codex agent beside the planner" "adopting the running codex agent"
 
-echo "--- launch flags: tandem owns judgments ---"
-# Judging never changes launch permissions or invokes a sandbox probe.
+echo "--- a builder launch has no network scope ---"
 mkdir -p "$TMP/judgebin"
 cat > "$TMP/judgebin/codex" <<STUB
 #!/usr/bin/env bash
@@ -304,20 +303,13 @@ esac
 STUB
 chmod +x "$TMP/bin/herdr"
 
-run_pair env PATH="$JPATH" HERDR_JUDGE=1 TYPESAFE_API_KEY=ts-test
-chk  "judging keeps the ordinary sandbox"         "--sandbox workspace-write"
-nchk "judging adds no permissions profile"        "permissions.tandem-builder"
-nchk "judging sets no builder environment"         "shell_environment_policy"
+run_pair env PATH="$JPATH"
+chk  "it keeps the ordinary sandbox"         "--sandbox workspace-write"
+nchk "it adds no permissions profile"        "permissions.tandem-builder"
+nchk "it sets no builder environment"         "shell_environment_policy"
 nchk "the builder record has no network field"    '"network_allow"'
 [ ! -s "$TMP/codex-sandbox.log" ] && ok "a dry run never probes the network" \
   || nope "a dry run probed the network: $(cat "$TMP/codex-sandbox.log")"
-
-# No key: the launch is unchanged.
-run_pair env -u TYPESAFE_API_KEY PATH="$JPATH" HERDR_JUDGE=1
-chk  "without a key the sandbox is unchanged"    "--sandbox workspace-write"
-nchk "and the network is not widened"            "permissions.tandem-builder"
-nchk "and nothing is set in the builder's env"   "shell_environment_policy"
-nchk "and the builder record has no network field" '"network_allow"'
 
 # An adopted builder has the same identity format, with no network field.
 cat > "$TMP/bin/herdr" <<'STUB'
@@ -329,7 +321,7 @@ case "$1 $2" in
 esac
 STUB
 chmod +x "$TMP/bin/herdr"
-run_pair env PATH="$JPATH" HERDR_JUDGE=1 TYPESAFE_API_KEY=ts-test
+run_pair env PATH="$JPATH"
 chk  "adopts the running codex builder"          "adopting the running codex agent"
 nchk "an adopted builder's record has no network field" '"network_allow"'
 

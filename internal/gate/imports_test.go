@@ -20,9 +20,6 @@ func TestGateReachesNothingImpure(t *testing.T) {
 		"github.com/emsnoel/tandem/internal/herdr":    true,
 		"github.com/emsnoel/tandem/internal/vcs":      true,
 		"github.com/emsnoel/tandem/internal/decision": true,
-		// internal/triage is advisory like internal/decision: a model's opinion must
-		// never let a teardown or handoff through.
-		"github.com/emsnoel/tandem/internal/triage": true,
 	}
 	for _, dep := range strings.Fields(string(out)) {
 		if forbidden[dep] {

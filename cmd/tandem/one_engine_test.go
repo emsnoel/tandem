@@ -99,3 +99,13 @@ func TestRemovedCommandsAreUnknown(t *testing.T) {
 		}
 	}
 }
+
+func TestTriageIsGone(t *testing.T) {
+	if rc, _, errOut := runCapture(t, "triage", "report"); rc != exitcode.Usage {
+		t.Errorf("tandem triage: rc %d %q", rc, errOut)
+	}
+	e := newCLI(t)
+	if rc, _, errOut := e.start("--judge"); rc != exitcode.Usage {
+		t.Errorf("build start --judge: rc %d %q", rc, errOut)
+	}
+}

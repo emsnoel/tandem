@@ -1,6 +1,6 @@
 # Sourced by tests/run.sh. Clears every feature switch so no fixture inherits
 # one. A fixture that tests a switch sets it for itself.
-unset HERDR_DECISION HERDR_JUDGE HERDR_TRIAGE_SKIP TYPESAFE_API_KEY
+unset HERDR_DECISION TYPESAFE_API_KEY
 unset TANDEM_BUILD_ENGINE TANDEM_STATE_HOME
 
 # Point Herdr's CLI at a socket that does not exist, so a call a fixture
