@@ -40,7 +40,7 @@ pass() {
   local i
   for ((i = 0; i < ${1:-1}; i++)); do
     env PATH="$TMP/bin:$ROOT_DIR/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$R" HERDR_ENV=1 TANDEM_BUILD_ENGINE=durable \
-      TANDEM_STATE_HOME="$TMP/state-$C" TANDEM_ACK_WINDOW_MS="${ACK_MS:-}" HERDR_BRIDGE_PROMPT_TIMEOUT_MS=3000 \
+      TANDEM_STATE_HOME="$TMP/state-$C" TANDEM_ACK_WINDOW_MS="${ACK_MS:-}" TANDEM_BUILDER_ACK_GRACE_MS="${GRACE_MS:-}" HERDR_BRIDGE_PROMPT_TIMEOUT_MS=3000 \
       "$ROOT_DIR/bin/tandem-bridge" --mailbox "$R/.tandem-relay" --planner planner --once >>"$TMP/bridge.log" 2>&1
   done
 }

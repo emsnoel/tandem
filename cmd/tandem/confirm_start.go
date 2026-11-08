@@ -54,7 +54,16 @@ func silenceWindowFromEnv() time.Duration {
 	return controller.SilenceWindow
 }
 
+// builderAckGraceFromEnv does the same for state.BuilderAckGrace.
+func builderAckGraceFromEnv() time.Duration {
+	if ms, err := strconv.Atoi(os.Getenv("TANDEM_BUILDER_ACK_GRACE_MS")); err == nil && ms > 0 {
+		return time.Duration(ms) * time.Millisecond
+	}
+	return state.BuilderAckGrace
+}
+
 func init() {
+	state.BuilderAckGrace = builderAckGraceFromEnv()
 	state.AckWindow = ackWindowFromEnv()
 	controller.SilenceWindow = silenceWindowFromEnv()
 }

@@ -27,3 +27,17 @@ func TestSilenceWindowFromEnv(t *testing.T) {
 		}
 	}
 }
+
+func TestBuilderAckGraceComesFromTheEnvironment(t *testing.T) {
+	for env, want := range map[string]time.Duration{
+		"":     state.BuilderAckGrace,
+		"1":    time.Millisecond,
+		"0":    state.BuilderAckGrace,
+		"soon": state.BuilderAckGrace,
+	} {
+		t.Setenv("TANDEM_BUILDER_ACK_GRACE_MS", env)
+		if got := builderAckGraceFromEnv(); got != want {
+			t.Errorf("TANDEM_BUILDER_ACK_GRACE_MS=%q: %v, want %v", env, got, want)
+		}
+	}
+}

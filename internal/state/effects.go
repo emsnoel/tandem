@@ -29,6 +29,11 @@ const (
 // (TANDEM_ACK_WINDOW_MS, cmd/tandem/confirm_start.go).
 var AckWindow = 10 * time.Minute
 
+// BuilderAckGrace is how long a builder prompt that was typed but not seen to
+// start waits for the builder's own acknowledgement before the run pauses. A
+// variable so the shell tests can shorten it.
+var BuilderAckGrace = 90 * time.Second
+
 var (
 	// ErrNoEffect: nothing is claimable now.
 	ErrNoEffect = errors.New("no effect to deliver")
@@ -264,6 +269,12 @@ func (s *Store) ReleaseClaim(ctx context.Context, effectID string, fence int64) 
 // reconciled. evidenceHash, when not empty, names an artifact holding the
 // transport's evidence (its error text, session ids) and is retained.
 func (s *Store) MarkDeliveryUnknown(ctx context.Context, effectID string, fence int64, evidenceHash string) error {
+	return s.MarkDeliveryUnknownFor(ctx, effectID, fence, evidenceHash, 0)
+}
+
+// MarkDeliveryUnknownFor is MarkDeliveryUnknown for an effect nothing should
+// reconcile until wait has passed.
+func (s *Store) MarkDeliveryUnknownFor(ctx context.Context, effectID string, fence int64, evidenceHash string, wait time.Duration) error {
 	if evidenceHash != "" && !hashPattern.MatchString(evidenceHash) {
 		return fmt.Errorf("%w: malformed evidence hash %q", workflow.ErrInvalidTransition, evidenceHash)
 	}
@@ -272,7 +283,7 @@ func (s *Store) MarkDeliveryUnknown(ctx context.Context, effectID string, fence 
 			return wrongState(effectID, state, "delivering")
 		}
 		if _, err := tx.conn.ExecContext(ctx, `UPDATE effects SET state='delivery_unknown', receipt_hash=COALESCE(?, receipt_hash), available_ms=?, lease_owner=NULL, lease_until_ms=NULL WHERE id=?`,
-			nullable(evidenceHash), now, effectID); err != nil {
+			nullable(evidenceHash), now+wait.Milliseconds(), effectID); err != nil {
 			return err
 		}
 		if evidenceHash == "" {
