@@ -134,7 +134,6 @@ fi
 printf '\n'
 record_signoff
 settle_durable_run
-archive_build
 close_panes
 stop_bridge
 remove_mailboxes

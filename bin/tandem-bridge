@@ -7,9 +7,6 @@
 #   question   expects an answer file back
 #   handback   no reply; the sender has finished
 #   verdict    no reply; the sender has finished
-#   task       the end of one build task; `tandem build advance` checks it and
-#              the bridge sends the review, the fix, the next task, or the end
-#              of the build to the planner
 #
 # Answers are written as files by the responding agent, never scraped from a
 # pane, because the terminal collapses long output.
@@ -30,8 +27,6 @@ done
 . "${_self%/*}/lib/bridge-deliver.sh"
 # shellcheck source=lib/bridge-durable.sh
 . "${_self%/*}/lib/bridge-durable.sh"
-# shellcheck source=lib/bridge-build.sh
-. "${_self%/*}/lib/bridge-build.sh"
 # shellcheck source=lib/bridge-lock.sh
 . "${_self%/*}/lib/bridge-lock.sh"
 
@@ -47,7 +42,7 @@ usage() {
 usage: tandem-bridge --mailbox DIR [--planner NAME] [--once]
 
 Watches DIR/q for questions, handbacks and plan-review verdicts and delivers them
-to the named agent. A build task handed back is checked and the next task sent.
+to the named agent, and drives the relay's run.
 Normally started in the background by tandem-pair; run it by hand only to debug.
 
   --mailbox DIR   relay directory (contains q/ and a/)
@@ -113,8 +108,8 @@ read_message() {
   tandem relay read --file "$1" >"$FIELDS" 2>/dev/null || : >"$FIELDS"
 }
 
-# Recover only task events claimed before a crash. Questions, handbacks and
-# verdicts stay claimed so they are not sent twice.
+# An old task message claimed before a crash goes back in the queue, to be set
+# aside. Questions, handbacks and verdicts stay claimed so they are not sent twice.
 shopt -s nullglob
 for taken in "$MAILBOX"/q/*.json.taken; do
   _kind=""

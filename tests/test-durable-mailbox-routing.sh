@@ -2,7 +2,7 @@
 # Protocol 2 routing in tandem-handback and tandem-bridge.
 #
 # A durable run is marked by <relay>/active-run.json, which both look for before
-# any legacy build.json. `tandem build event new` is the real binary; Herdr and
+# a build record. `tandem build event new` is the real binary; Herdr and
 # `build event ingest` are stubbed, and only ingest's arguments are checked.
 set -uo pipefail
 ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
@@ -94,7 +94,6 @@ else nope "it queues a versioned envelope ($(cat "$Q" 2>/dev/null))"; fi
 PP=$(jq -r '.payload_path' "$Q" 2>/dev/null)
 [ "$(cat "$R/.tandem-relay/durable/$RUN/$PP" 2>/dev/null)" = "implemented, check green" ] && ok "the report travels as the payload" || nope "the report travels as the payload"
 [ -e "$R/.tandem-relay/q" ] && [ -n "$(ls "$R/.tandem-relay/q" 2>/dev/null)" ] && nope "a legacy queue file was also written" || ok "no legacy queue file is written"
-[ -e "$R/.tandem-relay/build/build.json" ] && nope "a legacy build.json appeared" || ok "no legacy build.json appears"
 has "it tells the builder to stop" "$OUT" "Stop here"
 
 rm -f "$R/.tandem-relay/durable/$RUN"/q/*; rm -f "$R/.tandem-relay/durable/$RUN"/payloads/*
@@ -153,7 +152,7 @@ hb "$R" --task 1 "${D[@]}" --nonce malformed --started
 refused "malformed nonce" "nonce must be 32 lowercase hex characters" "$R"
 fixture "$R"
 hb "$R" --task 1 "${D[@]}" --review --report "$REPORT"
-refused "durable --review" "review hand backs are not supported" "$R"
+refused "durable --review" "unknown argument" "$R"
 fixture "$R"
 hb "$R" --task 9 "${D[@]}" --report "$REPORT"
 refused "unknown task" "no task 9" "$R"
@@ -186,22 +185,12 @@ mark "$R/sub/.tandem-relay" bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 hb "$R/sub" --task 1 "${D[@]}" --report "$REPORT"
 refused "conflicting markers" "two durable runs" "$R"
 
-printf '\n== durable flags need a durable run; legacy builds are unchanged ==\n'
-L="$TMP/legacy"; rm -rf "$L"; mkdir -p "$L/.tandem-relay/build"; git -C "$L" init -q .
+printf '\n== durable flags need a durable run ==\n'
+L="$TMP/norun"; rm -rf "$L"; mkdir -p "$L/.tandem-relay"; git -C "$L" init -q .
 hb "$L" --task 1 "${D[@]}" --report "$REPORT"
 refused "v2 flags without a durable run" "none is active" "$L"
-printf '{"state":"running"}\n' > "$L/.tandem-relay/build/build.json"
-HB_ENV=(TANDEM_BUILD_ENGINE=durable)
 hb "$L" --task 2 --report "$REPORT"
-refused "engine variable alone" "HERDR_ENV != 1" "$L"
-HB_ENV=(HERDR_ENV=1 HERDR_ROLE=builder)
-hb "$L" --task 2 --report "$REPORT"
-HB_ENV=()
-Q=$(ls "$L/.tandem-relay/q"/*.json 2>/dev/null | head -1)
-if [ "$RC" -eq 0 ] && [ -n "$Q" ] && jq -e '.kind=="task" and .task==2 and .stuck==false' "$Q" >/dev/null 2>&1; then
-  ok "a legacy build still takes the v1 task message"
-else nope "legacy handback changed (rc $RC): $OUT"; fi
-[ -z "$(ls "$L/.tandem-relay/durable" 2>/dev/null)" ] && ok "and writes nothing durable" || nope "legacy handback wrote durable files"
+refused "a plain task with no run" "no run is active" "$L"
 
 # --- the bridge ---------------------------------------------------------------
 br() { # br <relay>
@@ -241,11 +230,10 @@ br "$REL"
 
 mkdir -p "$REL/q"; printf '{"id":"t1","kind":"task","from":"builder","question":"task","task":1,"stuck":false,"report_path":"/x","created":"2026-09-29T12:00:00Z"}\n' > "$REL/q/t1.json"
 br "$REL"
-grep -q 'build advance' "$CALLS" && nope "a v1 task message drove a durable run" || ok "a v1 task message does not drive a durable run"
-[ -f "$REL/quarantine-v1/t1.json.taken" ] && grep -q "durable run $RUN" "$REL/quarantine-v1/t1.json.taken.reason" 2>/dev/null \
+[ -f "$REL/quarantine-v1/t1.json" ] && grep -q "legacy is gone" "$REL/quarantine-v1/t1.json.reason" 2>/dev/null \
   && ok "it is set aside with a reason, not deleted" || nope "the v1 message was not quarantined with a reason"
 
-printf '\n== the bridge drives a durable run through tick and recover, and a legacy relay through neither ==\n'
+printf '\n== the bridge drives a durable run through tick and recover, and a relay with no run through neither ==\n'
 rm -rf "$REL/q" "$REL/quarantine-v1"; rm -f "$RD"/q/*
 br "$REL"
 [ "$(grep -c "^build recover --root $B" "$CALLS")" -eq 1 ] && ok "startup runs recover once for the durable run" || nope "recover calls ($(cat "$CALLS"))"
@@ -290,7 +278,7 @@ unset PROMPTS STATUS_OUT
 
 LG="$TMP/legacyrelay"; rm -rf "$LG"; mkdir -p "$LG/.tandem-relay/q"; git -C "$LG" init -q .
 br "$LG/.tandem-relay"
-grep -qE '^build (tick|recover)' "$CALLS" && nope "a legacy relay was ticked" || ok "a legacy relay is never ticked or recovered"
+grep -qE '^build (tick|recover)' "$CALLS" && nope "a relay with no run was ticked" || ok "a relay with no run is never ticked or recovered"
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

@@ -14,8 +14,6 @@ _self="${BASH_SOURCE[0]}"
 while [[ -L "$_self" ]]; do
   _link=$(readlink "$_self"); [[ "$_link" == /* ]] && _self="$_link" || _self="${_self%/*}/$_link"
 done
-# shellcheck source=lib/reviewer.sh
-. "${_self%/*}/lib/reviewer.sh"
 HANDBACK_LIB="${_self%/*}/lib"
 # shellcheck source=lib/handback-task.sh
 . "$HANDBACK_LIB/handback-task.sh"
@@ -31,8 +29,6 @@ REPORT_FILE=""
 PLAN_PATH=""
 TASK=""
 STUCK=0
-REVIEW=0
-VERDICT=""
 ROLE=""
 STARTED=0
 REVIEW_STARTED=0
@@ -41,24 +37,19 @@ RUN_ID=""; ATTEMPT_ID=""; JOB_ID=""; EFFECT_ID=""; NONCE=""
 
 usage() {
   cat <<'USAGE'
-usage: tandem-handback [--report FILE|-] [--plan PATH] [--task N [--stuck | --review --verdict clean|changes]] [--role NAME] [--dry-run]
+usage: tandem-handback [--report FILE|-] [--plan PATH] [--task N [--stuck]] [--role NAME] [--dry-run]
 
 Tells the planner the plan is implemented and hands it the completion report.
 Run this from the builder when you finish; it is how the session gets closed.
 
-With --task, hands back ONE task of a build tandem is running: the report is
+With --task, hands back ONE task of the run tandem is driving: the report is
 queued for the relay bridge, which checks the task and sends the next one to
 a fresh conversation. It never goes to the planner directly.
 
   --report FILE   file holding the report. "-" or omitted reads stdin.
   --plan PATH     the plan that was implemented, named in the message
-  --task N        the build task being handed back
+  --task N        the task being handed back
   --stuck         with --task: the task could not be finished
-  --review        with --task: the reviewer pane's review of the task. Needs
-                  --verdict. The builder never reviews, so this is refused
-                  from any pane but the build's reviewer.
-  --verdict V     with --review: clean (nothing to fix) or changes (the
-                  builder fixes what the report lists)
   --role NAME     the pane this runs in, when the CLI does not pass
                   HERDR_ROLE to the commands it runs
   --started       with --task and a durable run: acknowledge that you read the
@@ -91,8 +82,6 @@ while (( $# )); do
     --plan)    PLAN_PATH="${2:-}"; shift 2 ;;
     --task)    TASK="${2:-}"; shift 2 ;;
     --stuck)   STUCK=1; shift ;;
-    --review)  REVIEW=1; shift ;;
-    --verdict) VERDICT="${2:-}"; shift 2 ;;
     --role)    ROLE="${2:-}"; shift 2 ;;
     --started) STARTED=1; shift ;;
     --review-started) REVIEW_STARTED=1; shift ;;
@@ -119,33 +108,21 @@ elif (( STUCK )); then
   die "--stuck only means something with --task."
 elif (( STARTED )); then
   die "--started only means something with --task."
-elif (( REVIEW )); then
-  die "--review only means something with --task."
 elif (( REVIEW_STARTED )) || [[ -n "$REVIEW_RESULT" ]]; then
   die "--review-started and --review-result only mean something with --task."
-fi
-if [[ -n "$VERDICT" ]] && (( ! REVIEW )); then
-  die "--verdict only means something with --review."
-fi
-if (( REVIEW && STUCK )); then
-  die "--review takes no --stuck: a reviewer hands back a verdict. Nothing was sent."
-fi
-if (( REVIEW )) && [[ -z "$RUN_ID" ]]; then
-  [[ "$VERDICT" == clean || "$VERDICT" == changes ]] \
-    || die "--review needs --verdict clean or --verdict changes (got '${VERDICT}'). Nothing was sent."
 fi
 [[ -z "$ROLE" || "$ROLE" =~ ^[A-Za-z0-9_-]+$ ]] || die "--role must be a pane name such as reviewer (got '$ROLE')."
 if (( REVIEW_STARTED )) && [[ -n "$REVIEW_RESULT" ]]; then
   die "--review-started and --review-result are two messages; send them one at a time."
 fi
 if (( REVIEW_STARTED )) || [[ -n "$REVIEW_RESULT" ]]; then
-  (( STARTED || STUCK || REVIEW )) && die "a review message cannot be combined with --started, --stuck or --review."
+  (( STARTED || STUCK )) && die "a review message cannot be combined with --started or --stuck."
   [[ -z "$REPORT_FILE" ]] || die "a review message takes no --report; the result is the file after --review-result."
 fi
 
 durable_handback
 
-# Legacy delivery below needs the Herdr pane environment.
+# A whole-plan handback needs the Herdr pane environment.
 [[ "${HERDR_ENV:-}" == 1 ]] || die "not running inside a Herdr-managed pane (HERDR_ENV != 1)."
 
 # --- read the report ---
@@ -177,15 +154,11 @@ REPORT_PATH="$MAILBOX/reports/$ID.md"
 
 # Who is handing back: --role, then HERDR_ROLE, then Herdr's name for the pane,
 # then the builder. A CLI may not pass the pane's environment to its commands.
-# For a review, tandem decides below whether this shell is the reviewer.
 SELF="${ROLE:-${HERDR_ROLE:-}}"
-if (( ! REVIEW )); then
-  [[ -n "$SELF" ]] || SELF=$(tandem agent self 2>/dev/null) || SELF=""
-  SELF="${SELF:-builder}"
-fi
+[[ -n "$SELF" ]] || SELF=$(tandem agent self 2>/dev/null) || SELF=""
+SELF="${SELF:-builder}"
 [[ "$SELF" != "$PLANNER_NAME" ]] || die "refusing to hand work back to yourself."
 
-task_handback
 build_message
 print_dry_run
 deliver_handback

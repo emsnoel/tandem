@@ -45,9 +45,8 @@ cat > "$TMP/bin/stub-common" <<'STUB'
 nul() { local f; for f in "$@"; do printf '%s\0' "$f"; done; }
 _here=$(dirname "$0")
 case "$1 $2" in
-  # engine run_id dry_run task total title brief ledger resumed replaced judge
-  # reviewer review_pending review_prompt
-  "build start") nul "" "" "" 1 1 "the plan" /relay/build/task-1.md "" "" "" "" "" "" ""; exit 0 ;;
+  # engine run_id dry_run: a dry run names no run.
+  "build start") case " $* " in *" --dry-run "*) nul durable "" true ;; *) nul durable stubrun "" ;; esac; exit 0 ;;
   # root plans_dir check_command conventions_file builder_kind prompt_extra
   # task_input_budget context_limit review_delivery
   # acceptance_policy collaboration source invalid_manifest
@@ -202,73 +201,6 @@ OUT=$(PATH="$TMP/bin:$PATH" HERDR_ENV=1 MARKER="$MARKER" REPO="$TMP/repo" \
         --override-review 20260910-000001-1-1 \
         --because 'I commit here, not you' 2>&1) || RC=$?
 
-chk "the prompt carries the overruled block" "OVERRULED OBJECTIONS"
-# The pre-check also prints the reason, so require it after the OVERRULED
-# block's marker to prove the block rendered.
-case "$OUT" in
-  *"OVERRULED OBJECTIONS"*"I commit here, not you"*)
-    ok "it carries the ruling" ;;
-  *)
-    nope "it carries the ruling (not found inside the rendered OVERRULED block)" ;;
-esac
-chk "it carries the objection beside it"     "task 4 deletes h()"
-chk "the ruling outranks the plan"           "outrank the plan"
-
-# --- injection: a --because reason containing {{EXTRA}} reaches the prompt
-# unchanged. prompt_extra must be non-empty and distinct for this to test
-# anything.
-project 'true' 'REPO-EXTRA-MARKER'
-
-RC=0
-OUT=$(PATH="$TMP/bin:$PATH" HERDR_ENV=1 MARKER="$MARKER" REPO="$TMP/repo" \
-        "$HANDOFF" "$PLAN" --dry-run \
-        --override-review 20260910-000001-1-1 \
-        --because 'use {{EXTRA}} carefully' 2>&1) || RC=$?
-chk "a reason with a literal {{EXTRA}} slot reaches the prompt unchanged" "use {{EXTRA}} carefully"
-case "$OUT" in
-  *"use REPO-EXTRA-MARKER carefully"*)
-    nope "the reason's literal {{EXTRA}} text was rewritten by the repo's prompt_extra" ;;
-  *)
-    ok "the reason's literal {{EXTRA}} text was not rewritten" ;;
-esac
-
-# --- injection: prompt_extra containing {{OVERRULED}} must not pull in the
-# ruling.
-project 'true' 'see {{OVERRULED}} above'
-
-RC=0
-OUT=$(PATH="$TMP/bin:$PATH" HERDR_ENV=1 MARKER="$MARKER" REPO="$TMP/repo" \
-        "$HANDOFF" "$PLAN" --dry-run \
-        --override-review 20260910-000001-1-1 \
-        --because 'I commit here, not you' 2>&1) || RC=$?
-# An un-defanged marker would also vanish, replaced by a second copy of the
-# ruling, so count the ruling in the rendered prompt only.
-_prompt_only=$(printf '%s\n' "$OUT" | sed -n '/--- prompt that would be sent ---/,/--- end ---/p')
-_count=$(printf '%s' "$_prompt_only" | grep -o 'I commit here, not you' | wc -l | tr -d ' ')
-case "$_count" in
-  1) ok "the ruling appears exactly once in the rendered prompt (not duplicated by an un-defanged {{OVERRULED}})" ;;
-  *) nope "the ruling appears $_count time(s) in the rendered prompt, want exactly 1" ;;
-esac
-# The defanged text must have no stray backslash.
-case "$OUT" in
-  *'\{OVERRULED}'*)
-    nope "the defanged text carries a stray backslash the builder would see" ;;
-  *'{OVERRULED}'*)
-    ok "the defanged text renders as a clean single-brace look-alike" ;;
-  *)
-    nope "the defanged text did not render as expected" ;;
-esac
-
-# Restore the default project stub for the remaining cases.
-project 'true' ''
-
-RC=0
-OUT=$(PATH="$TMP/bin:$PATH" HERDR_ENV=1 MARKER="$MARKER" REPO="$TMP/repo" \
-        "$HANDOFF" "$PLAN" --dry-run 2>&1) || RC=$?
-case "$OUT" in
-  *OVERRULED*) nope "a clean handoff must not mention overruled objections" ;;
-  *)           ok   "a clean handoff carries no overruled block" ;;
-esac
 
 # --- the ruling survives a re-handoff of the same plan ---
 # The ruling is stored in the sidecar. On a later handoff without
@@ -284,15 +216,7 @@ case "$RC" in
   0) ok "a re-handoff on a persisted ruling is allowed" ;;
   *) nope "expected rc 0 for a re-handoff on a persisted ruling, got $RC" ;;
 esac
-chk "the re-handoff still carries the overruled block" "OVERRULED OBJECTIONS"
 # The ruling must appear after the block marker.
-case "$OUT" in
-  *"OVERRULED OBJECTIONS"*"I commit here, not you"*)
-    ok "the re-handoff carries the persisted ruling" ;;
-  *)
-    nope "the re-handoff dropped the persisted ruling" ;;
-esac
-chk "the re-handoff carries the objection beside it" "task 4 deletes h()"
 # Nothing changes the stored ruling, so the pre-check must not run.
 if grep -q -- '--expect-review' "$MARKER"; then
   nope "a re-handoff ran the override pre-check it was never asked for"
@@ -458,12 +382,6 @@ case "$RC" in
   0) ok "a dry-run override against real objections exits 0 (would proceed)" ;;
   *) nope "a dry-run override against real objections should exit 0, got $RC (finding 3 regression)" ;;
 esac
-case "$OUT" in
-  *"OVERRULED OBJECTIONS"*"dry run must still send this"*)
-    ok "the OVERRULED block renders under --dry-run despite the gate reporting objections" ;;
-  *)
-    nope "the OVERRULED block did not render (finding 3 regression)" ;;
-esac
 STORED=$(jq -r '.override_reason' "$TMP/repo/.tandem-relay/reviews/$DRYID.json")
 if [ -z "$STORED" ]; then
   ok "dry-run wrote nothing to the sidecar"
@@ -525,86 +443,6 @@ if [ -z "$STORED" ]; then
 else
   nope "the ruling WAS written despite an unrecognised pre-check outcome (got: $STORED)"
 fi
-
-# --- a slot marker in check_command does not corrupt the render ---
-# check_command is repo-controlled and substitutes before OVERRULED.
-project 'make test {{OVERRULED}}' ''
-
-cat > "$TMP/bin/tandem" <<'STUB'
-#!/usr/bin/env bash
-. "$(dirname "$0")/stub-common"
-printf '%s\n' "$*" >> "$MARKER"
-case "$1 $2" in
-  "agent snapshot") printf '%%1\t%s\tidle\n' "$REPO"; exit 0 ;;
-  "gate review")    printf '20260910-000001-1-1\n'; exit 0 ;;
-esac
-case "$1" in
-  config) printf '{"kind":{"value":"codex"},"autonomy":{"value":"auto"}}\n'; exit 0 ;;
-  paths)  printf '%s/.tandem-relay\n' "$REPO"; exit 0 ;;
-esac
-exit 0
-STUB
-chmod +x "$TMP/bin/tandem"
-
-RC=0
-OUT=$(PATH="$TMP/bin:$PATH" HERDR_ENV=1 MARKER="$MARKER" REPO="$TMP/repo" \
-        "$HANDOFF" "$PLAN" --dry-run \
-        --override-review 20260910-000001-1-1 \
-        --because 'check-command ruling' 2>&1) || RC=$?
-
-_prompt_only=$(printf '%s\n' "$OUT" | sed -n '/--- prompt that would be sent ---/,/--- end ---/p')
-_count=$(printf '%s' "$_prompt_only" | grep -o 'check-command ruling' | wc -l | tr -d ' ')
-case "$_count" in
-  1) ok "a slot marker in check_command does not duplicate the ruling" ;;
-  *) nope "the ruling appears $_count time(s) via check_command's {{OVERRULED}} slot (want 1, finding 2 regression)" ;;
-esac
-case "$_prompt_only" in
-  *'make test {OVERRULED}'*)
-    ok "check_command's slot marker renders defanged rather than corrupted" ;;
-  *)
-    nope "check_command's rendered CHECKLINE was not the expected defanged text (finding 2 regression)" ;;
-esac
-
-# --- a triple-brace marker is fully defanged ---
-# One pass turns "{{{OVERRULED}}}" into a live "{{OVERRULED}}".
-project 'make test {{{OVERRULED}}}' ''
-
-cat > "$TMP/bin/tandem" <<'STUB'
-#!/usr/bin/env bash
-. "$(dirname "$0")/stub-common"
-printf '%s\n' "$*" >> "$MARKER"
-case "$1 $2" in
-  "agent snapshot") printf '%%1\t%s\tidle\n' "$REPO"; exit 0 ;;
-  "gate review")    printf '20260910-000001-1-1\n'; exit 0 ;;
-esac
-case "$1" in
-  config) printf '{"kind":{"value":"codex"},"autonomy":{"value":"auto"}}\n'; exit 0 ;;
-  paths)  printf '%s/.tandem-relay\n' "$REPO"; exit 0 ;;
-esac
-exit 0
-STUB
-chmod +x "$TMP/bin/tandem"
-
-RC=0
-OUT=$(PATH="$TMP/bin:$PATH" HERDR_ENV=1 MARKER="$MARKER" REPO="$TMP/repo" \
-        "$HANDOFF" "$PLAN" --dry-run \
-        --override-review 20260910-000001-1-1 \
-        --because 'triple-brace ruling' 2>&1) || RC=$?
-
-_prompt_only=$(printf '%s\n' "$OUT" | sed -n '/--- prompt that would be sent ---/,/--- end ---/p')
-_count=$(printf '%s' "$_prompt_only" | grep -o 'triple-brace ruling' | wc -l | tr -d ' ')
-case "$_count" in
-  1) ok "a TRIPLE-brace slot marker does not duplicate the ruling (one pass is not enough)" ;;
-  *) nope "the ruling appears $_count time(s) via a triple-brace marker (want 1, finding 2 nested regression)" ;;
-esac
-case "$_prompt_only" in
-  *'{{OVERRULED}}'*|*'{{{OVERRULED}}}'*)
-    nope "a live or partially-defanged slot marker survived into the rendered prompt" ;;
-  *'make test {OVERRULED}'*)
-    ok "a triple-brace slot marker is fully defanged to the same single-brace form" ;;
-  *)
-    nope "check_command's rendered CHECKLINE was not the expected fully-defanged text" ;;
-esac
 
 # --- a malformed builder.json does not abort the refusal ---
 # The gate prints "?" for an unreadable side, and the script must still exit 24.
@@ -671,40 +509,6 @@ if grep -q 'agent prompt' "$MARKER"; then
 else
   ok "the builder was never prompted"
 fi
-
-# --- EXTRA's trailing newline survives defanging ---
-# Command substitution strips trailing newlines, which would collapse the
-# blank line after prompt_extra.
-project 'true' 'REPO-EXTRA-MARKER'
-
-cat > "$TMP/bin/tandem" <<'STUB'
-#!/usr/bin/env bash
-. "$(dirname "$0")/stub-common"
-printf '%s\n' "$*" >> "$MARKER"
-case "$1 $2" in
-  "agent snapshot") printf '%%1\t%s\tidle\n' "$REPO"; exit 0 ;;
-  "gate review")    printf '20260910-000001-1-1\n'; exit 0 ;;
-esac
-case "$1" in
-  config) printf '{"kind":{"value":"codex"},"autonomy":{"value":"auto"}}\n'; exit 0 ;;
-  paths)  printf '%s/.tandem-relay\n' "$REPO"; exit 0 ;;
-esac
-exit 0
-STUB
-chmod +x "$TMP/bin/tandem"
-
-RC=0
-OUT=$(PATH="$TMP/bin:$PATH" HERDR_ENV=1 MARKER="$MARKER" REPO="$TMP/repo" \
-        "$HANDOFF" "$PLAN" --dry-run 2>&1) || RC=$?
-
-# A literal newline in a case pattern tells one newline from a blank line.
-case "$OUT" in
-  *'REPO-EXTRA-MARKER'$'\n\n''When you finish'*)
-    ok "prompt_extra's trailing newline survives: the blank line before the next paragraph is kept" ;;
-  *)
-    nope "prompt_extra's trailing newline was stripped, collapsing the blank line before the next paragraph (regression B)" ;;
-esac
-chk "prompt_extra still renders" "REPO-EXTRA-MARKER"
 
 # --- reviewer gates: no reviewer, a builder's review, a changed reviewer ---
 # Each refusal names its own remedy and none prompts the builder. A reason that

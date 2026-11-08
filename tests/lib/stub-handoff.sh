@@ -8,7 +8,7 @@
 #   STUB_CHECK         check_command; unset is "true", set but empty is none
 #   STUB_PROMPT_EXTRA  prompt_extra
 # DIR/bin/tandem.extra, if present, is sourced first by the tandem stub, so its
-# cases win. By default `build start` answers task 1 of 1. A jq that fails on
+# cases win. By default `build start` answers with a durable run. A jq that fails on
 # any call sits on PATH.
 stub_handoff_env() {
   local dir="$1"
@@ -21,11 +21,8 @@ nul() { local f; for f in "$@"; do printf '%s\0' "$f"; done; }
 _extra="$(dirname "$0")/tandem.extra"
 [ -f "$_extra" ] && . "$_extra"
 if [ "$1 $2" = "build start" ]; then
-  case " $* " in *" --judge "*) j=true ;; *) j="" ;; esac
-  j="${STUB_BUILD_JUDGE:-$j}"; [ "$j" = false ] && j=""
-  # engine run_id dry_run task total title brief ledger resumed replaced judge
-  # reviewer review_pending review_prompt
-  nul "" "" "" 1 1 "the plan" /relay/build/task-1.md "" "" "" "$j" "" "" ""
+  # engine run_id dry_run: a dry run names no run.
+  case " $* " in *" --dry-run "*) nul durable "" true ;; *) nul durable stubrun "" ;; esac
   exit 0
 fi
 case "$1 $2" in

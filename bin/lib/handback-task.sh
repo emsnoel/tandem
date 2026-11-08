@@ -1,4 +1,4 @@
-# bin/lib/handback-task.sh: hand back one task of a build, durable or legacy.
+# bin/lib/handback-task.sh: hand back one task of the active run.
 #
 # Sourced by bin/tandem-handback, never run. The functions read and set its globals.
 
@@ -7,8 +7,8 @@
 # shellcheck shell=bash disable=SC2034,SC2153,SC2154
 
 # --- a durable run? ---
-# Look for the run marker before any legacy build.json, in both the git
-# toplevel's relay and the builder's own directory. An unreadable marker stops
+# Look for the run marker in both the git toplevel's relay and the builder's
+# own directory. An unreadable marker stops
 # here rather than reading as "no durable run".
 detect_durable() {
   local top cand dir found id
@@ -34,11 +34,13 @@ durable_handback() {
   if [[ -z "$DURABLE_RUN" && -n "$RUN_ID$ATTEMPT_ID$JOB_ID$EFFECT_ID$NONCE" ]]; then
     die "--run/--attempt/--job/--effect/--nonce name a durable run, but none is active here. Nothing was sent."
   fi
+  if [[ -z "$DURABLE_RUN" && -n "$TASK" ]]; then
+    die "no run is active here, so there is no task $TASK to hand back. Hand back without --task. Nothing was sent."
+  fi
   if [[ -n "$DURABLE_RUN" && -n "$TASK" ]]; then
     [[ -n "$RUN_ID" ]] || die "this relay has a durable run ($DURABLE_RUN). Hand back with --run $DURABLE_RUN --attempt ID --job ID --effect ID --nonce ID, as your task prompt says; an old-style handback would be dropped."
     [[ "$RUN_ID" == "$DURABLE_RUN" ]] || die "--run $RUN_ID is not the active run ($DURABLE_RUN). Nothing was sent."
     [[ -n "$ATTEMPT_ID" && -n "$JOB_ID" && -n "$EFFECT_ID" && -n "$NONCE" ]] || die "a durable handback needs --attempt, --job, --effect and --nonce from the task prompt."
-    (( REVIEW )) && die "review hand backs are not supported for durable runs yet."
     KIND=builder_submitted
     (( STUCK ))   && KIND=builder_stuck
     (( STARTED )) && KIND=builder_started
@@ -77,58 +79,6 @@ durable_handback() {
       review_result) info "tandem applies the review once your turn has ended. Stop here." ;;
       *) (( STARTED )) || info "tandem checks it and sends what comes next. Stop here." ;;
     esac
-    exit 0
-  fi
-}
-
-# --- one task of a build ---
-# Always through the mailbox, so the bridge drives every build the same way.
-task_handback() {
-  if [[ -n "$TASK" ]]; then
-    BUILD_DIR="$MAILBOX/build"
-    [[ -f "$BUILD_DIR/build.json" ]] \
-      || die "no build is running in $MAILBOX, so there is no task $TASK to hand back. Hand back without --task."
-    if (( REVIEW )); then
-      # The review must come from the reviewer pane the build recorded.
-      # Field 3 of `build roles` is the reviewer. A record tandem cannot read
-      # leaves it empty.
-      REVIEWER=$(tandem build roles --relay "$MAILBOX" 2>/dev/null \
-        | { IFS= read -r -d '' _; IFS= read -r -d '' _; IFS= read -r -d '' r
-          # Read the last field too, so tandem never writes to a closed pipe.
-          IFS= read -r -d '' _ || true; printf '%s' "${r:-}"; }) || REVIEWER=""
-      [[ -n "$REVIEWER" ]] \
-        || die "this build records no reviewer pane, and the builder never reviews. NOTHING WAS SENT. $REVIEWER_REMEDY Then hand off again."
-      # tandem decides whether this shell is that pane (cmd/tandem/agent_self.go).
-      # In a Herdr pane, Herdr's name wins over a claimed role.
-      _id=$(tandem agent self --expect "$REVIEWER" --claimed "$SELF" 2>/dev/null) || _id=""
-      explain_reviewer_self "a review" "NOTHING WAS SENT." "$REVIEWER" "$_id"
-      SELF="$REVIEWER"
-      TREPORT="$BUILD_DIR/task-$TASK.review.md"
-    else
-      TREPORT="$BUILD_DIR/task-$TASK.report.md"
-    fi
-    if (( DRY_RUN )); then
-      printf 'tandem-handback: task %s from %s%s%s\n' "$TASK" "$SELF" "$( (( STUCK )) && printf ' (stuck)')" "$( (( REVIEW )) && printf ' (review: %s)' "$VERDICT")"
-      printf '  [dry-run] write report  %s\n' "$TREPORT"
-      printf '  [dry-run] queue         %s/q/%s.json for the relay bridge\n' "$MAILBOX" "$ID"
-      exit 0
-    fi
-    mkdir -p "$MAILBOX/q" || die "cannot create the relay directory $MAILBOX/q"
-    printf '%s\n' "$REPORT" > "$TREPORT.tmp" && mv "$TREPORT.tmp" "$TREPORT" \
-      || die "could not write the report file."
-    _qflags=()
-    (( STUCK )) && _qflags+=(--stuck)
-    (( REVIEW )) && _qflags+=(--review)
-    tandem relay write task --mailbox "$MAILBOX" --id "$ID" --from "$SELF" --task "$TASK" \
-      --verdict "$VERDICT" --report "$TREPORT" --plan "$PLAN_PATH" ${_qflags[@]+"${_qflags[@]}"} \
-      || die "could not queue the handback."
-    if (( REVIEW )); then
-      info "review of task $TASK handed back ($VERDICT); findings at $TREPORT"
-      info "tandem records it and tells the builder what to fix, if anything. Stop here."
-    else
-      info "task $TASK handed back; report at $TREPORT"
-      info "tandem checks it and sends the next task to a fresh conversation. Stop here."
-    fi
     exit 0
   fi
 }

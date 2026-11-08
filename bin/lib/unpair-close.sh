@@ -98,9 +98,6 @@ print_dry_run() {
       printf '  [dry-run] keeping %s\n' "$ID_MAILBOX"
     fi
   else
-    if [[ -f "$MAILBOX/build/build.json" ]]; then
-      printf '  [dry-run] tandem build archive --root %s\n' "$MB_ROOT"
-    fi
     if [[ -d "$MAILBOX" ]]; then
       printf '  [dry-run] rm -rf %s\n' "$MAILBOX"
     fi
@@ -155,18 +152,6 @@ settle_durable_run() {
       else
         die "durable run $DURABLE_RUN could not be archived, so nothing was closed or deleted: ${_arch:-no output}. A job or delivery is still open; see tandem build status --root $MB_ROOT."
       fi
-    fi
-  fi
-}
-
-# Archive the build record and its evidence first. If the copy cannot be
-# verified, stop with the pair intact.
-archive_build() {
-  if (( ! KEEP_RELAY )) && [[ -f "$MAILBOX/build/build.json" ]]; then
-    _arch=$(tandem build archive --root "$MB_ROOT" 2>&1) \
-      || die "could not archive the build in $MAILBOX before removing it, so nothing was closed or deleted: ${_arch:-no output}. If 'tandem build archive' is unknown, re-run install.sh."
-    if [[ -n "$_arch" ]]; then
-      info "$_arch"
     fi
   fi
 }

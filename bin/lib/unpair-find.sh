@@ -109,7 +109,7 @@ read_durable_id() {
   REPORTS_OK=()
   REPORTS_PENDING=()
   # A durable run is signed off on its own evidence from the state home, not on
-  # handback reports. Reports beside it come from an earlier legacy build.
+  # handback reports. Reports beside it are not part of the run.
   DURABLE_ID=""
   if [[ -f "$MAILBOX/active-run.json" ]]; then
     DURABLE_ID=$(tandem state active-run --relay "$MAILBOX" 2>/dev/null) || DURABLE_ID=""
@@ -161,7 +161,7 @@ report_pair() {
       done
       [[ -f "$MAILBOX/reports/$_id.verified" ]] && _ack="yes"
       if [[ -n "$DURABLE_ID" ]]; then
-        info "handback $_id  left by an earlier legacy build; not part of durable run $DURABLE_ID, so not gated"
+        info "handback $_id  not part of durable run $DURABLE_ID, so not gated"
       elif [[ "$_ack" == yes ]]; then
         info "handback $_id  signed off"
         REPORTS_OK+=( "$_id" )

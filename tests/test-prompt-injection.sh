@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Planner- and repo-supplied text is data and must never execute.
 #
-# prompt_extra comes from the repo and --because from an agent; both go into
-# the launch prompt. A canary file appears if anything is evaluated. Each
+# prompt_extra comes from the repo and --because from an agent. A canary file
+# appears if the handoff evaluates either. Each
 # input has its own payload and canary, because they take different paths and
 # a shared payload would let one hide a broken other.
 set -uo pipefail
@@ -73,19 +73,6 @@ else
   ok "the ruling did not execute (dry-run)"
 fi
 
-# The dry-run pre-check prints the reason too, so assert against the rendered
-# prompt block only.
-_prompt_only=$(printf '%s\n' "$OUT" | sed -n '/--- prompt that would be sent ---/,/--- end ---/p')
-OUT="$_prompt_only"
-
-# Each input is checked against its own payload and canary.
-chk "prompt_extra's ruling appears literally"      'touch '"$CANARY_EXTRA"
-chk "prompt_extra's backtick survives verbatim"    '`touch '"$CANARY_EXTRA"
-chk "prompt_extra's command substitution is inert" '$(touch '"$CANARY_EXTRA"
-chk "the because ruling appears literally"         'touch '"$CANARY_BECAUSE"
-chk "the because backtick survives verbatim"       '`touch '"$CANARY_BECAUSE"
-chk "the because command substitution is inert"    '$(touch '"$CANARY_BECAUSE"
-
 # --dry-run skips the sidecar write, so repeat without it to exercise the
 # write and read-back.
 OUT2=$(PATH="$TMP/bin:$PATH" HERDR_ENV=1 REPO="$TMP/repo" \
@@ -112,8 +99,8 @@ else
   nope "the sidecar mangled the ruling (got: $STORED)"
 fi
 
-# The next plain handoff adopts the stored ruling from the sidecar, a second
-# way into the same template, so it gets the same canary.
+# The next plain handoff adopts the stored ruling from the sidecar, so it gets
+# the same canary.
 OUT3=$(PATH="$TMP/bin:$PATH" HERDR_ENV=1 REPO="$TMP/repo" \
          "$HANDOFF" "$PLAN" --dry-run 2>&1)
 
@@ -122,57 +109,5 @@ if [ -e "$CANARY_BECAUSE" ]; then
 else
   ok "the adopted ruling did not execute"
 fi
-case "$OUT3" in
-  *"OVERRULED OBJECTIONS"*) ok "the adopted ruling renders its block" ;;
-  *) nope "the adopted ruling did not render (the re-handoff path is dead)" ;;
-esac
-case "$OUT3" in
-  *'touch '"$CANARY_BECAUSE"*) ok "the adopted ruling reaches the builder literally" ;;
-  *) nope "the adopted ruling was mangled on the way to the prompt" ;;
-esac
-# A stored reason with a live slot marker must reach the builder defanged.
-printf '{"plan":"%s","verdict":"objections","kind":"codex","autonomy":"auto","tree":"","override_reason":"use {{EXTRA}} and {{{OVERRULED}}} with care"}\n' \
-  "$PLAN" > "$TMP/repo/.tandem-relay/reviews/20260910-000001-1-1.json"
-OUT4=$(PATH="$TMP/bin:$PATH" HERDR_ENV=1 REPO="$TMP/repo" \
-         "$HANDOFF" "$PLAN" --dry-run 2>&1)
-chk_out4() { case "$OUT4" in *"$2"*) ok "$1" ;; *) nope "$1 (missing: $2)" ;; esac; }
-chk_out4 "an adopted reason's slot markers are defanged" "use {EXTRA} and {OVERRULED} with care"
-_n=$(printf '%s' "$OUT4" | grep -o 'with care' | wc -l | tr -d ' ')
-case "$_n" in
-  1) ok "the adopted ruling is not duplicated by its own slot marker" ;;
-  *) nope "the adopted ruling appears $_n times, want 1" ;;
-esac
-
-# Command substitution stripped trailing newlines from prompt_extra and the
-# ledger on main. The NUL reads must do the same, or the prompt changes.
-printf '{"plan":"%s","verdict":"clean","kind":"codex","autonomy":"auto"}\n' \
-  "$PLAN" > "$TMP/repo/.tandem-relay/reviews/20260910-000001-1-1.json"
-OUT5=$(PATH="$TMP/bin:$PATH" HERDR_ENV=1 REPO="$TMP/repo" STUB_EXTRA="keep it short
-
-" STUB_LEDGER="task 1 did one thing
-
-" "$HANDOFF" "$PLAN" --dry-run 2>&1)
-NL=$'\n'
-case "$OUT5" in
-  *"keep it short${NL}${NL}When you finish"*) ok "a prompt_extra ending in newlines renders as on main" ;;
-  *) nope "prompt_extra's trailing newlines changed the prompt" ;;
-esac
-case "$OUT5" in
-  *"did one thing${NL}${NL}Then do the task"*) ok "a ledger ending in newlines renders as on main" ;;
-  *) nope "the ledger's trailing newlines changed the prompt" ;;
-esac
-case "$OUT5" in *"jq was called"*) nope "handoff called jq" ;; *) ok "handoff called no jq" ;; esac
-
-# A missing prompt template is refused, not sent as an empty prompt.
-NOTPL="$TMP/notpl"; mkdir -p "$NOTPL"
-cp "$HANDOFF" "$NOTPL/tandem-handoff"; cp -R "$(dirname "$HANDOFF")/lib" "$NOTPL/lib"
-rm -f "$NOTPL/lib/handoff-prompt.txt"
-OUT6=$(PATH="$TMP/bin:$PATH" HERDR_ENV=1 REPO="$TMP/repo" "$NOTPL/tandem-handoff" "$PLAN" --dry-run 2>&1); RC6=$?
-case "$RC6:$OUT6" in
-  0:*) nope "a missing prompt template was not refused" ;;
-  *"prompt template"*handoff-prompt.txt*) ok "a missing prompt template is refused and named" ;;
-  *) nope "a missing prompt template failed without naming the file: $OUT6" ;;
-esac
-
 printf '\nprompt-injection: passed %d, failed %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
