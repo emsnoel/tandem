@@ -68,6 +68,16 @@ func cmdBuildStartDurable(args []string) int {
 	} else if *resumeOnly {
 		return fail(errors.New("no durable run to continue"))
 	}
+	// Refused before anything is created. The file is never read, so a broken
+	// one gets the same answer. An active run returned above and ignores it.
+	rec := paths.LegacyBuildRecord(relay)
+	if _, err := os.Lstat(rec); err == nil {
+		fmt.Fprintln(os.Stderr, "tandem build: the legacy engine is gone and this relay still holds its build record, so no run was started:", rec)
+		printJSON(map[string]any{"legacy_build": rec})
+		return exitcode.ManualGate
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fail(err)
+	}
 	if *kind == "" {
 		fmt.Fprintln(os.Stderr, "tandem build start: a durable run needs --builder-kind")
 		return exitcode.Usage
