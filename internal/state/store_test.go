@@ -277,3 +277,28 @@ func TestReadOnlyOpenReadsAndRefusesWrites(t *testing.T) {
 		t.Fatal("a read-only store accepted a write")
 	}
 }
+
+// Old stores may hold rows from the removed legacy import. They must still open.
+func TestStoreWithImportsTableStillOpens(t *testing.T) {
+	root := t.TempDir()
+	s := openStore(t, root)
+	var sql string
+	if err := s.db.QueryRow(`SELECT sql FROM sqlite_master WHERE type='table' AND name='imports'`).Scan(&sql); err != nil {
+		t.Fatalf("the imports table is gone: %v", err)
+	}
+	if _, err := s.db.Exec(`PRAGMA foreign_keys=OFF`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.Exec(`INSERT INTO imports(id,source_digest,run_id,manifest_hash,completed_ms) VALUES('i1','d1','r1','m1',1)`); err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	ro, err := OpenReadOnly(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ro.Close()
+	if _, _, err := ro.Report(context.Background(), "no-such-checkout"); err != nil {
+		t.Fatalf("report: %v", err)
+	}
+}

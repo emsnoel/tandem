@@ -2,7 +2,6 @@ package main
 
 // The state subcommands that change or move a checkout's durable history.
 //
-//	tandem state import-legacy --active DIR --quiescent [--builder-kind K] [--root DIR] [--state-home DIR]
 //	tandem state export --run ID --output PATH [--root DIR] [--state-home DIR]
 //	tandem state recover --run ID [--root DIR] [--state-home DIR]
 //	tandem state rebind --checkout ID --root PATH [--repository-moved] [--state-home DIR]
@@ -25,31 +24,17 @@ import (
 	"github.com/emsnoel/tandem/internal/artifact"
 	"github.com/emsnoel/tandem/internal/controller"
 	"github.com/emsnoel/tandem/internal/exitcode"
-	"github.com/emsnoel/tandem/internal/herdr"
 	"github.com/emsnoel/tandem/internal/runner"
 	"github.com/emsnoel/tandem/internal/state"
 	"github.com/emsnoel/tandem/internal/workflow"
 )
 
-const stateMigrateUse = "       tandem state import-legacy --active DIR --quiescent [--builder-kind K] [--root DIR] [--state-home DIR]\n" +
-	"       tandem state export --run ID --output PATH [--root DIR] [--state-home DIR]\n" +
+const stateMigrateUse = "       tandem state export --run ID --output PATH [--root DIR] [--state-home DIR]\n" +
 	"       tandem state recover --run ID [--root DIR] [--state-home DIR]\n" +
 	"       tandem state rebind --checkout ID --root PATH [--repository-moved] [--state-home DIR]\n" +
 	"       tandem state gc [--root DIR] [--state-home DIR] [--apply]\n" +
 	"       tandem state archive --run ID [--root DIR] [--state-home DIR]\n" +
 	"       tandem state settle-delivery --run ID --effect ID --abandon --because WHY [--root DIR] [--state-home DIR]"
-
-// herdrProbe reports the status of a legacy builder's pane. Tests replace it.
-var herdrProbe = func(_ context.Context, pane string) (string, error) {
-	a, err := herdr.Get(pane)
-	if err != nil {
-		return "", err
-	}
-	if a.Status == nil {
-		return "", fmt.Errorf("herdr reports no status for %q", pane)
-	}
-	return *a.Status, nil
-}
 
 // refusal prints why an operator must act and exits 23. Anything else is a
 // failure.
@@ -90,36 +75,6 @@ func openCheckout(f stateFlags) (state.Identity, *state.Store, *artifact.Store, 
 
 func quietController(st *state.Store, art *artifact.Store, tr runner.Transport) (*controller.Controller, error) {
 	return controller.New(controller.Dependencies{State: st, Artifacts: art, Transport: tr, CheckExecutor: controller.NewCheckExecutor(art), Owner: cliOwner})
-}
-
-func cmdStateImportActive(f stateFlags, active string, quiescent bool, kind string) int {
-	if !quiescent {
-		fmt.Fprintln(os.Stderr, "tandem state import-legacy --active: pass --quiescent to say nothing is writing; it is checked, not trusted")
-		return exitcode.Usage
-	}
-	id, err := state.ResolveIdentity(active, f.home)
-	if err != nil {
-		return refusal("import-legacy", err)
-	}
-	ctx := context.Background()
-	st, err := state.Open(ctx, id.StateRoot)
-	if err != nil {
-		return refusal("import-legacy", err)
-	}
-	defer st.Close()
-	art, err := artifact.Open(id.StateRoot)
-	if err != nil {
-		return refusal("import-legacy", err)
-	}
-	c, err := quietController(st, art, noSend{})
-	if err != nil {
-		return refusal("import-legacy", err)
-	}
-	res, err := c.ImportActive(ctx, controller.ActiveImport{Identity: id, Root: id.CanonicalRoot, Quiescent: quiescent, Probe: herdrProbe, BuilderKind: kind})
-	if err != nil {
-		return refusal("import-legacy", err)
-	}
-	return printJSON(res)
 }
 
 func cmdStateExport(args []string) int {

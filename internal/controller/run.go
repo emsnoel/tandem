@@ -272,14 +272,6 @@ func RunReviewProtocol(ctx context.Context, st *state.Store, art *artifact.Store
 // created unless the checkout can be captured exactly and no other writer holds
 // the checkout: the run, its tasks and the writer lease are written together.
 func (c *Controller) Start(ctx context.Context, req StartRequest) (string, error) {
-	return c.startRun(ctx, req, nil)
-}
-
-// carried names the tasks of a legacy build that are already done, and the
-// preserved evidence each one points at.
-type carried map[string][][2]string
-
-func (c *Controller) startRun(ctx context.Context, req StartRequest, done carried) (string, error) {
 	// Publishing artifacts and recording the rows that name them is two steps;
 	// collection must not run between them.
 	locker, err := state.OpenLocker(c.d.State.Root())
@@ -387,20 +379,9 @@ func (c *Controller) startRun(ctx context.Context, req StartRequest, done carrie
 	}
 	spec := state.RunSpec{RunID: runID, CheckoutID: c.d.State.CheckoutID(), CanonicalRoot: root, GitCommonDir: common,
 		ManifestRoot: ".", PlanHash: planHash, ConfigHash: cfgHash, TaskInputLimit: req.TaskInputLimit, RunInputLimit: req.RunInputLimit, Tasks: tasks}
-	for _, t := range tasks {
-		refs, ok := done[t.ID]
-		if !ok {
-			continue
-		}
-		id, err := c.d.NewID()
-		if err != nil {
-			return "", err
-		}
-		spec.Imported = append(spec.Imported, state.ImportedTask{TaskID: t.ID, AttemptID: id, Refs: refs})
-	}
-	first := firstToStart(tasks, done)
+	first := firstToStart(tasks)
 	if first < 0 {
-		return "", fmt.Errorf("%w: every task of the plan is already done", workflow.ErrInvalidTransition)
+		return "", fmt.Errorf("%w: no task of the plan can start: each one waits on another", workflow.ErrInvalidTransition)
 	}
 	checkout := spec.CheckoutID
 	fence, err := c.d.State.CreateRunAndLease(ctx, spec, c.owner, leaseTTL)
@@ -435,20 +416,10 @@ func (c *Controller) startRun(ctx context.Context, req StartRequest, done carrie
 	return runID, c.startAttempt(ctx, run, cfg, tasks[first], 1, "", start.Hash, repairContext{})
 }
 
-// firstToStart is the first task in plan order that is not done and has
-// nothing left to wait for, or -1.
-func firstToStart(tasks []state.TaskRow, done carried) int {
+// firstToStart is the first task in plan order that waits on nothing, or -1.
+func firstToStart(tasks []state.TaskRow) int {
 	for i, t := range tasks {
-		if _, ok := done[t.ID]; ok {
-			continue
-		}
-		ready := true
-		for _, d := range t.DependsOn {
-			if _, ok := done[d]; !ok {
-				ready = false
-			}
-		}
-		if ready {
+		if len(t.DependsOn) == 0 {
 			return i
 		}
 	}

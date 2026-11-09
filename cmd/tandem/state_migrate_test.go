@@ -1,73 +1,25 @@
 package main
 
 import (
-	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/emsnoel/tandem/internal/build"
 	"github.com/emsnoel/tandem/internal/exitcode"
 	"github.com/emsnoel/tandem/internal/paths"
-	"github.com/emsnoel/tandem/internal/plan"
 )
 
-// stoppedLegacy is a committed repository holding a stopped legacy build whose
-// first task is done, with the plan it was built from.
-func stoppedLegacy(t *testing.T) (root, home string) {
+// startedRun is a repository with one started run that nothing has ticked.
+func startedRun(t *testing.T) (root, home, run string) {
 	t.Helper()
-	root = t.TempDir()
-	for _, args := range [][]string{{"init", "-q", root}, {"-C", root, "config", "user.email", "t@example.com"}, {"-C", root, "config", "user.name", "t"}} {
-		if err := exec.Command("git", args...).Run(); err != nil {
-			t.Fatal(err)
-		}
+	t.Setenv("TANDEM_BUILD_ENGINE", "")
+	e := newCLI(t)
+	rc, got, errOut := e.start()
+	if rc != exitcode.OK {
+		t.Fatalf("start: rc %d %s", rc, errOut)
 	}
-	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte(".tandem-relay/\n.tandem-history/\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	planPath := filepath.Join(root, "p.md")
-	if err := os.WriteFile(planPath, []byte(threeTaskPlan), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	for _, args := range [][]string{{"-C", root, "add", "."}, {"-C", root, "commit", "-qm", "plan"}} {
-		if err := exec.Command("git", args...).Run(); err != nil {
-			t.Fatal(err)
-		}
-	}
-	root, _ = filepath.EvalSymlinks(root)
-	planPath = filepath.Join(root, "p.md")
-	sum := sha256.Sum256([]byte(threeTaskPlan))
-	dir := build.Dir(paths.Relay(root))
-	b, _, err := build.Start(dir, plan.Split(threeTaskPlan), planPath, hex.EncodeToString(sum[:]), build.Options{
-		ID: "legacy-1", Builder: "builder", Planner: "planner", Check: "true", HistoryRoot: root, Now: "2026-10-01T10:00:00Z"}, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	b.Tasks[0].Status = build.StatusDone
-	b.Tasks[1].Status = build.StatusSent
-	b.State, b.Current = build.StateStopped, 2
-	if err := b.Save(dir); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(paths.Relay(root), "builder.json"), []byte(`{"kind":"codex"}`+"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(paths.Relay(root), "reviewer.json"), []byte(`{"kind":"claude","name":"reviewer"}`+"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	return root, filepath.Join(t.TempDir(), "state-home")
-}
-
-func withProbe(t *testing.T, status string, err error) {
-	t.Helper()
-	old := herdrProbe
-	herdrProbe = func(context.Context, string) (string, error) { return status, err }
-	t.Cleanup(func() { herdrProbe = old })
+	return e.root, e.home, got["run_id"].(string)
 }
 
 func TestStateMigrationCommandsRejectMalformedUse(t *testing.T) {
@@ -78,9 +30,6 @@ func TestStateMigrationCommandsRejectMalformedUse(t *testing.T) {
 		{"state", "recover"},
 		{"state", "rebind", "--checkout", "x"},
 		{"state", "rebind", "--root", "/tmp"},
-		{"state", "import-legacy"},
-		{"state", "import-legacy", "--active", "/tmp"},
-		{"state", "import-legacy", "--active", "/tmp", "--archive", "/tmp", "--quiescent"},
 		{"state", "gc", "extra"},
 		{"state", "gc", "--nonsense"},
 		{"state", "export", "--run", "x", "--output", "y", "stray"},
@@ -93,12 +42,8 @@ func TestStateMigrationCommandsRejectMalformedUse(t *testing.T) {
 }
 
 func TestStateGCReportsByDefaultAndAppliesOnlyWhenAsked(t *testing.T) {
-	root, home := stoppedLegacy(t)
-	withProbe(t, "idle", nil)
-	if rc, _, errOut := runCapture(t, "state", "import-legacy", "--active", root, "--quiescent", "--state-home", home); rc != exitcode.OK {
-		t.Fatalf("setup: %d %s", rc, errOut)
-	}
-	// The imported run is running, so apply is refused and nothing is touched.
+	root, home, _ := startedRun(t)
+	// The run is running, so apply is refused and nothing is touched.
 	before := snapshot(t, home)
 	rc, out, errOut := runCapture(t, "state", "gc", "--apply", "--root", root, "--state-home", home)
 	if rc != exitcode.ManualGate || out != "" || !strings.Contains(errOut, "idle") {
@@ -127,64 +72,11 @@ func TestStateGCReportsByDefaultAndAppliesOnlyWhenAsked(t *testing.T) {
 	}
 }
 
-func TestStateImportActiveRefusesAWriterItCannotRuleOut(t *testing.T) {
-	for name, tc := range map[string]struct {
-		status string
-		err    error
-	}{
-		"a working builder":    {"working", nil},
-		"an unobservable pane": {"", errors.New("no such pane")},
-	} {
-		t.Run(name, func(t *testing.T) {
-			root, home := stoppedLegacy(t)
-			withProbe(t, tc.status, tc.err)
-			rc, out, errOut := runCapture(t, "state", "import-legacy", "--active", root, "--quiescent", "--state-home", home)
-			if rc != exitcode.ManualGate || out != "" || errOut == "" {
-				t.Fatalf("rc %d stdout %q stderr %q", rc, out, errOut)
-			}
-			if _, err := os.Stat(filepath.Join(build.Dir(paths.Relay(root)), "build.json")); err != nil {
-				t.Errorf("the legacy record was moved: %v", err)
-			}
-			if _, err := os.Stat(filepath.Join(paths.Relay(root), "active-run.json")); !os.IsNotExist(err) {
-				t.Error("a durable run was started")
-			}
-		})
-	}
-	// Quiescence is asserted, never assumed.
-	root, home := stoppedLegacy(t)
-	withProbe(t, "idle", nil)
-	if rc, out, _ := runCapture(t, "state", "import-legacy", "--active", root, "--state-home", home); rc != exitcode.Usage || out != "" {
-		t.Errorf("without --quiescent: rc %d %q", rc, out)
-	}
-}
-
 func TestStateMigrationEndToEnd(t *testing.T) {
-	root, home := stoppedLegacy(t)
-	withProbe(t, "idle", nil)
-	rc, out, errOut := runCapture(t, "state", "import-legacy", "--active", root, "--quiescent", "--state-home", home)
-	if rc != exitcode.OK {
-		t.Fatalf("import rc %d: %s", rc, errOut)
-	}
-	v := oneJSON(t, out)
-	run, _ := v["run_id"].(string)
-	if len(run) != 32 || v["history_run_id"] == "" || v["resume"] != "task-2" {
-		t.Fatalf("%v", v)
-	}
-	if carried, _ := v["carried"].([]any); len(carried) != 1 || carried[0] != "task-1" {
-		t.Errorf("carried %v", v["carried"])
-	}
-	if un, _ := v["unresolved"].([]any); len(un) == 0 {
-		t.Error("the report must say what stayed unresolved")
-	}
-
-	// The relay now belongs to the durable engine.
-	rc, out, _ = runCapture(t, "state", "status", "--json", "--root", root, "--state-home", home)
+	root, home, run := startedRun(t)
+	rc, out, errOut := runCapture(t, "state", "status", "--json", "--root", root, "--state-home", home)
 	if st := oneJSON(t, out); rc != exitcode.OK || st["engine"] != "durable" {
-		t.Fatalf("status rc %d %v", rc, st)
-	}
-	// A second import has nothing to import.
-	if rc, out, _ := runCapture(t, "state", "import-legacy", "--active", root, "--quiescent", "--state-home", home); rc != exitcode.ManualGate || out != "" {
-		t.Errorf("a second import: rc %d %q", rc, out)
+		t.Fatalf("status rc %d %v %s", rc, st, errOut)
 	}
 
 	// Export, then refuse to overwrite it.
@@ -217,13 +109,9 @@ func TestStateMigrationEndToEnd(t *testing.T) {
 }
 
 func TestStateArchiveEndsARunWithoutLosingIt(t *testing.T) {
-	root, home := stoppedLegacy(t)
-	withProbe(t, "idle", nil)
-	rc, out, errOut := runCapture(t, "state", "import-legacy", "--active", root, "--quiescent", "--state-home", home)
-	if rc != exitcode.OK {
-		t.Fatalf("setup: %d %s", rc, errOut)
-	}
-	run := oneJSON(t, out)["run_id"].(string)
+	root, home, run := startedRun(t)
+	var rc int
+	var out, errOut string
 	// A running run is not archived.
 	if rc, out, _ := runCapture(t, "state", "archive", "--run", run, "--root", root, "--state-home", home); rc != exitcode.ManualGate || out != "" {
 		t.Fatalf("archive of a running run: rc %d %q", rc, out)
@@ -231,7 +119,7 @@ func TestStateArchiveEndsARunWithoutLosingIt(t *testing.T) {
 	if rc, _, errOut := runCapture(t, "build", "stop", "--root", root, "--state-home", home); rc != exitcode.OK {
 		t.Fatalf("stop: %d %s", rc, errOut)
 	}
-	// The prompt for the resumed task was never sent, so the next tick cancels
+	// The first task's prompt was never sent, so the next tick cancels
 	// it and the run settles without any agent being asked.
 	rc, out, errOut = runCapture(t, "build", "tick", "--root", root, "--state-home", home)
 	if v := oneJSON(t, out); rc != exitcode.OK || v["state"] != "paused" {

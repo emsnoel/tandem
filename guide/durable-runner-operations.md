@@ -309,8 +309,6 @@ run keeps its limit: stop it, archive it and start a new run with a higher one.
 ## Export, import and rebind
 
     tandem state export --run ID --output PATH --root DIR
-    tandem state import-legacy --archive PATH --root DIR
-    tandem state import-legacy --active DIR --quiescent
     tandem state rebind --checkout ID --root PATH
 
 Export writes a new directory (never over an existing one) with `manifest.json`, every

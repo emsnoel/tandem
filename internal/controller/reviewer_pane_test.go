@@ -399,3 +399,12 @@ func TestARunWithNoPinnedReviewerPausesAtTickAndRecover(t *testing.T) {
 		})
 	}
 }
+
+func (e *cenv) countRuns() int {
+	e.t.Helper()
+	n, err := e.st.CountRuns(ctx)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	return n
+}

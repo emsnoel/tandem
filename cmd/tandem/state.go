@@ -1,11 +1,9 @@
 package main
 
-// tandem state: inspect durable storage and preserve legacy history. status and
-// import-legacy --archive do not switch the active build engine; the commands
-// in state_migrate.go act on a checkout's history.
+// tandem state: inspect durable storage. The commands in state_migrate.go act
+// on a checkout's history.
 //
 //	tandem state status --json [--root DIR] [--state-home DIR]
-//	tandem state import-legacy --archive PATH [--root DIR] [--state-home DIR]
 //
 // Each prints exactly one JSON object on stdout and nothing else there;
 // diagnostics go to stderr.
@@ -19,11 +17,9 @@ import (
 
 	"github.com/emsnoel/tandem/internal/exitcode"
 	"github.com/emsnoel/tandem/internal/state"
-	"github.com/emsnoel/tandem/internal/workflow"
 )
 
 const stateUse = "usage: tandem state status --json [--root DIR] [--state-home DIR]\n" +
-	"       tandem state import-legacy --archive PATH [--root DIR] [--state-home DIR]\n" +
 	"       tandem state active-run --relay DIR\n" + stateMigrateUse
 
 func cmdState(args []string) int {
@@ -34,8 +30,6 @@ func cmdState(args []string) int {
 	switch args[0] {
 	case "status":
 		return cmdStateStatus(args[1:])
-	case "import-legacy":
-		return cmdStateImportLegacy(args[1:])
 	case "export":
 		return cmdStateExport(args[1:])
 	case "recover":
@@ -107,7 +101,7 @@ func cmdStateStatus(args []string) int {
 	if err != nil {
 		return fail(err)
 	}
-	out := statusOut{Engine: "legacy", SupportedSchema: state.LatestSchema(), Usage: state.UsageStatus{Completeness: "none"}}
+	out := statusOut{Engine: "durable", SupportedSchema: state.LatestSchema(), Usage: state.UsageStatus{Completeness: "none"}}
 	if !bound {
 		return printJSON(out)
 	}
@@ -138,49 +132,7 @@ func cmdStateStatus(args []string) int {
 	}
 	out.Initialized, out.Readable, out.SchemaVersion, out.CurrentRun, out.Usage = true, true, &v, run, usage
 	if run != nil {
-		out.Engine, out.PausedReason = "durable", run.PauseCode
+		out.PausedReason = run.PauseCode
 	}
 	return printJSON(out)
-}
-
-func cmdStateImportLegacy(args []string) int {
-	fs := flag.NewFlagSet("state import-legacy", flag.ContinueOnError)
-	fs.SetOutput(os.Stderr)
-	var f stateFlags
-	f.register(fs)
-	archive := fs.String("archive", "", "an archive made by `tandem build archive`")
-	active := fs.String("active", "", "a directory in a checkout holding a stopped legacy build to carry into a durable run")
-	quiescent := fs.Bool("quiescent", false, "with --active: nothing is writing (checked, not trusted)")
-	kind := fs.String("builder-kind", "", "with --active: the builder's kind, when the relay's builder.json does not say")
-	if err := fs.Parse(args); err != nil || fs.NArg() != 0 || (*archive == "") == (*active == "") {
-		fmt.Fprintln(os.Stderr, stateUse)
-		return exitcode.Usage
-	}
-	if *active != "" {
-		return cmdStateImportActive(f, *active, *quiescent, *kind)
-	}
-	cwd, err := f.cwd()
-	if err != nil {
-		return fail(err)
-	}
-	id, err := state.ResolveIdentity(cwd, f.home)
-	if err != nil {
-		return fail(err)
-	}
-	ctx := context.Background()
-	s, err := state.Open(ctx, id.StateRoot)
-	if err != nil {
-		return fail(err)
-	}
-	defer s.Close()
-	res, err := s.ImportLegacy(ctx, id, *archive)
-	switch {
-	case errors.Is(err, workflow.ErrBusy), errors.Is(err, workflow.ErrConflict):
-		// Operator action: wait for the build to stop, or retry once the archive is stable.
-		fmt.Fprintln(os.Stderr, "tandem state import-legacy:", err)
-		return exitcode.ManualGate
-	case err != nil:
-		return fail(err)
-	}
-	return printJSON(res)
 }

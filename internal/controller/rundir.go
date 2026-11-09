@@ -11,8 +11,7 @@ import (
 )
 
 // ActiveRun is the marker that a relay carries a durable run. Its presence is
-// what routes every entrypoint to protocol 2; a legacy build.json is never
-// written for such a run, so old handback code cannot mistake it for one.
+// what routes every entrypoint to protocol 2.
 type ActiveRun struct {
 	EngineVersion   int    `json:"engine_version"`
 	ProtocolVersion int    `json:"protocol_version"`
@@ -80,7 +79,7 @@ func InitRunDir(relay string, run ActiveRun, manifest RunManifest) (string, erro
 
 // ReadActiveRun returns the relay's durable-run marker, or nil when there is
 // none. A marker that cannot be read is an error: it must never read as "no
-// durable run", which would send a durable run's messages down the legacy route.
+// durable run", which would drop a run's messages.
 func ReadActiveRun(relay string) (*ActiveRun, error) {
 	raw, err := os.ReadFile(filepath.Join(relay, ActiveRunFile))
 	if os.IsNotExist(err) {
