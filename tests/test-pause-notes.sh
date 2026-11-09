@@ -182,6 +182,8 @@ has "writer_unknown: a working builder is cleared by recover" "$OUT" "tandem sta
 has "writer_unknown: the export goes to a new folder" "$OUT" "--output /tmp/tandem-export-$RUN"
 has "writer_unknown: pick the builder's effect" "$OUT" "builder's task prompt"
 has "writer_unknown: a working builder is waited for" "$OUT" "If the builder is working"
+has "writer_unknown: it names the prompt in doubt" "$OUT" "the prompt for task-7"
+has "writer_unknown: an earlier task's work does not count" "$OUT" "Work on an earlier task doesn't count"
 has "writer_unknown: an idle one that handed nothing back is given up on" "$OUT" "If it's idle and handed nothing back, abandon the prompt"
 has "writer_unknown: its files stay" "$OUT" "Any files the run changed stay in your tree and aren't counted as accepted work"
 has "writer_unknown: check them before the hand-off" "$OUT" "check git status before you hand off"
