@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.7.0](https://github.com/emsnoel/tandem/compare/v0.6.0...v0.7.0) (2026-11-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* re-pair every session after upgrading. A bridge left running from the previous version exits on its next pass, and its run stops moving until you pair again. The last release with the legacy engine is v0.6.0.
+* make durable the only build engine
+
+### Features
+
+* make durable the only build engine ([dd1ea7e](https://github.com/emsnoel/tandem/commit/dd1ea7e8a4b2f1161dd3f7c01670d3617c8bb8f4))
+* refuse a leftover legacy build with a clear note ([471a234](https://github.com/emsnoel/tandem/commit/471a2343b510decc22ac0e62a4ddac06f241ef0a))
+
+
+### Bug Fixes
+
+* correct the text and refusals the final review found ([921721c](https://github.com/emsnoel/tandem/commit/921721ccd6da7d8797633709653a4f8e869fcc88))
+* name the prompt an unknown delivery is about ([e16a09a](https://github.com/emsnoel/tandem/commit/e16a09aea574177396eb2ec65cb829ded023b109))
+* release a budget block once the usage it waited for is known ([fd6dabd](https://github.com/emsnoel/tandem/commit/fd6dabd9e373178805837025e09dc708fa9ff956))
+* wait for a builder's acknowledgement before pausing a send ([305fd77](https://github.com/emsnoel/tandem/commit/305fd77ab10dfe956fbd144f9381c468ebac12bc))
+
 ## [0.6.0](https://github.com/emsnoel/tandem/compare/v0.5.0...v0.6.0) (2026-11-06)
 
 
