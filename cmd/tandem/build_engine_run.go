@@ -64,8 +64,6 @@ func cmdBuildStartDurable(args []string) int {
 			return cmdBuildTick([]string{"--root", f.root, "--state-home", f.home}, true)
 		}
 		return fail(fmt.Errorf("a run (%s) is already active in %s; `tandem build recover` continues it, `tandem build stop` ends it", run.RunID, relay))
-	} else if *resumeOnly {
-		return fail(errors.New("no run to continue"))
 	}
 	// Refused before anything is created. The file is never read, so a broken
 	// one gets the same answer. An active run returned above and ignores it.
@@ -76,6 +74,9 @@ func cmdBuildStartDurable(args []string) int {
 		return exitcode.ManualGate
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return fail(err)
+	}
+	if *resumeOnly {
+		return fail(errors.New("no run to continue"))
 	}
 	if *kind == "" {
 		fmt.Fprintln(os.Stderr, "tandem build start: a run needs --builder-kind")
@@ -162,10 +163,6 @@ func cmdBuildStopDurable(args []string) int {
 	fs.SetOutput(os.Stderr)
 	var f durableFlags
 	f.register(fs)
-	// The legacy flags are accepted so a caller written for them still works.
-	_ = fs.String("reason", "", "ignored by a run")
-	_ = fs.String("detail", "", "ignored by a run")
-	_ = fs.Int("task", 0, "ignored by a run")
 	if err := fs.Parse(args); err != nil || f.root == "" {
 		fmt.Fprintln(os.Stderr, "usage: tandem build stop --root DIR [--state-home DIR]")
 		return exitcode.Usage

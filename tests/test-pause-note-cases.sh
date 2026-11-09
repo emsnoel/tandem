@@ -77,7 +77,7 @@ NOTE=$(last_note)
 [ "$(sent_to planner)" = 1 ] && ok "the planner got one note" || nope "notes: $(sent_to planner)"
 has "it says tandem cannot tell if the builder got the task" "$NOTE" "tandem cannot tell whether the builder received the task."
 has "it names the builder pane" "$NOTE" "Builder pane: builder"
-has "and tells the planner to look at that pane" "$NOTE" "Look at the builder pane builder."
+has "and tells the planner to look at that pane" "$NOTE" "Look at the builder pane builder for the prompt for"
 once_only dialog
 rm -f "$FAKE/swallow"
 

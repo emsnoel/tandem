@@ -42,13 +42,12 @@ Sends the builder one task of an implementation plan, in a fresh
 conversation. Tandem splits the plan into one brief per task and sends the
 next task itself each time the builder hands one back. With no plan-path,
 picks the most recently reviewed plan, else the most recently modified file
-in the project's plans directory (see tandem-project; configure with .tandem.json / tandem-init). A plan whose
-build stopped part-way resumes at its first task that is not done.
+in the project's plans directory (see tandem-project; configure with .tandem.json / tandem-init). A new run
+starts at task 1.
 
   --dry-run   decide and print what would start, sending nothing
-  --continue  send the next task of the build already running for this
-              plan; refuses rather than start a new one (the relay bridge
-              uses this)
+  --continue  move on the run already active for this plan; refuses
+              rather than start a new one
   --context-limit N
               most bytes of prompt a run gives the builder for one
               task. Overrides context_limit in .tandem.json; with neither,
@@ -56,8 +55,8 @@ build stopped part-way resumes at its first task that is not done.
   --override-review ID
               proceed despite the objections in review ID
   --because TEXT
-              why they are overruled. Required with --override-review, and
-              sent to the builder, so write it as a ruling, not a note.
+              why they are overruled. Required with --override-review.
+              Recorded with the review. Not sent to the builder yet.
 USAGE
 }
 
@@ -107,7 +106,7 @@ done
 # and newlines, and works on bash 3.2.
 if [[ -n "$OVERRIDE_ID" && -z "${OVERRIDE_REASON//[[:space:]]/}" ]]; then
   usage >&2
-  die "--override-review needs --because. The reason is sent to the builder, which otherwise walks back into the objection it raised."
+  die "--override-review needs --because. The reason is recorded with the review, so the ruling stands on later handoffs."
 fi
 if [[ -z "$OVERRIDE_ID" && -n "$OVERRIDE_REASON" ]]; then
   usage >&2

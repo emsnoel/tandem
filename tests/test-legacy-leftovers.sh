@@ -103,6 +103,14 @@ OUT=$(cd "$R" && td tandem-bridge --mailbox "$R/.tandem-relay" --once 2>&1); RC=
 [ -f "$R/.tandem-relay/quarantine-v1/x.json" ] && ok "the message is in quarantine-v1" || nope "not set aside: $OUT"
 grep -q 'legacy is gone' "$R/.tandem-relay/quarantine-v1/x.json.reason" 2>/dev/null && ok "beside its reason" || nope "no reason file"
 
+printf '\n== a task message claimed before a crash is set aside ==\n'
+mkrepo "$R"; Q="$R/.tandem-relay/q"; mkdir -p "$Q"
+printf '{"id":"y","kind":"task","from":"builder","question":"task","task":1}\n' > "$Q/y.json.taken"
+OUT=$(cd "$R" && td tandem-bridge --mailbox "$R/.tandem-relay" --once 2>&1); RC=$?
+[ "$RC" -eq 0 ] && ok "the bridge keeps running after a claimed message" || nope "bridge rc $RC: $OUT"
+[ -f "$R/.tandem-relay/quarantine-v1/y.json" ] && ok "the claimed message is in quarantine-v1" || nope "not set aside: $OUT"
+[ ! -e "$Q/y.json.taken" ] && ok "and is no longer claimed" || nope "still claimed"
+
 printf '\n== unpair closes a relay holding build.json ==\n'
 mkrepo "$R"; leftover '{"state":"running"}'
 BEFORE_HIST=$(tree "$R/.tandem-history")

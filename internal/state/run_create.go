@@ -70,8 +70,8 @@ func (s *Store) createRun(ctx context.Context, spec RunSpec, owner string, ttl t
 	if _, err := tx.conn.ExecContext(ctx, `INSERT OR IGNORE INTO projects(id,checkout_id,manifest_root) VALUES(?,?,?)`, projectID, spec.CheckoutID, spec.ManifestRoot); err != nil {
 		return 0, err
 	}
-	// The project may already exist under another id, as when a legacy import
-	// created it; a run belongs to the one the checkout has.
+	// The project may already exist under another id; a run belongs to the one
+	// the checkout has.
 	if err := tx.conn.QueryRowContext(ctx, `SELECT id FROM projects WHERE checkout_id=? AND manifest_root=?`, spec.CheckoutID, spec.ManifestRoot).Scan(&projectID); err != nil {
 		return 0, err
 	}

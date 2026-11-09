@@ -41,8 +41,7 @@ type reviewerVerdict struct {
 	Detail string
 }
 
-// decideReviewer is the check bin/tandem-verdict and bin/tandem-handback
-// --review share. Where the pane is known, Herdr's name for it decides, and a
+// decideReviewer is the check bin/tandem-verdict makes. Where the pane is known, Herdr's name for it decides, and a
 // failed lookup refuses. The claimed role decides only with no pane id or an
 // unreachable socket. A sandboxed Codex reviewer can carry another pane's
 // HERDR_PANE_ID from its shared daemon while its sandbox denies the socket.

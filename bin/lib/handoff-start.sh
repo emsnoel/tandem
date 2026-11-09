@@ -25,7 +25,7 @@ check_planner() {
 }
 
 # check_recorded_kinds: refuse a pair recorded with a kind tandem no longer
-# supports, on either engine, before anything is written or typed. A durable
+# supports, before anything is written or typed. A durable
 # --continue is left to the run, which its own tick has paused.
 check_recorded_kinds() {
   local rc=0 role kind supported

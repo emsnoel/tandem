@@ -42,6 +42,19 @@ func CheckEngineSetting(name, value string) error {
 	return fmt.Errorf("%s is set to %q, but the legacy engine is gone and durable is the only build engine; remove this setting", name, value)
 }
 
+// checkEngineValue applies CheckEngineSetting to .tandem.json's raw value. A
+// value that isn't a string is refused too, by its JSON text.
+func checkEngineValue(v json.RawMessage) error {
+	if v == nil {
+		return nil
+	}
+	var s string
+	if json.Unmarshal(v, &s) != nil {
+		s = string(v)
+	}
+	return CheckEngineSetting("build_engine", s)
+}
+
 // repoRoleAllowed lists keys a repository may set on a role block.
 var repoRoleAllowed = map[string]bool{
 	"kind": true, "model": true, "effort": true,
@@ -88,7 +101,7 @@ func LoadRepo(path string) (*Repo, []string, error) {
 		PromptExtra:     str("prompt_extra"),
 		BuilderKind:     str("builder_kind"),
 	}
-	if err := CheckEngineSetting("build_engine", str("build_engine")); err != nil {
+	if err := checkEngineValue(raw["build_engine"]); err != nil {
 		return nil, nil, fmt.Errorf("%s: %w", path, err)
 	}
 
