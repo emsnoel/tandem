@@ -143,7 +143,7 @@ _pn_agent_unsupported() {
 # refuses a held lease, so the stop comes before giving up on the prompt.
 _pn_writer_unknown() {
   local q; q=$(printf %q "$2")
-  _pn_read_pane "$4" "Look at the builder pane ${4:-NAME}. If the builder is working on the task, it read the prompt, so wait. Do step 2 once its turn has ended, and then you are done."
+  _pn_read_pane "$4" "Look at the builder pane ${4:-NAME} for the prompt for ${3:-this task}. Work on an earlier task doesn't count. If the builder is working on the task, it read the prompt, so wait. Do step 2 once its turn has ended, and then you are done."
   _pn_step "Let tandem see that the prompt was read." "tandem state recover --run $1 --root $q"
   _pn_step "If it's idle and handed nothing back, abandon the prompt. Clear what blocks the pane first, such as a startup dialog or a provider error. Then stop the run with the next two steps."
   _pn_stop_wait "$2"
