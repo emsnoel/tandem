@@ -107,6 +107,16 @@ The builder no longer reviews anything. Four things change:
   end its open jobs (`tandem state recover --run ID`), archive it
   (`tandem state archive --run ID`), pair again with a reviewer, and hand off again.
 
+## Upgrading: one build engine
+
+Versions after v0.6.0 have only the durable build engine. Re-pair every session after you upgrade.
+Run `tandem-unpair`, then `tandem-pair`. A bridge left running from the old version calls a
+command the new binary doesn't have, so it exits. The only trace is a line in the bridge log,
+and its run stops moving until you pair again.
+
+A leftover `build.json` from the legacy engine is refused with a note. To finish that build,
+go back with `install.sh --version v0.6.0`.
+
 ## Requirements
 
 You need these on every machine:

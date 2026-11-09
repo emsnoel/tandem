@@ -47,8 +47,8 @@ Writing the plan with them in mind costs less than answering them later.
 
 ## Which pane is the reviewer
 
-`tandem-verdict` and `tandem-handback --review` record a review only from the reviewer
-pane. Both ask `tandem agent self --expect NAME`, where NAME is the reviewer's recorded
+`tandem-verdict` records a review only from the reviewer
+pane. It asks `tandem agent self --expect NAME`, where NAME is the reviewer's recorded
 name. tandem decides like this:
 
 - With no `HERDR_PANE_ID`, the claimed role decides. That is `--role`, or else
@@ -109,10 +109,10 @@ tandem-handoff --override-review 20260910-204612-8821-19044 \
   --because "I commit in this repo, not you; skip the commit steps"
 ```
 
-tandem sends the reason to the builder in the launch prompt, where it is the one
-instruction that outranks the plan. tandem records the reason against the review, so the
-ruling applies to every later handoff of that plan without retyping it. Editing the plan
-voids the review and the ruling together.
+tandem records the reason against the review, so the ruling clears the gate on every later
+handoff of that plan without retyping it. Editing the plan voids the review and the ruling
+together. The builder's prompt doesn't carry the reason yet, so a builder can walk back into
+the objection. Until it does, put anything the builder must know in the plan.
 
 `--override-review` needs `--because`. If a newer review has replaced the one you name,
 tandem refuses with exit 24, records nothing, and names the newer review to read instead.

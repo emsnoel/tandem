@@ -26,8 +26,8 @@ type RunEvidence struct {
 // TeardownEvidence reads, for every task of the run, whether an attempt was
 // accepted and whether that attempt's check and review (or their waivers) still
 // hold for its final tree. It applies the same rule acceptance does, so a task
-// carried over from a legacy build without evidence is reported as lacking its
-// check and review. It writes nothing.
+// without evidence is reported as lacking its check and review. It writes
+// nothing.
 func (c *Controller) TeardownEvidence(ctx context.Context, runID string) (RunEvidence, error) {
 	run, cfg, err := c.load(ctx, runID)
 	if err != nil {

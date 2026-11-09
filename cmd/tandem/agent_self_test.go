@@ -28,7 +28,7 @@ func TestSelfNameIsEmptyWithoutAPane(t *testing.T) {
 }
 
 // decideReviewer is the fail-closed answer bin/tandem-verdict and
-// bin/tandem-handback --review act on.
+// bin/tandem-verdict acts on.
 func TestDecideReviewer(t *testing.T) {
 	b, r := "builder", "reviewer"
 	panes := []herdr.Agent{{PaneID: "w1:p1", Name: &b}, {PaneID: "w1:p2", Name: &r}, {PaneID: "w1:p3"}}

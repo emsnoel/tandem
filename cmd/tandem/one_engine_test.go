@@ -37,6 +37,7 @@ func TestEngineSettingRules(t *testing.T) {
 		{name: "env typo", env: "durabel", refused: "TANDEM_BUILD_ENGINE"},
 		{name: "file legacy", manifest: `{"build_engine":"legacy"}`, refused: "build_engine"},
 		{name: "file typo", manifest: `{"build_engine":"durabel"}`, refused: "build_engine"},
+		{name: "file not a string", manifest: `{"build_engine":5}`, refused: "build_engine"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("TANDEM_BUILD_ENGINE", tc.env)
@@ -64,6 +65,35 @@ func TestEngineSettingRules(t *testing.T) {
 				t.Errorf("a refused start wrote state: %v", err)
 			}
 		})
+	}
+}
+
+func TestContinueOnALeftoverLegacyBuildGetsTheLegacyAnswer(t *testing.T) {
+	t.Setenv("TANDEM_BUILD_ENGINE", "")
+	e := newCLI(t)
+	rec := paths.LegacyBuildRecord(paths.Relay(e.root))
+	if err := os.MkdirAll(filepath.Dir(rec), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(rec, []byte(`{"state":"running"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rc, _, errOut := e.start("--resume-only")
+	if rc != exitcode.ManualGate || !strings.Contains(errOut, "legacy engine is gone") {
+		t.Fatalf("--resume-only beside build.json: rc %d %q", rc, errOut)
+	}
+}
+
+func TestStopTakesOnlyItsOwnFlags(t *testing.T) {
+	t.Setenv("TANDEM_BUILD_ENGINE", "")
+	e := newCLI(t)
+	if rc, _, errOut := e.start(); rc != exitcode.OK {
+		t.Fatalf("start: rc %d %q", rc, errOut)
+	}
+	for _, flag := range []string{"--reason", "--detail", "--task"} {
+		if rc, _, errOut := e.sub("stop", flag, "1"); rc != exitcode.Usage {
+			t.Errorf("build stop %s: rc %d %q", flag, rc, errOut)
+		}
 	}
 }
 

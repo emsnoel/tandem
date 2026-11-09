@@ -25,8 +25,8 @@ type Input struct {
 
 	// Durable is the run's own evidence when the relay holds a run, and
 	// nil otherwise. A run writes no handback report, so its sign-off
-	// is decided from the run, and the reports directory (which only an
-	// earlier legacy build can have filled) is not consulted.
+	// is decided from the run, and the reports directory is not
+	// consulted.
 	Durable *DurableRun
 }
 
