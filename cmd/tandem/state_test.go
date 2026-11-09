@@ -149,7 +149,7 @@ func TestStateStatusJSONIsReadOnly(t *testing.T) {
 			t.Fatalf("exit %d, stderr %q", rc, errOut)
 		}
 		got := oneJSON(t, out)
-		if got["initialized"] != false || got["engine"] != "legacy" || got["current_run"] != nil || got["schema_version"] != nil {
+		if got["initialized"] != false || got["engine"] != "durable" || got["current_run"] != nil || got["schema_version"] != nil {
 			t.Fatalf("status %v", got)
 		}
 		if _, err := os.Stat(home); !os.IsNotExist(err) {
@@ -219,9 +219,6 @@ func TestStateDispatchUsage(t *testing.T) {
 		"unknown flag":       {"state", "status", "--json", "--nope"},
 		"status needs json":  {"state", "status", "--root", root},
 		"extra argument":     {"state", "status", "--json", "extra"},
-		"import needs path":  {"state", "import-legacy", "--root", root},
-		"import extra":       {"state", "import-legacy", "--archive", "/x", "extra"},
-		"import unknown":     {"state", "import-legacy", "--archive", "/x", "--force"},
 	} {
 		rc, out, errOut := runCapture(t, args...)
 		if rc != exitcode.Usage {

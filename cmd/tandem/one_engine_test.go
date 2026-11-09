@@ -109,3 +109,9 @@ func TestTriageIsGone(t *testing.T) {
 		t.Errorf("build start --judge: rc %d %q", rc, errOut)
 	}
 }
+
+func TestImportLegacyIsGone(t *testing.T) {
+	if rc, _, errOut := runCapture(t, "state", "import-legacy", "--active", t.TempDir(), "--quiescent"); rc != exitcode.Usage || !strings.Contains(errOut, "unknown subcommand") {
+		t.Errorf("tandem state import-legacy: rc %d %q", rc, errOut)
+	}
+}

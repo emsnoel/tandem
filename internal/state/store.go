@@ -34,8 +34,6 @@ type Store struct {
 	now func() time.Time
 	// hooks are test-only failpoints inside Apply's transaction.
 	hooks applyHooks
-	// importHooks are test-only failpoints inside ImportLegacy.
-	importHooks importHooks
 	// admitHooks are test-only barriers inside AdmitDispatch.
 	admitHooks admitHooks
 }

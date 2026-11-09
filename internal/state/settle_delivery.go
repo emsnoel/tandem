@@ -2,7 +2,9 @@ package state
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 
@@ -147,4 +149,12 @@ func (s *Store) EndStoppedRunJobs(ctx context.Context, runID string) error {
 			AND (e.job_id=jobs.id OR (e.job_id IS NULL AND e.kind=CASE jobs.kind WHEN 'builder' THEN 'builder_dispatch' WHEN 'reviewer' THEN 'review_prompt' END)))`,
 		s.now().UnixMilli(), runID)
 	return err
+}
+
+func randomID() (string, error) {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b[:]), nil
 }

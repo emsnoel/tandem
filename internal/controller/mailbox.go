@@ -31,8 +31,7 @@ const (
 	// controller read.
 	MaxEnvelopeBytes = 16 * 1024
 	MaxPayloadBytes  = 1 << 20
-	// ActiveRunFile marks a relay as carrying a durable run. Updated entrypoints
-	// look for it before they look for a legacy build.json.
+	// ActiveRunFile marks a relay as carrying a durable run.
 	ActiveRunFile = "active-run.json"
 
 	maxPayloadPath = 256

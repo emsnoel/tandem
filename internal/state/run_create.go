@@ -106,9 +106,6 @@ func (s *Store) createRun(ctx context.Context, spec RunSpec, owner string, ttl t
 			return 0, err
 		}
 	}
-	if err := insertImported(ctx, tx, spec, now); err != nil {
-		return 0, err
-	}
 	var fence int64
 	if owner != "" {
 		var lerr error

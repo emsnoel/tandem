@@ -1,6 +1,7 @@
 package state
 
 import (
+	"context"
 	"path/filepath"
 	"strings"
 )
@@ -35,18 +36,6 @@ type RunSpec struct {
 	PlanHash, ConfigHash                    string
 	TaskInputLimit, RunInputLimit           int64
 	Tasks                                   []TaskRow
-	// Imported are tasks a legacy engine had already finished. Each is recorded
-	// with one accepted attempt that has no snapshot, patch, check or review:
-	// the acceptance is the legacy engine's claim, and what it never captured
-	// stays unresolved.
-	Imported []ImportedTask
-}
-
-// ImportedTask is one task carried over from a legacy build.
-type ImportedTask struct {
-	TaskID, AttemptID string
-	// Refs are the preserved legacy evidence the attempt points at, as {role, hash}.
-	Refs [][2]string
 }
 
 // Run is a stored run.
@@ -79,4 +68,11 @@ type AttemptSpec struct {
 
 func isUnique(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed")
+}
+
+// CountRuns counts every run of the store, archived history included.
+func (s *Store) CountRuns(ctx context.Context) (int, error) {
+	var n int
+	err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM runs`).Scan(&n)
+	return n, err
 }
