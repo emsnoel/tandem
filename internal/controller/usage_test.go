@@ -248,7 +248,7 @@ func TestUsageIsAttributedToBuilderAndRepairSeparately(t *testing.T) {
 		t.Errorf("reviewer %+v notes %v", rv, rep.Notes)
 	}
 	if _, has := rep.ByRole["judge"]; has {
-		t.Error("a durable run has no judge usage to report")
+		t.Error("a run has no judge usage to report")
 	}
 }
 

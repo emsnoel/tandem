@@ -102,12 +102,12 @@ func cmdGate(args []string) int {
 			return exitcode.Internal
 		}
 		in.ReportsOK, in.ReportsPending = ok, pending
-		// A durable run is signed off on its own evidence. Only read when a
+		// A run is signed off on its own evidence. Only read when a
 		// gate would use it: a pane already gone, or --force, skips them all.
 		if *builderPane != "" && !*force && *mailboxDir != "" {
 			d, err := durableTeardownEvidence(*mailboxDir)
 			if err != nil {
-				fmt.Fprintln(os.Stderr, "tandem gate teardown: reading the durable run's evidence:", err)
+				fmt.Fprintln(os.Stderr, "tandem gate teardown: reading the run's evidence:", err)
 				return exitcode.Internal
 			}
 			in.Durable = d
@@ -155,7 +155,7 @@ func cmdGate(args []string) int {
 	}
 }
 
-// durableTeardownEvidence reads the evidence of the durable run in the relay,
+// durableTeardownEvidence reads the evidence of the run in the relay,
 // or returns nil when the relay holds none. The relay sits at the root of its
 // checkout, which is where the run's state is found; the state home is
 // TANDEM_STATE_HOME or the default, as for every durable command.

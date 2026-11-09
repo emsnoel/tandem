@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# bin/lib/pause-note.sh: the note a person reads when a durable run pauses.
+# bin/lib/pause-note.sh: the note a person reads when a run pauses.
 #
 # Sourced by tandem-bridge, tandem-handoff and tandem-pause-note, never run.
 # Needs REVIEWER_REMEDY from lib/reviewer.sh. The Go side reports facts (the

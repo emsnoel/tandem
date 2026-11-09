@@ -16,7 +16,7 @@ type mailSource interface {
 	Close() error
 }
 
-// openMailbox watches the relay's queue and run marker, and for a durable run
+// openMailbox watches the relay's queue and run marker, and for a run
 // the run's queue and the nudge in stateRoot. It returns a line to print at
 // once when the run is not the expected one or a message is already queued.
 // Watching before looking leaves no gap after the caller's scan. An unreadable

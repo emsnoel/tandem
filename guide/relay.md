@@ -47,7 +47,7 @@ Keep these true if you edit tandem:
 - **Teardown is always deliberate, and always checked.** `herdr pane close` deletes the
   pane's scrollback. Only `tandem-unpair` closes the builder, and only the planner runs it.
   It refuses unless the work was handed back and signed off, and the project's check
-  command exits 0. A legacy build is signed off by report id, and a durable run by each
+  command exits 0. A run is signed off by each
   task's recorded check and review. `tandem-unpair` runs the check itself before it closes
   anything.
 - **The launch prompt and handback templates are quoted heredocs, filled by parameter

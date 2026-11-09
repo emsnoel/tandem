@@ -41,7 +41,7 @@ exit 0
 STUB
 chmod +x "$TMP/bin"/*
 
-fixture() { # fixture <dir> <review_protocol or "">: a git repo whose relay carries a durable run
+fixture() { # fixture <dir> <review_protocol or "">: a git repo whose relay carries a run
   local r="$1" proto="$2" relay="$1/.tandem-relay" extra=""
   rm -rf "$r"; mkdir -p "$r"; git -C "$r" init -q .
   mkdir -p "$relay/durable/$RUN"/{q,payloads,receipts,quarantine}
@@ -111,10 +111,10 @@ hb "$R" --task 1 --review-started
 hb "$R" --task 1 "${D[@]}" --review-result "$RESULT" --dry-run
 [ "$RC" -eq 0 ] && [ -z "$(queued "$DIR")" ] && [ -z "$(ls -A "$DIR/payloads")" ] && has "--dry-run names the kind and queues nothing" "$OUT" "review_result" || nope "--dry-run (rc $RC): $OUT"
 
-printf '\n== no durable run, no review message ==\n'
+printf '\n== no run, no review message ==\n'
 L="$TMP/legacy"; rm -rf "$L"; mkdir -p "$L/.tandem-relay/build"; git -C "$L" init -q .
 hb "$L" --task 1 "${D[@]}" --review-started
-[ "$RC" -ne 0 ] && has "it names the missing durable run" "$OUT" "durable run" || nope "a review message was accepted without a durable run"
+[ "$RC" -ne 0 ] && has "it names the missing run" "$OUT" "run" || nope "a review message was accepted without a run"
 
 printf '\n%s passed, %s failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

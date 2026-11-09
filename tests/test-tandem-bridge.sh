@@ -306,7 +306,7 @@ grep -q "^agent prompt custom-target " "$ARGV_LOG" && ok "it prompts the named t
 
 TLOG="$TMP/tandem.log"; MSGFILE="$TMP/msg.md"
 
-echo "--- a durable run: the loop waits on events, and a gone agent gets an observing tick ---"
+echo "--- a run: the loop waits on events, and a gone agent gets an observing tick ---"
 # `tandem agent watch` is stubbed: WATCH_RC=27 means an agent is gone,
 # anything else is a timeout. The bridge runs in the background and is killed
 # after its turns.
@@ -345,8 +345,8 @@ grep -q -- "^build tick --root $TMP --observe-agents" "$TLOG" \
   && ok "a gone agent gets a tick that observes the agents" || nope "no observing tick ($(cat "$TLOG"))"
 WATCH_RC=0; durable_loop 2 norun
 grep -q -- "^agent watch --mailbox $MB --timeout 7000\$" "$TLOG" \
-  && ok "with no durable run the loop waits on the mailbox alone, not on a sleep" || nope "no mailbox-only watch ($(cat "$TLOG"))"
-grep -q -- "^build tick" "$TLOG" && nope "a pass with no durable run ticked" || ok "and runs no tick"
+  && ok "with no run the loop waits on the mailbox alone, not on a sleep" || nope "no mailbox-only watch ($(cat "$TLOG"))"
+grep -q -- "^build tick" "$TLOG" && nope "a pass with no run ticked" || ok "and runs no tick"
 # A wake the pass cannot act on must be paced, or the loop spins.
 watches() { grep -c '^agent watch' "$TLOG" 2>/dev/null || true; }
 WATCH_OUT="$(printf 'queued\t%s/q/stuck.json' "$MB")"; durable_loop 3 norun

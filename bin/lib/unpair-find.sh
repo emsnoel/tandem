@@ -104,11 +104,11 @@ bridge_is_ours() {
   [[ "$cmd" == *tandem-bridge* ]]
 }
 
-# read_durable_id: the active durable run, if any. Its reports are not gated.
+# read_durable_id: the active run, if any. Its reports are not gated.
 read_durable_id() {
   REPORTS_OK=()
   REPORTS_PENDING=()
-  # A durable run is signed off on its own evidence from the state home, not on
+  # A run is signed off on its own evidence from the state home, not on
   # handback reports. Reports beside it are not part of the run.
   DURABLE_ID=""
   if [[ -f "$MAILBOX/active-run.json" ]]; then
@@ -161,7 +161,7 @@ report_pair() {
       done
       [[ -f "$MAILBOX/reports/$_id.verified" ]] && _ack="yes"
       if [[ -n "$DURABLE_ID" ]]; then
-        info "handback $_id  not part of durable run $DURABLE_ID, so not gated"
+        info "handback $_id  not part of run $DURABLE_ID, so not gated"
       elif [[ "$_ack" == yes ]]; then
         info "handback $_id  signed off"
         REPORTS_OK+=( "$_id" )

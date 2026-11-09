@@ -128,7 +128,7 @@ func cmdAgentWatch(args []string) int {
 	}
 	fs := flag.NewFlagSet("agent watch", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
-	root := fs.String("root", "", "watch the durable run's builder and reviewer")
+	root := fs.String("root", "", "watch the run's builder and reviewer")
 	mailbox := fs.String("mailbox", "", "also wake on a message in this relay's queues, a change of its run, or a write to the run's state")
 	timeoutMS := fs.Int("timeout", 0, "how long to wait, in ms")
 	if err := fs.Parse(args); err != nil || *timeoutMS <= 0 {

@@ -162,7 +162,7 @@ func TestDurableStartRefusesAnIncompleteOrSelfReviewingPane(t *testing.T) {
 	}
 }
 
-// Neither flag and no record is a pane too few: a durable run needs a
+// Neither flag and no record is a pane too few: a run needs a
 // reviewer, and the builder never reviews.
 func TestDurableStartRefusesWithoutAReviewerPane(t *testing.T) {
 	e := newCLI(t)

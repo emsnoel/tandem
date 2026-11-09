@@ -258,14 +258,14 @@ func TestBuildReviewRecordRefusesWhatIsNotOneReviewResult(t *testing.T) {
 	if rc, _, errOut := e.sub("review-record", "--result", big); rc == exitcode.OK || !strings.Contains(errOut, "1 MiB") {
 		t.Errorf("a result over 1 MiB: rc %d %q", rc, errOut)
 	}
-	// Usage errors and a relay with no durable run.
+	// Usage errors and a relay with no run.
 	if rc, _, _ := e.run("build", "review-record", "--root", e.root, "--state-home", e.home, "--nope"); rc != exitcode.Usage {
 		t.Errorf("an unknown flag: rc %d", rc)
 	}
 	legacy := newCLI(t)
 	t.Setenv("TANDEM_BUILD_ENGINE", "")
 	legacy.run("build", "start", "--plan", legacy.plan, "--root", legacy.root)
-	if rc, _, errOut := legacy.sub("review-record"); rc == exitcode.OK || !strings.Contains(errOut, "durable") {
+	if rc, _, errOut := legacy.sub("review-record"); rc == exitcode.OK || !strings.Contains(errOut, "no run") {
 		t.Errorf("review-record on a legacy relay: rc %d %q", rc, errOut)
 	}
 }
@@ -404,7 +404,7 @@ func TestStatusReportsEachAttemptsDispatch(t *testing.T) {
 	}
 }
 
-// seedOpenCodeRun starts a durable run the way an older tandem did, with a
+// seedOpenCodeRun starts a run the way an older tandem did, with a
 // builder kind that has no adapter now.
 func seedOpenCodeRun(t *testing.T, e *cliEnv) string {
 	t.Helper()

@@ -1,6 +1,6 @@
 package controller
 
-// The durable run lifecycle. A Controller owns one checkout's writer lease and
+// The run lifecycle. A Controller owns one checkout's writer lease and
 // carries a run through start, dispatch, acknowledgement, submission, check,
 // review, acceptance and the final notice. Every step is an event or effect in
 // the store, so Recover can continue from any crash without sending twice.
@@ -172,7 +172,7 @@ type hooks struct {
 	afterCandidateApply  func() error
 }
 
-// Controller drives durable runs.
+// Controller drives runs.
 type Controller struct {
 	d      Dependencies
 	owner  string

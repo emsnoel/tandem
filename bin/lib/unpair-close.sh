@@ -86,7 +86,7 @@ print_dry_run() {
   [[ -n "$BUILDER_PANE" ]] && printf '  [dry-run] herdr pane close %s\n' "$BUILDER_PANE"
   [[ -n "$BRIDGE_PID"   ]] && printf '  [dry-run] kill %s\n' "$BRIDGE_PID"
   if [[ -f "$MAILBOX/active-run.json" ]]; then
-    printf '  [dry-run] tandem build stop --root %s   (then wait for the durable run to settle)\n' "$MB_ROOT"
+    printf '  [dry-run] tandem build stop --root %s   (then wait for the run to settle)\n' "$MB_ROOT"
     _run=$(tandem state active-run --relay "$MAILBOX" 2>/dev/null) || _run=""
     printf '  [dry-run] tandem state archive --run %s --root %s\n' "${_run:-?}" "$MB_ROOT"
   fi
@@ -118,7 +118,7 @@ record_signoff() {
   done
 }
 
-# A durable run keeps its history in the state home. Stop it, confirm it is
+# A run keeps its history in the state home. Stop it, confirm it is
 # settled and archive it before the pane closes, so no lease or delivery is
 # left open. Only the panes, the bridge and the mailbox are removed.
 settle_durable_run() {
@@ -139,18 +139,18 @@ settle_durable_run() {
       finished|paused|archived) ;;
       *)
         if (( FORCE )); then
-          info "WARNING durable run $DURABLE_RUN is ${_state:-in an unknown state}; closing anyway. Its state is kept: tandem state recover --run $DURABLE_RUN."
+          info "WARNING run $DURABLE_RUN is ${_state:-in an unknown state}; closing anyway. Its state is kept: tandem state recover --run $DURABLE_RUN."
         else
-          die "durable run $DURABLE_RUN is ${_state:-in an unknown state}, not settled, so nothing was closed or deleted. Wait for its builder to go idle and run this again, or pass --force."
+          die "run $DURABLE_RUN is ${_state:-in an unknown state}, not settled, so nothing was closed or deleted. Wait for its builder to go idle and run this again, or pass --force."
         fi ;;
     esac
     if [[ "$_state" == finished || "$_state" == paused ]]; then
       if _arch=$(tandem state archive --run "$DURABLE_RUN" --root "$MB_ROOT" 2>&1); then
-        info "archived durable run $DURABLE_RUN; its state and artifacts are kept."
+        info "archived run $DURABLE_RUN; its state and artifacts are kept."
       elif (( FORCE )); then
-        info "WARNING durable run $DURABLE_RUN was not archived (${_arch:-no output}); closing anyway. Its state is kept: tandem state recover --run $DURABLE_RUN."
+        info "WARNING run $DURABLE_RUN was not archived (${_arch:-no output}); closing anyway. Its state is kept: tandem state recover --run $DURABLE_RUN."
       else
-        die "durable run $DURABLE_RUN could not be archived, so nothing was closed or deleted: ${_arch:-no output}. A job or delivery is still open; see tandem build status --root $MB_ROOT."
+        die "run $DURABLE_RUN could not be archived, so nothing was closed or deleted: ${_arch:-no output}. A job or delivery is still open; see tandem build status --root $MB_ROOT."
       fi
     fi
   fi

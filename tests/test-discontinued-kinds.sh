@@ -140,7 +140,7 @@ done
 
 # The relay bridge continues a legacy build with --continue, and that would type too.
 reset_relay opencode claude; run_handoff "" --continue
-refused_handoff "--continue with no durable run" builder
+refused_handoff "--continue with no run" builder
 
 reset_relay codex claude; run_handoff "" --dry-run
 lack "a supported pair passes this check" "discontinued"

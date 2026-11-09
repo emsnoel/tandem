@@ -320,3 +320,14 @@ State directories, for the runs above: Codex a44ba8548b4d3464144b9dbe2f1e10b5, C
 **Gates now met:** a full plan with a repair on every kind, and a crash during a send on a real
 Herdr. **Still not met:** measured cost targets including reviewer tokens, direct reviewer
 execution, and a command that reconciles a plan edited mid-run.
+
+## Outcome
+
+The durable engine became tandem's only build engine. The live proof on 2026-11-08 ran a full
+plan with a repair on Codex, Claude and Copilot builders, a failed check, and a crash at each
+point of a send. The legacy engine, review triage and legacy import were then removed. Sections
+above describe the two-engine period and are kept as history.
+
+The last release with the legacy engine is v0.6.0. A leftover `build.json` is refused with a
+note and is not read. See [The build engine](build-engine.md) and
+[Refusals](refusals.md#build-settings-and-leftovers).

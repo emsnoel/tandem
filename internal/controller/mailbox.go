@@ -1,6 +1,6 @@
 package controller
 
-// Mailbox v2: how a builder reports to a durable run.
+// Mailbox v2: how a builder reports to a run.
 //
 // The builder writes a payload under payloads/ and an envelope into q/ of
 // <relay>/durable/<run-id>/. The bridge claims the envelope by renaming it and
@@ -31,7 +31,7 @@ const (
 	// controller read.
 	MaxEnvelopeBytes = 16 * 1024
 	MaxPayloadBytes  = 1 << 20
-	// ActiveRunFile marks a relay as carrying a durable run.
+	// ActiveRunFile marks a relay as carrying a run.
 	ActiveRunFile = "active-run.json"
 
 	maxPayloadPath = 256

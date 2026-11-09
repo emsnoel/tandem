@@ -108,7 +108,7 @@ func TestPostSkipsTreeCheckWhenUnmeasured(t *testing.T) {
 	}
 }
 
-// A durable run is signed off by its own evidence, never by the reports
+// A run is signed off by its own evidence, never by the reports
 // directory, which only legacy builds write.
 func durableRun(unmet ...[]string) *DurableRun {
 	d := &DurableRun{RunID: "r1", State: "finished"}

@@ -53,7 +53,7 @@ also checks that a stray `tandem-version` on `PATH` never hides a compiled subco
 `test-cli-drift.sh` runs only with `--with-clis`. It checks flags on the installed agent
 CLIs. It stays out of the default check so that machines without those CLIs still pass.
 
-`./tests/run.sh` unsets `HERDR_DECISION`, `HERDR_JUDGE` and `TYPESAFE_API_KEY` first. A
+`./tests/run.sh` unsets `HERDR_DECISION` and `TYPESAFE_API_KEY` first. A
 machine that turned Jev on in its shell profile must not change what the tests see, because
 `tandem-unpair` runs the same check in that environment.
 
@@ -105,8 +105,6 @@ internal/
   vcs/        `git status --porcelain`, and the per-file hashes that show which files a
               build task changed
   plan/       splits a plan into one brief per task. Pure
-  build/      the legacy engine: each task's build record, the decision after each
-              task, and the ledger, report and planner message made from it
   check/      runs the project's check with its output in a log, and summarises it
   paths/      where tandem's own files live, and the one place that knows their
               old names. `tandem paths` exposes it so the bash commands use the same rule
@@ -114,8 +112,7 @@ internal/
   rollout/    reads Codex rollout logs for `tandem usage`. Pure
   sourcehash/ the source hash install.sh stamps into the binary
   decision/   staffing advice from Jev. Pure. evidence/ builds its redacted input
-  triage/     whether a finished task still needs a review (Jev). Off by default
-  # the durable engine, see guide/build-engines.md
+  # the build engine, see guide/build-engine.md
   controller/ start, tick, recover and stop. Runs the check and ties it to a tree
   workflow/   the run's pure records, transitions and errors. Imports nothing else
   state/      the versioned SQLite store for each checkout, with leases and fences (Go driver)
@@ -126,12 +123,12 @@ internal/
   taskcontext/ the one size-limited prompt a task gets, and a list of what it left out
   memory/     which remembered decisions a later task may see, and why
   usageledger/ turns provider logs into usage per event
-  evalrow/    the result row a scripted test run writes, for both engines
+  evalrow/    the result row a scripted test run writes
 tests/        bash test files. run.sh also runs go build and go test. `--with-clis` adds a
               check of the installed agent CLIs' flags, kept out of the default run
               because check_command must pass on a machine without them
 tests/lib/    stubs shared by the handoff tests
-guide/        the user guides, design notes, build engines, operations, versioning and releasing
+guide/        the user guides, design notes, the build engine, operations, versioning and releasing
 tools/        maintainer scripts. package-release.sh builds the release tarballs
 ```
 

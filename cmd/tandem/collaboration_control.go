@@ -8,7 +8,7 @@ package main
 //
 // stop ends launch admission at once; a launch admitted before it is still in
 // flight. resume reopens admission, and amend changes a provider's ceilings.
-// Both then resume the checkout's durable run if a held launch paused it, so
+// Both then resume the checkout's run if a held launch paused it, so
 // the launch is admitted, or held again, on the next tick. Every control is
 // recorded with who did it and why.
 
@@ -108,7 +108,7 @@ func cmdCollaborationAmend(args []string) int {
 	return printJSON(map[string]any{"collaboration_id": f.collab, "provider": provider, "run_resumed": resumeHeldRun(f.durableFlags)})
 }
 
-// resumeHeldRun resumes the checkout's durable run when a held launch paused
+// resumeHeldRun resumes the checkout's run when a held launch paused
 // it. No run, or a run paused for another reason, is left as it is.
 func resumeHeldRun(f durableFlags) bool {
 	if f.root == "" {

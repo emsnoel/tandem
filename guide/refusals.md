@@ -15,7 +15,7 @@ need. This table lists each exit code for reference.
 | 20 | The agent kind is not supported: the message names the kind, where it was set and the supported kinds, and `tandem-pair` and `tandem-handoff` name any running pane or recorded pair that uses it. Otherwise, the value would have to narrow. The adapter can't give the builder the authority you asked for, and the pane would stall | Pick a supported value, or add the axis to `allow_degrade` in the repo manifest. `tandem paths manifest` prints the manifest's path |
 | 21 | The value would have to widen. The adapter would grant authority you did not ask for | Pick a supported value, or add the axis to `allow_widen` in your user config |
 | 22 | The repository asked for an agent `kind` you haven't approved for that repository. A kind tandem does not support exits 20 first, because approving it could not help | Run `tandem-pair --approve-kind <kind>` once |
-| 23 | The builder or reviewer would start at a prompt that needs a person. `tandem build wait` and `tandem pane wait-shell` also exit 23 when their timeout passes first. A legacy `tandem build start` exits 23 when `reviewer.json` records no reviewer pane | Clear the prompt. Usually that means running the agent once in the folder and accepting its trust dialog. For a missing reviewer, declare a `reviewer` block and run `tandem-pair` again, or run `tandem-pair --reviewer KIND` |
+| 23 | The builder or reviewer would start at a prompt that needs a person. `tandem build wait` and `tandem pane wait-shell` also exit 23 when their timeout passes first. | Clear the prompt. Usually that means running the agent once in the folder and accepting its trust dialog. For a missing reviewer, declare a `reviewer` block and run `tandem-pair` again, or run `tandem-pair --reviewer KIND` |
 | 24 | The plan has not passed review. One of these is true: there is no reviewer (tandem checks this first), the plan has no review, the plan changed since its review, the recorded builder changed, the reviewer didn't write the review, the reviewer's kind or model changed, or the reviewer's objections stand. Overruling a review that a newer one replaced also exits 24, and the message names the newer one | Run `tandem-review <plan>`, fix the plan, or run `tandem-handoff --override-review <id> --because "..."`. If the message names a newer review, read it first |
 | 25 | From `tandem agent prompt --as`, the prompt never started a turn. The scripts report this as their own 7 | As for 7 |
 | 26 | From `tandem agent prompt --as`, the turn ended at once with no model work. The scripts report this as their own 8 | As for 8 |
@@ -86,3 +86,11 @@ It always exits 0 and reports one of three outcomes in `status`:
 
 It takes `--kind`, `--model`, `--effort` and `--autonomy` as overrides, the same way
 `tandem-pair` passes its `--reviewer*` flags.
+
+## Build settings and leftovers
+
+| Refusal | Why | What to do |
+|---|---|---|
+| `tandem-handoff` exits 23 and names `.tandem-relay/build/build.json` | A build from the removed legacy engine is still in the relay. tandem doesn't read or change the file | Finish that build with `install.sh --version v0.6.0`, or remove the file and hand off again |
+| `build_engine` or `TANDEM_BUILD_ENGINE` is set to anything but `durable` | There is one engine now | Remove the setting. A value of `durable` is accepted and ignored |
+| A kind such as `opencode` in a config, flag or recorded pair (exit 20) | tandem no longer supports it | Pair again with `codex`, `claude` or `copilot`. An old run with that kind can still be stopped, recovered and archived |

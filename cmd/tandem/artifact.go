@@ -144,7 +144,7 @@ func cmdArtifactRead(args []string) int {
 func readDirect(f durableFlags, attempt string, req controller.ArtifactRequest) (code int, ok bool) {
 	run, err := controller.ReadActiveRun(paths.Relay(f.root))
 	if err != nil || run == nil {
-		return fail(errors.New("no durable run in this checkout")), true
+		return fail(errors.New("no run in this checkout")), true
 	}
 	id, bound, err := state.LookupIdentity(f.root, f.home)
 	if err != nil || !bound {
@@ -187,7 +187,7 @@ func readThroughMailbox(root, attempt string, task int, job, effect, nonce strin
 	relay := paths.Relay(root)
 	run, err := controller.ReadActiveRun(relay)
 	if err != nil || run == nil {
-		return fail(errors.New("no durable run in this checkout"))
+		return fail(errors.New("no run in this checkout"))
 	}
 	dir := controller.RunDir(relay, run.RunID)
 	taskID, err := controller.ResolveTask(dir, task)
@@ -239,7 +239,7 @@ func requestExists(dir, id string) bool {
 func inspectRequest(root, id string, wait time.Duration) int {
 	run, err := controller.ReadActiveRun(paths.Relay(root))
 	if err != nil || run == nil {
-		return fail(errors.New("no durable run in this checkout"))
+		return fail(errors.New("no run in this checkout"))
 	}
 	dir := controller.RunDir(paths.Relay(root), run.RunID)
 	deadline := time.Now().Add(wait)

@@ -20,7 +20,7 @@ type tickOut struct {
 	Skipped   string `json:"skipped,omitempty"`
 }
 
-// cmdBuildTick runs one tick (or a recovery) of the active durable run. The
+// cmdBuildTick runs one tick (or a recovery) of the active run. The
 // bridge calls it; it is not a loop. Another tick of the same run in progress
 // makes this one a successful no-op.
 func cmdBuildTick(args []string, recoverRun bool) int {
@@ -55,7 +55,7 @@ func cmdBuildTick(args []string, recoverRun bool) int {
 	return code
 }
 
-// tickRun is one tick (or recover) of the active durable run, without printing.
+// tickRun is one tick (or recover) of the active run, without printing.
 // It returns what a tick reports, an exit code, and an error. A zero code with
 // an error is a plain failure; ManualGate with an error is a run that needs a
 // person, and the error says why. A tick that fails still reports the run when

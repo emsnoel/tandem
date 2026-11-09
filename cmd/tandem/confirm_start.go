@@ -210,7 +210,7 @@ func paneTailWith(read func() (string, error)) string {
 
 // conversationTokens reads a conversation's token total, input and output,
 // from its CLI's own logs, the session's and everything it spawned: the same
-// reader the durable run uses for usage. ok is false when its log cannot be
+// reader the run uses for usage. ok is false when its log cannot be
 // found or read, or the kind has no log reader.
 func conversationTokens(src controller.UsageSource) func(kind, session string) (int64, bool) {
 	return func(kind, session string) (int64, bool) {

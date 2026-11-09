@@ -50,7 +50,7 @@ build stopped part-way resumes at its first task that is not done.
               plan; refuses rather than start a new one (the relay bridge
               uses this)
   --context-limit N
-              most bytes of prompt a durable run gives the builder for one
+              most bytes of prompt a run gives the builder for one
               task. Overrides context_limit in .tandem.json; with neither,
               tandem build start uses its default
   --override-review ID

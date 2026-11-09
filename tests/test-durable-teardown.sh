@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Teardown and version routing for a durable run, with the real binary.
+# Teardown and version routing for a run, with the real binary.
 #
-#   - tandem-unpair stops, settles and archives a durable run and removes only
+#   - tandem-unpair stops, settles and archives a run and removes only
 #     the relay; the run's rows and artifacts stay readable.
 #   - Every shell entry point refuses a relay from an unknown engine or
 #     protocol before writing or deleting anything.
@@ -56,16 +56,16 @@ mkrepo() { # mkrepo DIR -> a committed repo with a two-task plan and a codex bui
 tree() { (cd "$1" && find . -type f -print0 | sort -z | xargs -0 shasum -a 256 2>/dev/null); }
 td() { env PATH="$PATHX" REPO="$R" "$@"; }
 
-printf '\n== unpairing a durable run keeps its state ==\n'
+printf '\n== unpairing a run keeps its state ==\n'
 R="$TMP/repo"; mkrepo "$R"; R=$(cd "$R" && pwd -P)
 OUT=$(td env TANDEM_BUILD_ENGINE=durable tandem build start --plan "$R/plan.md" --root "$R" --builder builder --planner planner --builder-kind codex --reviewer reviewer --reviewer-kind claude --check true 2>&1)
 RUN=$(printf '%s' "$OUT" | jq -r '.run_id' 2>/dev/null)
-[[ "$RUN" =~ ^[0-9a-f]{32}$ ]] && ok "a durable run starts (run $RUN)" || { nope "start: $OUT"; exit 1; }
+[[ "$RUN" =~ ^[0-9a-f]{32}$ ]] && ok "a run starts (run $RUN)" || { nope "start: $OUT"; exit 1; }
 [ -f "$R/.tandem-relay/active-run.json" ] && ok "the relay holds its marker" || nope "no marker"
 fake_set_state idle
 OUT=$(cd "$R" && env PATH="$PATHX" REPO="$R" TANDEM_UNPAIR_SETTLE_POLLS=3 tandem-unpair --skip-checks 2>&1); rc=$?
 [ "$rc" -eq 0 ] && ok "unpair succeeds" || { nope "unpair rc $rc: $OUT"; }
-case "$OUT" in *"archived durable run $RUN"*) ok "it says the run was archived" ;; *) nope "no archive line: $OUT" ;; esac
+case "$OUT" in *"archived run $RUN"*) ok "it says the run was archived" ;; *) nope "no archive line: $OUT" ;; esac
 [ ! -e "$R/.tandem-relay" ] && ok "the relay is gone" || nope "the relay is still there"
 ST=$(td tandem state status --json --root "$R" | jq -r '"\(.initialized) \(.readable) \(.current_run.state // "none")"')
 case "$ST" in "true true "*) ok "the state is still initialized and readable ($ST)" ;; *) nope "status: $ST" ;; esac
@@ -76,7 +76,7 @@ EXOUT=$(td tandem state export --run "$RUN" --output "$EX" --root "$R" 2>"$TMP/e
 td tandem state gc --root "$R" >/dev/null 2>&1 && ok "and a retention report still runs" || nope "gc report failed"
 [ "$(td tandem state gc --root "$R" | jq '.candidates | length')" -ge 0 ] && ok "(its report is JSON)" || nope "gc output"
 
-printf '\n== a durable run that has not settled blocks the teardown ==\n'
+printf '\n== a run that has not settled blocks the teardown ==\n'
 R2="$TMP/repo2"; mkrepo "$R2"; R2=$(cd "$R2" && pwd -P); R="$R2"
 td env TANDEM_BUILD_ENGINE=durable tandem build start --plan "$R2/plan.md" --root "$R2" --builder builder --planner planner --builder-kind codex --reviewer reviewer --reviewer-kind claude --check true >/dev/null 2>&1
 fake_set_state idle; : > "$FAKE/prompts"
@@ -89,7 +89,7 @@ case "$OUT" in *"not settled"*) ok "and says why" ;; *) nope "no reason: $OUT" ;
 [ -d "$R2/.tandem-relay" ] && ok "nothing was deleted" || nope "the relay was removed"
 fake_set_state idle
 
-printf '\n== a live pane: a durable run is signed off on its own evidence ==\n'
+printf '\n== a live pane: a run is signed off on its own evidence ==\n'
 # finish_tasks N: play the builder and the reviewer for the first N tasks of
 # the run in $R, through the shipped CLI and the fake Herdr.
 finish_tasks() {
@@ -127,11 +127,11 @@ old_report "$R"
 OUT=$(unpair --dry-run); rc=$?
 [ "$rc" -eq 0 ] && ok "a dry run is not refused for an old legacy report" || nope "dry run rc $rc: $OUT"
 case "$OUT" in *"NOT signed off"*|*"never handed back"*) nope "the old report or the missing report was gated: $OUT" ;; *) ok "and neither the old report nor a missing report is gated" ;; esac
-case "$OUT" in *"20260930-221811-77503-20677"*"not part of"*) ok "the old report is named as not part of the durable run" ;; *) nope "the old report is not explained: $OUT" ;; esac
+case "$OUT" in *"20260930-221811-77503-20677"*"not part of"*) ok "the old report is named as not part of the run" ;; *) nope "the old report is not explained: $OUT" ;; esac
 OUT=$(unpair); rc=$?
 [ "$rc" -eq 0 ] && ok "unpair closes the pair (no --verified, no --force)" || nope "unpair rc $rc: $OUT"
 case "$OUT" in *"check passed"*) ok "the check still ran" ;; *) nope "the check did not run: $OUT" ;; esac
-case "$OUT" in *"archived durable run $RUN"*) ok "and the run was archived" ;; *) nope "no archive: $OUT" ;; esac
+case "$OUT" in *"archived run $RUN"*) ok "and the run was archived" ;; *) nope "no archive: $OUT" ;; esac
 [ ! -e "$R/.tandem-relay" ] && ok "the relay is gone" || nope "the relay is still there"
 
 R="$TMP/repo5"; mkrepo "$R"; R=$(cd "$R" && pwd -P); : > "$FAKE/prompts"
@@ -142,7 +142,7 @@ BEFORE=$(tree "$R/.tandem-relay")
 OUT=$(unpair); rc=$?
 [ "$rc" -eq 5 ] && ok "a run with an unaccepted task is refused (exit 5)" || nope "partial run rc $rc: $OUT"
 case "$OUT" in *"task-2"*) ok "and the refusal names the task" ;; *) nope "task-2 not named: $OUT" ;; esac
-case "$OUT" in *"--verified"*) nope "it asks for --verified on a durable run: $OUT" ;; *) ok "and does not ask for a report sign-off" ;; esac
+case "$OUT" in *"--verified"*) nope "it asks for --verified on a run: $OUT" ;; *) ok "and does not ask for a report sign-off" ;; esac
 [ "$BEFORE" = "$(tree "$R/.tandem-relay")" ] && ok "nothing was changed" || nope "the relay changed"
 
 R="$TMP/repo6"; mkrepo "$R"; R=$(cd "$R" && pwd -P); : > "$FAKE/prompts"

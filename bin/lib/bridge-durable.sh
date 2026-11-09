@@ -3,7 +3,7 @@
 # run: it ingests the run's messages, ticks it, and tells the planner when it
 # pauses.
 
-# durable_run prints the active durable run.
+# durable_run prints the active run.
 durable_run() {
   [[ -f "$MAILBOX/active-run.json" ]] || return 1
   local id
@@ -43,7 +43,7 @@ ingest_durable() {
   log "$(basename "$taken"): $disp${why:+ $why}"
 }
 
-# drive_durable VERB [ARGS...]: give the durable run's controller one step (tick
+# drive_durable VERB [ARGS...]: give the run's controller one step (tick
 # or recover). A non-zero exit is logged and the loop goes on. A tick that fails
 # still prints the run when it can read it, and a pause in those fields is
 # reported, because a failure that repeats on every pass would otherwise hide
@@ -63,7 +63,7 @@ drive_durable() {
   report_pause "$root" "$run" "$state" "$code"
 }
 
-# report_pause ROOT RUN STATE CODE: tell the planner once when the durable run
+# report_pause ROOT RUN STATE CODE: tell the planner once when the run
 # pauses, since a paused run waits for a person. The run and pause code are
 # recorded beside the queue in pause-reported only after the planner got the
 # note, and a running run clears the mark. A failed send is retried: the retry

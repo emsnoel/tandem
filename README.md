@@ -100,14 +100,14 @@ Using tandem:
 - [Plans and reviews](guide/reviews.md): how to write a plan, and when a review still counts.
 - [Builds](guide/builds.md): how tandem runs a plan task by task, and what stops a build.
 - [Launching the builder](guide/launching.md): the trust dialogs and flags tandem handles for each agent.
-- [Optional Jev features](guide/jev.md): staffing advice and review triage.
+- [Optional Jev features](guide/jev.md): staffing advice.
 - [Durable state](guide/durable-state.md): the `tandem state` commands.
 
 How it works:
 
 - [How the relay works](guide/relay.md): how a sandboxed builder sends messages, and the safety rules.
 - [Design notes](guide/design.md): why tandem is built the way it is.
-- [Build engines](guide/build-engines.md), [durable runner operations](guide/durable-runner-operations.md)
+- [The build engine](guide/build-engine.md), [durable runner operations](guide/durable-runner-operations.md)
   and the [durable runner rollout report](guide/durable-runner-rollout-report.md).
 
 Working on tandem:

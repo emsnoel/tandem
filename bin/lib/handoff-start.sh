@@ -84,16 +84,16 @@ start_build() {
       exit "$rc"
     fi
     if (( CONTINUE && rc == 23 )); then
-      printf 'tandem-handoff: the durable run is paused and needs a person (for example the plan file changed); nothing was sent. See `tandem build status --root %s`.\n' "$ROOT" >&2
+      printf 'tandem-handoff: the run is paused and needs a person (for example the plan file changed); nothing was sent. See `tandem build status --root %s`.\n' "$ROOT" >&2
       exit "$rc"
     fi
     if (( rc == 23 )) && [[ -z "$RUN_ID" ]]; then
       # Refused before anything was created. The start printed why.
-      printf 'tandem-handoff: no durable run was started; the reason is above. Nothing was sent. A task too large for the context limit is raised with --context-limit N, or context_limit in .tandem.json.\n' >&2
+      printf 'tandem-handoff: no run was started; the reason is above. Nothing was sent. A task too large for the context limit is raised with --context-limit N, or context_limit in .tandem.json.\n' >&2
       exit "$rc"
     fi
     if (( rc == 23 )); then
-      printf 'tandem-handoff: the durable run was created but is paused and needs a person; nothing was sent. See `tandem build status --root %s`.\n' "$ROOT" >&2
+      printf 'tandem-handoff: the run was created but is paused and needs a person; nothing was sent. See `tandem build status --root %s`.\n' "$ROOT" >&2
       exit "$rc"
     fi
     (( CONTINUE )) && { printf 'tandem-handoff: nothing to continue; the plan was NOT delivered.\n' >&2; exit "$rc"; }
@@ -101,24 +101,24 @@ start_build() {
   fi
   # A durable dry run creates nothing, so it has no run id.
   if (( DRY_RUN )) && [[ "$B_ENGINE" == durable && "$B_DRY_RUN" == true && -z "$RUN_ID" ]]; then
-    printf 'tandem-handoff: [dry-run] a durable run would start for %s; nothing was sent.\n' "$BUILDER_NAME"
+    printf 'tandem-handoff: [dry-run] a run would start for %s; nothing was sent.\n' "$BUILDER_NAME"
     exit 0
   fi
 }
 
-# A durable run delivers its own prompts, so handoff only ticks it once to
+# A run delivers its own prompts, so handoff only ticks it once to
 # send the first task. The bridge keeps ticking.
 follow_durable_run() {
   [[ -n "$RUN_ID" ]] || die "the start named no run. The installed tandem may be behind these commands; re-run install.sh."
   if (( DRY_RUN )); then
-    printf 'tandem-handoff: [dry-run] durable run %s would continue for %s; nothing was sent.\n' "$RUN_ID" "$BUILDER_NAME"
+    printf 'tandem-handoff: [dry-run] run %s would continue for %s; nothing was sent.\n' "$RUN_ID" "$BUILDER_NAME"
     exit 0
   fi
   rc=0
   tandem build tick --root "$ROOT" >/dev/null 2>"$MAILBOX/.handoff_tick_error" || rc=$?
   if (( rc != 0 )); then
     cat >&2 <<MSG
-tandem-handoff: WARNING durable run $RUN_ID exists but its first step failed (rc $rc): $(tail -1 "$MAILBOX/.handoff_tick_error" 2>/dev/null)
+tandem-handoff: WARNING run $RUN_ID exists but its first step failed (rc $rc): $(tail -1 "$MAILBOX/.handoff_tick_error" 2>/dev/null)
 
   Nothing was recorded as delivered. The relay bridge keeps ticking the run;
   \`tandem build recover --root $ROOT\` continues it by hand, and
@@ -141,31 +141,31 @@ MSG
   # task's dispatch, the pause reason, the task, the builder and reviewer panes, the plan and the collaboration.
   { read_field _state; read_field _code; read_field _disp; read_field _reason; read_field _task; read_field _builder; read_field _reviewer; read_field _plan; read_field _collab; } <"$FIELDS"
   if [[ "$_disp" == sent ]]; then
-    printf 'tandem-handoff: durable run %s %s for %s.\n' "$RUN_ID" "$verb" "$BUILDER_NAME"
+    printf 'tandem-handoff: run %s %s for %s.\n' "$RUN_ID" "$verb" "$BUILDER_NAME"
     exit 0
   fi
   if [[ "$_state" == paused ]]; then
     if [[ "$_code" == dispatch_failed ]]; then
-      printf 'tandem-handoff: WARNING durable run %s could not deliver its task to %s, so nothing is building the plan.\n\n' "$RUN_ID" "$BUILDER_NAME" >&2
+      printf 'tandem-handoff: WARNING run %s could not deliver its task to %s, so nothing is building the plan.\n\n' "$RUN_ID" "$BUILDER_NAME" >&2
       _rc=8
     else
-      printf 'tandem-handoff: durable run %s paused (%s) and needs a person; the task was not confirmed as sent.\n\n' "$RUN_ID" "${_code:-no code}" >&2
+      printf 'tandem-handoff: run %s paused (%s) and needs a person; the task was not confirmed as sent.\n\n' "$RUN_ID" "${_code:-no code}" >&2
       _rc=23
     fi
     pause_note "$_code" "$RUN_ID" "$ROOT" "$_task" "$_builder" "$_reviewer" "$_reason" "$_plan" "$_collab" "$MAILBOX" >&2
     exit "$_rc"
   fi
   if [[ -n "$_state" && "$_state" != running ]]; then
-    printf 'tandem-handoff: durable run %s is %s.\n' "$RUN_ID" "$_state"
+    printf 'tandem-handoff: run %s is %s.\n' "$RUN_ID" "$_state"
     exit 0
   fi
   if (( rc == 23 )); then
-    printf 'tandem-handoff: durable run %s %s for %s, but its task was not confirmed as sent within %ss. The relay bridge keeps trying and tells you if it fails; `tandem build status --root %s` shows where it is.\n' \
+    printf 'tandem-handoff: run %s %s for %s, but its task was not confirmed as sent within %ss. The relay bridge keeps trying and tells you if it fails; `tandem build status --root %s` shows where it is.\n' \
       "$RUN_ID" "$verb" "$BUILDER_NAME" "$WAIT_S" "$ROOT"
     exit 0
   fi
   if (( rc != 0 )); then
-    printf 'tandem-handoff: could not read durable run %s: %s\n' "$RUN_ID" "${_werrtxt:-tandem build wait exited $rc}" >&2
+    printf 'tandem-handoff: could not read run %s: %s\n' "$RUN_ID" "${_werrtxt:-tandem build wait exited $rc}" >&2
     exit 0
   fi
 }

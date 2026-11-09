@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tandem-pause-note: say what stopped a paused durable run and what to do.
+# tandem-pause-note: say what stopped a paused run and what to do.
 #
 # Read-only. `tandem build status` reports the facts; the wording and the steps
 # come from lib/pause-note.sh, the same text the bridge sends the planner.
@@ -52,7 +52,7 @@ read_field() {
 MAILBOX=$(tandem paths relay --root "$ROOT" 2>/dev/null) || die "the installed tandem is behind these commands (no 'tandem paths'); re-run install.sh."
 RUN=$(tandem state active-run --relay "$MAILBOX" 2>/dev/null) || RUN=""
 if [[ -z "$RUN" ]]; then
-  printf 'tandem-pause-note: no durable run is active in %s.\n' "$ROOT"
+  printf 'tandem-pause-note: no run is active in %s.\n' "$ROOT"
   exit 0
 fi
 tandem build status --root "$ROOT" --fields >"$FIELDS" 2>/dev/null \

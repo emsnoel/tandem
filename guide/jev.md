@@ -1,13 +1,12 @@
 # Optional Jev features
 
-Both features on this page are off by default. Each one calls Jev, a TypeSafe model, and
-needs a `TYPESAFE_API_KEY` in the environment.
+Staffing advice is off by default. It calls Jev, a TypeSafe model, and needs a
+`TYPESAFE_API_KEY` in the environment.
 
 ## Staffing advice
 
-With `HERDR_DECISION=1` and a `TYPESAFE_API_KEY` in the environment, `tandem-handoff` asks
-Jev to classify the plan before sending it. It then adds a short block to the builder's
-prompt, marked as advice. The block says what kind of work it is and whether it looks like
+`tandem decision assess --plan FILE --root DIR --render` asks Jev to classify a plan and prints
+a short block marked as advice. A run doesn't add this block to its task prompt yet. The block says what kind of work it is and whether it looks like
 it can run in parallel. For builders that can choose a model per subagent, it also names
 the lowest level to hand the work to.
 

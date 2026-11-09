@@ -9,7 +9,7 @@ import (
 	"github.com/emsnoel/tandem/internal/exitcode"
 )
 
-// cmdStateActiveRun answers bin/tandem-unpair's "which durable run is
+// cmdStateActiveRun answers bin/tandem-unpair's "which run is
 // active": it prints the run id from the relay's marker, or nothing when there
 // is no marker. A marker it cannot read exits ManualGate, because this tandem
 // must not drive a run it would misread. The shell entrypoints use that as

@@ -100,8 +100,8 @@ func TestBuildUsageReportsATotalAndSaysWhatIsMissing(t *testing.T) {
 
 func TestBuildUsageNeedsADurableRunAndKnownFlags(t *testing.T) {
 	e := newCLI(t)
-	if rc, _, errOut := e.run("build", "usage", "--root", e.root); rc == exitcode.OK || !strings.Contains(errOut, "durable") {
-		t.Errorf("no durable run: rc %d %q", rc, errOut)
+	if rc, _, errOut := e.run("build", "usage", "--root", e.root); rc == exitcode.OK || !strings.Contains(errOut, "no run") {
+		t.Errorf("no run: rc %d %q", rc, errOut)
 	}
 	e2, _ := startedCLI(t)
 	if rc, _, _ := e2.run("build", "usage", "--root", e2.root, "--state-home", e2.home, "--nope"); rc != exitcode.Usage {

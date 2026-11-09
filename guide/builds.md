@@ -11,64 +11,40 @@ the context for the next task: task 1 began at 93k tokens, and task 5 at 208k. T
 spent 15.5M input tokens, and stopped in task 5 when Codex's 5-hour usage limit ran out.
 Replayed with a fresh conversation per task, the same work costs about 4.4M.
 
-The steps below describe the legacy engine, which is still the default. A durable run
-splits the plan the same way, but a controller sends each task, runs the check and records
-the review. The planner then signs the run off on its stored evidence, not on a report. See
-[Build engines](build-engines.md) and [Durable state](durable-state.md).
+A controller sends each task, runs the check and records the review. See
+[The build engine](build-engine.md) and [Durable state](durable-state.md).
 
-1. `tandem-handoff` splits the plan at its `Task N` headings (`tandem build start`). Each
-   brief in `.tandem-relay/build/task-N.md` holds the plan's title, its opening section
-   (goal, architecture and constraints, without any `REQUIRED SUB-SKILL` line) and one
-   task. A plan with no task headings is one task. Writing the briefs uses no model tokens.
-2. The launch prompt names the task, its brief, and a ledger of the tasks before it. It
-   doesn't ask the builder to read the whole plan. It asks for the conventions file only
-   when the builder's CLI doesn't load it already. Codex loads `AGENTS.md`, and Claude Code
-   loads `CLAUDE.md`.
-3. The builder does the task, runs the check through `tandem check`, and runs
-   `tandem-handback --task N --report FILE`, adding `--stuck` if it couldn't finish. That
-   handback always goes through the mailbox to the relay bridge, never to the planner.
-4. The bridge runs `tandem build advance`. It waits for the builder's turn to end and
-   records the files the task changed, and what the conversation and any subagents cost.
-   It runs the check itself, outside the sandbox, and decides. For a passing task, it sends
-   the next task with `tandem-handoff --continue`. That resets the builder and runs the
-   review gate again, so if the plan changes mid-build, the loop stops instead of building
-   half of each version.
-5. tandem wakes the planner once, when the build finishes or stops, with one report in
-   `.tandem-relay/reports/`. `tandem-unpair --verified` signs it off as before.
+1. `tandem-handoff` starts a run (`tandem build start`). tandem splits the plan at its
+   `Task N` headings. A plan with no task headings is one task.
+2. The task prompt is a bounded packet: the task, the constraints and relevant context. It
+   doesn't ask the builder to read the whole plan.
+3. The builder acknowledges the prompt with `tandem-handback --started`, does the task and
+   runs `tandem-handback --report FILE` with the identity from the prompt, adding `--stuck`
+   if it couldn't finish. That handback goes through the mailbox to the relay bridge, never
+   to the planner.
+4. On its next tick the controller snapshots the tree, builds the patch, runs the check
+   itself, outside the sandbox, and sends the review to the reviewer pane.
+5. When the check passed and the reviewer accepts, the controller accepts the task and sends
+   the next one in a fresh conversation. If the review asks for changes, it sends a repair.
+6. tandem wakes the planner once, when the run finishes or pauses. The planner signs the run
+   off on its stored evidence with `tandem-unpair`.
 
-Both engines need a reviewer pane. A legacy `tandem build start` refuses with exit 23 when
-`reviewer.json` records none, and the build records that pane's name. `tandem-handoff`
-refuses a durable start in the same case, with the same fix. Every legacy task gets a review
-round in the reviewer pane. The launch prompt tells the builder not to review the task and
-not to start a reviewer subagent. Only [review triage](jev.md#review-triage), when it is on,
-can skip a round, and then nothing reviews that task.
+The builder never reviews, so a run needs a reviewer pane. `tandem-handoff` refuses without
+one, and says how to pair one.
 
 ## What stops a build
 
-The planner's message names the reason and the fix:
-
-| Stop | Why | To carry on |
-| --- | --- | --- |
-| `stuck` | The builder said it couldn't finish | Run `tandem-ask builder "..."` and the builder hands back task N again. Or run `tandem-handoff` to send task N again in a fresh conversation. Or, if the task is done, run `tandem build accept --task N --because "why"` and then `tandem-handoff` |
-| `red` | The check tandem ran failed | The same as `stuck`. Handing back with nothing changed runs the same check, which stops the build again |
-| `budget` | The task's input tokens passed `task_input_budget`. A reviewer's `changes` verdict on a task over its budget also stops here, and tandem sends no fix | Find out why with `tandem build status`, then `tandem-handoff` continues with the next task |
-| `handoff` | tandem couldn't send the next task, because the plan changed or a dialog is open | Fix it, then run `tandem-handoff` |
-| `unsettled` | The builder never finished its turn after handing back | Check its pane, then run `tandem-handoff` |
-| `review_edited_tree` | The reviewer changed or added a file in the task while it reviewed, so its review doesn't count | Read `git diff`. Run `tandem build accept --task N --because "why"`, or undo the edits and run `tandem-handoff` |
-| `review_rounds` | The reviewer still asked for changes after 3 rounds | Read its findings. Run `tandem-ask builder "..."` to have the builder fix them and hand back again, or run `tandem build accept --task N --because "why"` |
+The planner gets a note that says what stopped, why and what to run next. See
+[When a run stops](build-engine.md#when-a-run-stops).
 
 `task_input_budget` in `.tandem.json` sets each task's limit, and defaults to 3,000,000
 input tokens. 0 turns it off. The most expensive task of that 8-task build, replayed in a
 fresh conversation, came to 1.65M. So the default leaves room for a big task, and still stops
 a missed reset or a runaway task long before a usage window runs out. tandem measures it
-from Codex's own session logs. Other builder kinds report "not measured", and the budget
-never stops them.
+from the session logs of Codex, Claude and Copilot. When usage can't be read, a configured
+budget pauses the run.
 
-`tandem build status` prints the ledger: each task's status, check result, files, calls,
-input tokens and largest context. `tandem check [-- ARGS]` runs the check, writes its output
-to a log under `.tandem-relay/build/checks/`, and prints the exit code, the lines that name a
-failure, and the last few lines. Before this, two raw Jest runs put about 80k characters into
-one build's context on 2026-09-28.
+`tandem build status --json` shows each task's attempts, check and review.
 
 We measured a live run on 2026-09-28, with codex-cli 0.158.0 and the eval fixture's 3-task
 plan:
@@ -76,7 +52,7 @@ plan:
 - Each task's first call used 22.5k to 23k tokens, the least a fresh conversation costs.
 - No task read the plan or `AGENTS.md`.
 - The bridge sent tasks 2 and 3 and finished without a person.
-- The report passed `tandem-unpair`'s gate.
+- The run passed `tandem-unpair`'s gate.
 
 On a plan that small, one conversation never grows, so splitting it costs more: about 1.2M
 tokens against 1.0M, not counting subagents. Each task pays the 22k starting cost on every
@@ -92,7 +68,7 @@ three quarters of the builder's total. Reviews now run in the reviewer pane, but
 builder's conversation can still hold an earlier build or a `tandem-ask` exchange, and the
 build needs none of that history.
 
-So just before sending the launch prompt, `tandem-handoff` runs `tandem agent reset`. It
+So just before it sends a task, the controller resets the builder. It
 types the builder CLI's own new-conversation command into the pane, `/new` for Codex or
 `/clear` for Claude Code, and waits for the pane to settle. It leaves the pane, its process
 and `builder.json` alone, so the review still stands.
@@ -114,8 +90,7 @@ session in Herdr may hold any number of turns. tandem resets it like any other p
 never skips it as empty.
 
 A Codex task's conversation is the one whose log holds the task's nonce. tandem uses that
-log for the task's usage, and to judge a turn that ended at once. A legacy prompt has no
-nonce. So for any pane whose conversation Herdr doesn't name, `tandem agent prompt --as`
+log for the task's usage, and to judge a turn that ended at once. So for any other prompt to a pane whose conversation Herdr doesn't name, `tandem agent prompt --as`
 adds a last line to the prompt, `(tandem delivery <id>)`, and finds the turn's
 conversation by that line.
 
@@ -124,15 +99,8 @@ picker ("Current checkout" or "New worktree") that Herdr can't see. The pane sta
 and nothing changes. So when a reset command changes nothing for two seconds,
 `tandem agent reset` presses the builder kind's confirm key once and waits again. For Codex
 that is Enter, which picks the highlighted "Current checkout". If still nothing changes,
-the reset is `unconfirmed`. `tandem-handoff` and `tandem-review` then send nothing, exit 7,
-and name the pane. Typing into that screen lost a build prompt on 2026-09-28 (F21 in
+the reset is `unconfirmed`. tandem then sends nothing and names the pane. Typing into that screen lost a build prompt on 2026-09-28 (F21 in
 `guide/design.md`).
-
-**tandem never resets a conversation that holds a build task still in progress.** It
-records that conversation's id in `.tandem-relay/build-session`. A later handoff into the
-same session leaves it alone, because the planner's `tandem-ask` follow-ups rely on it.
-When a task is checked and done, `tandem build advance` clears that record. The ledger now
-holds what later tasks need, so the next task's handoff resets as usual.
 
 **tandem resets a Copilot builder with `/new`, and confirms it from Copilot's own log.**
 After `/new`, Herdr keeps reporting the `--session-id` the pane started with, and its
@@ -146,12 +114,9 @@ same reason, tandem never takes a Copilot pane's conversation id from Herdr. A t
 conversation is the one its reset named, or the one whose prompt holds the task's nonce in
 `~/.copilot/session-state`.
 
-A skipped legacy reset never blocks a build. For a builder that is still working or at a
-dialog before the reset, tandem prints one warning and delivers into the existing
-conversation. A durable run is stricter: it never sends a task into a conversation it could
-not reset. Only a reset that tandem typed and couldn't confirm stops the
-handoff, as described above. A Claude or Copilot builder with no session id yet hasn't
-taken a turn since `tandem-pair`, so there is nothing to reset and nothing to warn about.
+tandem never sends a task into a conversation it could not reset. A Claude or Copilot
+builder with no session id yet hasn't taken a turn since `tandem-pair`, so there is nothing to
+reset.
 
 tandem treats a builder that Herdr reports as `done`, a finished turn nobody has looked at
 yet, as settled, the same as `idle`. Treating it as busy let a build carry its review on
@@ -161,26 +126,11 @@ review.
 
 ## Waiting
 
-The launch prompt tells the builder to wait for a subagent in a single call, with the
-longest timeout its wait tool accepts.
+The review prompt tells the reviewer to wait for a subagent in a single call, with the longest
+timeout its wait tool accepts, and to run long commands in one blocking call. The task prompt
+doesn't carry this rule yet.
 
-Without that instruction, waiting costs a lot. In one measured pairing session, 48 of the
-builder's 173 API calls only waited for or listed agents. Together they used 4,544,623
-input tokens and produced 2,285 output tokens, about 48 output tokens per call. The cause
-was a 60-second wait that kept expiring. 18 of 46 waits timed out, and a child that took
-three minutes cost three full-context calls that did nothing. One wait per child is the
-minimum, so about 26 calls learned nothing.
-
-The prompt names no tool and no number. One template drives `claude`, `codex` and `copilot`,
-which name their wait settings differently, and a fixed value would break
-as soon as a CLI renamed its parameter. Instead, the prompt states the rule and its cost,
-which is what an agent needs to pick a sensible value itself.
-
-The same rule covers long commands. In a session on 2026-09-25, the builder started the
-project's 20-second check with a one-second wait, then checked back 21 times. That cost 3.0M
-input tokens for 1.2k of output, because each check was a full-context call. The prompt now
-tells the builder to run long commands in one blocking call, naming `tandem check` when the
-project has a check. It also tells the builder to raise every timeout its tools have. In
-Codex's code mode, a command runs inside a second, outer wait, and raising only one timeout
-still polls (F19 in `guide/design.md`). The review prompt says the same about the one check
-it runs.
+Waiting without that rule costs a lot. In one measured pairing session, 48 of the builder's 173
+API calls only waited for or listed agents. Together they used 4,544,623 input tokens and
+produced 2,285 output tokens. In a session on 2026-09-25, the builder started the project's
+20-second check with a one-second wait, then checked back 21 times, for 3.0M input tokens.

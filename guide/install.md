@@ -92,7 +92,7 @@ explains how a release is made.
 
 ## Upgrading: a reviewer is now required
 
-The builder no longer reviews anything, on either build engine. Four things change:
+The builder no longer reviews anything. Four things change:
 
 - Every repository needs a reviewer before its next review. Add a `reviewer` block to
   `.tandem.json` (see [Per-project configuration](configuration.md#per-project-configuration)),
@@ -102,7 +102,7 @@ The builder no longer reviews anything, on either build engine. Four things chan
   say why.
 - Reviews written before the upgrade don't clear plans. The builder wrote them, so the gate
   refuses with `builder_review`, and `tandem-handoff` asks the reviewer for a new review.
-- A legacy or durable build without a reviewer pane no longer starts. A durable run started
+- A build without a reviewer pane no longer starts. A durable run started
   before the upgrade pauses with `no_reviewer`. To move on, stop it (`tandem build stop`),
   end its open jobs (`tandem state recover --run ID`), archive it
   (`tandem state archive --run ID`), pair again with a reviewer, and hand off again.

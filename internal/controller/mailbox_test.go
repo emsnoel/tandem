@@ -512,9 +512,9 @@ func TestActiveRunMarkerAndManifest(t *testing.T) {
 			t.Errorf("task %d resolved", n)
 		}
 	}
-	// A durable run has no legacy build record: nothing may fake one.
+	// A run has no legacy build record: nothing may fake one.
 	if _, err := os.Stat(filepath.Join(relay, "build", "build.json")); !os.IsNotExist(err) {
-		t.Fatal("a legacy build.json appeared beside a durable run")
+		t.Fatal("a legacy build.json appeared beside a run")
 	}
 	// A corrupt marker is an error, never "no marker".
 	os.WriteFile(filepath.Join(relay, ActiveRunFile), []byte("{broken"), 0o644)
