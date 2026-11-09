@@ -60,7 +60,7 @@ It refuses unless all of these hold:
   - a reviewer pane is neither working nor blocked. Closing it loses the review.
   - the builder has handed back at least once; an idle builder may simply have
     crashed, or never have been given a plan
-  - every handback is signed off with --verified; for a durable run, every
+  - every handback is signed off with --verified; for a run, every
     task is accepted with a passed check and a recorded review (or waivers)
     for its final tree, and handback reports are not consulted
   - the project's check command exits 0

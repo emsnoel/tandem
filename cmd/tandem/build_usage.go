@@ -1,6 +1,6 @@
 package main
 
-// tandem build usage: what a durable run's model jobs consumed.
+// tandem build usage: what a run's model jobs consumed.
 //
 //	tandem build usage [--root DIR] [--state-home DIR] [--sessions-dir DIR] [--json] [--records]
 //

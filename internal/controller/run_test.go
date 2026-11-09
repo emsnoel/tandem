@@ -440,7 +440,7 @@ func TestDurableTwoTaskLifecycle(t *testing.T) {
 		t.Fatalf("marker %+v %v", ar, err)
 	}
 	if _, err := os.Stat(filepath.Join(e.relay, "build", "build.json")); !os.IsNotExist(err) {
-		t.Fatal("a durable run left a legacy build record")
+		t.Fatal("a run left a legacy build record")
 	}
 	if got := e.tasks(); len(got) != 2 {
 		t.Fatalf("tasks %+v", got)

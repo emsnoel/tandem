@@ -44,7 +44,7 @@ td build start --plan "$REPO/plan.md" --root "$REPO" --builder-kind nonesuch --r
 printf '\n== start, then one tick types the task once ==\n'
 OUT=$(td build start --plan "$REPO/plan.md" --root "$REPO" --builder builder --planner planner --builder-kind codex --reviewer reviewer --reviewer-kind claude --check true 2>"$TMP/err"); rc=$?
 RUN=$(printf '%s' "$OUT" | jq -r .run_id 2>/dev/null)
-[ "$rc" -eq 0 ] && [[ "$RUN" =~ ^[0-9a-f]{32}$ ]] && ok "a durable run starts with the shipped transport (run $RUN)" || nope "start rc $rc: $OUT $(cat "$TMP/err")"
+[ "$rc" -eq 0 ] && [[ "$RUN" =~ ^[0-9a-f]{32}$ ]] && ok "a run starts with the shipped transport (run $RUN)" || nope "start rc $rc: $OUT $(cat "$TMP/err")"
 [ "$(prompts)" -eq 0 ] && ok "start itself types nothing" || nope "start typed a prompt"
 td build tick --root "$REPO" >/dev/null 2>"$TMP/err"
 [ "$(prompts)" -eq 1 ] && ok "the first tick types exactly one prompt" || nope "prompts after tick: $(prompts) $(cat "$TMP/err")"
@@ -132,7 +132,7 @@ tickn
 
 [ "$(wc -l < "$FAKE/resets" 2>/dev/null | tr -d ' ')" = 2 ] && ok "each task went to a freshly reset conversation (two resets for two tasks)" || nope "resets: $(cat "$FAKE/resets" 2>/dev/null | tr '\n' ' ')"
 
-printf '\n== a finished run is archived, and the checkout takes the next durable run ==\n'
+printf '\n== a finished run is archived, and the checkout takes the next run ==\n'
 OPEN=$(td3 build status --root "$R3" --json | jq '[.tasks[].attempts[]?] | length')
 OUT=$(td3 state archive --run "$RUN3" --root "$R3" 2>"$TMP/err"); rc=$?
 [ "$rc" -eq 0 ] && [ "$(printf '%s' "$OUT" | jq -r .state)" = archived ] && ok "the finished run archives ($OPEN attempts, every builder job ended)" || nope "archive rc $rc: $OUT $(cat "$TMP/err")"
@@ -140,7 +140,7 @@ OUT=$(td3 state archive --run "$RUN3" --root "$R3" 2>"$TMP/err"); rc=$?
 [ -f "$R3/.tandem-relay/active-run.$RUN3.archived.json" ] && ok "and is kept aside under the run's own name" || nope "no run-named marker: $(ls "$R3/.tandem-relay")"
 OUT=$(td3 build start --plan "$R3/plan.md" --root "$R3" --builder builder --planner planner --builder-kind codex --reviewer reviewer --reviewer-kind claude --check true 2>"$TMP/err"); rc=$?
 NEXT=$(printf '%s' "$OUT" | jq -r .run_id 2>/dev/null)
-[ "$rc" -eq 0 ] && [[ "$NEXT" =~ ^[0-9a-f]{32}$ ]] && [ "$NEXT" != "$RUN3" ] && ok "a second durable run starts in the same checkout" || nope "second start rc $rc: $OUT $(cat "$TMP/err")"
+[ "$rc" -eq 0 ] && [[ "$NEXT" =~ ^[0-9a-f]{32}$ ]] && [ "$NEXT" != "$RUN3" ] && ok "a second run starts in the same checkout" || nope "second start rc $rc: $OUT $(cat "$TMP/err")"
 
 printf '\n== a builder that quit pauses the run when the tick observes agents ==\n'
 R4="$TMP/repo4"; cp -R "$REPO" "$R4"; find "$R4/.tandem-relay" -mindepth 1 ! -name builder.json -delete 2>/dev/null

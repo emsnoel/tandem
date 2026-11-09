@@ -15,7 +15,7 @@ import (
 	"github.com/emsnoel/tandem/internal/workflow"
 )
 
-// cmdBuildStartDurable starts a durable run.
+// cmdBuildStartDurable starts a run.
 func cmdBuildStartDurable(args []string) int {
 	fs := flag.NewFlagSet("build start", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -35,7 +35,7 @@ func cmdBuildStartDurable(args []string) int {
 	delivery := fs.String("review-delivery", "", "how reviews come back: manual (default) or mailbox (direct handback; needs --collaboration and --acceptance-policy)")
 	recoveryPath := fs.String("recovery-policy", "", "opt in to bounded recovery: one automatic repair per piece of work, then one decision (needs --collaboration)")
 	policyPath := fs.String("acceptance-policy", "", "the two-stage acceptance policy file a mailbox run is pinned to")
-	resumeOnly := fs.Bool("resume-only", false, "refuse unless a durable run exists to continue")
+	resumeOnly := fs.Bool("resume-only", false, "refuse unless a run exists to continue")
 	dry := fs.Bool("dry-run", false, "decide and print, write nothing")
 	if err := fs.Parse(args); err != nil || *planPath == "" || f.root == "" || *ctxLimit < 0 {
 		fmt.Fprintln(os.Stderr, "usage: tandem build start --plan FILE --root DIR --builder-kind KIND [--builder N] [--planner N] [--reviewer N --reviewer-kind KIND] [--check CMD] [--budget N] [--run-budget N] [--context-limit N] [--collaboration ID] [--review-delivery manual|mailbox] [--acceptance-policy FILE] [--recovery-policy FILE] [--state-home DIR] [--resume-only] [--dry-run]\n"+
@@ -63,9 +63,9 @@ func cmdBuildStartDurable(args []string) int {
 		if *resumeOnly {
 			return cmdBuildTick([]string{"--root", f.root, "--state-home", f.home}, true)
 		}
-		return fail(fmt.Errorf("a durable run (%s) is already active in %s; `tandem build recover` continues it, `tandem build stop` ends it", run.RunID, relay))
+		return fail(fmt.Errorf("a run (%s) is already active in %s; `tandem build recover` continues it, `tandem build stop` ends it", run.RunID, relay))
 	} else if *resumeOnly {
-		return fail(errors.New("no durable run to continue"))
+		return fail(errors.New("no run to continue"))
 	}
 	// Refused before anything is created. The file is never read, so a broken
 	// one gets the same answer. An active run returned above and ignores it.
@@ -78,7 +78,7 @@ func cmdBuildStartDurable(args []string) int {
 		return fail(err)
 	}
 	if *kind == "" {
-		fmt.Fprintln(os.Stderr, "tandem build start: a durable run needs --builder-kind")
+		fmt.Fprintln(os.Stderr, "tandem build start: a run needs --builder-kind")
 		return exitcode.Usage
 	}
 	// A kind with no adapter is refused before the run creates anything.
@@ -163,9 +163,9 @@ func cmdBuildStopDurable(args []string) int {
 	var f durableFlags
 	f.register(fs)
 	// The legacy flags are accepted so a caller written for them still works.
-	_ = fs.String("reason", "", "ignored by a durable run")
-	_ = fs.String("detail", "", "ignored by a durable run")
-	_ = fs.Int("task", 0, "ignored by a durable run")
+	_ = fs.String("reason", "", "ignored by a run")
+	_ = fs.String("detail", "", "ignored by a run")
+	_ = fs.Int("task", 0, "ignored by a run")
 	if err := fs.Parse(args); err != nil || f.root == "" {
 		fmt.Fprintln(os.Stderr, "usage: tandem build stop --root DIR [--state-home DIR]")
 		return exitcode.Usage

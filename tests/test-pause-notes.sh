@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The note a person reads when a durable run pauses (bin/lib/pause-note.sh).
+# The note a person reads when a run pauses (bin/lib/pause-note.sh).
 # One note for every pause code tandem lists, and tandem-pause-note reading a
 # real run's status. No Herdr: the run is seeded in a temp state home.
 set -uo pipefail
@@ -255,7 +255,7 @@ fields running "" sent "" task-3 bldr rev "" ""
 OUT=$(PN STATE_FILE="$TMP/status" tandem-pause-note --root /r 2>&1); RC=$?
 [ "$RC" -eq 0 ] && has "a running run is not paused" "$OUT" "is running, not paused" || nope "running: rc $RC: $OUT"
 OUT=$(PN NO_RUN=1 tandem-pause-note --root /r 2>&1); RC=$?
-[ "$RC" -eq 0 ] && has "no run says so" "$OUT" "no durable run" || nope "no run: rc $RC: $OUT"
+[ "$RC" -eq 0 ] && has "no run says so" "$OUT" "no run" || nope "no run: rc $RC: $OUT"
 OUT=$(PN tandem-pause-note 2>&1); RC=$?
 [ "$RC" -ne 0 ] && ok "a missing --root is refused" || nope "missing --root accepted: $OUT"
 

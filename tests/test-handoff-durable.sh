@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tandem-handoff on a durable run.
+# tandem-handoff on a run.
 #
 # The run delivers its own prompts, so handoff only starts or continues it and
 # ticks once. It must not send a prompt, reset the builder or write a legacy
@@ -137,8 +137,8 @@ run TANDEM_BUILD_ENGINE=durable START_OUT="$DURABLE" STATUS_OUT="$(status runnin
 run TANDEM_BUILD_ENGINE=durable START_OUT="$DURABLE" STATUS_OUT="$(status stopping "" pending)" --
 [ "$RC" -eq 0 ] && has "a run that is stopping returns at once" "$OUT" "is stopping." || nope "stopping: rc $RC: $OUT"
 grep -q -- '--until-not running' "$CALLS" && ok "the wait is told to end on any state but running" || nope "no --until-not running ($(cat "$CALLS"))"
-run TANDEM_BUILD_ENGINE=durable START_OUT="$DURABLE" STATUS_OUT="" WAIT_ERR="tandem build: no durable run in $RELAY" --
-[ "$RC" -eq 0 ] && has "a wait that fails says it could not read the run" "$OUT" "could not read durable run aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: tandem build: no durable run" || nope "wait error: rc $RC: $OUT"
+run TANDEM_BUILD_ENGINE=durable START_OUT="$DURABLE" STATUS_OUT="" WAIT_ERR="tandem build: no run in $RELAY" --
+[ "$RC" -eq 0 ] && has "a wait that fails says it could not read the run" "$OUT" "could not read run aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: tandem build: no run" || nope "wait error: rc $RC: $OUT"
 case "$OUT" in *"not confirmed as sent"*) nope "a failed wait claimed a timeout" ;; *) ok "and does not claim the task timed out" ;; esac
 
 printf '\n== a failing start or tick ==\n'
@@ -155,13 +155,13 @@ has "and points at it, not at the install first" "$OUT" "the reason is above"
 
 printf '\n== no engine setting ==\n'
 run START_OUT="$DURABLE" --
-grep -q '^build start .*--builder-kind codex' "$CALLS" && ok "with no setting a handoff starts a durable run and names the builder kind" || nope "no --builder-kind with no setting ($(cat "$CALLS"))"
+grep -q '^build start .*--builder-kind codex' "$CALLS" && ok "with no setting a handoff starts a run and names the builder kind" || nope "no --builder-kind with no setting ($(cat "$CALLS"))"
 grep -q "^build tick --root $REPO" "$CALLS" && ok "and gives it its first tick" || nope "no tick with no setting ($(cat "$CALLS"))"
 
 printf '\n== a durable dry run ==\n'
 run TANDEM_BUILD_ENGINE=durable START_OUT="$(start_out durable "" true)" -- --dry-run
 [ "$RC" -eq 0 ] && ok "a durable dry run exits 0 (rc $RC)" || nope "durable dry run rc $RC: $OUT"
-has "and says a durable run would start" "$OUT" "[dry-run] a durable run would start"
+has "and says a run would start" "$OUT" "[dry-run] a run would start"
 case "$OUT" in *install.sh*) nope "a durable dry run blamed the install: $OUT" ;; *) ok "and does not blame the install" ;; esac
 grep -q '^build tick' "$CALLS" && nope "a dry run ticked the run" || ok "and ticks nothing"
 run START_OUT="$(start_out durable "$RUN" true)" -- --continue --dry-run
@@ -181,13 +181,13 @@ run TANDEM_BUILD_ENGINE=durable START_OUT="$DURABLE" -- --context-limit lots
 [ "$RC" -ne 0 ] && has "a limit that is not a number is refused" "$OUT" "--context-limit" || nope "bad limit rc $RC"
 grep -q '^build start' "$CALLS" && nope "and start was still called" || ok "before anything starts"
 run TANDEM_BUILD_ENGINE=durable START_OUT="" START_RC=23 START_ERR="tandem build: mandatory context too large: 1 of 2 tasks do not fit" --
-[ "$RC" -eq 23 ] && has "a start refused for size says no run was started" "$OUT" "no durable run was started" || nope "size refusal rc $RC: $OUT"
+[ "$RC" -eq 23 ] && has "a start refused for size says no run was started" "$OUT" "no run was started" || nope "size refusal rc $RC: $OUT"
 case "$OUT" in *"was created but is paused"*) nope "it claims a run was created: $OUT" ;; *) ok "and does not claim a run exists" ;; esac
 has "and names both ways to raise the limit" "$OUT" "context_limit in .tandem.json"
 
 printf '\n== continuing ==\n'
 run START_OUT="$(start_out "" "$RUN")" -- --continue
-[ "$RC" -eq 0 ] && ok "--continue on a durable run exits 0" || nope "continue rc $RC: $OUT"
+[ "$RC" -eq 0 ] && ok "--continue on a run exits 0" || nope "continue rc $RC: $OUT"
 grep -q '^build start .*--resume-only' "$CALLS" && ok "continue asks start to resume only" || nope "no --resume-only"
 grep -q '^build tick' "$CALLS" && ok "and ticks" || nope "no tick on continue"
 

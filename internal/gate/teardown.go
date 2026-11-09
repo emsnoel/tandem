@@ -23,14 +23,14 @@ type Input struct {
 	// same, and a clean-to-dirty change would go unseen.
 	TreeMeasured bool
 
-	// Durable is the run's own evidence when the relay holds a durable run, and
-	// nil otherwise. A durable run writes no handback report, so its sign-off
+	// Durable is the run's own evidence when the relay holds a run, and
+	// nil otherwise. A run writes no handback report, so its sign-off
 	// is decided from the run, and the reports directory (which only an
 	// earlier legacy build can have filled) is not consulted.
 	Durable *DurableRun
 }
 
-// DurableRun is what a durable run's teardown is signed off on: each task and
+// DurableRun is what a run's teardown is signed off on: each task and
 // the acceptance requirements it lacks.
 type DurableRun struct {
 	RunID, State string
@@ -81,7 +81,7 @@ func Pre(in Input) Verdict {
 	return Verdict{}
 }
 
-// preDurable is gates 4 and 5 for a durable run: some work was accepted, and
+// preDurable is gates 4 and 5 for a run: some work was accepted, and
 // every task is accepted with its check and review (or their waivers) holding
 // for its final tree. Each refused task is one detail line: its id, then what
 // it lacks.

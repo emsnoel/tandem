@@ -52,18 +52,18 @@ a fresh conversation. It never goes to the planner directly.
   --stuck         with --task: the task could not be finished
   --role NAME     the pane this runs in, when the CLI does not pass
                   HERDR_ROLE to the commands it runs
-  --started       with --task and a durable run: acknowledge that you read the
+  --started       with --task and a run: acknowledge that you read the
                   task prompt, before you edit anything. Needs no report.
   --review-started
-                  with --task and a durable run that opted in to direct review
+                  with --task and a run that opted in to direct review
                   handback: acknowledge that you read the review prompt.
   --review-result FILE
                   with --task and such a run: hand back the review result, one
                   JSON object in FILE. It is staged; Tandem applies it only
                   once your turn has ended.
   --run ID --attempt ID --job ID --effect ID --nonce ID
-                  a durable run's identity, copied from the task prompt. Only
-                  valid while a durable run is active; with one, they are
+                  a run's identity, copied from the task prompt. Only
+                  valid while a run is active; with one, they are
                   required and the old form is refused.
   --dry-run       show what would be sent without sending it
 

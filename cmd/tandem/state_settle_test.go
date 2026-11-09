@@ -33,7 +33,7 @@ func (p *paneTransport) Observe(ctx context.Context, _ string) (runner.Observati
 	return p.ObserveAgent(ctx, "builder")
 }
 
-// paneCLI is a started durable run with its first prompt typed and never
+// paneCLI is a started run with its first prompt typed and never
 // acknowledged, and panes the test controls.
 func paneCLI(t *testing.T) (*cliEnv, *paneTransport, string) {
 	t.Helper()

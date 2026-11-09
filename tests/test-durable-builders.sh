@@ -55,7 +55,7 @@ for K in $KINDS; do
   # Launch: the kind is accepted with its flags.
   OUT=$(td build start --plan "$R/plan.md" --root "$R" --builder builder --planner planner --builder-kind "$K" --reviewer reviewer --reviewer-kind claude --check true 2>&1); rc=$?
   RUN=$(printf '%s' "$OUT" | jq -r .run_id 2>/dev/null)
-  if [ "$rc" -eq 0 ] && [[ "$RUN" =~ ^[0-9a-f]{32}$ ]]; then ok "$K: launch (a durable run starts with this kind)"; cell "$K" durable launch pass
+  if [ "$rc" -eq 0 ] && [[ "$RUN" =~ ^[0-9a-f]{32}$ ]]; then ok "$K: launch (a run starts with this kind)"; cell "$K" durable launch pass
   else nope "$K: start rc $rc: $OUT"; cell "$K" durable launch FAIL; continue; fi
   [ "$(td build status --root "$R" --json | jq -r .state)" = running ] || nope "$K: status"
 

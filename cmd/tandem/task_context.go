@@ -50,7 +50,7 @@ func cmdTask(args []string) int {
 	}
 	run, err := controller.ReadActiveRun(paths.Relay(f.root))
 	if err != nil || run == nil {
-		return fail(fmt.Errorf("no durable run in %s", paths.Relay(f.root)))
+		return fail(fmt.Errorf("no run in %s", paths.Relay(f.root)))
 	}
 	id, bound, err := state.LookupIdentity(f.root, f.home)
 	if err != nil {

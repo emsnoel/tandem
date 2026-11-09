@@ -1,28 +1,14 @@
 # Durable runner operations
 
-The durable engine is opt-in. Nothing here changes the default: a build starts on the
-legacy engine unless `TANDEM_BUILD_ENGINE=durable` is set at the start, or
-`"build_engine": "durable"` is in `.tandem.json`, and a run keeps the engine it started with. This guide covers what an operator needs to inspect, move or
-undo a durable run. Commands marked "sample" are checked against the CLI's usage text by
+This guide covers what an operator needs to inspect, move or undo a run. Commands marked "sample" are checked against the CLI's usage text by
 `TestOperationsCommandsMatchUsage`.
 
-## Choosing an engine
-
-A new build is durable only when `TANDEM_BUILD_ENGINE=durable` is set for `tandem build
-start` (or `tandem-handoff`, which passes it through), or `"build_engine": "durable"` is in
-`.tandem.json` and the variable is unset. The variable wins when both are set. Every later command follows the
-relay: an `active-run.json` marker means durable, a `build/build.json` means legacy, both
-means refused, and the environment variable is not read again. The one exception is a
-finished legacy build: a durable start archives it (as a new legacy start would), removes it
-from the relay and starts the run. Its output names the archive as `archived_legacy`. An
-unfinished legacy build refuses a durable start with what to do instead. Triage skipping is a
-separate switch (`HERDR_TRIAGE_SKIP=1`) and stays off until its own calibration report
-passes. Neither default is changed by this release.
+## Builder kinds
 
 The builder kinds are Codex, Claude and Copilot. Each has a verified way to start a fresh
 conversation; Copilot's is confirmed from its own process log, because Herdr cannot see it.
 `tandem build start` refuses any other kind, such as the discontinued OpenCode, before it
-creates anything. `tandem-handoff` refuses a pair recorded with one on either engine, and
+creates anything. `tandem-handoff` refuses a pair recorded with one, and
 `tandem-pair` refuses to use a pane running one.
 
 A run an older tandem started with such a kind pauses as `agent_unsupported`, and tandem types
@@ -52,8 +38,6 @@ finished before the upgrade, because no stop runs again for it. That run leaves 
 | Durable run marker | `<repo>/.tandem-relay/active-run.json` |
 | Marker of an archived run | `<repo>/.tandem-relay/active-run.<run id>.archived.json` |
 | Run mailbox | `<repo>/.tandem-relay/durable/<run id>/` (`manifest.json`, `q/`, `payloads/`, `quarantine/`) |
-| Legacy build record | `<repo>/.tandem-relay/build/build.json` |
-| Archived legacy builds | `<repo>/.tandem-history/legacy/<id>-<random>/` |
 
 The relay is transport. Deleting it never deletes a run: the rows and artifacts are in the
 state home, which is deliberately outside the checkout and outside any relay.
@@ -91,7 +75,6 @@ does not always show a turn starting.
    Durable task acknowledgements and handbacks use the active-run marker and the
    identity from the task prompt. Run the commands as printed even if your agent
    shell does not inherit `HERDR_ENV` or `HERDR_ROLE`. Keep every identity flag.
-   Legacy handbacks still require `HERDR_ENV=1`.
 
    Then reconcile:
 
@@ -136,8 +119,7 @@ with `state` paused and a `pause_code`, not an error.
 ## A run needs a reviewer pane
 
 Every review goes to the reviewer pane, and the builder never reviews. `tandem build start`
-reads the pane `tandem-pair` recorded in `reviewer.json`, as the legacy start and an import
-do; `--reviewer NAME --reviewer-kind KIND` override it. With no record, or one that is
+reads the pane `tandem-pair` recorded in `reviewer.json`; `--reviewer NAME --reviewer-kind KIND` override it. With no record, or one that is
 incomplete or names the builder or the planner, it refuses with exit 23 and creates nothing.
 The refusal names the remedy: declare a `reviewer` block in `.tandem.json` and re-run
 `tandem-pair`, or run `tandem-pair --reviewer KIND`.
@@ -306,16 +288,14 @@ needs, and nothing is created. Raise the limit for the start:
 required decision, so a run can still pause with `context_too_large` after it started. That
 run keeps its limit: stop it, archive it and start a new run with a higher one.
 
-## Export, import and rebind
+## Export and rebind
 
     tandem state export --run ID --output PATH --root DIR
     tandem state rebind --checkout ID --root PATH
 
 Export writes a new directory (never over an existing one) with `manifest.json`, every
 artifact the run names, and `COMPLETE` last. A directory without `COMPLETE` is a failed
-export. `--archive` keeps a finished legacy build as history. `--active` moves a stopped
-legacy build onto the durable engine: tasks the legacy engine finished are carried
-without evidence and their check and review stay pending. Rebind points a checkout at a
+export. Rebind points a checkout at a
 moved worktree and needs the checkout idle.
 
 ## Retention
@@ -330,7 +310,7 @@ Stop every run first.
 
 ## Rollback and downgrade
 
-Rolling back from the durable engine is pause, settle, export, keep the store:
+To end a run and keep its history, stop it, let it settle, export it and archive it:
 
     tandem build stop --root DIR
     tandem state recover --run ID --root DIR
@@ -346,9 +326,8 @@ through. `recover` never resumes a stopped run and does not take its writer leas
 Archiving sets the marker aside as `active-run.<run id>.archived.json`, so the next build
 in the checkout starts clean.
 
-Then start a separate legacy run if you need one. A durable run is never turned back into
-a legacy one. An older tandem refuses a relay it does not speak (`tandem state engine`
-exits 23 with the remedy) and refuses a store with a newer schema. Do not delete the state
+An older tandem refuses a relay it does not speak (`tandem state active-run` exits 23 with
+the remedy) and refuses a store with a newer schema. Do not delete the state
 home to "undo" a run: it holds the history. To go back to a pre-upgrade schema, copy a
 backup from `backups/` over `state.sqlite` with nothing running.
 
@@ -379,8 +358,8 @@ planner. `tandem build reconcile` hands back a fix made by hand. See
 
 `tandem-unpair` on a durable run first signs it off on the run's own evidence: every task
 accepted with a passed check and a recorded review for its final tree, or a waiver of either.
-It does not read handback reports, which a durable run never writes, and it lists any an
-earlier legacy build left as not part of the run. A task that lacks evidence is named with
+It does not read handback reports, which a run never writes, and it lists any in the relay
+as not part of the run. A task that lacks evidence is named with
 what it lacks (exit 5), and a run with nothing accepted exits 4. The check command still runs.
 Then it stops the run, waits for it to settle, archives it and removes the pane, the bridge
 and the relay. If the run does not settle, or an open job or
@@ -394,8 +373,7 @@ Last run on 2026-11-08. The results are in
 compatibility against a fake Herdr. They do not prove any agent CLI works. A live pair is
 authorised by a person and costs real tokens.
 
-Run from a real Herdr pane. Each run gets a new scratch repo with `"build_engine": "durable"`
-in `.tandem.json`, a passing `check_command` and a separate reviewer kind. Start each agent to
+Run from a real Herdr pane. Each run gets a new scratch repo with a passing `check_command` and a separate reviewer kind. Start each agent to
 its prompt, press Esc on any Codex update or hooks dialog, then hand off and touch nothing.
 Record the OS, the Herdr version, each CLI's version, the models and the token usage.
 
@@ -453,13 +431,3 @@ does not count Copilot sources yet: the collaboration ledger has no Copilot pars
 
 A pass for Codex says nothing about Claude or Copilot. Anything not observed is
 recorded as unverified.
-
-## Rollout gates
-
-The default engine changes only in a separate, reviewed release patch after all of these
-hold: the correctness gates, every supported builder verified live, the recovery gates, and the
-measured cost targets (a provisional 25% median uncached-input improvement and 30%
-total-input improvement on long builds, small builds no worse than 10%, p95 latency no
-worse than 20%, at least ten paired runs per main scenario). If quality is worse, the
-default does not change however cheap the engine is. Triage skipping has its own release
-decision and stays off until then.

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Protocol 2 routing in tandem-handback and tandem-bridge.
 #
-# A durable run is marked by <relay>/active-run.json, which both look for before
+# A run is marked by <relay>/active-run.json, which both look for before
 # a build record. `tandem build event new` is the real binary; Herdr and
 # `build event ingest` are stubbed, and only ingest's arguments are checked.
 set -uo pipefail
@@ -63,7 +63,7 @@ STUB
 chmod +x "$TMP/bin"/*
 
 # --- fixtures -----------------------------------------------------------------
-fixture() { # fixture <dir>: a git repo whose relay carries a durable run
+fixture() { # fixture <dir>: a git repo whose relay carries a run
   local r="$1"; rm -rf "$r"; mkdir -p "$r/sub"; git -C "$r" init -q .
   mark "$r/.tandem-relay" "$RUN"
 }
@@ -83,7 +83,7 @@ hb() { # hb <cwd> <args...>
 REPORT="$TMP/report.md"; printf 'implemented, check green\n' > "$REPORT"
 queued() { ls "$1"/q/*.json 2>/dev/null | head -1; }
 
-printf '== a durable run takes protocol 2 ==\n'
+printf '== a run takes protocol 2 ==\n'
 R="$TMP/repo"; fixture "$R"
 hb "$R" --task 2 "${D[@]}" --report "$REPORT"
 [ "$RC" -eq 0 ] && ok "a durable handback exits 0" || nope "a durable handback exits 0 (rc $RC): $OUT"
@@ -140,7 +140,7 @@ refused() {
 printf '\n== the old form and wrong identities are refused ==\n'
 fixture "$R"
 hb "$R" --task 1 --report "$REPORT"
-refused "legacy-style durable handback" "durable run" "$R"
+refused "legacy-style durable handback" "run" "$R"
 fixture "$R"
 hb "$R" --task 1 --run bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb --attempt "$ATT" --job "$JOB" --effect "$EFF" --nonce "$NONCE" --report "$REPORT"
 refused "different run id" "not the active run" "$R"
@@ -183,12 +183,12 @@ hb "$R/sub" --task 1 "${D[@]}" --report "$REPORT"
 fixture "$R"
 mark "$R/sub/.tandem-relay" bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 hb "$R/sub" --task 1 "${D[@]}" --report "$REPORT"
-refused "conflicting markers" "two durable runs" "$R"
+refused "conflicting markers" "two runs" "$R"
 
-printf '\n== durable flags need a durable run ==\n'
+printf '\n== durable flags need a run ==\n'
 L="$TMP/norun"; rm -rf "$L"; mkdir -p "$L/.tandem-relay"; git -C "$L" init -q .
 hb "$L" --task 1 "${D[@]}" --report "$REPORT"
-refused "v2 flags without a durable run" "none is active" "$L"
+refused "v2 flags without a run" "none is active" "$L"
 hb "$L" --task 2 --report "$REPORT"
 refused "a plain task with no run" "no run is active" "$L"
 
@@ -200,7 +200,7 @@ br() { # br <relay>
           TICK_OUT="${TICK_OUT:-}" STATUS_OUT="${STATUS_OUT:-}" PROMPTS="${PROMPTS:-}" \
           "$BRIDGE" --mailbox "$1" --planner planner --once 2>&1); RC=$?
 }
-printf '\n== the bridge ingests protocol 2 and refuses protocol 1 under a durable run ==\n'
+printf '\n== the bridge ingests protocol 2 and refuses protocol 1 under a run ==\n'
 B="$TMP/brepo"; fixture "$B"; REL="$B/.tandem-relay"; RD="$REL/durable/$RUN"
 printf '{"schema_version":2,"kind":"builder_started"}\n' > "$RD/q/e1.json"
 BUILDER_STATUS=idle br "$REL"
@@ -233,10 +233,10 @@ br "$REL"
 [ -f "$REL/quarantine-v1/t1.json" ] && grep -q "legacy is gone" "$REL/quarantine-v1/t1.json.reason" 2>/dev/null \
   && ok "it is set aside with a reason, not deleted" || nope "the v1 message was not quarantined with a reason"
 
-printf '\n== the bridge drives a durable run through tick and recover, and a relay with no run through neither ==\n'
+printf '\n== the bridge drives a run through tick and recover, and a relay with no run through neither ==\n'
 rm -rf "$REL/q" "$REL/quarantine-v1"; rm -f "$RD"/q/*
 br "$REL"
-[ "$(grep -c "^build recover --root $B" "$CALLS")" -eq 1 ] && ok "startup runs recover once for the durable run" || nope "recover calls ($(cat "$CALLS"))"
+[ "$(grep -c "^build recover --root $B" "$CALLS")" -eq 1 ] && ok "startup runs recover once for the run" || nope "recover calls ($(cat "$CALLS"))"
 [ "$(grep -c "^build tick --root $B" "$CALLS")" -eq 1 ] && ok "each poll runs one tick" || nope "tick calls ($(cat "$CALLS"))"
 first=$(grep -n '^build recover' "$CALLS" | head -1 | cut -d: -f1); second=$(grep -n '^build tick' "$CALLS" | head -1 | cut -d: -f1)
 [ -n "$first" ] && [ -n "$second" ] && [ "$first" -lt "$second" ] && ok "recover comes before the first tick" || nope "order"

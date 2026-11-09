@@ -1,6 +1,6 @@
 package controller
 
-// Mailbox v3: how a reviewer reports to a durable run.
+// Mailbox v3: how a reviewer reports to a run.
 //
 // A reviewer sends review_started when it begins and review_result with its
 // review JSON, through the builder's queue under schema_version 3. Ingestion

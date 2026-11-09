@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tandem-project emits context_limit from .tandem.json, the most prompt bytes a
-# durable run gives the builder for one task. Absent or not a whole number
+# run gives the builder for one task. Absent or not a whole number
 # gives 0, the engine default.
 #
 # Hermetic: tandem is stubbed for `paths manifest`. The real binary answers

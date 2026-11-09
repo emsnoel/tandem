@@ -105,6 +105,6 @@ func TestReconcileUsageAndRefusals(t *testing.T) {
 	}
 	other := newCLI(t)
 	if rc, _, _ := other.sub("reconcile", "--actor", "me", "--reason", "x"); rc == exitcode.OK {
-		t.Error("reconcile with no durable run")
+		t.Error("reconcile with no run")
 	}
 }

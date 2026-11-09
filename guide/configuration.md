@@ -24,8 +24,7 @@ project wants for each role.
   },
   "prompt_extra": "Extra instructions appended to the builder's launch prompt.",
   "task_input_budget": 3000000,
-  "context_limit": 24000,
-  "build_engine": "durable"
+  "context_limit": 24000
 }
 ```
 
@@ -59,12 +58,6 @@ JSON array, it looks at the whole tree. tandem doesn't guess a value, because un
 before tandem stops the build for a person to look. The default is 3,000,000, and 0 turns it
 off. See [What stops a build](builds.md#what-stops-a-build).
 
-`build_engine` is `"legacy"` or `"durable"`. It sets the engine new builds in this repo
-start on, so nobody has to set `TANDEM_BUILD_ENGINE`. The variable overrides the key when
-set. tandem refuses an unknown value. Once a build has started, its relay decides, and
-tandem doesn't read this key again. `tandem state engine` and `tandem-status` show which
-engine the next build would use, and why.
-
 `context_limit` is the largest prompt, in bytes, that a durable run gives the builder for
 one task. When unset or 0, the engine's default of 24,000 applies.
 `tandem-handoff --context-limit N` overrides it for one handoff. A durable start measures
@@ -74,7 +67,8 @@ cuts the required part of a prompt to fit: the task's brief, the plan's opening 
 tandem's instructions. So a limit smaller than a real task only blocks that task.
 
 `prompt_extra` holds instructions for this project only, such as hardware the builder can't
-test on, or deployment rules.
+test on, or deployment rules. A run's task prompt doesn't carry `prompt_extra` or
+`conventions_file` yet. tandem still reads and validates them.
 
 When a key is missing, tandem detects it like this:
 

@@ -26,7 +26,7 @@ The acceptance policy has two mandatory stages, `builder_review` and `independen
 
 At start Tandem hashes the run's configuration, including the policy and the review protocol, and stores it. Every later step reads that stored copy.
 
-- A run started before this change stays on protocol 2. Setting `TANDEM_BUILD_ENGINE` or any other variable later does not move it.
+- A run started before this change stays on protocol 2. Setting a variable later does not move it.
 - The helper that writes mailbox messages cannot reach the state, so the run's manifest carries a copy of the protocol. `tandem build event new` writes version 3 only when the manifest says the run opted in. `tandem build event ingest` reads the stored configuration, not the manifest, and refuses a version 3 message for a run that did not opt in.
 - After a restart, archived mailbox traffic is replayed idempotently. Nothing is dispatched or prompted twice.
 
@@ -62,7 +62,6 @@ A rejected submission records its reason on the attempt and in `review/<effect>/
 
 ```json
 {
-  "build_engine": "durable",
   "review_delivery": "mailbox",
   "acceptance_policy": "review-policy.json",
   "collaboration": "COLLABORATION_ID"
@@ -81,14 +80,14 @@ Everything the mailbox does can still be done by a person.
 
 ## A reviewer pane
 
-Status: required. The builder never reviews, on either engine. A durable start without a reviewer pane is refused before anything is created, naming the remedy: declare a `reviewer` block in `.tandem.json` and re-run `tandem-pair`, or run `tandem-pair --reviewer KIND`. A run started before this rule, whose stored configuration has no reviewer pane, pauses with `no_reviewer` on its next tick while it is running. A run already paused for another reason gets there once it resumes. Its pause reason gives the whole restart: stop it with `tandem build stop`, end its open jobs with `tandem state recover --run ID`, archive it with `tandem state archive --run ID`, re-pair with a reviewer and hand off again. An archive refuses while a job is open, and names `tandem state recover` as the remedy.
+Status: required. The builder never reviews. A start without a reviewer pane is refused before anything is created, naming the remedy: declare a `reviewer` block in `.tandem.json` and re-run `tandem-pair`, or run `tandem-pair --reviewer KIND`. A run started before this rule, whose stored configuration has no reviewer pane, pauses with `no_reviewer` on its next tick while it is running. A run already paused for another reason gets there once it resumes. Its pause reason gives the whole restart: stop it with `tandem build stop`, end its open jobs with `tandem state recover --run ID`, archive it with `tandem state archive --run ID`, re-pair with a reviewer and hand off again. An archive refuses while a job is open, and names `tandem state recover` as the remedy.
 
 ```text
 tandem-pair --reviewer claude --reviewer-model opus --reviewer-effort high
 tandem build start ... --reviewer reviewer --reviewer-kind claude
 ```
 
-`tandem-pair` starts a third pane, `reviewer`, split from the builder's, whenever the repository's `.tandem.json` has a `reviewer` block or `--reviewer KIND` is given. The flags win over the block for that pairing. It is launched as the `reviewer` role (`tandem agent launch-spec --role reviewer`), which gets the builder's unattended launch rules and pre-launch gates, but resolves from its own sources only: the `--reviewer*` flags, `HERDR_REVIEWER_*`, the `reviewer` block and the adapter's defaults. It never reads the `builder` block, `HERDR_BUILDER_*` or `defaults.builder_kind`. `tandem config resolve --role reviewer` shows where each value came from. The pair records it in `reviewer.json` beside `builder.json`, with its kind, name, model and autonomy. Either engine's `tandem build start` reads it from there, and `tandem reviewer show` prints it for the scripts. `tandem-unpair` closes the recorded reviewer pane before the builder's. It refuses while the reviewer is working or blocked, because its review would be lost, unless you pass `--force`.
+`tandem-pair` starts a third pane, `reviewer`, split from the builder's, whenever the repository's `.tandem.json` has a `reviewer` block or `--reviewer KIND` is given. The flags win over the block for that pairing. It is launched as the `reviewer` role (`tandem agent launch-spec --role reviewer`), which gets the builder's unattended launch rules and pre-launch gates, but resolves from its own sources only: the `--reviewer*` flags, `HERDR_REVIEWER_*`, the `reviewer` block and the adapter's defaults. It never reads the `builder` block, `HERDR_BUILDER_*` or `defaults.builder_kind`. `tandem config resolve --role reviewer` shows where each value came from. The pair records it in `reviewer.json` beside `builder.json`, with its kind, name, model and autonomy. `tandem build start` reads it from there, and `tandem reviewer show` prints it for the scripts. `tandem-unpair` closes the recorded reviewer pane before the builder's. It refuses while the reviewer is working or blocked, because its review would be lost, unless you pass `--force`.
 
 In a run:
 
@@ -99,8 +98,6 @@ In a run:
 - Each review prompt registers a `reviewer` source under the reviewer's kind and conversation. A collaboration counts its tokens apart from the builder's, and its budget admits the launch under the reviewer's provider. The run report does not include them.
 
 The plan review before a build goes to the reviewer pane too. `tandem-review` reads `reviewer.json` and sends the reset and the prompt to the pane it names, and `tandem-verdict` from that pane tells the planner "the reviewer reviewed". `tandem-review` writes `--role NAME`, the reviewer's recorded name, into the verdict command it asks for, and `--role` takes precedence over `HERDR_ROLE`: Codex runs its commands without the pane's environment, so a Codex reviewer's verdict used to say "the builder reviewed". A claimed role decides only where Herdr cannot: `tandem-verdict` and `tandem-handback --review` both ask `tandem agent self --expect NAME`, and in a pane whose socket Herdr answers on, Herdr's name for the pane decides. "Which pane is the reviewer" in guide/reviews.md has the whole rule. A review prompt whose turn ends at once with no model work is not sent, and `tandem-review` exits 8 with the pane's last lines. Unlike the run's reviews, a plan review starts in a fresh conversation. `tandem agent reset` types the reset command of the kind recorded for the pane it resets, so a Codex reviewer beside a Claude builder gets `/new`, not `/clear`. If the recorded reviewer has no pane, or `reviewer.json` cannot be read, `tandem-review` sends nothing and says to re-run `tandem-pair`. There is no flag that sends the review to the builder: `tandem-review --builder` and `tandem-verdict --role builder` refuse and say why, and with no `reviewer.json` nothing is sent. The verdict records the reviewer's kind and model from `reviewer.json` and `reviewed_by: reviewer`, besides the builder's kind and autonomy. The gate refuses with `no_reviewer`, `builder_review` (a record with no `reviewed_by`, as every pre-upgrade record has) or `reviewer` (kind changed, or model changed when both sides were measured). Effort is not compared.
-
-A legacy build uses the reviewer pane as well. `tandem build start` refuses with exit 23 when `reviewer.json` records none. With review triage on, the bridge types each task's review prompt into the reviewer pane, and the reviewer answers with `tandem-handback --task N --review --verdict clean|changes`. In a Herdr pane the handback takes the pane's identity from Herdr, not from `--role`, and refuses if that lookup fails. `clean` accepts the task. `changes` sends the findings to the builder as a fix, for at most 3 rounds, then stops with `review_rounds`. A `changes` verdict on a task already over its input budget stops with `budget` and sends no fix. A reviewer that edits the task's files stops the task with `review_edited_tree`. See "Review triage" in guide/jev.md.
 
 ## Counters
 

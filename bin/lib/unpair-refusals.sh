@@ -11,7 +11,7 @@
 refuse_never_handed_back() {
   if [[ -n "$DURABLE_ID" ]]; then
     cat >&2 <<MSG
-tandem-unpair: durable run $DURABLE_ID has no task accepted; there is nothing to verify, so nothing was closed.
+tandem-unpair: run $DURABLE_ID has no task accepted; there is nothing to verify, so nothing was closed.
 
   See where it got to:   tandem build status --root $MB_ROOT
   Close it anyway:       tandem-unpair --force
@@ -34,7 +34,7 @@ MSG
 # refuse_unsigned: gate 2, work not signed off. $detail lists it.
 refuse_unsigned() {
   if [[ -n "$DURABLE_ID" ]]; then
-    printf 'tandem-unpair: durable run %s has tasks without the evidence to sign them off; nothing was closed.\n\n' "$DURABLE_ID" >&2
+    printf 'tandem-unpair: run %s has tasks without the evidence to sign them off; nothing was closed.\n\n' "$DURABLE_ID" >&2
     # Each detail line is a task id, then what it lacks.
     while read -r _task _lacks; do
       [[ -n "$_task" ]] && printf '    %s  lacks: %s\n' "$_task" "$_lacks" >&2

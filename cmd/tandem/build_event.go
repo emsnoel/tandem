@@ -70,7 +70,7 @@ func cmdEventNew(args []string) int {
 		return fail(err)
 	}
 	if run == nil {
-		return fail(fmt.Errorf("no durable run in %s", relay))
+		return fail(fmt.Errorf("no run in %s", relay))
 	}
 	dir := controller.RunDir(relay, run.RunID)
 	taskID, err := controller.ResolveTask(dir, *task)
@@ -199,7 +199,7 @@ func cmdEventIngest(args []string) int {
 		return fail(err)
 	}
 	if run == nil {
-		return fail(fmt.Errorf("no durable run in %s", relay))
+		return fail(fmt.Errorf("no run in %s", relay))
 	}
 	// A submission is applied only once the builder's turn has ended. An
 	// unsettled one is retried later, not quarantined: nothing is wrong with it.

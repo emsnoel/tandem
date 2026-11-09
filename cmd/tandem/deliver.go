@@ -57,7 +57,7 @@ var effectPolicies = map[string]deliverPolicy{
 // a prompt can say whether a turn ran on it. --wait-unblocked replaces wait.
 var senderPolicies = map[string]deliverPolicy{
 	// To the builder or reviewer. Mid-turn, a task or review typed here queues;
-	// the durable run refuses instead (effectPolicies).
+	// the run refuses instead (effectPolicies).
 	"task":   {confirm: true},
 	"review": {confirm: true},
 	// To the planner, which a person may be using: a dialog or a subagent's screen

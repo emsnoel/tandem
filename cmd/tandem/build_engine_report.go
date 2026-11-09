@@ -39,7 +39,7 @@ func (n *taskNumber) Set(v string) error {
 	return nil
 }
 
-// cmdBuildAcceptDurable records the planner's waivers. A durable run has no
+// cmdBuildAcceptDurable records the planner's waivers. A run has no
 // "accept everything": each requirement being overruled is named, with a
 // reason, and bound to the tree the planner examined. Acceptance itself still
 // happens on the next tick, from persisted evidence.
@@ -64,7 +64,7 @@ func cmdBuildAcceptDurable(args []string) int {
 		return usage("")
 	}
 	if len(scopes) == 0 {
-		return usage("a durable run is accepted by evidence; to overrule a requirement name it with --waive")
+		return usage("a run is accepted by evidence; to overrule a requirement name it with --waive")
 	}
 	if strings.TrimSpace(*because) == "" {
 		return usage("--because needs a reason")

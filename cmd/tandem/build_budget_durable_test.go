@@ -69,9 +69,9 @@ func TestBuildBudgetParsesStrictly(t *testing.T) {
 	if rc == exitcode.OK || !strings.Contains(errOut, "active") {
 		t.Errorf("rc %d %q", rc, errOut)
 	}
-	// Without a durable run there is nothing to limit.
+	// Without a run there is nothing to limit.
 	legacy := newCLI(t)
-	if rc, _, _, errOut := legacy.run3("build", "budget", "--root", legacy.root, "--limit", "5"); rc == exitcode.OK || !strings.Contains(errOut, "durable") {
+	if rc, _, _, errOut := legacy.run3("build", "budget", "--root", legacy.root, "--limit", "5"); rc == exitcode.OK || !strings.Contains(errOut, "no run") {
 		t.Errorf("rc %d %q", rc, errOut)
 	}
 }

@@ -26,12 +26,12 @@ type durable struct {
 	nonce                  string
 }
 
-// durableRepo is a git checkout with a durable run: marker, manifest and the
+// durableRepo is a git checkout with a run: marker, manifest and the
 // state rows an attempt waiting on its builder dispatch needs.
 func durableRepo(t *testing.T) *durable {
 	t.Helper()
 	root := pairedRepo(t)
-	os.RemoveAll(filepath.Join(root, ".tandem-relay", "build")) // a durable run has no legacy build
+	os.RemoveAll(filepath.Join(root, ".tandem-relay", "build")) // a run has no legacy build
 	d := &durable{root: root, home: filepath.Join(t.TempDir(), "state-home"), relay: paths.Relay(root),
 		run: strings.Repeat("a", 32), project: strings.Repeat("b", 32), attempt: strings.Repeat("c", 32),
 		job: strings.Repeat("d", 32), effect: strings.Repeat("e", 32), nonce: strings.Repeat("f", 32)}
@@ -167,11 +167,11 @@ func TestBuildEventNewRefusesWhatABuilderMustNotSend(t *testing.T) {
 	if left, _ := filepath.Glob(filepath.Join(d.dir, "q", "*")); len(left) != 0 {
 		t.Errorf("a refused call queued %v", left)
 	}
-	// Without a durable run there is nothing to write to.
+	// Without a run there is nothing to write to.
 	plain := pairedRepo(t)
 	rc, _, _ := runCapture(t, "build", "event", "new", "--root", plain, "--kind", "builder_started", "--task", "1", "--attempt", d.attempt, "--job", d.job, "--effect", d.effect, "--nonce", d.nonce)
 	if rc == exitcode.OK {
-		t.Error("an event for a relay with no durable run")
+		t.Error("an event for a relay with no run")
 	}
 }
 

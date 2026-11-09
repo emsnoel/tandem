@@ -81,7 +81,7 @@ func TestCommandsWithNoRunSayNoRun(t *testing.T) {
 	e := newCLI(t)
 	for _, verb := range []string{"accept", "stop", "status", "tick", "wait", "recover", "review-record", "reconcile", "usage", "budget"} {
 		rc, _, errOut := e.sub(verb)
-		if rc == exitcode.OK || !strings.Contains(errOut, "no durable run in "+paths.Relay(e.root)) {
+		if rc == exitcode.OK || !strings.Contains(errOut, "no run in "+paths.Relay(e.root)) {
 			t.Errorf("build %s with no run: rc %d %q", verb, rc, errOut)
 		}
 	}

@@ -108,7 +108,7 @@ pauses later, and the bridge says so. The cost of this check is that a successfu
 returns up to 8 seconds later.
 
 [Builds](builds.md) covers the fresh conversation each task gets, what stops a build, and
-how to carry on. [Optional Jev features](jev.md) covers staffing advice and review triage.
+how to carry on. [Optional Jev features](jev.md) covers staffing advice.
 
 ## 5. The builder asks a question
 
@@ -239,7 +239,7 @@ gates 4 and 5 read the run from the state home instead of `reports/`. Gate 4 ref
 no task was accepted. Gate 5 refuses, naming each task and what it is missing, unless every
 task was accepted with a passed check and a recorded review for its final tree. A waiver
 from `tandem build accept --waive` can stand in for either. You don't need `--verified`.
-tandem lists any reports an earlier legacy build left in the relay as not part of the run,
+tandem lists any reports in the relay as not part of the run,
 and doesn't gate on them. The other gates apply as before: not mid-write, the check, and
 nothing changed while it ran.
 

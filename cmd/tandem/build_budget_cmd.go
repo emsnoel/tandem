@@ -1,6 +1,6 @@
 package main
 
-// tandem build budget: set a durable run's input limits.
+// tandem build budget: set a run's input limits.
 //
 //	tandem build budget [--run ID] [--scope task|run] --limit N [--root DIR] [--state-home DIR]
 //

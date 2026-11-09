@@ -129,7 +129,7 @@ func TestANamedFileWrittenAfterArmingWakesIt(t *testing.T) {
 	}
 }
 
-// A durable run's queue is added once the caller knows the run.
+// A run's queue is added once the caller knows the run.
 func TestAQueueAddedLaterWakesIt(t *testing.T) {
 	relay := t.TempDir()
 	w := open(t)

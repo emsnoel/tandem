@@ -156,8 +156,7 @@ workspace
     └── pane  ── agent name: reviewer (any)     "reviewer" block, or tandem-pair --reviewer KIND
 ```
 
-The reviewer pane is required. Every plan review and every task review, on both build
-engines, goes there, on its own model, so the agent that wrote the code does not review it.
+The reviewer pane is required. Every plan review and every task review goes there, on its own model, so the agent that wrote the code does not review it.
 Without it, review and build refuse and name the remedy.
 
 Names are **role-based, not tool-based**, so the harness survives swapping which model
@@ -522,8 +521,7 @@ builder's own handback failed to arrive and exposed it. The bash it replaced was
 on purpose: `if ! herdr agent list >/dev/null 2>&1; then ask_via_mailbox; fi`.
 
 `tandem-bridge` must keep working when everything else is broken. It asks `tandem` like
-every other script (`tandem relay read` for a queued message, `tandem build roles` for the
-build's panes), and a failed call leaves the same empty value a failed `jq` read used to:
+every other script (`tandem relay read` for a queued message), and a failed call leaves the same empty value a failed `jq` read used to:
 the message is logged as malformed and set aside, and the loop goes on.
 
 `tandem-pair` used to parse herdr JSON with `jq` too, for topology decisions the by-name

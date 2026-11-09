@@ -166,10 +166,10 @@ func defaultDurableTransport(spec transportSpec) (runner.Transport, error) {
 		return nil, fmt.Errorf("no transport for builder kind %q: %w", spec.Kind, err)
 	}
 	if spec.Builder == "" {
-		return nil, errors.New("a durable run needs the builder's agent name")
+		return nil, errors.New("a run needs the builder's agent name")
 	}
 	if spec.Reviewer == "" || spec.ReviewerKind == "" {
-		return nil, errors.New("a durable run needs its reviewer pane's agent name and kind")
+		return nil, errors.New("a run needs its reviewer pane's agent name and kind")
 	}
 	if _, err := agent.Get(spec.ReviewerKind); err != nil {
 		return nil, fmt.Errorf("no transport for reviewer kind %q: %w", spec.ReviewerKind, err)

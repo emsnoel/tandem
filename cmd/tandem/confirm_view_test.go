@@ -90,7 +90,7 @@ func TestPromptAsReadsTheScreenForThePanesKind(t *testing.T) {
 	}
 }
 
-// The durable run types tasks and reviews into builder and reviewer panes the
+// The run types tasks and reviews into builder and reviewer panes the
 // same way. A pane off its main conversation is not sent to, and not reset:
 // the reset command would be typed into the same screen.
 func TestHerdrSendTypesNothingIntoASubagentScreen(t *testing.T) {

@@ -8,7 +8,7 @@
 #   STUB_CHECK         check_command; unset is "true", set but empty is none
 #   STUB_PROMPT_EXTRA  prompt_extra
 # DIR/bin/tandem.extra, if present, is sourced first by the tandem stub, so its
-# cases win. By default `build start` answers with a durable run. A jq that fails on
+# cases win. By default `build start` answers with a run. A jq that fails on
 # any call sits on PATH.
 stub_handoff_env() {
   local dir="$1"

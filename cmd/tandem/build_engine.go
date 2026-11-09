@@ -1,6 +1,6 @@
 package main
 
-// The durable run commands behind `tandem build`.
+// The run commands behind `tandem build`.
 
 import (
 	"context"
@@ -96,7 +96,7 @@ func runCommand(sub string, args []string) (int, bool) {
 	if run, err := controller.ReadActiveRun(paths.Relay(root)); err != nil {
 		return fail(err), true
 	} else if run == nil {
-		return fail(fmt.Errorf("no durable run in %s; `tandem build %s` only works on one", paths.Relay(root), sub)), true
+		return fail(fmt.Errorf("no run in %s; `tandem build %s` only works on one", paths.Relay(root), sub)), true
 	}
 	switch sub {
 	case "accept":
@@ -122,7 +122,7 @@ func runCommand(sub string, args []string) (int, bool) {
 	}
 }
 
-// openRun is an opened durable run: its store, artifacts and run id.
+// openRun is an opened run: its store, artifacts and run id.
 type openRun struct {
 	root  string
 	run   *controller.ActiveRun
@@ -138,7 +138,7 @@ func openDurable(root, home string, readOnly bool) (*openRun, error) {
 		return nil, err
 	}
 	if run == nil {
-		return nil, fmt.Errorf("no durable run in %s", paths.Relay(root))
+		return nil, fmt.Errorf("no run in %s", paths.Relay(root))
 	}
 	id, bound, err := state.LookupIdentity(root, home)
 	if err != nil {
