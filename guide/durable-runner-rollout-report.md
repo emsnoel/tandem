@@ -321,11 +321,47 @@ State directories, for the runs above: Codex a44ba8548b4d3464144b9dbe2f1e10b5, C
 Herdr. **Still not met:** measured cost targets including reviewer tokens, direct reviewer
 execution, and a command that reconciles a plan edited mid-run.
 
+## Proof on the single engine, 2026-11-09
+
+Run from a real Herdr 0.9.5 pane on macOS on the branch that removed the legacy engine, with no
+`build_engine` setting anywhere. CLI versions: Codex 0.167.0, Claude Code 2.1.319, Copilot
+1.0.107. Setup was the same as on 2026-11-08.
+
+| Test | Builder, reviewer | Result | Run |
+|---|---|---|---|
+| Full plan with a repair | Codex, Claude Sonnet | finished 3 of 3, 1 repair | `30572cd587b9197ab8dece17e81ff911` |
+| Full plan with a repair | Claude Sonnet, Codex | finished 3 of 3, 1 repair | `7a75dd6a292405dda97a40f8ed2c2b87` |
+| Full plan with a repair | Copilot, Claude Sonnet | finished 3 of 3, 1 repair | `2aef3954a941e2bffe44fec6604f877b` |
+| Failed check | Claude Sonnet, Codex | paused `check_failed`, note gives the exit code and log | `427fe0175c3740d0b2a5882a0152322c` |
+| Crash before a send | Claude Sonnet, Codex | prompt never typed, `writer_unknown`, abandoned by the planner, new run finished 2 of 2 | `fb30e2a5ac5c43b58c72334b64248f21`, then `43700ed96bf88e5717a4d9455f34db95` |
+| Crash during a send | Claude Sonnet, Codex | prompt typed once, finished 2 of 2 | `7f02e87761a105a1b9ca60dc49583593` |
+| Crash after a send | Claude Sonnet, Codex | prompt typed once, finished 2 of 2 | `a2b9f86c9a201042f8fc661ea9131724` |
+
+Usage was complete for every builder. The Codex, Claude and Copilot runs read 547,229,
+997,529 and 657,023 input tokens, of which 497,536, 880,239 and 602,019 were cached.
+
+The first pass found one defect: after a crash before a send, the `writer_unknown` note let the
+planner take work on task 1 as proof that task 2's prompt had arrived. The note now names the
+prompt in doubt. Crash during and after ran before that change, which only touches the note.
+
+One earlier Copilot run, `80dd47b8c08124d0e24341456ce4ff8b`, did not finish and is unexplained.
+Task 3's review prompt was recorded as sent at 18:39:51. No review was recorded in the seven
+minutes before the Mac slept, and after waking the run paused `review_unknown`. The reviewer
+pane was closed before anyone read it. The rerun on the same setup passed.
+
+Three other runs failed for reasons in the test setup: a planner that edited the plan, a
+reviewer that rightly objected to a check built to fail, and a plan review cut off by a
+5-minute wait while the Mac slept.
+
+The final fixes after these runs changed text, the refusal of a non-string `build_engine`, the
+order of two refusals on a start, and the flags `build stop` accepts. They didn't touch delivery
+or review, and the live tests were not repeated on them.
+
 ## Outcome
 
 The durable engine became tandem's only build engine. The live proof on 2026-11-08 ran a full
 plan with a repair on Codex, Claude and Copilot builders, a failed check, and a crash at each
-point of a send. The legacy engine, review triage and legacy import were then removed. Sections
+point of a send. The legacy engine, review triage and legacy import were then removed. The proof was repeated on the single engine on 2026-11-09. Sections
 above describe the two-engine period and are kept as history.
 
 The last release with the legacy engine is v0.6.0. A leftover `build.json` is refused with a
