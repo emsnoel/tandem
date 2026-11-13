@@ -170,7 +170,8 @@ func packetRequest(cfg runConfig, runID, planHash, startSnapshot, attemptID stri
 		Run: runID, Attempt: attemptID, Job: derive(attemptID, "builder-job"),
 		Effect: state.EffectID(eventID, 0), Nonce: state.EffectNonce(eventID, 0), CheckCommand: cfg.CheckCommand}
 	return taskcontext.Request{RunID: runID, AttemptID: attemptID, PlanHash: planHash, StartSnapshotHash: startSnapshot,
-		Task: spec, Entries: entries, MaxEstimatedTokens: cfg.ContextLimit, Header: promptHeader(p), Footer: promptFooter(p)}
+		Task: spec, Entries: entries, MaxEstimatedTokens: cfg.ContextLimit,
+		Header: promptHeader(p) + cfg.Settings.prelude(cfg.Root), Footer: cfg.Settings.closing() + promptFooter(p)}
 }
 
 type promptData struct {

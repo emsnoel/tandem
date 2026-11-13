@@ -166,7 +166,7 @@ review_gate() {
         printf '\n  Fix the plan and hand off again. A changed plan voids the review, so\n' >&2
         printf '  it is reviewed again:\n\n' >&2
         printf '      $EDITOR %s\n' "$PLAN_ABS" >&2
-        printf '\n  Or overrule them, saying why. The reason is recorded and is not sent to the builder yet:\n\n' >&2
+        printf '\n  Or overrule them, saying why. The reason reaches the builder:\n\n' >&2
         printf '      tandem-handoff --override-review %s \\\n' "$GATE_ID" >&2
         printf '        --because "..."\n' >&2 ;;
       *)
@@ -196,9 +196,9 @@ review_gate() {
 }
 
 # adopt_standing_ruling: a ruling from an earlier handoff still stands.
-# The gate may have passed on a ruling stored by an earlier handoff, so the
-# stored ruling is adopted here. Nothing reads it until the builder's prompt
-# carries the ruling.
+# The gate may have passed on a ruling stored by an earlier handoff. start_build
+# passes $OVERRIDE_ID and $OVERRIDE_REASON to the run, so adopt the stored ruling
+# here or the builder would get no ruling at all.
 adopt_standing_ruling() {
   if [[ -z "$OVERRIDE_ID" ]]; then
     _pass_id=$(printf '%s' "$_gate" | sed -n '1p')

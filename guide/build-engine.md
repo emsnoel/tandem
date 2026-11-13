@@ -98,8 +98,15 @@ The commands the notes point at:
 ## What the task prompt carries
 
 A bounded packet: the task, the constraints and relevant context, up to `context_limit` bytes.
-It does not yet carry `prompt_extra`, `conventions_file`, the `--because` ruling from a
-handoff, or staffing advice.
+It also carries the project's settings and any ruling, which count toward that limit:
+
+- `conventions_file`: the builder is asked to read it in full before it starts, unless the
+  builder's CLI loads that file itself (Codex loads `AGENTS.md`, Claude Code `CLAUDE.md`).
+- A `--because` ruling: the objection it overrules, then the ruling, which outranks the plan.
+- `prompt_extra`: last, before the acknowledge and hand-back instructions.
+
+A run keeps the settings it started with, so editing `.tandem.json` mid-run changes nothing
+until the next run. The prompt doesn't carry staffing advice.
 
 ## Known limits
 

@@ -42,7 +42,7 @@ case "$1" in
   # acceptance_policy collaboration source invalid_manifest
   config)
     case "$2" in
-      project) printf '%s\0' "$REPO" docs/plans ./check.sh AGENTS.md codex "" 3000000 "${PROJ_CTX:-0}" "" "" "" stub "" ;;
+      project) printf '%s\0' "$REPO" docs/plans ./check.sh "${PROJ_CONV-AGENTS.md}" codex "${PROJ_EXTRA:-}" 3000000 "${PROJ_CTX:-0}" "" "" "" stub "" ;;
       builder) printf '%s\0' "$(sed -n 's/.*"kind":"\([^"]*\)".*/\1/p' "$RELAY/builder.json")" auto ;;
     esac
     exit 0 ;;
@@ -221,6 +221,12 @@ run TANDEM_BUILD_ENGINE=durable START_OUT="$DURABLE" --
 grep '^build start' "$CALLS" | grep -q -- '--reviewer' && nope "handoff read reviewer.json itself and passed --reviewer ($(cat "$CALLS"))" \
   || ok "a durable start reads the recorded reviewer pane itself"
 
+printf '\n== project settings for the task prompt ==\n'
+run TANDEM_BUILD_ENGINE=durable START_OUT="$DURABLE" PROJ_CONV=STYLE.md PROJ_EXTRA='Keep it short.' --
+grep '^build start' "$CALLS" | grep -q -- '--conventions-file STYLE.md' && ok "start is given the conventions file" || nope "no --conventions-file ($(cat "$CALLS"))"
+grep '^build start' "$CALLS" | grep -q -- '--prompt-extra Keep it short.' && ok "and prompt_extra" || nope "no --prompt-extra ($(cat "$CALLS"))"
+run TANDEM_BUILD_ENGINE=durable START_OUT="$DURABLE" PROJ_CONV= --
+grep '^build start' "$CALLS" | grep -qE -- '--conventions-file|--prompt-extra|--ruling' && nope "unset settings were passed ($(cat "$CALLS"))" || ok "unset settings are not passed"
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
