@@ -128,7 +128,9 @@ review.
 
 The review prompt tells the reviewer to wait for a subagent in a single call, with the longest
 timeout its wait tool accepts, and to run long commands in one blocking call. The task prompt
-doesn't carry this rule yet.
+gives the builder the same rule. When the project has a check command, it also tells the builder
+not to run the full check itself unless the task needs its output, because tandem runs the check
+after the handback.
 
 Waiting without that rule costs a lot. In one measured pairing session, 48 of the builder's 173
 API calls only waited for or listed agents. Together they used 4,544,623 input tokens and
