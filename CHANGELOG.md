@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/emsnoel/tandem/compare/v0.7.0...v0.8.0) (2026-11-13)
+
+
+### Features
+
+* carry the project settings and the ruling in every task prompt ([65bbdd6](https://github.com/emsnoel/tandem/commit/65bbdd641bb251b3196b63ccba8b5a88df67ecaa))
+
 ## [0.7.0](https://github.com/emsnoel/tandem/compare/v0.6.0...v0.7.0) (2026-11-09)
 
 
