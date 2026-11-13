@@ -81,13 +81,20 @@ When a key is missing, tandem detects it like this:
 - **conventions_file** is `AGENTS.md`, or else `CONTRIBUTING.md`.
 - **check_paths** has no detection. Without it, gate 8 checks the whole tree.
 
-**There is no `planner` block, on purpose.** The planner is whichever Claude Code agent is
-running in your pane. `tandem-pair` looks for one and fails if there is none, so there is
-nothing for a repository to choose. The config code can already resolve a planner role,
-but nothing launches one. A key that tandem reads and then ignores is worse than one it
-refuses, so it refuses. A `planner` block in `.tandem.json` gets a warning that points to
+**There is no `planner` block, on purpose.** The planner is the agent you run `tandem-pair`
+from, Claude Code or Copilot, and tandem never launches one. So there is nothing for a
+repository to choose. A key that tandem reads and then ignores is worse than one it refuses,
+so it refuses. A `planner` block in `.tandem.json` gets a warning that points to
 `defaults.planner_kind` in your user config, which is where a setting about your own
-terminal belongs. A configurable planner is designed but not built yet.
+terminal belongs.
+
+`tandem-pair` takes the planner's kind from the pane: the one named with `--planner-pane`,
+else the pane you run it from, else the only Claude Code or Copilot agent running. When
+several could plan, `defaults.planner_kind` (or `HERDR_PLANNER_KIND`) picks the kind.
+
+Codex can't plan. Its sandbox blocks the Herdr socket that every tandem command uses, unless
+Codex runs with no sandbox at all. A Codex pane, or `planner_kind` set to `codex`, is refused
+with exit 34. Codex still builds and reviews.
 
 This repository keeps `builder_kind: "codex"` on purpose, so its own teardown keeps testing
 that older key. Don't change it to a `builder` block for consistency. Its `reviewer` block,

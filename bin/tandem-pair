@@ -26,7 +26,6 @@ done
 PLANNER_NAME="${HERDR_PLANNER_NAME:-planner}"
 BUILDER_NAME="${HERDR_BUILDER_NAME:-builder}"
 REVIEWER_NAME="${HERDR_REVIEWER_NAME:-reviewer}"
-PLANNER_KIND="claude"
 START_TIMEOUT_MS="${HERDR_PAIR_START_TIMEOUT_MS:-60000}"
 
 DRY_RUN=0
@@ -49,7 +48,8 @@ usage() {
   cat <<'USAGE'
 usage: tandem-pair [--dry-run] [--direction right|down] [--planner-pane ID]
 
-Names the Claude agent "planner". Starts or adopts the configured builder in a
+Names the planner agent "planner": the Claude Code or Copilot agent you run this
+from. Starts or adopts the configured builder in a
 pane beside it and the configured reviewer below the builder, and labels each
 pane for the Herdr sidebar.
 
@@ -118,25 +118,30 @@ FIELDS=$(mktemp)
 trap 'rm -f "$FIELDS" "${PRE_ERR:-}"' EXIT
 
 # --- resolve the planner pane ---
-# Order: explicit flag, the calling pane, the only claude agent. From a popup,
-# $HERDR_PANE_ID is the popup's pane, not the planner's.
+# Order: explicit flag, the calling pane, the only agent that can plan
+# (Claude Code or Copilot). From a popup, $HERDR_PANE_ID is the popup's pane,
+# not the planner's. defaults.planner_kind breaks a tie.
 rc=0
-_err=$(tandem agent planner ${PLANNER_PANE:+--pane "$PLANNER_PANE"} --kind "$PLANNER_KIND" 2>&1 >"$FIELDS") || rc=$?
+_err=$(tandem agent planner ${PLANNER_PANE:+--pane "$PLANNER_PANE"} 2>&1 >"$FIELDS") || rc=$?
+PLANNER_KIND=""
 case "$rc" in
   0)
     { IFS= read -r -d '' PLANNER_PANE; IFS= read -r -d '' PLANNER_CWD
-      IFS= read -r -d '' PLANNER_TAB; IFS= read -r -d '' PLANNER_CURRENT_NAME; } < "$FIELDS" || true ;;
+      IFS= read -r -d '' PLANNER_TAB; IFS= read -r -d '' PLANNER_CURRENT_NAME
+      IFS= read -r -d '' PLANNER_KIND; } < "$FIELDS" || true ;;
   31)
-    die "no running $PLANNER_KIND agent found. Start Claude Code in a pane first." ;;
+    die "no running Claude Code or Copilot agent found to plan from. Start one in a pane first." ;;
+  34)
+    die "$_err" ;;
   32)
     count=0; _list=""
     while IFS= read -r -d '' _p && IFS= read -r -d '' _n && IFS= read -r -d '' _c; do
       count=$((count + 1))
       _list="$_list  $_p  name=${_n:--}  cwd=${_c:--}"$'\n'
     done < "$FIELDS"
-    printf 'tandem-pair: %s %s agents are running; cannot pick one automatically:\n' "$count" "$PLANNER_KIND" >&2
+    printf 'tandem-pair: %s agents could plan; cannot pick one automatically:\n' "$count" >&2
     printf '%s' "$_list" >&2
-    die "re-run with --planner-pane <pane_id>." ;;
+    die "re-run with --planner-pane <pane_id>, or set defaults.planner_kind in your user config." ;;
   *)
     die "could not list agents: $(printf '%s' "$_err" | cut -f2-)" ;;
 esac

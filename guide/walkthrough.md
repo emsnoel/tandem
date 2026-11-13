@@ -7,7 +7,7 @@ This page follows one feature, "add rate limiting", from setup to closing the pa
 ```bash
 cd ~/projects/my-app
 tandem-init            # writes .tandem.json from detected or declared settings
-tandem-pair            # names this Claude pane "planner", starts or adopts a Codex
+tandem-pair            # names this pane "planner", starts or adopts a Codex
                        # pane named "builder" and the declared "reviewer", and
                        # starts the relay bridge
 herdr agent list       # check that all three names appear

@@ -165,7 +165,7 @@ label_panes() {
   # --- pane and tab labels ---
   # Best-effort. The tab is renamed only while it still has Herdr's default
   # number, so a name someone chose is kept.
-  mutate pane rename "$PLANNER_PANE" "planner ($PLANNER_KIND)" || true
+  mutate pane rename "$PLANNER_PANE" "planner${PLANNER_KIND:+ ($PLANNER_KIND)}" || true
   mutate pane rename "$BUILDER_PANE" "builder (${ADOPTED_KIND:-$BUILDER_KIND})" || true
   if [[ -n "$REVIEWER_PANE" ]]; then
     mutate pane rename "$REVIEWER_PANE" "reviewer ($REVIEWER_KIND)" || true

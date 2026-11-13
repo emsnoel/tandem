@@ -63,10 +63,15 @@ func cmdDoctor(args []string) int {
 	}
 
 	rep := doctorReport{Root: root}
+	flags.Planner.Kind = doctor.CallingPlannerKind(doctorProbe, os.Getenv)
 	roles, err := doctor.ResolveRoles(root, flags, os.Getenv)
 	if err != nil {
 		// Without a readable config, check the machine for the planner alone.
-		rep.Results = doctor.Machine(doctorProbe, doctor.Uses{doctor.PlannerKind: {agent.RolePlanner}}, os.Getenv)
+		planner := flags.Planner.Kind
+		if planner == "" {
+			planner = doctor.DefaultPlannerKind
+		}
+		rep.Results = doctor.Machine(doctorProbe, doctor.Uses{planner: {agent.RolePlanner}}, os.Getenv)
 		rep.Results = append(rep.Results, doctor.Result{Group: "repo", Name: "config", Status: doctor.Fail,
 			Detail: err.Error(), Fix: "fix the file named above, then run tandem doctor again"})
 	} else {

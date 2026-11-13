@@ -25,7 +25,7 @@ installer never overwrites an existing Herdr config.
 You also need Herdr 0.9.3 or later, and Herdr's integration for each agent you use:
 
 ```bash
-herdr integration install claude   # always needed, because the planner is Claude Code
+herdr integration install claude   # for the agent you plan from: claude or copilot
 herdr integration install codex    # repeat for each builder or reviewer kind you use
 ```
 

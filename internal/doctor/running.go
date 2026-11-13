@@ -25,6 +25,23 @@ func RunningRoles(p Probe, getenv func(string) string) map[agent.Role]string {
 	return out
 }
 
+// CallingPlannerKind is the kind of the agent in the calling pane when it can
+// plan, which is the planner tandem-pair would adopt; else "".
+func CallingPlannerKind(p Probe, getenv func(string) string) string {
+	pane := getenv("HERDR_PANE_ID")
+	if pane == "" {
+		return ""
+	}
+	agents, err := bounded(p.Agents)
+	if err != nil {
+		return ""
+	}
+	if a := herdr.FindPane(agents, pane); a != nil && agent.CanPlan(a.Kind) {
+		return a.Kind
+	}
+	return ""
+}
+
 func nameOr(name, fallback string) string {
 	if name == "" {
 		return fallback
