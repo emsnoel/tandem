@@ -32,7 +32,8 @@ func CheckTaskContext(req StartRequest) error {
 	if err := imp.Err(); err != nil {
 		return fmt.Errorf("%s: %w", req.PlanPath, err)
 	}
-	cfg := runConfig{Root: root, PlanPath: req.PlanPath, CheckCommand: req.CheckCommand, ContextLimit: req.ContextLimit}
+	cfg := runConfig{Root: root, PlanPath: req.PlanPath, CheckCommand: req.CheckCommand, ContextLimit: req.ContextLimit,
+		Settings: settingsFor(req)}
 	zeroID, zeroHash := strings.Repeat("0", 32), strings.Repeat("0", 64)
 	var over []string
 	need, limit := 0, 0

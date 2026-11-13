@@ -72,6 +72,11 @@ start_build() {
       BARGS+=( --acceptance-policy "$ACCEPTANCE_POLICY" )
     fi
     [[ -n "$COLLABORATION" ]] && BARGS+=( --collaboration "$COLLABORATION" )
+    # What every task prompt carries. The ruling is the one given now or the
+    # one adopt_standing_ruling took from an earlier handoff.
+    [[ -n "$CONVENTIONS_FILE" ]] && BARGS+=( --conventions-file "$CONVENTIONS_FILE" )
+    [[ -n "$PROMPT_EXTRA" ]] && BARGS+=( --prompt-extra "$PROMPT_EXTRA" )
+    [[ -n "$OVERRIDE_ID" && -n "$OVERRIDE_REASON" ]] && BARGS+=( --ruling-review "$OVERRIDE_ID" --ruling "$OVERRIDE_REASON" )
   fi
   # A start refuses with 23 when no reviewer pane is recorded.
   rc=0

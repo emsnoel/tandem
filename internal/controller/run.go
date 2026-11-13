@@ -108,6 +108,13 @@ type StartRequest struct {
 	// always did.
 	ReviewerKind    string
 	ReviewerSession string
+	// ConventionsFile, PromptExtra and the ruling come from .tandem.json and
+	// the handoff. Every task prompt of the run carries them; see
+	// prompt_settings.go.
+	ConventionsFile string
+	PromptExtra     string
+	Ruling          string
+	RulingObjection string
 }
 
 // runConfig is the run's immutable configuration, stored as an artifact named
@@ -142,6 +149,9 @@ type runConfig struct {
 	// run has none so its configuration and hash are what they were before.
 	ReviewerKind    string `json:"reviewer_kind,omitempty"`
 	ReviewerSession string `json:"reviewer_session,omitempty"`
+	// Settings is what the task prompts carry from the project and the
+	// handoff, omitted when there is none so the hash is what it was before.
+	Settings *promptSettings `json:"settings,omitempty"`
 }
 
 // relay is the run's relay directory, derived from its checkout root.
@@ -345,7 +355,8 @@ func (c *Controller) Start(ctx context.Context, req StartRequest) (string, error
 		BuilderSession: req.BuilderSession, PlannerKind: "planner", PlannerSession: req.PlannerSession, CheckCommand: req.CheckCommand,
 		TaskInputLimit: req.TaskInputLimit, RunInputLimit: req.RunInputLimit, ContextLimit: req.ContextLimit,
 		Collaboration: req.Collaboration, ReviewProtocol: req.ReviewProtocol, ReviewDelivery: req.ReviewDelivery,
-		AcceptancePolicy: policyHash, RecoveryPolicy: recoveryHash, ReviewerKind: req.ReviewerKind, ReviewerSession: req.ReviewerSession})
+		AcceptancePolicy: policyHash, RecoveryPolicy: recoveryHash, ReviewerKind: req.ReviewerKind, ReviewerSession: req.ReviewerSession,
+		Settings: settingsFor(req)})
 	if err != nil {
 		return "", err
 	}

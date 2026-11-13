@@ -6,6 +6,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/emsnoel/tandem/internal/artifact"
 	"github.com/emsnoel/tandem/internal/controller"
@@ -35,6 +37,10 @@ func cmdBuildStartDurable(args []string) int {
 	delivery := fs.String("review-delivery", "", "how reviews come back: manual (default) or mailbox (direct handback; needs --collaboration and --acceptance-policy)")
 	recoveryPath := fs.String("recovery-policy", "", "opt in to bounded recovery: one automatic repair per piece of work, then one decision (needs --collaboration)")
 	policyPath := fs.String("acceptance-policy", "", "the two-stage acceptance policy file a mailbox run is pinned to")
+	conventions := fs.String("conventions-file", "", "the conventions file the builder is asked to read, relative to the root")
+	extra := fs.String("prompt-extra", "", "the project's prompt_extra, the last text of every task prompt")
+	rulingReview := fs.String("ruling-review", "", "the review whose objections --ruling overrules (needs --ruling)")
+	ruling := fs.String("ruling", "", "the planner's ruling on that review, sent with every task (needs --ruling-review)")
 	resumeOnly := fs.Bool("resume-only", false, "refuse unless a run exists to continue")
 	dry := fs.Bool("dry-run", false, "decide and print, write nothing")
 	if err := fs.Parse(args); err != nil || *planPath == "" || f.root == "" || *ctxLimit < 0 {
@@ -52,6 +58,11 @@ func cmdBuildStartDurable(args []string) int {
 	}
 	if err := checkEngineSettings(f.root); err != nil {
 		return fail(err)
+	}
+	if (*rulingReview != "") != (*ruling != "") || (*ruling != "" && strings.TrimSpace(*ruling) == "") ||
+		(*rulingReview != "" && !reviewIDPattern.MatchString(*rulingReview)) {
+		fmt.Fprintln(os.Stderr, "tandem build start: --ruling and --ruling-review go together: a review id like 20260913-101530-4821-19273, and a ruling that is not blank")
+		return exitcode.Usage
 	}
 	relay := paths.Relay(f.root)
 	if run, err := controller.ReadActiveRun(relay); err != nil {
@@ -89,7 +100,8 @@ func cmdBuildStartDurable(args []string) int {
 	req := controller.StartRequest{Root: f.root, PlanPath: *planPath, BuilderKind: *kind, BuilderSession: *builder,
 		PlannerSession: *planner, CheckCommand: *check, TaskInputLimit: *budget, RunInputLimit: *runBudget, ContextLimit: *ctxLimit,
 		Collaboration: *collab, ReviewDelivery: *delivery, ReviewProtocol: reviewProtocolFor(*delivery), AcceptancePolicyPath: *policyPath, RecoveryPolicyPath: *recoveryPath,
-		ReviewerKind: *reviewerKind, ReviewerSession: *reviewer}
+		ReviewerKind: *reviewerKind, ReviewerSession: *reviewer,
+		ConventionsFile: *conventions, PromptExtra: *extra, Ruling: *ruling, RulingObjection: rulingObjection(relay, *rulingReview)}
 	// The flags override the recorded pane. Without them the record decides,
 	// and a missing or bad record needs a person to re-pair, not a new command.
 	var err error
@@ -198,4 +210,21 @@ func gatedRun(ctx context.Context, st *state.Store, runID string) (string, bool)
 		return "", false
 	}
 	return run.PauseCode, true
+}
+
+// rulingObjection is the first 40 lines of the review a ruling overrules, so
+// the builder knows which steps the ruling covers. A missing review gives none.
+func rulingObjection(relay, id string) string {
+	if id == "" {
+		return ""
+	}
+	b, err := os.ReadFile(filepath.Join(relay, "reviews", id+".md"))
+	if err != nil {
+		return ""
+	}
+	lines := strings.SplitAfter(string(b), "\n")
+	if len(lines) > 40 {
+		lines = lines[:40]
+	}
+	return strings.Join(lines, "")
 }

@@ -67,8 +67,9 @@ cuts the required part of a prompt to fit: the task's brief, the plan's opening 
 tandem's instructions. So a limit smaller than a real task only blocks that task.
 
 `prompt_extra` holds instructions for this project only, such as hardware the builder can't
-test on, or deployment rules. A run's task prompt doesn't carry `prompt_extra` or
-`conventions_file` yet. tandem still reads and validates them.
+test on, or deployment rules. Every task prompt of a run carries `prompt_extra` and asks the
+builder to read `conventions_file`. See
+[What the task prompt carries](build-engine.md#what-the-task-prompt-carries).
 
 When a key is missing, tandem detects it like this:
 

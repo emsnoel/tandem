@@ -30,13 +30,15 @@ PAYLOAD_BECAUSE='before `touch '"$CANARY_BECAUSE"'` and $(touch '"$CANARY_BECAUS
 # The real binary reads and writes the review sidecar. STUB_EXTRA is the
 # project's prompt_extra and STUB_LEDGER the build's ledger.
 export REAL_TANDEM; REAL_TANDEM=$(command -v tandem) || { echo "need an installed tandem" >&2; exit 2; }
-export STUB_EXTRA="$PAYLOAD_EXTRA"
+export STUB_EXTRA="$PAYLOAD_EXTRA" START_ARGS="$TMP/start-args"
+# after FLAG: the argument build start was given after FLAG.
+after() { awk -v f="$1" 'p { print; exit } $0 == f { p = 1 }' "$START_ARGS"; }
 cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
 nul() { local f; for f in "$@"; do printf '%s\0' "$f"; done; }
 # build start: engine run_id dry_run task total title brief ledger resumed
 # replaced judge reviewer review_pending review_prompt
-[ "$1 $2" = "build start" ] && { nul "" "" "" 1 1 "the plan" /relay/build/task-1.md "${STUB_LEDGER-}" "" "" "" "" "" ""; exit 0; }
+[ "$1 $2" = "build start" ] && { printf '%s\n' "$@" > "$START_ARGS"; nul "" "" "" 1 1 "the plan" /relay/build/task-1.md "${STUB_LEDGER-}" "" "" "" "" "" ""; exit 0; }
 case "$1 $2" in
   "agent snapshot") printf '%%1\t%s\tidle\n' "$REPO"; exit 0 ;;
   "gate review")    printf '20260910-000001-1-1\n'; exit 0 ;;
@@ -91,6 +93,10 @@ else
   ok "the ruling did not execute (real write)"
 fi
 
+[ "$(after --ruling)" = "$PAYLOAD_BECAUSE" ] && ok "the ruling reaches build start byte for byte" || nope "start got ruling: $(after --ruling)"
+[ "$(after --ruling-review)" = 20260910-000001-1-1 ] && ok "with the review it overrules" || nope "start got review: $(after --ruling-review)"
+[ "$(after --prompt-extra)" = "$PAYLOAD_EXTRA" ] && ok "prompt_extra reaches build start byte for byte" || nope "start got extra: $(after --prompt-extra)"
+
 STORED=$(jq -r '.override_reason' \
   "$TMP/repo/.tandem-relay/reviews/20260910-000001-1-1.json" 2>/dev/null)
 if [ "$STORED" = "$PAYLOAD_BECAUSE" ]; then
@@ -109,5 +115,6 @@ if [ -e "$CANARY_BECAUSE" ]; then
 else
   ok "the adopted ruling did not execute"
 fi
+[ "$(after --ruling)" = "$PAYLOAD_BECAUSE" ] && ok "a later handoff passes the adopted ruling" || nope "adopted ruling: $(after --ruling)"
 printf '\nprompt-injection: passed %d, failed %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

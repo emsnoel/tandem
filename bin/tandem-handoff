@@ -55,8 +55,8 @@ starts at task 1.
   --override-review ID
               proceed despite the objections in review ID
   --because TEXT
-              why they are overruled. Required with --override-review.
-              Recorded with the review. Not sent to the builder yet.
+              why they are overruled. Required with --override-review, and
+              sent to the builder, so write it as a ruling, not a note.
 USAGE
 }
 
@@ -106,7 +106,7 @@ done
 # and newlines, and works on bash 3.2.
 if [[ -n "$OVERRIDE_ID" && -z "${OVERRIDE_REASON//[[:space:]]/}" ]]; then
   usage >&2
-  die "--override-review needs --because. The reason is recorded with the review, so the ruling stands on later handoffs."
+  die "--override-review needs --because. The reason is sent to the builder, which otherwise walks back into the objection it raised."
 fi
 if [[ -z "$OVERRIDE_ID" && -n "$OVERRIDE_REASON" ]]; then
   usage >&2
@@ -150,8 +150,8 @@ ROOT="${BUILDER_CWD:-$PWD}"
 
 tandem config project --root "$ROOT" --fields >"$FIELDS" 2>/dev/null \
   || die "could not resolve project settings for $ROOT"
-{ read_field ROOT; read_field _plans_dir; read_field CHECK_COMMAND; read_field _
-  read_field _; read_field _; read_field TASK_BUDGET; read_field _context_limit
+{ read_field ROOT; read_field _plans_dir; read_field CHECK_COMMAND; read_field CONVENTIONS_FILE
+  read_field _; read_field PROMPT_EXTRA; read_field TASK_BUDGET; read_field _context_limit
   read_field REVIEW_DELIVERY; read_field ACCEPTANCE_POLICY
   read_field COLLABORATION; read_field PROJ_SOURCE; read_field _invalid_manifest; } <"$FIELDS"
 if [[ -n "$_invalid_manifest" ]]; then
