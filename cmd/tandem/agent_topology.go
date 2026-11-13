@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/emsnoel/tandem/internal/agent"
+	"github.com/emsnoel/tandem/internal/config"
 	"github.com/emsnoel/tandem/internal/exitcode"
 	"github.com/emsnoel/tandem/internal/herdr"
 )
@@ -31,22 +32,28 @@ func listAgents() ([]herdr.Agent, int) {
 }
 
 // cmdAgentPlanner answers bin/tandem-pair's "which pane is the planner".
-// It prints pane, cwd, tab and name as NUL fields. It exits NoPlanner with
-// nothing printed, or ManyPlanners with pane, name and cwd for each candidate.
+// It prints pane, cwd, tab, name and kind as NUL fields; the kind is empty for
+// a named pane Herdr does not list. It exits NoPlanner with nothing printed,
+// ManyPlanners with pane, name and cwd for each candidate, or NotAPlanner
+// with the reason on stderr.
 func cmdAgentPlanner(args []string) int {
 	fs := flag.NewFlagSet("agent planner", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	pane := fs.String("pane", "", "use this pane as the planner")
-	kind := fs.String("kind", "claude", "the planner's agent kind")
+	kind := fs.String("kind", "", "the kind to pick when several agents could plan (default: defaults.planner_kind, or HERDR_PLANNER_KIND)")
 	if err := fs.Parse(args); err != nil || fs.NArg() != 0 {
 		fmt.Fprintln(os.Stderr, "usage: tandem agent planner [--pane ID] [--kind KIND]")
 		return exitcode.Usage
+	}
+	prefer, rc := preferredPlannerKind(*kind)
+	if rc != exitcode.OK {
+		return rc
 	}
 	agents, rc := listAgents()
 	if rc != exitcode.OK {
 		return rc
 	}
-	a, cands, err := herdr.PickPlanner(agents, *pane, os.Getenv("HERDR_PANE_ID"), *kind)
+	a, cands, err := herdr.PickPlanner(agents, *pane, os.Getenv("HERDR_PANE_ID"), agent.PlannerKinds, prefer)
 	switch {
 	case errors.Is(err, herdr.ErrNoPlanner):
 		return exitcode.NoPlanner
@@ -56,8 +63,37 @@ func cmdAgentPlanner(args []string) int {
 		}
 		return exitcode.ManyPlanners
 	}
-	writeFields(os.Stdout, a.PaneID, a.CWD, a.TabID, nameOf(a))
+	if a.Kind != "" && !agent.CanPlan(a.Kind) {
+		return refuseNonPlanner(fmt.Sprintf("pane %s runs %s", a.PaneID, a.Kind), a.Kind)
+	}
+	writeFields(os.Stdout, a.PaneID, a.CWD, a.TabID, nameOf(a), a.Kind)
 	return exitcode.OK
+}
+
+// preferredPlannerKind is the kind that breaks a tie between agents that could
+// plan: the flag, else HERDR_PLANNER_KIND, else defaults.planner_kind. Empty
+// means any kind that can plan. A kind that cannot plan is refused.
+func preferredPlannerKind(flagKind string) (string, int) {
+	path := config.UserConfigPath()
+	user, err := config.LoadUser(path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s: %v\n", path, err)
+		return "", exitcode.Usage
+	}
+	r := config.ResolveRole(agent.RolePlanner, &config.Repo{}, user, os.Getenv, config.Overrides{Kind: flagKind})
+	if r.Kind.From == config.FromDefault {
+		return "", exitcode.OK
+	}
+	if !agent.CanPlan(r.Kind.Value) {
+		return "", refuseNonPlanner(fmt.Sprintf("the planner kind is %s (from %s)", r.Kind.Value, r.Kind.From), r.Kind.Value)
+	}
+	return r.Kind.Value, exitcode.OK
+}
+
+func refuseNonPlanner(what, kind string) int {
+	fmt.Fprintf(os.Stderr, "%s, and %s can't plan. The planner must be one of %s. %s can still build and review.\n",
+		what, kind, strings.Join(agent.PlannerKinds, ", "), kind)
+	return exitcode.NotAPlanner
 }
 
 // cmdAgentAdoptable prints the pane and kind of the one unnamed agent

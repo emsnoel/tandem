@@ -27,7 +27,7 @@ cat > "$TMP/bin/herdr" <<'STUB'
 #!/usr/bin/env bash
 case "$1 $2" in
   "agent list")
-    printf '{"result":{"agents":[{"pane_id":"w1:p1","agent":"claude","name":"","agent_status":"idle","cwd":"%s","tab_id":"w1:t1"}]}}\n' "$REPO" ;;
+    printf '{"result":{"agents":[{"pane_id":"w1:p1","agent":"%s","name":"","agent_status":"idle","cwd":"%s","tab_id":"w1:t1"}]}}\n' "${PLANNER_KIND_STUB:-claude}" "$REPO" ;;
   "tab get")
     printf '{"result":{"tab":{"label":"%s","number":3,"tab_id":"w1:t1"}}}\n' "$TABLABEL" ;;
   *)
@@ -41,7 +41,7 @@ REPO=$(cd "$TMP/labelled-repo" && pwd -P); export REPO
 git -C "$REPO" init -q
 
 pair() {
-  OUT=$(cd "$REPO" && env PATH="$TMP/bin:$PATH" TABLABEL="$1" HERDR_ENV=1 HERDR_PANE_ID=w1:p1 HERDR_SKIP_HOOK_CHECK=1 \
+  OUT=$(cd "$REPO" && env PATH="$TMP/bin:$PATH" TABLABEL="$1" HERDR_TANDEM_CONFIG="$TMP/none.json" HERDR_ENV=1 HERDR_PANE_ID=w1:p1 HERDR_SKIP_HOOK_CHECK=1 \
     "$PAIR" --dry-run --skip-doctor --builder claude --reviewer claude 2>&1)
 }
 
@@ -54,6 +54,16 @@ chk "a tab that still has its number is named for the repo" 'tab rename w1:t1 ta
 pair "my own tab"
 chk "a labelled pair still labels its panes" 'builder (claude)'
 lack "a tab a person named is left alone" 'tab rename'
+
+PLANNER_KIND_STUB=copilot; export PLANNER_KIND_STUB
+pair 3
+chk "a Copilot planner is labelled with its kind" 'pane rename w1:p1 planner (copilot)'
+
+PLANNER_KIND_STUB=codex
+pair 3
+chk "a Codex planner is refused" "codex can't plan"
+lack "and nothing is renamed" 'pane rename'
+unset PLANNER_KIND_STUB
 
 printf '\npair-labels: passed %d, failed %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

@@ -61,4 +61,8 @@ const (
 	// autonomy, so the review gate would refuse every review against the
 	// record. It writes nothing; bin/tandem-pair explains it.
 	BuilderUnresolved = 33
+
+	// NotAPlanner: the pane or kind chosen as the planner is one that cannot
+	// plan, such as Codex. bin/tandem-pair prints the reason Go gives.
+	NotAPlanner = 34
 )

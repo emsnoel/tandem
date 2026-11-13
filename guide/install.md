@@ -124,9 +124,9 @@ You need these on every machine:
 - Herdr 0.9.3 or later. Every wait reads Herdr's event stream, whose versioned schema
   (protocol 22) arrived in 0.9.3. F27 in `guide/design.md` pins the shapes.
 - `git`, `bash`, `curl`, `tar`, and `shasum` or `sha256sum`.
-- Herdr's integration for each agent you use. `herdr integration install claude` is always
-  needed, because the planner is Claude Code. Add `codex` or `copilot` for the
-  builder and reviewer kinds you pick. `herdr integration install` lists every kind Herdr
+- Herdr's integration for each agent you use. The planner is the agent you run `tandem-pair`
+  from, Claude Code or Copilot, so install `claude` or `copilot` for it. Add each builder and
+  reviewer kind you pick, such as `codex`. `herdr integration install` lists every kind Herdr
   supports.
 
 You only need the agent CLIs for the kinds you use. tandem never needs every supported kind.

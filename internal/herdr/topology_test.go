@@ -13,9 +13,39 @@ func ag(pane, kind, name, tab string) Agent {
 	return a
 }
 
+var planners = []string{"claude", "copilot"}
+
+func TestPickPlannerTakesACopilotCaller(t *testing.T) {
+	agents := []Agent{ag("w1:p1", "claude", "", "t1"), ag("w1:p2", "copilot", "", "t1")}
+	got, _, err := PickPlanner(agents, "", "w1:p2", planners, "")
+	if err != nil || got.PaneID != "w1:p2" || got.Kind != "copilot" {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+}
+
+// Any kind that can plan is a candidate, so one Claude and one Copilot are two.
+func TestPickPlannerCountsEveryPlannerKind(t *testing.T) {
+	agents := []Agent{ag("w1:p1", "claude", "", "t1"), ag("w1:p2", "codex", "", "t1"), ag("w1:p3", "copilot", "", "t1")}
+	_, cands, err := PickPlanner(agents, "", "", planners, "")
+	if !errors.Is(err, ErrManyPlanners) || len(cands) != 2 {
+		t.Fatalf("got %+v, %v", cands, err)
+	}
+}
+
+// A preferred kind breaks the tie, and only then: the calling pane still wins.
+func TestPickPlannerPreferenceBreaksTies(t *testing.T) {
+	agents := []Agent{ag("w1:p1", "claude", "", "t1"), ag("w1:p3", "copilot", "", "t1")}
+	if got, _, err := PickPlanner(agents, "", "", planners, "copilot"); err != nil || got.PaneID != "w1:p3" {
+		t.Fatalf("tie: got %+v, %v", got, err)
+	}
+	if got, _, err := PickPlanner(agents, "", "w1:p1", planners, "copilot"); err != nil || got.PaneID != "w1:p1" {
+		t.Fatalf("caller: got %+v, %v", got, err)
+	}
+}
+
 func TestPickPlannerPrefersFlag(t *testing.T) {
 	agents := []Agent{ag("w1:p1", "claude", "", "t1"), ag("w1:p2", "claude", "x", "t2")}
-	got, _, err := PickPlanner(agents, "w1:p2", "w1:p1", "claude")
+	got, _, err := PickPlanner(agents, "w1:p2", "w1:p1", planners, "")
 	if err != nil || got.PaneID != "w1:p2" || got.TabID != "t2" || got.CWD != "/w1:p2" {
 		t.Fatalf("got %+v, %v", got, err)
 	}
@@ -23,7 +53,7 @@ func TestPickPlannerPrefersFlag(t *testing.T) {
 
 // Review focus 1: main carries on with empty fields for a pane Herdr does not list.
 func TestPickPlannerFlagPaneNotListed(t *testing.T) {
-	got, _, err := PickPlanner([]Agent{ag("w1:p1", "claude", "", "t1")}, "w9:p9", "", "claude")
+	got, _, err := PickPlanner([]Agent{ag("w1:p1", "claude", "", "t1")}, "w9:p9", "", planners, "")
 	if err != nil || got.PaneID != "w9:p9" || got.CWD != "" || got.TabID != "" || got.Name != nil {
 		t.Fatalf("got %+v, %v", got, err)
 	}
@@ -31,22 +61,24 @@ func TestPickPlannerFlagPaneNotListed(t *testing.T) {
 
 func TestPickPlannerCallerPaneOfKind(t *testing.T) {
 	agents := []Agent{ag("w1:p1", "claude", "", "t1"), ag("w1:p2", "claude", "", "t1")}
-	got, _, err := PickPlanner(agents, "", "w1:p2", "claude")
+	got, _, err := PickPlanner(agents, "", "w1:p2", planners, "")
 	if err != nil || got.PaneID != "w1:p2" {
 		t.Fatalf("got %+v, %v", got, err)
 	}
 }
 
-func TestPickPlannerCallerPaneOtherKindFallsBackToOnly(t *testing.T) {
+// A calling pane that runs an agent is the planner whatever its kind, so the
+// caller can refuse a kind that cannot plan instead of pairing another pane.
+func TestPickPlannerCallerPaneOfAnotherKindIsStillTheCaller(t *testing.T) {
 	agents := []Agent{ag("w1:p1", "codex", "", "t1"), ag("w1:p2", "claude", "", "t1")}
-	got, _, err := PickPlanner(agents, "", "w1:p1", "claude")
-	if err != nil || got.PaneID != "w1:p2" {
+	got, _, err := PickPlanner(agents, "", "w1:p1", planners, "")
+	if err != nil || got.PaneID != "w1:p1" || got.Kind != "codex" {
 		t.Fatalf("got %+v, %v", got, err)
 	}
 }
 
 func TestPickPlannerNone(t *testing.T) {
-	_, _, err := PickPlanner([]Agent{ag("w1:p1", "codex", "", "t1")}, "", "", "claude")
+	_, _, err := PickPlanner([]Agent{ag("w1:p1", "codex", "", "t1")}, "", "", planners, "")
 	if !errors.Is(err, ErrNoPlanner) {
 		t.Fatalf("got %v, want ErrNoPlanner", err)
 	}
@@ -54,7 +86,7 @@ func TestPickPlannerNone(t *testing.T) {
 
 func TestPickPlannerMany(t *testing.T) {
 	agents := []Agent{ag("w1:p1", "claude", "", "t1"), ag("w1:p3", "codex", "", "t1"), ag("w1:p2", "claude", "b", "t1")}
-	_, cands, err := PickPlanner(agents, "", "w1:p3", "claude")
+	_, cands, err := PickPlanner(agents, "", "", planners, "")
 	if !errors.Is(err, ErrManyPlanners) || len(cands) != 2 || cands[0].PaneID != "w1:p1" || cands[1].PaneID != "w1:p2" {
 		t.Fatalf("got %+v, %v", cands, err)
 	}

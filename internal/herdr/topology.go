@@ -2,6 +2,7 @@ package herdr
 
 import (
 	"errors"
+	"slices"
 	"strings"
 )
 
@@ -13,11 +14,13 @@ var (
 )
 
 // PickPlanner chooses the planner's pane, in bin/tandem-pair's order: the
-// pane named on the command line, the calling pane if it runs kind, then the
-// only agent of kind. A named pane Herdr does not list comes back with only
-// its id. With several candidates it returns ErrManyPlanners and the
-// candidates in list order.
-func PickPlanner(agents []Agent, flagPane, callerPane, kind string) (Agent, []Agent, error) {
+// pane named on the command line, the calling pane when it runs an agent (of
+// any kind, so the caller can refuse one that cannot plan), then the only
+// agent of kinds. prefer, when set, narrows that last step
+// to one kind. A named pane Herdr does not list comes back with only its id.
+// With several candidates it returns ErrManyPlanners and the candidates in
+// list order.
+func PickPlanner(agents []Agent, flagPane, callerPane string, kinds []string, prefer string) (Agent, []Agent, error) {
 	if flagPane != "" {
 		for _, a := range agents {
 			if a.PaneID == flagPane {
@@ -28,13 +31,17 @@ func PickPlanner(agents []Agent, flagPane, callerPane, kind string) (Agent, []Ag
 	}
 	var ofKind []Agent
 	for _, a := range agents {
-		if a.Kind != kind {
-			continue
-		}
 		if callerPane != "" && a.PaneID == callerPane {
 			return a, nil, nil
 		}
-		ofKind = append(ofKind, a)
+	}
+	for _, a := range agents {
+		if !slices.Contains(kinds, a.Kind) {
+			continue
+		}
+		if prefer == "" || a.Kind == prefer {
+			ofKind = append(ofKind, a)
+		}
 	}
 	switch len(ofKind) {
 	case 0:

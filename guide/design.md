@@ -12,7 +12,7 @@ waits on is Herdr 0.9.3's (F27). Where a claim is version-specific it says so.
 
 ## The loop this supports
 
-1. The **planner** (Claude Code) brainstorms, writes a spec, writes an implementation plan.
+1. The **planner** (Claude Code or Copilot) brainstorms, writes a spec, writes an implementation plan.
    The **reviewer**, a separate pane, reviews the plan before the build. The builder never
    reviews.
 2. The **builder** (Codex) executes that plan.

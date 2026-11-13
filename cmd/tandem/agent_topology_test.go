@@ -53,14 +53,15 @@ func TestAgentPlannerPrintsNULFields(t *testing.T) {
 	t.Setenv("HERDR_PANE_ID", "w1:p1")
 	out, rc := captureStdoutRC(t, func() int { return cmdAgent([]string{"planner"}) })
 	got := fields(out)
-	if rc != exitcode.OK || len(got) != 4 || got[0] != "w1:p1" || got[1] != "/a\nb" || got[2] != "w1:t1" || got[3] != "" {
+	if rc != exitcode.OK || len(got) != 5 || got[0] != "w1:p1" || got[1] != "/a\nb" || got[2] != "w1:t1" || got[3] != "" || got[4] != "claude" {
 		t.Fatalf("rc %d, fields %q", rc, got)
 	}
 }
 
 func TestAgentPlannerExitCodes(t *testing.T) {
 	stubHerdr(t, twoClaudes)
-	t.Setenv("HERDR_PANE_ID", "w1:p3")
+	t.Setenv("HERDR_TANDEM_CONFIG", filepath.Join(t.TempDir(), "none.json"))
+	t.Setenv("HERDR_PANE_ID", "")
 	out, rc := captureStdoutRC(t, func() int { return cmdAgent([]string{"planner"}) })
 	if got := fields(out); rc != exitcode.ManyPlanners || len(got) != 6 || got[0] != "w1:p1" || got[1] != "" || got[4] != "bob" || got[5] != "/c" {
 		t.Fatalf("rc %d, fields %q", rc, got)
@@ -68,6 +69,47 @@ func TestAgentPlannerExitCodes(t *testing.T) {
 	out, rc = captureStdoutRC(t, func() int { return cmdAgent([]string{"planner", "--kind", "copilot"}) })
 	if rc != exitcode.NoPlanner || out != "" {
 		t.Fatalf("rc %d, out %q", rc, out)
+	}
+}
+
+const copilotPlanner = `{"result":{"agents":[
+ {"pane_id":"w1:p1","agent":"copilot","name":null,"agent_status":"idle","cwd":"/a","tab_id":"w1:t1"},
+ {"pane_id":"w1:p2","agent":"codex","name":null,"agent_status":"idle","cwd":"/b","tab_id":"w1:t1"}]}}`
+
+func TestAgentPlannerAdoptsCopilot(t *testing.T) {
+	stubHerdr(t, copilotPlanner)
+	t.Setenv("HERDR_TANDEM_CONFIG", filepath.Join(t.TempDir(), "none.json"))
+	t.Setenv("HERDR_PANE_ID", "w1:p1")
+	out, rc := captureStdoutRC(t, func() int { return cmdAgent([]string{"planner"}) })
+	if got := fields(out); rc != exitcode.OK || got[0] != "w1:p1" || got[4] != "copilot" {
+		t.Fatalf("rc %d, fields %q", rc, got)
+	}
+}
+
+func TestCodexCannotPlan(t *testing.T) {
+	stubHerdr(t, copilotPlanner)
+	cfg := filepath.Join(t.TempDir(), "tandem.json")
+	t.Setenv("HERDR_TANDEM_CONFIG", cfg)
+	t.Setenv("HERDR_PANE_ID", "")
+	cases := map[string]func() []string{
+		"a codex pane named": func() []string { return []string{"planner", "--pane", "w1:p2"} },
+		"run from a codex pane": func() []string {
+			t.Setenv("HERDR_PANE_ID", "w1:p2")
+			return []string{"planner"}
+		},
+		"--kind codex": func() []string { return []string{"planner", "--kind", "codex"} },
+		"planner_kind codex": func() []string {
+			os.WriteFile(cfg, []byte(`{"defaults":{"planner_kind":"codex"}}`), 0o600)
+			return []string{"planner"}
+		},
+	}
+	for name, args := range cases {
+		a := args()
+		var rc int
+		errOut := captureStderr(t, func() { _, rc = captureStdoutRC(t, func() int { return cmdAgent(a) }) })
+		if rc != exitcode.NotAPlanner || !strings.Contains(errOut, "codex") || !strings.Contains(errOut, "can't plan") {
+			t.Errorf("%s: rc %d %q", name, rc, errOut)
+		}
 	}
 }
 

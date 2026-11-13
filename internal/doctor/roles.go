@@ -9,11 +9,13 @@ import (
 	"github.com/emsnoel/tandem/internal/paths"
 )
 
-// PlannerKind is the planner tandem-pair adopts. bin/tandem-pair fixes it too.
-const PlannerKind = "claude"
+// DefaultPlannerKind is the planner doctor checks for when it can tell nothing
+// else: not the calling pane, and no setting.
+const DefaultPlannerKind = "claude"
 
-// RoleFlags are the overrides tandem-pair passes on its command line.
-type RoleFlags struct{ Builder, Reviewer config.Overrides }
+// RoleFlags are the overrides tandem-pair passes on its command line. The
+// planner's kind is the calling pane's, from CallingPlannerKind.
+type RoleFlags struct{ Planner, Builder, Reviewer config.Overrides }
 
 // Roles is what pairing would launch, resolved by the same code launch-spec
 // uses.
@@ -47,7 +49,7 @@ func ResolveRoles(root string, flags RoleFlags, getenv func(string) string) (Rol
 		manifest = ""
 	}
 	return Roles{
-		Planner:  config.ResolveRole(agent.RolePlanner, repo, user, getenv, config.Overrides{Kind: PlannerKind}),
+		Planner:  config.ResolveRole(agent.RolePlanner, repo, user, getenv, flags.Planner),
 		Builder:  config.ResolveRole(agent.RoleBuilder, repo, user, getenv, flags.Builder),
 		Reviewer: config.ResolveReviewer(repo, user, getenv, flags.Reviewer),
 		Manifest: manifest,
