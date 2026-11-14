@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.0](https://github.com/emsnoel/tandem/compare/v0.8.0...v0.9.0) (2026-11-14)
+
+
+### Features
+
+* let Claude Code or Copilot be the planner ([11bf222](https://github.com/emsnoel/tandem/commit/11bf222e6b4b5288d52bd439bf842f1d6a0d5208))
+* tell the builder how to wait in every task prompt ([e8d9b68](https://github.com/emsnoel/tandem/commit/e8d9b686ec01ee211f0acd80e82d794dc2b3e6f8))
+
 ## [0.8.0](https://github.com/emsnoel/tandem/compare/v0.7.0...v0.8.0) (2026-11-13)
 
 
