@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.1](https://github.com/emsnoel/tandem/compare/v0.11.0...v0.11.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* refuse to launch Codex into its hook review screen ([80d6dfb](https://github.com/emsnoel/tandem/commit/80d6dfb966c72e284e8bf61b74de3d736d8237b9))
+
 ## [0.11.0](https://github.com/emsnoel/tandem/compare/v0.10.0...v0.11.0) (2026-11-14)
 
 
