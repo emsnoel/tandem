@@ -9,9 +9,12 @@ import (
 // own conversation's input, so typed text would not start a turn there. why
 // describes the screen for a person.
 //
-// Herdr reads each of these as idle or working, never blocked (but for
-// Codex's update prompt, which is named so a refusal can say what it is):
+// Herdr reads each of these as idle or working, never blocked (but for the
+// startup prompts named so a refusal can say what they are: Codex's update
+// prompt, Claude Code's folder-trust prompt and Bypass Permissions warning,
+// and Copilot's folder-trust prompt):
 //
+//   - claude, any dialog: its last line offers "Esc to cancel".
 //   - claude, a subagent's screen: input goes to that subagent.
 //   - claude, the agent list or /tasks: Enter picks a row and the text stays
 //     unsent.
@@ -20,6 +23,7 @@ import (
 //   - codex, the agent command center: Enter opens another session.
 //   - codex, the "Hooks need review" prompt at startup and the hooks screens
 //     behind it: Enter picks a row, t trusts every hook.
+//   - copilot, any dialog: its footer offers "esc to cancel".
 //   - copilot, a subagent's screen: input goes to that subagent.
 //   - copilot, its task list, focused sidebar and Sessions tab: single keys
 //     act there (x kills a task, enter opens one). Herdr reads the Sessions
@@ -36,7 +40,7 @@ func OffMainInput(kind, screen string) (why string, off bool) {
 	case "codex":
 		return codexOffMain(lines)
 	case "copilot":
-		return copilotOffMain(bottomLines(lines, 2))
+		return copilotOffMain(lines)
 	}
 	return "", false
 }
@@ -46,14 +50,7 @@ func OffMainInput(kind, screen string) (why string, off bool) {
 // line never does. Only that line marks a dialog, because the transcript above
 // the input can quote any of this text. What the dialog is comes from its body.
 func codexOffMain(lines []string) (string, bool) {
-	has := func(prefix string) bool {
-		for _, l := range lines {
-			if strings.HasPrefix(strings.TrimSpace(l), prefix) {
-				return true
-			}
-		}
-		return false
-	}
+	has := func(prefix string) bool { return hasLine(lines, prefix) }
 	for _, l := range lines {
 		t := strings.TrimSpace(l)
 		switch {
@@ -86,10 +83,20 @@ func codexOffMain(lines []string) (string, bool) {
 
 // copilotOffMain reads Copilot's footer, which names the keys of whatever
 // has them: its last line, or the one above a dialog's bottom border. The tab
-// bar is not read: it also shows above the main conversation.
-func copilotOffMain(bottom []string) (string, bool) {
+// bar is not read: it also shows above the main conversation. A dialog's
+// footer offers "esc to cancel"; what the dialog is comes from its body.
+func copilotOffMain(lines []string) (string, bool) {
+	bottom := bottomLines(lines, 2)
 	footer := strings.Join(bottom, "\n")
 	switch {
+	case strings.Contains(footer, "esc to cancel") && hasLine(lines, "│ Confirm folder trust"):
+		return "Copilot's folder-trust prompt, which waits for an answer", true
+	case strings.Contains(footer, "esc to cancel"):
+		for _, l := range bottom {
+			if strings.Contains(l, "esc to cancel") {
+				return fmt.Sprintf("a dialog that has the keys (%q)", strings.Trim(strings.TrimSpace(l), "│ ")), true
+			}
+		}
 	case strings.Contains(footer, "Esc back to tasks"):
 		return "a subagent's screen, whose input goes to that subagent", true
 	case strings.Contains(footer, "enter details"), strings.Contains(footer, "esc close"):
@@ -101,6 +108,16 @@ func copilotOffMain(bottom []string) (string, bool) {
 		return "a GitHub tab, not the conversation", true
 	}
 	return "", false
+}
+
+// hasLine reports whether a line starts with prefix, ignoring indentation.
+func hasLine(lines []string, prefix string) bool {
+	for _, l := range lines {
+		if strings.HasPrefix(strings.TrimSpace(l), prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // bottomLines is the last n lines with text on them.
@@ -120,6 +137,9 @@ func bottomLines(lines []string, n int) []string {
 // "↑/↓ to select" at the bottom means a list has the keys: the agent list
 // below the box, or /tasks, which shows no box at all.
 func claudeOffMain(lines []string) (string, bool) {
+	if why, off := claudeDialog(lines); off {
+		return why, true
+	}
 	for _, l := range bottomLines(lines, 4) {
 		if strings.HasPrefix(strings.TrimSpace(l), "↑/↓ to select") {
 			if why, off := claudeSubagentBox(lines); off {
@@ -129,6 +149,23 @@ func claudeOffMain(lines []string) (string, bool) {
 		}
 	}
 	return claudeSubagentBox(lines)
+}
+
+// claudeDialog reports a dialog by its last line, "Enter to confirm · Esc to
+// cancel". Only that line counts, because the transcript above the input can
+// quote any of this text. What the dialog is comes from its body.
+func claudeDialog(lines []string) (string, bool) {
+	bottom := bottomLines(lines, 1)
+	if len(bottom) == 0 || !strings.Contains(bottom[0], "Esc to cancel") {
+		return "", false
+	}
+	switch {
+	case hasLine(lines, "Quick safety check:"):
+		return "Claude Code's folder-trust prompt, which waits for an answer", true
+	case hasLine(lines, "WARNING: Claude Code running in Bypass Permissions mode"):
+		return "Claude Code's Bypass Permissions warning, which waits for an answer", true
+	}
+	return fmt.Sprintf("a dialog that has the keys (%q)", strings.TrimSpace(bottom[0])), true
 }
 
 // claudeSubagentBox reports a subagent's screen by the title on the rule
