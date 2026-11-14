@@ -366,6 +366,10 @@ and the relay. If the run does not settle, or an open job or
 delivery blocks the archive, nothing is closed or deleted. `--force` closes anyway and
 keeps the state.
 
+A run you already stopped, recovered and archived has nothing left to sign off. When the
+relay holds only its archived marker, `tandem-unpair` skips the evidence gates, runs the
+check and closes the pair.
+
 ## Live smoke procedure
 
 Last run on 2026-11-08. The results are in

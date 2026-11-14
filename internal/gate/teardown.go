@@ -28,6 +28,11 @@ type Input struct {
 	// is decided from the run, and the reports directory is not
 	// consulted.
 	Durable *DurableRun
+
+	// Archived names the runs the relay set aside with `tandem state archive`,
+	// read only when it holds no active run. A person stopped and archived
+	// that run, which keeps it, so nothing is left to sign off.
+	Archived []string
 }
 
 // DurableRun is what a run's teardown is signed off on: each task and
@@ -65,13 +70,17 @@ func Pre(in Input) Verdict {
 	if in.Status == "working" || in.Status == "blocked" {
 		return Verdict{Code: 9, Detail: []string{in.Status}}
 	}
-	if in.Durable != nil {
+	switch {
+	case in.Durable != nil:
 		if v := preDurable(in.Durable); v.Code != 0 {
 			return v
 		}
-	} else if len(in.ReportsOK)+len(in.ReportsPending) == 0 {
+	case len(in.Archived) != 0:
+		// The run was ended on purpose and kept. A run writes no handback
+		// report, so any report here is an old legacy build's.
+	case len(in.ReportsOK)+len(in.ReportsPending) == 0:
 		return Verdict{Code: 4}
-	} else if len(in.ReportsPending) != 0 {
+	case len(in.ReportsPending) != 0:
 		// Copy so the Verdict does not alias the caller's slice.
 		return Verdict{Code: 5, Detail: append([]string(nil), in.ReportsPending...)}
 	}

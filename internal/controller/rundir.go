@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // ActiveRun is the marker that a relay carries a run. Its presence is
@@ -96,6 +97,26 @@ func ReadActiveRun(relay string) (*ActiveRun, error) {
 		return nil, fmt.Errorf("%s names an engine or protocol this tandem does not speak (it supports engine 2, protocol 2)", ActiveRunFile)
 	}
 	return &run, nil
+}
+
+// ArchivedRunFile is where `tandem state archive` sets a run's marker aside.
+// It is named by the run, so one archive never overwrites another's.
+func ArchivedRunFile(runID string) string { return "active-run." + runID + ".archived.json" }
+
+// ArchivedRuns lists the runs whose markers the relay holds set aside.
+func ArchivedRuns(relay string) ([]string, error) {
+	matches, err := filepath.Glob(filepath.Join(relay, ArchivedRunFile("*")))
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for _, m := range matches {
+		id := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(m), "active-run."), ".archived.json")
+		if idPattern.MatchString(id) {
+			ids = append(ids, id)
+		}
+	}
+	return ids, nil
 }
 
 // ReadManifest reads a run's manifest.
