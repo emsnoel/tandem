@@ -12,6 +12,7 @@ can't clear one, it refuses to launch.
 | codex | "Update available", shown when a newer Codex release exists | Passes `-c check_for_update_on_startup=false`, for the builder and reviewer only |
 | codex | The "Hooks need review" screen, shown when Codex has hooks it hasn't accepted. Herdr reports it as idle | Reads the pane after launch and refuses to call the pair ready (see [Reading the pane](#reading-the-pane)) |
 | claude | A trust dialog not yet accepted | Reports it and writes nothing. Claude Code owns and rewrites `~/.claude.json`, so tandem never touches it. Pairing refuses with exit 23. Run `claude` once in the folder, accept the dialog, and pair again |
+| claude | The Bypass Permissions warning, shown at `full` autonomy until a person accepts it once | Reads the pane after launch, names the warning and refuses with exit 23. Accept it in the pane and pair again |
 | copilot | "Do you trust the files in this folder?" | Adds a `trustedFolders` entry to `$COPILOT_HOME/config.json`, but only when you chose the copilot builder yourself. If the repository asked for it and you haven't approved that on this machine, tandem reports it instead, and pairing refuses with exit 23. Approve it once with `tandem-pair --approve-kind copilot`. tandem keeps the `//` comment banner and every other key. `tandem-unpair --clean-trust` removes the entry, but only if tandem added it |
 | copilot | The session-restore picker, which Herdr reports as idle | Passes `--session-id <fresh uuid>`, for the builder and reviewer only |
 | copilot | Approval dialogs for commands, paths and URLs | Passes `--allow-all-tools --allow-all-urls`, from `autonomy`, plus `--allow-all-paths` for the builder and reviewer only |
@@ -39,6 +40,9 @@ the pane shows a dialog that a person has to answer:
 - a screen tandem recognises as holding the keys (`internal/agent/screen.go` lists them);
 - for Codex, any screen whose last line offers Esc, such as `enter confirm · esc skip`.
   Every Codex dialog measured so far ends that way, and its main input never does;
+- for Claude Code, any screen whose last line offers `Esc to cancel`, and for Copilot,
+  any screen whose footer offers `esc to cancel`. Their trust prompts and Claude Code's
+  Bypass Permissions warning end that way, and neither main input does;
 - anything Herdr itself reports as `blocked`.
 
 `tandem-pair` then stops with exit 23 and names every pane that needs you:

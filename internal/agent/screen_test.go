@@ -34,6 +34,12 @@ func TestOffMainInputReadsRealScreens(t *testing.T) {
 		{"claude-tasks.txt", "claude", true, "list"},
 		// A finished subagent opened from /tasks: the state that planner was in.
 		{"claude-task-view.txt", "claude", true, "Write harbour pilot story"},
+		// Claude Code 2.1.325 at startup: the folder-trust prompt in a folder
+		// never trusted, and the warning for --permission-mode bypassPermissions
+		// (full autonomy) until it is accepted once. Herdr reports both blocked;
+		// they are named so the refusal can say what the pane shows.
+		{"claude-trust.txt", "claude", true, "folder-trust prompt"},
+		{"claude-bypass-warning.txt", "claude", true, "Bypass Permissions warning"},
 		{"codex-main.txt", "codex", false, ""},
 		{"codex-subagent.txt", "codex", true, "sub-agent"},
 		{"codex-command-center.txt", "codex", true, "command center"},
@@ -66,6 +72,9 @@ func TestOffMainInputReadsRealScreens(t *testing.T) {
 		{"copilot-sidebar-focused.txt", "copilot", true, "session list"},
 		{"copilot-tab.txt", "copilot", true, "session list"},
 		{"copilot-github-tab.txt", "copilot", true, "GitHub tab"},
+		// Copilot 1.0.112 at startup in a folder never trusted. Herdr reports it
+		// blocked.
+		{"copilot-trust.txt", "copilot", true, "folder-trust prompt"},
 	}
 	for _, c := range cases {
 		t.Run(c.file, func(t *testing.T) {
@@ -119,6 +128,33 @@ func TestClaudeOnlyTheRuleAboveTheInputCounts(t *testing.T) {
 	}, "\n")
 	if why, off := OffMainInput("claude", main); off {
 		t.Errorf("a titled rule in the transcript was read as a subagent screen (%q)", why)
+	}
+}
+
+// Claude Code's dialogs end with "Enter to confirm · Esc to cancel". Only the
+// last line counts: a transcript above the input can quote one.
+func TestClaudeOnlyTheLastLineMarksADialog(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("testdata", "screens", "claude-main.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	quoted := "  Quick safety check: Is this a project you created or one you trust?\n  Enter to confirm · Esc to cancel\n" + string(b)
+	if why, off := OffMainInput("claude", quoted); off {
+		t.Errorf("a transcript that quotes a dialog is off (%q)", why)
+	}
+	// A dialog this version does not know still has the keys.
+	why, off := OffMainInput("claude", " Pick a theme\n ❯ Dark\n   Light\n Enter to confirm · Esc to cancel\n")
+	if !off || !strings.Contains(why, "Esc to cancel") {
+		t.Errorf("an unknown Claude dialog: off=%v why=%q", off, why)
+	}
+}
+
+// Copilot's dialogs end their footer with "esc to cancel".
+func TestCopilotAnUnknownDialogHasTheKeys(t *testing.T) {
+	screen := "╭────╮\n│ Pick one │\n│ ❯ 1. A │\n│ ↑/↓ to navigate · enter to select · esc to cancel │\n╰────╯\n"
+	why, off := OffMainInput("copilot", screen)
+	if !off || !strings.Contains(why, "esc to cancel") {
+		t.Errorf("an unknown Copilot dialog: off=%v why=%q", off, why)
 	}
 }
 
