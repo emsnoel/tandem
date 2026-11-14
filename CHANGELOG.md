@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.0](https://github.com/emsnoel/tandem/compare/v0.9.0...v0.10.0) (2026-11-14)
+
+
+### Features
+
+* name the five stop cases in the task footer ([c1d2e31](https://github.com/emsnoel/tandem/commit/c1d2e3163af29e957662b3169210dfa866250133))
+* tell the builder when to stop, and drop the unused executor agent ([6718eb5](https://github.com/emsnoel/tandem/commit/6718eb52b79281cd959de190c9a6c241f88829f5))
+
 ## [0.9.0](https://github.com/emsnoel/tandem/compare/v0.8.0...v0.9.0) (2026-11-14)
 
 
