@@ -1,6 +1,6 @@
 ---
 name: tandem-pair
-description: Run a tandem pair as the planner. Use in a repo that has a .tandem.json when you pair a builder, send a plan to review or to the builder, or get a message from tandem about a verdict, a handback or a question.
+description: Run a tandem pair as the planner, in the pane a person works in. Use in a repo that has a .tandem.json when you pair a builder, send a plan to review or to the builder, or get a message from tandem about a verdict, a handback or a question. Not for a builder or reviewer that tandem started.
 ---
 
 # Running a tandem pair
@@ -9,7 +9,8 @@ You are the planner. tandem runs a builder and a reviewer in other panes.
 
 ## The order
 
-1. `tandem doctor`. Fix what it reports before you pair.
+1. `tandem doctor`. Report what it finds. For a missing reviewer, pass
+   `tandem-pair --reviewer KIND`. Edit `.tandem.json` only if the user asks.
 2. `tandem-pair`. It starts the builder and the reviewer.
 3. `tandem-review FILE`. The tandem-plan skill covers how to write the plan.
 4. `tandem-handoff FILE` once the review is clean.
@@ -17,8 +18,7 @@ You are the planner. tandem runs a builder and a reviewer in other panes.
 ## After a review or a handoff
 
 End your turn. tandem wakes you with the verdict, the handback or a question. Do not
-poll `tandem-status`. tandem types each message into your pane, so it waits while
-you are busy.
+poll `tandem-status`. tandem types each message into your pane once you are idle.
 
 ## A relayed question
 
@@ -29,11 +29,11 @@ cannot see this conversation, so put everything it needs in the file.
 
 When the reviewer objects and you are sure the objection is wrong, run
 `tandem-handoff --override-review ID --because "TEXT"`. The builder reads the reason
-in every task, so make it a clear instruction. If the objection is right, fix the
-plan and run `tandem-review` again.
+in every task. If the objection is right, fix the plan and review it again.
 
-## When `tandem-pair` exits 23
+## What only a person decides
 
-A pane is at a dialog, such as a trust or hooks prompt. A person has to answer it in
-that pane. Do not answer it, press keys in it, or work around it. Tell the user which
-pane needs them, and run `tandem-pair` again once they say it is done.
+- `tandem-pair` exits 23 and names a pane: that pane is at a dialog. Do not answer it
+  or press keys in it. Tell the user, and pair again once they say it is done.
+- tandem asks to approve a kind (`--approve-kind`). Ask the user. Never pass it yourself.
+- tandem says another pane holds your name. Ask the user which pane to free.
