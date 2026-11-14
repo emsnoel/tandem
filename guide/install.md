@@ -13,9 +13,11 @@ This installs the latest release. You need `curl`, `tar` and `shasum` (or
    `TANDEM_SHARE_DIR` to put it somewhere else.
 4. It points `~/.local/share/tandem/current` at that version, and links the `tandem` binary
    and the thirteen commands from `~/.local/bin` into it.
-5. It links the `tandem-plan` skill into `~/.claude/skills` and `~/.copilot/skills`, for
-   each of those CLIs that has a home folder. The skill tells a planner how to write a
-   plan that tandem can review and build. A skill of that name that you wrote is kept.
+5. It links the `tandem-plan` and `tandem-pair` skills into `~/.claude/skills` and
+   `~/.copilot/skills`, for each of those CLIs that has a home folder. `tandem-plan` tells
+   a planner how to write a plan that tandem can review and build. `tandem-pair` tells it
+   the order of the pair commands, to end its turn instead of polling, and to leave a
+   pane's dialog to you. A skill of either name that you wrote is kept.
 
 The installer replaces nothing until the download passes its checksum and the new binary
 runs. If an upgrade fails, the old version keeps working.
