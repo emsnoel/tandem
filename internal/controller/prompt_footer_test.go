@@ -40,3 +40,32 @@ func TestTheTaskFooterLeavesTheCheckToTandem(t *testing.T) {
 		}
 	}
 }
+
+// The footer offered --stuck without saying when to use it. These are the five
+// findings the plan review looks for; a builder that meets one stops instead of
+// improvising.
+func TestTheTaskFooterSaysWhenToStop(t *testing.T) {
+	footer := promptFooter(promptData{Task: 1})
+	order := []string{
+		"Do the task.",
+		"Stop and hand back with --stuck",
+		"needs something a later task introduces",
+		"contradicts another step",
+		"cannot run as written",
+		"needs authority you do not have",
+		"would not give the result the plan claims",
+		"Stopping then is the correct outcome, not a failure",
+		"When you finish",
+	}
+	at := -1
+	for _, want := range order {
+		i := strings.Index(footer, want)
+		if i < 0 {
+			t.Fatalf("the footer is missing %q:\n%s", want, footer)
+		}
+		if i < at {
+			t.Errorf("%q is out of order:\n%s", want, footer)
+		}
+		at = i
+	}
+}
