@@ -142,12 +142,14 @@ info "review stored as $ID ($VERDICT)."
 
 # The sidecar records the builder's identity too, so class-4 findings are
 # voided when the builder changes.
+NEXT="Read the review. Fix the plan and hand off again, or overrule it saying why."
+[[ "$VERDICT" == clean ]] && NEXT="Read the review. When you want the plan built, run tandem-handoff $PLAN_ABS."
 MSG="tandem-verdict: the $ROLE reviewed $PLAN_ABS and returned: $VERDICT
 
   review: $MAILBOX/reviews/$ID.md
   id:     $ID
 
-Read the review. Fix the plan and hand off again, or overrule it saying why."
+$NEXT"
 
 rc=0
 _snap=$(tandem agent snapshot "$PLANNER_NAME" 2>/dev/null) || rc=$?

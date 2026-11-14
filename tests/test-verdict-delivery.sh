@@ -85,6 +85,9 @@ if [[ -n "$Q" ]]; then
   jq -e '.message | contains("the reviewer reviewed")' "$Q" >/dev/null \
     && ok "the message names the reviewer" \
     || nope "the message names the reviewer (got: $(jq -r '.message' "$Q" | head -1))"
+  jq -e '.message | contains("Fix the plan and hand off again, or overrule it saying why.")' "$Q" >/dev/null \
+    && ok "objections ask the planner to fix the plan or overrule it" \
+    || nope "objections ask the planner to fix the plan or overrule it (got: $(jq -r '.message' "$Q" | tail -1))"
   QID=$(jq -r '.id' "$Q")
   "$TANDEM_REAL" relay read --file "$Q" > "$TMP/read" 2>/dev/null
   { IFS= read -r -d '' _f1; IFS= read -r -d '' _f2; } < "$TMP/read"
@@ -120,6 +123,10 @@ if [[ -n "$Q" ]]; then
   jq -e '.message | contains("the reviewer reviewed")' "$Q" >/dev/null \
     && ok "the message says the reviewer reviewed" \
     || nope "the message says the reviewer reviewed (got: $(jq -r '.message' "$Q" | head -1))"
+  # A clean review has nothing to fix or overrule, and the plan was never handed off.
+  jq -e --arg p "$PLAN" '.message | contains("tandem-handoff " + $p) and (contains("Fix the plan") | not)' "$Q" >/dev/null \
+    && ok "a clean verdict names the handoff and asks for no fix" \
+    || nope "a clean verdict names the handoff and asks for no fix (got: $(jq -r '.message' "$Q" | tail -1))"
   [[ "$(jq -r '.from' "$Q")" == reviewer ]] && ok "the request comes from the reviewer" \
                                           || nope "the request comes from the reviewer (got $(jq -r '.from' "$Q"))"
   SIDE="$TMP/mailbox/reviews/$(jq -r '.id' "$Q").json"
