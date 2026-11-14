@@ -30,11 +30,6 @@ type Options struct {
 	// writes another tool's config must check it, so a cloned repo can never trust
 	// itself.
 	Authorised bool
-	// StrictHooks turns an unaccepted Codex hook from a warning into a refusal. Off
-	// by default, because current Codex skips such a hook silently; older versions
-	// prompted invisibly to Herdr. internal/hooks never reads this, so callers
-	// choose the policy.
-	StrictHooks bool
 }
 
 var registry = map[string][]Gate{}

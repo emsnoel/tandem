@@ -88,12 +88,6 @@ func TestHookClassificationPortPreservesTwentyAssertions(t *testing.T) {
 			t.Fatalf("want silence, got %+v", got)
 		}
 	})
-	t.Run("classification is independent of strict policy", func(t *testing.T) {
-		t.Setenv("HERDR_STRICT_HOOK_CHECK", "1")
-		if got := finding(t, Classify(mkhome(t, false))).Kind; got != "unreviewed" {
-			t.Fatalf("want classifier finding, got %q", got)
-		}
-	})
 	t.Run("classification is independent of skip policy", func(t *testing.T) {
 		t.Setenv("HERDR_SKIP_HOOK_CHECK", "1")
 		if got := finding(t, Classify(mkhome(t, false))).Kind; got != "unreviewed" {

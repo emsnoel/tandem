@@ -49,9 +49,6 @@ func cmdPrelaunch(args []string) int {
 	actions := trust.CheckWithOptions(*kind, *cwd, agent.Role(*role), trust.Options{
 		DryRun:     *dryRun,
 		Authorised: kindAuthorised(*root, *cwd, *kind, *userKind, agent.Role(*role)),
-		// Severity is the caller's decision, so the strict switch is read here.
-		// tandem-pair's HERDR_SKIP_HOOK_CHECK overrides the exit code further out.
-		StrictHooks: os.Getenv("HERDR_STRICT_HOOK_CHECK") == "1",
 	})
 	if *asFields {
 		writeGateFields(os.Stdout, actions, *show)

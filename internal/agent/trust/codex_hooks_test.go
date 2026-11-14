@@ -34,52 +34,44 @@ func unacceptedHook(t *testing.T) {
 	}
 }
 
-// Codex silently skips an unaccepted hook rather than prompting, so it cannot
-// stall an unattended pane. The gate warns and does not refuse.
-func TestCodexHooksWarnsAboutUnacceptedSource(t *testing.T) {
+// Codex 0.167.0 opens on a "Hooks need review" screen when a hook source is
+// unaccepted, and Herdr reports that screen as idle. An unattended pane would
+// swallow its first prompt there, so the gate needs a person.
+func TestCodexHooksRefusesAnUnacceptedSource(t *testing.T) {
 	unacceptedHook(t)
 
 	got := find(Check("codex", t.TempDir(), agent.RoleBuilder), "hook-acceptance")
-	if got.Status != agent.StatusWarning {
-		t.Fatalf("an unaccepted hook source must warn, not refuse; got %v (%s)", got.Status, got.Detail)
-	}
-	if got.StatusS != "warning" {
-		t.Errorf("the wire form must say warning; got %q", got.StatusS)
-	}
-	if got.Remedy == "" {
-		t.Error("a warning must still carry the remedy that clears it")
-	}
-}
-
-// Older Codex versions prompted, invisibly to Herdr, so
-// HERDR_STRICT_HOOK_CHECK keeps the refusal available. The caller chooses the
-// policy.
-func TestCodexHooksRefusesUnacceptedSourceUnderStrictPolicy(t *testing.T) {
-	unacceptedHook(t)
-
-	actions := CheckWithOptions("codex", t.TempDir(), agent.RoleBuilder, Options{StrictHooks: true})
-	got := find(actions, "hook-acceptance")
 	if got.Status != agent.StatusManual {
-		t.Fatalf("strict policy must refuse; got %v (%s)", got.Status, got.Detail)
+		t.Fatalf("an unaccepted hook source must need a person; got %v (%s)", got.Status, got.Detail)
 	}
-	if got.Remedy == "" {
-		t.Error("a Manual status must carry a remedy")
+	if got.StatusS != "manual" {
+		t.Errorf("the wire form must say manual; got %q", got.StatusS)
+	}
+	for _, role := range []agent.Role{agent.RoleBuilder, agent.RoleReviewer} {
+		if !Blocks(role, *got) {
+			t.Errorf("an unattended %s must not launch into the hook screen", role)
+		}
+	}
+	if Blocks(agent.RolePlanner, *got) {
+		t.Error("a person sits at the planner pane, so the gate only notes it there")
 	}
 }
 
-// The warning always names the versions the silent skip was confirmed on.
-func TestCodexHooksWarningNamesTheMeasuredBaseline(t *testing.T) {
+// The remedy names what was measured on each version, and every way out.
+func TestCodexHooksRemedyNamesTheMeasuredVersionsAndTheWaysOut(t *testing.T) {
 	unacceptedHook(t)
 
 	got := find(Check("codex", t.TempDir(), agent.RoleBuilder), "hook-acceptance")
-	if !strings.Contains(got.Remedy, "0.151.0") || !strings.Contains(got.Remedy, "0.152.1") {
-		t.Fatalf("remedy must name the measured baseline versions; got %q", got.Remedy)
+	for _, want := range []string{"0.167.0", "0.151.0", "0.152.1", "/hooks", "--dangerously-bypass-hook-trust", "HERDR_SKIP_HOOK_CHECK=1"} {
+		if !strings.Contains(got.Remedy, want) {
+			t.Errorf("the remedy does not name %s: %q", want, got.Remedy)
+		}
 	}
 }
 
-// With a codex on PATH, the warning also names the installed version, so a
+// With a codex on PATH, the remedy also names the installed version, so a
 // reader can judge whether it behaves the same.
-func TestCodexHooksWarningNamesTheInstalledVersionWhenReadable(t *testing.T) {
+func TestCodexHooksRemedyNamesTheInstalledVersionWhenReadable(t *testing.T) {
 	unacceptedHook(t)
 
 	bin := t.TempDir()
@@ -97,14 +89,14 @@ func TestCodexHooksWarningNamesTheInstalledVersionWhenReadable(t *testing.T) {
 
 // Advisory only: a version tandem cannot read must never blank out the
 // remedy or change the gate's verdict, only omit itself from the message.
-func TestCodexHooksWarningDegradesWhenVersionUnreadable(t *testing.T) {
+func TestCodexHooksRemedyDegradesWhenVersionUnreadable(t *testing.T) {
 	unacceptedHook(t)
 
 	bin := t.TempDir() // deliberately empty: no codex binary on PATH
 	t.Setenv("PATH", bin)
 
 	got := find(Check("codex", t.TempDir(), agent.RoleBuilder), "hook-acceptance")
-	if got.Status != agent.StatusWarning {
+	if got.Status != agent.StatusManual {
 		t.Fatalf("an unreadable version must not change the verdict; got %v", got.Status)
 	}
 	if got.Remedy == "" {

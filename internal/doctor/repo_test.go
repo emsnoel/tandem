@@ -17,7 +17,7 @@ func isolate(t *testing.T, manifest string) string {
 		t.Setenv(k, t.TempDir())
 	}
 	t.Setenv("HERDR_TANDEM_CONFIG", filepath.Join(t.TempDir(), "tandem.json"))
-	for _, k := range []string{"HERDR_BUILDER_KIND", "HERDR_REVIEWER_KIND", "HERDR_STRICT_HOOK_CHECK", "HERDR_SKIP_HOOK_CHECK"} {
+	for _, k := range []string{"HERDR_BUILDER_KIND", "HERDR_REVIEWER_KIND", "HERDR_SKIP_HOOK_CHECK"} {
 		t.Setenv(k, "")
 	}
 	root := t.TempDir()
@@ -152,7 +152,7 @@ func TestDryRunWritesNothing(t *testing.T) {
 	}
 }
 
-func TestStrictHookCheckFails(t *testing.T) {
+func TestAnUnacceptedHookFails(t *testing.T) {
 	root := isolate(t, codexRepo)
 	codexHome := os.Getenv("CODEX_HOME")
 	for name, body := range map[string]string{"config.toml": "\n", "hooks.json": `{"hooks":{"SessionStart":[]}}`} {
@@ -161,12 +161,8 @@ func TestStrictHookCheckFails(t *testing.T) {
 		}
 	}
 	flags := RoleFlags{Builder: config.Overrides{Kind: "codex"}}
-	if r := find(t, repoResults(t, root, flags), "trust:codex:hook-acceptance"); r.Status != Warn {
-		t.Fatalf("without strict mode an unaccepted hook warns: %+v", r)
-	}
-	t.Setenv("HERDR_STRICT_HOOK_CHECK", "1")
-	if r := find(t, repoResults(t, root, flags), "trust:codex:hook-acceptance"); r.Status != Fail {
-		t.Fatalf("strict mode: got %+v", r)
+	if r := find(t, repoResults(t, root, flags), "trust:codex:hook-acceptance"); r.Status != Fail || r.Fix == "" {
+		t.Fatalf("a builder would launch into the hook screen: %+v", r)
 	}
 }
 
