@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/emsnoel/tandem/compare/v0.12.1...v0.13.0) (2026-11-14)
+
+
+### Features
+
+* add a tandem-pair skill for the planner ([dfda0c6](https://github.com/emsnoel/tandem/commit/dfda0c6dc6c27c25c05d67daec7c4336c5b72771))
+
 ## [0.12.1](https://github.com/emsnoel/tandem/compare/v0.12.0...v0.12.1) (2026-11-14)
 
 
