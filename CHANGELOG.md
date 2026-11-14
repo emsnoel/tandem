@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.13.1](https://github.com/emsnoel/tandem/compare/v0.13.0...v0.13.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* name the Claude Code and Copilot startup dialogs ([704636c](https://github.com/emsnoel/tandem/commit/704636c234997a4dc229b20551d90adf295c5b72))
+* unpair after an archived run closes the pair ([edc6f09](https://github.com/emsnoel/tandem/commit/edc6f09eabe61ea7b1bc5fed13f418800354ecde))
+
 ## [0.13.0](https://github.com/emsnoel/tandem/compare/v0.12.1...v0.13.0) (2026-11-14)
 
 
