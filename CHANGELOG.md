@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.13.2](https://github.com/emsnoel/tandem/compare/v0.13.1...v0.13.2) (2026-11-14)
+
+
+### Bug Fixes
+
+* deliver to a planner under another name, one pair per checkout ([94a0e77](https://github.com/emsnoel/tandem/commit/94a0e777675eb82727224825c64abe937001e6d0))
+* keep the tandem-pair skill to the planner and its decisions ([3c7111f](https://github.com/emsnoel/tandem/commit/3c7111fa1e94ea3a8afdf8ffc20e37a61e477808))
+
 ## [0.13.1](https://github.com/emsnoel/tandem/compare/v0.13.0...v0.13.1) (2026-11-14)
 
 
