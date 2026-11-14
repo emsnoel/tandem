@@ -59,6 +59,8 @@ esac
 [ -f "$TMP/herdr/config.toml" ] && ok "writes the example Herdr config when none exists" || nope "no Herdr config written"
 [ "$(readlink "$CLAUDE/skills/tandem-plan")" = "$SHARE/current/skills/tandem-plan" ] && grep -q '^name: tandem-plan$' "$CLAUDE/skills/tandem-plan/SKILL.md" \
   && ok "links the plan skill into a planner CLI's skills folder" || nope "the plan skill links to '$(readlink "$CLAUDE/skills/tandem-plan")'"
+[ "$(readlink "$CLAUDE/skills/tandem-pair")" = "$SHARE/current/skills/tandem-pair" ] && grep -q '^name: tandem-pair$' "$CLAUDE/skills/tandem-pair/SKILL.md" \
+  && ok "and the pair skill" || nope "the pair skill links to '$(readlink "$CLAUDE/skills/tandem-pair")'"
 [ ! -e "$COPILOT" ] && ok "and makes no home for a CLI that has none" || nope "it created $COPILOT"
 [ ! -L "$MINE/skills/tandem-plan" ] && [ "$(cat "$MINE/skills/tandem-plan/SKILL.md")" = mine ] \
   && ok "and leaves a skill of that name the user wrote" || nope "it replaced the user's own skill"
@@ -175,6 +177,7 @@ LEFT=$(find "$DEST" -name 'tandem*' -type l | tr '\n' ' ')
 [ ! -e "$SHARE/current" ] && [ ! -e "$SHARE/v9.9.9" ] && ok "and the release in the share directory" \
   || nope "the share directory holds: $(ls "$SHARE" | tr '\n' ' ')"
 [ ! -e "$CLAUDE/skills/tandem-plan" ] && [ ! -L "$CLAUDE/skills/tandem-plan" ] && ok "and the plan skill's link" || nope "the plan skill's link is left"
+[ ! -L "$CLAUDE/skills/tandem-pair" ] && ok "and the pair skill's link" || nope "the pair skill's link is left"
 [ -d "$CLAUDE/skills/other" ] && [ -L "$CLAUDE/skills/tandem-notes" ] && [ -f "$MINE/skills/tandem-plan/SKILL.md" ] \
   && ok "but keeps skills that are not tandem's" || nope "it deleted a skill that is not tandem's: $(ls "$CLAUDE/skills" "$MINE/skills" | tr '\n' ' ')"
 [ -d "$SHARE/other-app" ] && ok "but keeps other folders in the share directory" || nope "it deleted other-app"
