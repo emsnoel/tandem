@@ -93,11 +93,12 @@ func (g codexProjectTrust) Check(cwd string, _ agent.Role, opts Options) agent.A
 // Report, never Apply: Codex's trusted_hash is over an internal canonical form
 // that a reimplementation would break on upgrade.
 //
-// Warning, not Manual, unless Options.StrictHooks is set: Codex skips an
-// unaccepted hook silently, so it cannot stall the pane. Older versions
-// prompted, so the strict flag keeps the refusal. No version that still
-// prompts is known, so the warning names the installed `codex --version`
-// beside the versions confirmed.
+// Manual: codex-cli 0.167.0 opens on a "Hooks need review" screen when a
+// source is unaccepted. Herdr reports that screen as idle, so an unattended
+// pane loses the first prompt sent to it. 0.151.0 and 0.152.1 skipped the hook
+// without asking; nothing between them and 0.167.0 was measured, and a refusal
+// that turns out unnecessary costs one command, while a stall costs the run.
+// The remedy names the installed `codex --version` beside the measured ones.
 type codexHookAcceptance struct{}
 
 // codexVersion returns the trimmed `codex --version` output, or "" if it cannot
@@ -143,25 +144,18 @@ func (g codexHookAcceptance) Check(_ string, _ agent.Role, opts Options) agent.A
 	}
 	detail := fmt.Sprintf("%d unaccepted hook source(s): %s", len(findings), strings.Join(paths, "; "))
 
-	measured := "measured against codex-cli 0.151.0 and 0.152.1"
+	measured := "measured on codex-cli 0.167.0; 0.151.0 and 0.152.1 skipped the hook without asking"
 	if v := codexVersion(); v != "" {
 		measured += "; the installed CLI reports \"" + v + "\""
 	} else {
 		measured += "; the installed CLI's version could not be read"
 	}
 
-	// Both statuses carry the same remedy: what clears the finding does not
-	// depend on how severely this launch treats it.
-	remedy := "Codex silently SKIPS an unaccepted hook rather than prompting, so the builder " +
-		"runs with those hooks inert while looking healthy (" + measured + " -- if the " +
-		"installed version differs from what was measured, verify its actual behavior " +
-		"before trusting this warning over HERDR_STRICT_HOOK_CHECK=1's refusal). Accept " +
-		"them in Codex with /hooks; or add \"--dangerously-bypass-hook-trust\" to " +
+	remedy := "Codex opens on a \"Hooks need review\" screen, which Herdr reports as idle, so the " +
+		"first prompt sent to the pane is lost (" + measured + "). Accept the hooks in Codex " +
+		"with /hooks and pair again; or add \"--dangerously-bypass-hook-trust\" to " +
 		"adapters.codex.args in ~/.config/herdr/tandem.json to run them unaccepted, which " +
-		"trusts every hook source Codex loads."
-	if opts.StrictHooks {
-		return set(agent.StatusManual, detail,
-			remedy+" HERDR_SKIP_HOOK_CHECK=1 launches anyway, with the hooks still skipped.")
-	}
-	return set(agent.StatusWarning, detail, remedy)
+		"trusts every hook source Codex loads. HERDR_SKIP_HOOK_CHECK=1 launches anyway, and " +
+		"you then clear the screen in the pane yourself."
+	return set(agent.StatusManual, detail, remedy)
 }

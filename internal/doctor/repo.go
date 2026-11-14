@@ -110,9 +110,8 @@ func gates(r Roles, root, cwd, kind string, getenv func(string) string) []Result
 	roles := r.Uses().roles(kind)
 	var rs []Result
 	actions := trust.CheckWithOptions(kind, cwd, role, trust.Options{
-		DryRun:      true,
-		Authorised:  authorised,
-		StrictHooks: getenv("HERDR_STRICT_HOOK_CHECK") == "1",
+		DryRun:     true,
+		Authorised: authorised,
 	})
 	for _, a := range actions {
 		res := Result{Name: "trust:" + kind + ":" + a.Gate,

@@ -39,7 +39,7 @@ func doctorRepo(t *testing.T, manifest string) string {
 	}
 	t.Setenv("HERDR_TANDEM_CONFIG", filepath.Join(t.TempDir(), "tandem.json"))
 	t.Setenv("HERDR_ENV", "1")
-	for _, k := range []string{"HERDR_BUILDER_KIND", "HERDR_REVIEWER_KIND", "HERDR_STRICT_HOOK_CHECK", "HERDR_SKIP_HOOK_CHECK"} {
+	for _, k := range []string{"HERDR_BUILDER_KIND", "HERDR_REVIEWER_KIND", "HERDR_SKIP_HOOK_CHECK"} {
 		t.Setenv(k, "")
 	}
 	old := doctorProbe
