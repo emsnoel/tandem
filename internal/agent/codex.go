@@ -56,6 +56,13 @@ func (c codexAdapter) Resolve(s Spec) (Launch, error) {
 		l.Args = append(l.Args, "--dangerously-bypass-approvals-and-sandbox")
 	}
 
+	// Codex opens on an "Update available" prompt when a newer release exists,
+	// and nobody sits at a builder or a reviewer to answer it. With the check
+	// off, 0.167.0 shows no prompt (F30). A planner keeps it.
+	if s.Role.Unattended() {
+		l.Args = append(l.Args, "-c", "check_for_update_on_startup=false")
+	}
+
 	if s.Model != "" {
 		l.Args = append(l.Args, "--model", s.Model)
 	}
