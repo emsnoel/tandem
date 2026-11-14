@@ -26,7 +26,7 @@ func TestCodexAutonomyMapping(t *testing.T) {
 		Full:     {"--dangerously-bypass-approvals-and-sandbox"},
 	}
 	for autonomy, want := range cases {
-		l := resolve(t, Spec{Kind: "codex", Role: RoleBuilder, Autonomy: autonomy})
+		l := resolve(t, Spec{Kind: "codex", Role: RolePlanner, Autonomy: autonomy})
 		if !reflect.DeepEqual(l.Args, want) {
 			t.Errorf("autonomy=%s: got %v, want %v", autonomy, l.Args, want)
 		}
@@ -40,12 +40,38 @@ func TestCodexModelEffortAndCwd(t *testing.T) {
 	})
 	want := []string{
 		"--sandbox", "workspace-write", "--ask-for-approval", "never",
+		"-c", "check_for_update_on_startup=false",
 		"--model", "gpt-5.4",
 		"-c", "model_reasoning_effort=high",
 		"--cd", "/repo",
 	}
 	if !reflect.DeepEqual(l.Args, want) {
 		t.Fatalf("got %v, want %v", l.Args, want)
+	}
+}
+
+// Codex's "Update available" prompt blocks the pane at startup. Nobody sits at
+// a builder or a reviewer to answer it, so those roles start with the update
+// check off (measured on codex-cli 0.167.0, F30). A planner keeps the prompt.
+func TestCodexUnattendedRolesSkipTheUpdateCheck(t *testing.T) {
+	off := []string{"-c", "check_for_update_on_startup=false"}
+	has := func(args []string) bool {
+		for i := 0; i+1 < len(args); i++ {
+			if args[i] == off[0] && args[i+1] == off[1] {
+				return true
+			}
+		}
+		return false
+	}
+	for _, role := range []Role{RoleBuilder, RoleReviewer} {
+		for _, autonomy := range []Autonomy{Readonly, Ask, Auto, Full} {
+			if l := resolve(t, Spec{Kind: "codex", Role: role, Autonomy: autonomy}); !has(l.Args) {
+				t.Errorf("%s at %s starts with the update check on: %v", role, autonomy, l.Args)
+			}
+		}
+	}
+	if l := resolve(t, Spec{Kind: "codex", Role: RolePlanner, Autonomy: Auto}); has(l.Args) {
+		t.Errorf("a planner has a person at the pane and keeps the prompt: %v", l.Args)
 	}
 }
 
