@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.1](https://github.com/emsnoel/tandem/compare/v0.12.0...v0.12.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* start an unattended Codex pane with the update check off ([3979478](https://github.com/emsnoel/tandem/commit/397947877032e9449fe27f2180399af625c65ee8))
+
 ## [0.12.0](https://github.com/emsnoel/tandem/compare/v0.11.2...v0.12.0) (2026-11-14)
 
 
