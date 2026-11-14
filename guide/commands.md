@@ -75,6 +75,17 @@ skips for it. For a running builder that is its trust checks. For a running revi
 also its approval and launch settings. Doctor finds them by the names `tandem-pair` gives
 them (`HERDR_BUILDER_NAME` and `HERDR_REVIEWER_NAME`, `builder` and `reviewer` by default).
 
+The planner is `planner` by default. When another pane already holds that name,
+`tandem-pair` refuses. Set `HERDR_PLANNER_NAME` in the planner's pane and pair again.
+`tandem-pair` writes the name to `.tandem-relay/planner-name`, because the builder's and
+the reviewer's panes don't inherit it. Their verdicts and handbacks read it from there.
+
+One checkout holds one pair, because the relay keeps one set of records and one bridge.
+While a pair's bridge runs, `tandem-pair` refuses a planner under another name and names
+the pane that owns the pair. Close that pair first, or run the second planner in a separate
+git worktree, which gets its own relay. If the owner's pane is gone but its bridge still
+runs, the refusal prints the `tandem-unpair --force` command that clears it.
+
 `tandem doctor` exits 0 when nothing fails and 30 when something does. `--json` prints the same results as
 JSON: a `results` list with `group`, `name`, `status`, `detail` and `fix` for each check, and
 `failures` and `warnings` counts. `--problems` prints only the checks that failed or warned,

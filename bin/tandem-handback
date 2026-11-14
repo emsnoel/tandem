@@ -19,8 +19,9 @@ HANDBACK_LIB="${_self%/*}/lib"
 . "$HANDBACK_LIB/handback-task.sh"
 # shellcheck source=lib/handback-deliver.sh
 . "$HANDBACK_LIB/handback-deliver.sh"
+# shellcheck source=lib/planner-name.sh
+. "$HANDBACK_LIB/planner-name.sh"
 
-PLANNER_NAME="${HERDR_PLANNER_NAME:-planner}"
 # Bounded wait for a planner at a permission dialog.
 BLOCKED_WAIT_SECONDS="${HERDR_HANDBACK_BLOCKED_WAIT_SECONDS:-90}"
 
@@ -149,6 +150,7 @@ ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
 ROOT="${ROOT:-$PWD}"
 MAILBOX=$(tandem paths relay --root "$ROOT") \
   || die "the installed tandem is behind these commands (no 'tandem paths'); re-run install.sh."
+PLANNER_NAME=$(planner_name "$MAILBOX")
 ID="$(date +%Y%m%d-%H%M%S)-$$-$RANDOM"
 REPORT_PATH="$MAILBOX/reports/$ID.md"
 

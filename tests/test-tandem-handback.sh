@@ -200,6 +200,14 @@ fi
 REPFILE=$(ls "$TMP/mailbox/reports"/*.md 2>/dev/null | head -1)
 [[ -n "$REPFILE" ]] && ok "the report was still written to disk" || nope "the report was still written to disk"
 
+# --- a planner under another name: the relay records it ---------------------
+rm -rf "$TMP/mailbox"; mkdir -p "$TMP/mailbox"; printf 'planner-3\n' > "$TMP/mailbox/planner-name"
+ENV=(HERDR_ROLE=builder AGENT_SNAPSHOT_RC=3)
+run "$HANDBACK_BIN" --report "$REPORT" --plan "$PLAN"
+QFILE=$(ls "$TMP/mailbox/q"/*.json 2>/dev/null | head -1)
+[[ "$RC" == 0 && -n "$QFILE" && "$(jq -r '.to' "$QFILE")" == planner-3 ]] && ok "the handback goes to the planner the relay names" \
+  || nope "the handback goes to the planner the relay names (rc $RC, to $(jq -r '.to' "$QFILE" 2>/dev/null))"
+
 # --- no planner agent found (not sandboxed, just gone) -----------------------
 rm -rf "$TMP/mailbox"; mkdir -p "$TMP/mailbox"
 ENV=(HERDR_ROLE=builder AGENT_SNAPSHOT_RC=10)

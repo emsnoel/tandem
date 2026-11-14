@@ -106,6 +106,29 @@ else
   ok "no .tmp request was left behind (atomic rename)"
 fi
 
+# --- a planner under another name ---
+# The reviewer's pane never has the planner's HERDR_PLANNER_NAME. tandem-pair
+# records the name in the relay, so the verdict reaches that planner and not a
+# pane that happens to be called "planner".
+rm -rf "$TMP/mailbox/reviews" "$TMP/mailbox/q"
+printf 'planner-3\n' > "$TMP/mailbox/planner-name"
+OUT=$(PATH="$TMP/bin:$PATH" MAILBOX="$TMP/mailbox" REPO="$TMP/repo" MARKER="$MARKER" AGENT_SNAPSHOT_RC=3 \
+        "$VERDICT_BIN" --plan "$PLAN" --review "$REVIEW" --verdict clean 2>&1); RC=$?
+Q=$(ls "$TMP/mailbox/q/"*.json 2>/dev/null | head -1)
+[[ "$RC" == 0 && -n "$Q" && "$(jq -r '.to' "$Q")" == planner-3 ]] && ok "the verdict goes to the planner the relay names" \
+  || nope "the verdict goes to the planner the relay names (rc $RC, to $(jq -r '.to' "$Q" 2>/dev/null): $OUT)"
+rm -rf "$TMP/mailbox/q"
+OUT=$(PATH="$TMP/bin:$PATH" MAILBOX="$TMP/mailbox" REPO="$TMP/repo" MARKER="$MARKER" AGENT_SNAPSHOT_RC=3 HERDR_PLANNER_NAME=other \
+        "$VERDICT_BIN" --plan "$PLAN" --review "$REVIEW" --verdict clean 2>&1)
+Q=$(ls "$TMP/mailbox/q/"*.json 2>/dev/null | head -1)
+[[ -n "$Q" && "$(jq -r '.to' "$Q")" == other ]] && ok "HERDR_PLANNER_NAME still wins" || nope "HERDR_PLANNER_NAME still wins (to $(jq -r '.to' "$Q" 2>/dev/null))"
+printf 'Not A Name\n' > "$TMP/mailbox/planner-name"; rm -rf "$TMP/mailbox/q"
+OUT=$(PATH="$TMP/bin:$PATH" MAILBOX="$TMP/mailbox" REPO="$TMP/repo" MARKER="$MARKER" AGENT_SNAPSHOT_RC=3 \
+        "$VERDICT_BIN" --plan "$PLAN" --review "$REVIEW" --verdict clean 2>&1)
+Q=$(ls "$TMP/mailbox/q/"*.json 2>/dev/null | head -1)
+[[ -n "$Q" && "$(jq -r '.to' "$Q")" == planner ]] && ok "a recorded name that is not a Herdr name is ignored" || nope "a bad recorded name is ignored (to $(jq -r '.to' "$Q" 2>/dev/null))"
+rm -f "$TMP/mailbox/planner-name"; rm -rf "$TMP/mailbox/q"
+
 # --- from a sandboxed reviewer pane ---
 # A Codex reviewer queues like a Codex builder. The sidecar records the
 # builder's identity, never the reviewer's. builder.json is claude and

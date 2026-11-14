@@ -20,6 +20,8 @@ done
 . "${_self%/*}/lib/pair-panes.sh"
 # shellcheck source=lib/pair-records.sh
 . "${_self%/*}/lib/pair-records.sh"
+# shellcheck source=lib/planner-name.sh
+. "${_self%/*}/lib/planner-name.sh"
 # shellcheck source=lib/bridge-lock.sh
 . "${_self%/*}/lib/bridge-lock.sh"
 
@@ -195,6 +197,9 @@ resolve_launch_args builder BUILDER_ARGS
 BUILDER_KIND="$LAUNCH_KIND"
 [[ -n "$BUILDER_KIND" ]] || die "launch spec carried no kind."
 resolve_reviewer
+
+# One checkout holds one pair: refuse before anything is renamed or started.
+check_relay_owner "$(tandem paths relay --root "$SPLIT_CWD")"
 
 # --- name the planner ---
 if [[ "$PLANNER_CURRENT_NAME" == "$PLANNER_NAME" ]]; then
