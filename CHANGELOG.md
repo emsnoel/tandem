@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.2](https://github.com/emsnoel/tandem/compare/v0.11.1...v0.11.2) (2026-11-14)
+
+
+### Bug Fixes
+
+* the Codex hook check warns again and follows plugin manifests ([47e499f](https://github.com/emsnoel/tandem/commit/47e499faeb33b1ee0b21b3c57edecf2a29ed22db))
+
 ## [0.11.1](https://github.com/emsnoel/tandem/compare/v0.11.0...v0.11.1) (2026-11-14)
 
 
