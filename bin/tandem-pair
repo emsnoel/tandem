@@ -222,6 +222,20 @@ record_builder
 record_reviewer
 start_bridge
 
+# The panes are read last, so a dialog in each is reported in one run.
+if (( ! DRY_RUN )); then
+  check_ready "$BUILDER_NAME" builder "$BUILDER_PANE"
+  [[ -z "$REVIEWER_PANE" ]] || check_ready "$REVIEWER_NAME" reviewer "$REVIEWER_PANE"
+  if (( NOT_READY )); then
+    if [[ "${HERDR_SKIP_HOOK_CHECK:-}" == 1 ]]; then
+      info "panes at a dialog overridden (HERDR_SKIP_HOOK_CHECK=1). A prompt sent to one is lost."
+    else
+      printf '\ntandem-pair: the pair is not ready. Run tandem-pair again once each pane is at its prompt.\n' >&2
+      exit 23
+    fi
+  fi
+fi
+
 printf '\n'
 info "pair ready: planner $PLANNER_PANE, builder $BUILDER_PANE${REVIEWER_PANE:+, reviewer $REVIEWER_PANE}."
 info "hand over a plan with: tandem-handoff"

@@ -22,11 +22,6 @@ const (
 	RelayName       = ".tandem-relay"
 	legacyRelayName = ".herdr-relay"
 
-	// HookBaseline is the copy of Codex's hook configuration tandem records in
-	// $CODEX_HOME to detect later edits.
-	HookBaselineName       = ".tandem-hook-baseline"
-	legacyHookBaselineName = ".herdr-hook-baseline"
-
 	// CopilotTrustLedgerName records the folders tandem added to Copilot's
 	// trustedFolders, so a teardown removes only those.
 	CopilotTrustLedgerName = ".tandem-trusted"
@@ -96,23 +91,6 @@ func Relay(root string) string { return pick(root, RelayName, legacyRelayName) }
 // LegacyBuildRecord is where the removed legacy engine kept its build record
 // in relay. It only names the path. Nothing reads that file.
 func LegacyBuildRecord(relay string) string { return filepath.Join(relay, "build", "build.json") }
-
-// HookBaseline resolves the recorded Codex hook baseline under codexHome.
-func HookBaseline(codexHome string) string {
-	return pick(codexHome, HookBaselineName, legacyHookBaselineName)
-}
-
-// CodexHome locates Codex's home directory: $CODEX_HOME, else ~/.codex.
-// It returns "" when neither is available, and callers must report that.
-func CodexHome() string {
-	if h := os.Getenv("CODEX_HOME"); h != "" {
-		return h
-	}
-	if h, err := os.UserHomeDir(); err == nil && h != "" {
-		return filepath.Join(h, ".codex")
-	}
-	return ""
-}
 
 // CopilotHome locates Copilot's home directory: $COPILOT_HOME, else ~/.copilot.
 // It returns "" when neither is available, and callers must report that.

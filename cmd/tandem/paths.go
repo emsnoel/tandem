@@ -14,7 +14,7 @@ import (
 // share internal/paths' legacy-name rule instead of restating it. It prints a
 // bare path, since every caller assigns it to a variable.
 func cmdPaths(args []string) int {
-	const usage = "usage: tandem paths <manifest|relay|hook-baseline> [--root DIR] [--codex-home DIR]\n" +
+	const usage = "usage: tandem paths <manifest|relay> [--root DIR]\n" +
 		"       tandem paths manifest --from DIR   (nearest manifest at or above DIR, bounded by DIR's git toplevel)"
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, usage)
@@ -26,7 +26,6 @@ func cmdPaths(args []string) int {
 	fs.SetOutput(os.Stderr)
 	root := fs.String("root", ".", "repository root")
 	from := fs.String("from", "", "manifest only: search upward from DIR for the nearest manifest, bounded by DIR's git toplevel; mutually exclusive with --root")
-	codexHome := fs.String("codex-home", "", "Codex home (default $CODEX_HOME, else ~/.codex)")
 	if err := fs.Parse(args[1:]); err != nil {
 		return exitcode.Usage
 	}
@@ -70,16 +69,6 @@ func cmdPaths(args []string) int {
 		fmt.Println(m)
 	case "relay":
 		fmt.Println(paths.Relay(absRoot))
-	case "hook-baseline":
-		home := *codexHome
-		if home == "" {
-			home = paths.CodexHome()
-		}
-		if home == "" {
-			fmt.Fprintln(os.Stderr, "tandem: cannot locate a Codex home; pass --codex-home")
-			return exitcode.Internal
-		}
-		fmt.Println(paths.HookBaseline(home))
 	default:
 		fmt.Fprintf(os.Stderr, "tandem paths: unknown file %q\n%s\n", which, usage)
 		return exitcode.Usage

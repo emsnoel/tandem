@@ -127,21 +127,13 @@ func TestManualGateFailsForBuilderWarnsForPlanner(t *testing.T) {
 	}
 }
 
-// copilot's gate may write copilot's config when authorised, and codex's hook
-// gate records a baseline once every hook is accepted. Doctor runs both dry,
-// so nothing appears on disk.
+// copilot's gate may write copilot's config when authorised, and codex's may
+// write codex's. Doctor runs both dry, so nothing appears on disk.
 func TestDryRunWritesNothing(t *testing.T) {
 	root := isolate(t, codexRepo)
 	codexHome := os.Getenv("CODEX_HOME")
-	hooksFile := filepath.Join(codexHome, "hooks.json")
-	cfg := `[hooks.state."` + hooksFile + `:session_start:0:0"]` + "\ntrusted_hash = \"sha256:aaa\"\n"
-	for name, body := range map[string]string{"config.toml": cfg, "hooks.json": `{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"true"}]}]}}`} {
-		if err := os.WriteFile(filepath.Join(codexHome, name), []byte(body), 0o600); err != nil {
-			t.Fatal(err)
-		}
-	}
 	repoResults(t, root, RoleFlags{Builder: config.Overrides{Kind: "copilot"}, Reviewer: config.Overrides{Kind: "codex"}})
-	for home, want := range map[string]int{os.Getenv("COPILOT_HOME"): 0, codexHome: 2} {
+	for home, want := range map[string]int{os.Getenv("COPILOT_HOME"): 0, codexHome: 0} {
 		entries, err := os.ReadDir(home)
 		if err != nil {
 			t.Fatal(err)
@@ -149,20 +141,6 @@ func TestDryRunWritesNothing(t *testing.T) {
 		if len(entries) != want {
 			t.Errorf("doctor wrote into %s: %v", home, entries)
 		}
-	}
-}
-
-func TestAnUnacceptedHookWarns(t *testing.T) {
-	root := isolate(t, codexRepo)
-	codexHome := os.Getenv("CODEX_HOME")
-	for name, body := range map[string]string{"config.toml": "\n", "hooks.json": `{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"true"}]}]}}`} {
-		if err := os.WriteFile(filepath.Join(codexHome, name), []byte(body), 0o600); err != nil {
-			t.Fatal(err)
-		}
-	}
-	flags := RoleFlags{Builder: config.Overrides{Kind: "codex"}}
-	if r := find(t, repoResults(t, root, flags), "trust:codex:hook-acceptance"); r.Status != Warn || r.Fix == "" {
-		t.Fatalf("the hook check is a guess and only warns: %+v", r)
 	}
 }
 

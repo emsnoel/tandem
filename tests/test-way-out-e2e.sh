@@ -120,9 +120,14 @@ esac
 exec "$TMP/bin/herdr.fake" "\$@"
 STUB
 chmod +x "$TMP/bin/herdr"
+# pair [ENV=VALUE ...]: CODEX_HOME is the test's own, because pairing records
+# the repo in Codex's trusted projects.
 pair() {
   (cd "$REPO" && env PATH="$TMP/bin:$ROOT_DIR/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$REPO" TANDEM_STATE_HOME="$TMP/state" HERDR_ENV=1 HERDR_PANE_ID=w1:planner \
-    HERDR_SKIP_HOOK_CHECK=1 HERDR_PAIR_START_TIMEOUT_MS=1000 "$ROOT_DIR/bin/tandem-pair" --skip-doctor --builder codex --cwd "$REPO" 2>&1)
+    CODEX_HOME="$TMP/codex" HERDR_PAIR_START_TIMEOUT_MS=1000 "$@" "$ROOT_DIR/bin/tandem-pair" --skip-doctor --builder codex --cwd "$REPO" 2>&1)
+}
+stop_bridge() {
+  BP=$(cat "$REPO/.tandem-relay/bridge.pid" 2>/dev/null); [ -z "$BP" ] || { kill "$BP" 2>/dev/null; while kill -0 "$BP" 2>/dev/null; do sleep 0.1; done; }
 }
 RUN3=$(start_run)
 [[ "$RUN3" =~ ^[0-9a-f]{32}$ ]] || nope "start: $RUN3 $(cat "$TMP/err")"
@@ -132,13 +137,14 @@ printf 'builder\n' > "$FAKE/absent"
 td build stop --root "$REPO" >/dev/null 2>&1
 wait_paused; rc=$?
 [ "$rc" -eq 23 ] && [ "$(state)" = stopping/stopping ] && ok "the stop holds with the pane gone" || nope "wait rc $rc, state $(state)"
-OUT=$(pair); rc=$?
+OUT=$(pair HERDR_SKIP_HOOK_CHECK=1); rc=$?
 [ "$rc" -eq 0 ] && ok "tandem-pair runs on the stopping run" || nope "pair rc $rc: $OUT"
+grep -qF "$REPO" "$TMP/codex/config.toml" 2>/dev/null && ok "it records Codex's trust in the test's own home" || nope "no trust entry in $TMP/codex/config.toml"
 case "$(cat "$FAKE/pair.log")" in *"agent start builder"*) ok "it starts the builder again" ;; *) nope "pair.log: $(cat "$FAKE/pair.log")" ;; esac
 [ ! -e "$FAKE/absent" ] && ok "and the pane is back" || nope "still absent"
 # tandem-pair started the bridge. It would type notes into the fake's one shared
 # state, so it stops here and the test ticks by itself.
-BP=$(cat "$REPO/.tandem-relay/bridge.pid" 2>/dev/null); [ -z "$BP" ] || { kill "$BP" 2>/dev/null; while kill -0 "$BP" 2>/dev/null; do sleep 0.1; done; }
+stop_bridge
 fake_set_state idle
 wait_paused
 if [ "$(state)" != paused/stopped ]; then turn_ends; wait_paused; fi
@@ -148,6 +154,21 @@ EFFECT3=$(td state export --run "$RUN3" --output "$TMP/export3" --root "$REPO" |
 td state settle-delivery --run "$RUN3" --effect "$EFFECT3" --abandon --because gone --root "$REPO" >/dev/null 2>"$TMP/err" && ok "the prompt can be given up on" || nope "settle: $(cat "$TMP/err")"
 td state recover --run "$RUN3" --root "$REPO" >/dev/null 2>&1
 td state archive --run "$RUN3" --root "$REPO" >/dev/null 2>"$TMP/err" && ok "and the run reaches archived" || nope "archive: $(cat "$TMP/err")"
+
+printf '\n== tandem-pair reads each pane before it calls the pair ready ==\n'
+# Codex 0.167.0 opened on its hook review prompt, Herdr said idle, and the pair
+# was called ready. The first prompt sent to the pane was lost (F29).
+printf '  Hooks need review\n  6 hooks are new or changed.\n\n› 1. Review hooks\n  2. Trust all and continue\n\n  enter confirm · esc skip\n' > "$FAKE/pane"
+OUT=$(pair); rc=$?; stop_bridge
+[ "$rc" -eq 23 ] && ok "a builder at a dialog Herdr calls idle stops the pairing" || nope "pair rc $rc: $OUT"
+case "$OUT" in *"the builder is not at its prompt"*"Hooks need review"*) ok "naming the dialog" ;; *) nope "the dialog is not named: $OUT" ;; esac
+case "$OUT" in *"2. Trust all and continue"*"Answer it in pane w1:builder"*) ok "showing the screen and the pane to answer it in" ;; *) nope "no screen or pane: $OUT" ;; esac
+case "$OUT" in *"pair ready"*) nope "and still calls the pair ready: $OUT" ;; *) ok "and the pair is not called ready" ;; esac
+OUT=$(pair HERDR_SKIP_HOOK_CHECK=1); rc=$?; stop_bridge
+case "$rc:$OUT" in 0:*"overridden"*"pair ready"*) ok "HERDR_SKIP_HOOK_CHECK=1 pairs anyway and says so" ;; *) nope "override rc $rc: $OUT" ;; esac
+printf '› Ask Codex to do anything\n\n  ← for agents · ? for shortcuts\n' > "$FAKE/pane"
+OUT=$(pair); rc=$?; stop_bridge
+case "$rc:$OUT" in 0:*"pair ready"*) ok "with the dialog answered the same command pairs" ;; *) nope "answered rc $rc: $OUT" ;; esac
 
 printf '\ntests/test-way-out-e2e: passed %d, failed %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

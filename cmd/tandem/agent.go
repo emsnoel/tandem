@@ -156,6 +156,14 @@ func cmdAgent(args []string) int {
 		}
 		return agentAliveCmd(liveHerdrDeps(transportSpec{}), rest[0], failWithinFromEnv(), os.Stderr)
 	}
+	if sub == "ready" {
+		// tandem agent ready NAME: is the agent's pane at its own input?
+		if len(rest) != 1 {
+			fmt.Fprintln(os.Stderr, "usage: tandem agent ready NAME")
+			return exitcode.Usage
+		}
+		return agentReadyCmd(liveHerdrDeps(transportSpec{}), rest[0], readyWithin, os.Stderr)
+	}
 	if sub == "kinds" {
 		// One registered kind per line, sorted. tests/test-kind-drift.sh checks
 		// hand-written kind lists against it.
