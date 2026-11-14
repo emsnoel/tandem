@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/emsnoel/tandem/compare/v0.11.2...v0.12.0) (2026-11-14)
+
+
+### Features
+
+* read each pane before a pair is called ready ([6801473](https://github.com/emsnoel/tandem/commit/6801473fff46eeaa8bb44dd775f00f5044f9936b))
+
 ## [0.11.2](https://github.com/emsnoel/tandem/compare/v0.11.1...v0.11.2) (2026-11-14)
 
 
