@@ -101,6 +101,21 @@ check_alive() {
   exit 1
 }
 
+# check_ready NAME ROLE PANE: a CLI can open on a dialog that Herdr reports as
+# idle, and a prompt typed there is lost. `tandem agent ready` reads the screen.
+# Sets NOT_READY; the caller refuses once every pane has been looked at, so one
+# run names every dialog.
+NOT_READY=0
+check_ready() {
+  local name="$1" role="$2" pane="$3" out rc=0
+  out=$(tandem agent ready "$name" 2>&1) || rc=$?
+  (( rc == 23 )) || return 0
+  NOT_READY=1
+  printf '\ntandem-pair: the %s is not at its prompt: %s.\n\n' "$role" "$(printf '%s\n' "$out" | head -n 1 | cut -f2-)" >&2
+  printf '%s\n' "$out" | tail -n +2 | sed 's/^/    /' >&2
+  printf '\n  Answer it in pane %s.\n' "$pane" >&2
+}
+
 # read_resolve: read `tandem config resolve --fields` from $FIELDS into R_*.
 read_resolve() {
   R_STATUS=""; R_REASON=""; R_KIND=""; R_MODEL=""; R_EFFORT=""; R_AUTONOMY=""

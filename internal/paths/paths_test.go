@@ -24,7 +24,6 @@ func TestResolutionPrefersCurrentAndFallsBackToLegacy(t *testing.T) {
 	}{
 		{"manifest", Manifest, ManifestName, legacyManifestName},
 		{"relay", Relay, RelayName, legacyRelayName},
-		{"hook baseline", HookBaseline, HookBaselineName, legacyHookBaselineName},
 	}
 	for _, c := range cases {
 		t.Run(c.name+"/empty writes the current name", func(t *testing.T) {

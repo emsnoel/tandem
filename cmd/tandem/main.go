@@ -28,8 +28,6 @@ func run(args []string) int {
 		return cmdPane(args[1:])
 	case "tab":
 		return cmdTab(args[1:])
-	case "hooks":
-		return cmdHooks(args[1:])
 	case "gate":
 		return cmdGate(args[1:])
 	case "config":

@@ -102,7 +102,7 @@ with `kind: "codex"`, is there because reviews and builds refuse without one.
 
 ### Files renamed from `herdr-`
 
-Three of tandem's files were named after Herdr before tandem had its own name. Existing
+Two of tandem's files were named after Herdr before tandem had its own name. Existing
 repos and machines already have them, so for each one tandem uses **the new name, unless
 only the old one exists**:
 
@@ -110,7 +110,6 @@ only the old one exists**:
 | --- | --- | ----- |
 | `.tandem.json` | `.herdr.json` | The repo root. This is the manifest described above |
 | `.tandem-relay/` | `.herdr-relay/` | The repo root. This is the mailbox. A builder paired from a subfolder also gets one there, holding its identity and reviews (see `guide/design.md`) |
-| `.tandem-hook-baseline` | `.herdr-hook-baseline` | `$CODEX_HOME` |
 
 tandem migrates nothing. A repo that has `.herdr.json` keeps using it, and
 `tandem-init --force` rewrites that same file instead of creating a second manifest that
@@ -119,7 +118,6 @@ disagrees with it. Ask tandem which file is in use instead of guessing:
 ```bash
 tandem paths manifest        # the manifest for this repo
 tandem paths relay           # the mailbox folder
-tandem paths hook-baseline   # the recorded Codex hook baseline
 ```
 
 **If your repo still has `.herdr.json`, edit that file. Don't create a `.tandem.json` beside

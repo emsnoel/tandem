@@ -141,3 +141,72 @@ func TestPromptAsTypesNothingIntoAnyKindsChildScreen(t *testing.T) {
 		}
 	}
 }
+
+// Codex's screens, cut down from internal/agent/testdata/screens.
+const (
+	codexHooksScreen = "  Hooks need review\n  6 hooks are new or changed.\n\n› 1. Review hooks\n  2. Trust all and continue\n\n  enter confirm · esc skip\n"
+	codexMainScreen  = "› Ask Codex to do anything\n\n  ← for agents · ? for shortcuts\n"
+)
+
+// Codex 0.167.0 opened on its hook review prompt, Herdr said idle, and the
+// pair was called ready (F29). The pane is read before a pair is called ready.
+func TestAgentReadyRefusesAPaneAtADialogHerdrCallsIdle(t *testing.T) {
+	p := newPane("idle")
+	p.kind = "codex"
+	p.screens = []string{codexHooksScreen}
+	var errb bytes.Buffer
+	code := agentReadyCmd(p.deps(), "builder", readyWithin, &errb)
+	if code != exitcode.ManualGate || !strings.HasPrefix(errb.String(), "agent_not_at_input\t") {
+		t.Fatalf("exit %d stderr %q", code, errb.String())
+	}
+	for _, want := range []string{"Hooks need review", "2. Trust all and continue"} {
+		if !strings.Contains(errb.String(), want) {
+			t.Errorf("stderr should name the dialog and show the screen (%q): %q", want, errb.String())
+		}
+	}
+	if len(p.prompts) != 0 {
+		t.Errorf("typed %v", p.prompts)
+	}
+}
+
+func TestAgentReadyPassesAPaneAtItsInput(t *testing.T) {
+	p := newPane("idle")
+	p.kind = "codex"
+	p.screens = []string{codexMainScreen}
+	var errb bytes.Buffer
+	if code := agentReadyCmd(p.deps(), "builder", readyWithin, &errb); code != exitcode.OK || errb.Len() != 0 {
+		t.Fatalf("exit %d stderr %q", code, errb.String())
+	}
+}
+
+// A pane still drawing gets a moment: the dialog a CLI opens on can close by
+// itself, as a splash screen does.
+func TestAgentReadyWaitsForTheInputToAppear(t *testing.T) {
+	p := newPane("idle")
+	p.kind = "codex"
+	p.screens = []string{codexHooksScreen, codexMainScreen}
+	if code := agentReadyCmd(p.deps(), "builder", readyWithin, io.Discard); code != exitcode.OK {
+		t.Fatalf("exit %d", code)
+	}
+}
+
+// A dialog Herdr reports itself is refused too, whatever the screen reads as.
+func TestAgentReadyRefusesAPaneHerdrCallsBlocked(t *testing.T) {
+	p := newPane("blocked")
+	p.screens = []string{"Do you trust the files in this folder?\n"}
+	var errb bytes.Buffer
+	code := agentReadyCmd(p.deps(), "reviewer", readyWithin, &errb)
+	if code != exitcode.ManualGate || !strings.Contains(errb.String(), "Do you trust the files") {
+		t.Fatalf("exit %d stderr %q", code, errb.String())
+	}
+}
+
+// A screen nothing recognises passes: a wrong refusal would stop every pairing.
+func TestAgentReadyPassesAScreenItDoesNotKnow(t *testing.T) {
+	p := newPane("idle")
+	p.kind = "codex"
+	p.screens = []string{"a screen from a later release\n"}
+	if code := agentReadyCmd(p.deps(), "builder", readyWithin, io.Discard); code != exitcode.OK {
+		t.Fatalf("exit %d", code)
+	}
+}

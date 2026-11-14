@@ -59,8 +59,8 @@ func TestPrelaunchEmitsActionsAsJSON(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &doc); err != nil {
 		t.Fatalf("not JSON: %v\n%s", err, out)
 	}
-	if len(doc.Actions) != 2 {
-		t.Fatalf("codex has two gates; got %d", len(doc.Actions))
+	if len(doc.Actions) != 1 {
+		t.Fatalf("codex has one gate; got %d", len(doc.Actions))
 	}
 	for _, a := range doc.Actions {
 		if a.Gate == "" || a.Status == "" || a.Disposition == "" {
@@ -74,34 +74,6 @@ func TestPrelaunchKindWithNoGatesPasses(t *testing.T) {
 	rc := cmdPrelaunch([]string{"--role", "builder", "--kind", "nonesuch", "--cwd", t.TempDir()})
 	if rc != 0 {
 		t.Fatalf("got exit %d, want 0", rc)
-	}
-}
-
-// codexHomeWithUnacceptedHook gives a CODEX_HOME whose one hook source has no
-// hooks.state entry. HERDR_TANDEM_CONFIG is redirected so the resolution
-// prelaunch performs cannot read the operator's real user config.
-func codexHomeWithUnacceptedHook(t *testing.T) {
-	t.Helper()
-	home := t.TempDir()
-	for name, body := range map[string]string{
-		"config.toml": "\n",
-		"hooks.json":  `{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"true"}]}]}}`,
-	} {
-		if err := os.WriteFile(filepath.Join(home, name), []byte(body), 0o600); err != nil {
-			t.Fatal(err)
-		}
-	}
-	t.Setenv("CODEX_HOME", home)
-	t.Setenv("HERDR_TANDEM_CONFIG", filepath.Join(t.TempDir(), "tandem.json"))
-}
-
-// The hook check is a guess from Codex's files, so it warns and pairing goes on.
-func TestPrelaunchOnlyWarnsAboutUnacceptedHooks(t *testing.T) {
-	codexHomeWithUnacceptedHook(t)
-	for _, role := range []string{"builder", "reviewer", "planner"} {
-		if rc := cmdPrelaunch([]string{"--role", role, "--kind", "codex", "--cwd", t.TempDir()}); rc != 0 {
-			t.Errorf("%s: got exit %d, want 0", role, rc)
-		}
 	}
 }
 

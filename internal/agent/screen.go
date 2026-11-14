@@ -9,7 +9,8 @@ import (
 // own conversation's input, so typed text would not start a turn there. why
 // describes the screen for a person.
 //
-// Herdr reads each of these as idle or working, never blocked:
+// Herdr reads each of these as idle or working, never blocked (but for
+// Codex's update prompt, which is named so a refusal can say what it is):
 //
 //   - claude, a subagent's screen: input goes to that subagent.
 //   - claude, the agent list or /tasks: Enter picks a row and the text stays
@@ -17,6 +18,8 @@ import (
 //   - claude, an earlier prompt recalled with Up: new text joins it.
 //   - codex, a sub-agent's thread: input is disabled.
 //   - codex, the agent command center: Enter opens another session.
+//   - codex, the "Hooks need review" prompt at startup and the hooks screens
+//     behind it: Enter picks a row, t trusts every hook.
 //   - copilot, a subagent's screen: input goes to that subagent.
 //   - copilot, its task list, focused sidebar and Sessions tab: single keys
 //     act there (x kills a task, enter opens one). Herdr reads the Sessions
@@ -31,19 +34,54 @@ func OffMainInput(kind, screen string) (why string, off bool) {
 	case "claude":
 		return claudeOffMain(lines)
 	case "codex":
-		for _, l := range lines {
-			t := strings.TrimSpace(l)
-			switch {
-			case strings.HasPrefix(t, "Agent command center"):
-				return "the agent command center, where Enter opens a session", true
-			case strings.HasPrefix(t, "›") && strings.Contains(t, "Viewing sub-agent"):
-				return "a sub-agent's thread, whose input is disabled", true
-			}
-		}
+		return codexOffMain(lines)
 	case "copilot":
 		return copilotOffMain(bottomLines(lines, 2))
 	}
 	return "", false
+}
+
+// codexOffMain reads Codex's screen. A dialog names its keys on the last line
+// and always offers Esc ("enter confirm · esc skip"); the main input's last
+// line never does. Only that line marks a dialog, because the transcript above
+// the input can quote any of this text. What the dialog is comes from its body.
+func codexOffMain(lines []string) (string, bool) {
+	has := func(prefix string) bool {
+		for _, l := range lines {
+			if strings.HasPrefix(strings.TrimSpace(l), prefix) {
+				return true
+			}
+		}
+		return false
+	}
+	for _, l := range lines {
+		t := strings.TrimSpace(l)
+		switch {
+		case strings.HasPrefix(t, "Agent command center"):
+			return "the agent command center, where Enter opens a session", true
+		case strings.HasPrefix(t, "›") && strings.Contains(t, "Viewing sub-agent"):
+			return "a sub-agent's thread, whose input is disabled", true
+		}
+	}
+	bottom := bottomLines(lines, 1)
+	if len(bottom) == 0 {
+		return "", false
+	}
+	keys := strings.TrimSpace(bottom[0])
+	if !strings.Contains(keys, "· esc ") {
+		return "", false
+	}
+	switch {
+	case has("Hooks need review"):
+		return "Codex's \"Hooks need review\" prompt, which waits for an answer", true
+	case has("Update available"):
+		return "Codex's \"Update available\" prompt, which waits for an answer", true
+	case strings.Contains(keys, "toggle"):
+		return "a hook list, where Space and Enter turn a hook on or off", true
+	case has("Lifecycle hooks"):
+		return "its hooks screen, where single keys act (t trusts every hook)", true
+	}
+	return fmt.Sprintf("a dialog that has the keys (%q)", keys), true
 }
 
 // copilotOffMain reads Copilot's footer, which names the keys of whatever

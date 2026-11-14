@@ -63,11 +63,6 @@ reports. A test runs `go list -deps` to make sure `internal/gate` never reaches 
 or the herdr package, even indirectly. So the gates can be tested with no terminal, no
 server and no filesystem.
 
-`internal/hooks` holds the Codex hook-trust classification. It replaced a bash test file
-with 20 checks, which copied `codex_hook_trust()` out of the script the same way
-`test-relay-ignore.sh` does. The Go tests keep the same 20 checks as `t.Run` subtests, plus
-one for a machine that still has a baseline from before the rename.
-
 ## Measuring token use
 
 `tandem usage ROLLOUT.jsonl...` reads Codex session logs. For each phase, meaning each
@@ -102,7 +97,6 @@ internal/
   mailwatch/  wakes a waiter when a message lands in a relay queue or a named file
               changes (fsnotify). A wake is a hint, and the caller still lists the folder
   gate/       the teardown verdicts. Pure: no exec, no herdr, no terminal
-  hooks/      Codex hook-trust classification. Pure
   mailbox/    snapshots of handback reports. Reads files, and never runs commands
   vcs/        `git status --porcelain`, and the per-file hashes that show which files a
               build task changed

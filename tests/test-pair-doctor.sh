@@ -111,7 +111,7 @@ lack "an old binary's usage text is not shown" "$OUT" "unknown subcommand"
 # Doctor already showed the gates that warn, so tandem-pair asks prelaunch
 # only for the ones that just acted or failed to write, unless doctor was
 # skipped. tandem decides which gates those are (TestPrelaunchFieldsShowNew).
-PRELAUNCH_OUT='hook-acceptance|warning|GATE-WARNED|GATE-REMEDY|project-trust|applied|GATE-ACTED||'
+PRELAUNCH_OUT='some-gate|warning|GATE-WARNED|GATE-REMEDY|project-trust|applied|GATE-ACTED||'
 PRELAUNCH_OUT="$PRELAUNCH_OUT" pair 0 --builder claude --reviewer claude
 chk "after doctor, prelaunch reports only new gates" "$(cat "$DOCTOR_LOG.prelaunch")" "--fields --show new"
 chk "a reported gate is shown" "$OUT" "GATE-ACTED"
