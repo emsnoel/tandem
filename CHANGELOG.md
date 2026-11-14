@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/emsnoel/tandem/compare/v0.10.0...v0.11.0) (2026-11-14)
+
+
+### Features
+
+* ship a tandem-plan skill for the planner ([f25908e](https://github.com/emsnoel/tandem/commit/f25908ed6fca3ebe1da8864f7409cf483bf5e905))
+
 ## [0.10.0](https://github.com/emsnoel/tandem/compare/v0.9.0...v0.10.0) (2026-11-14)
 
 
