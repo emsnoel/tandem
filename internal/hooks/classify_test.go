@@ -9,6 +9,9 @@ import (
 	"github.com/emsnoel/tandem/internal/paths"
 )
 
+// changedHook is a hook file whose bytes differ from the fixtures'.
+const changedHook = `{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"false"}]}]}}`
+
 func writeFixture(t *testing.T, path, contents string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -26,8 +29,8 @@ func mkhome(t *testing.T, pluginTrusted bool) string {
 	h := t.TempDir()
 	user := filepath.Join(h, "hooks.json")
 	plugin := filepath.Join(h, "plugins", "cache", "mkt", "plug", "1.0.0", "hooks", "hooks.json")
-	writeFixture(t, user, `{"hooks":{"SessionStart":[]}}`+"\n")
-	writeFixture(t, plugin, `{"hooks":{"Stop":[]}}`+"\n")
+	writeFixture(t, user, `{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"true"}]}]}}`+"\n")
+	writeFixture(t, plugin, `{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"true"}]}]}}`+"\n")
 	cfg := `[plugins."plug@mkt"]` + "\nenabled = true\n\n" +
 		`[hooks.state."` + user + `:session_start:0:0"]` + "\n" +
 		`trusted_hash = "sha256:aaa"` + "\n\n"
@@ -151,13 +154,13 @@ func TestHookClassificationPortPreservesTwentyAssertions(t *testing.T) {
 	t.Run("detects changed hook", func(t *testing.T) {
 		h := mkhome(t, true)
 		Classify(h)
-		writeFixture(t, filepath.Join(h, "plugins", "cache", "mkt", "plug", "1.0.0", "hooks", "hooks.json"), `{"changed":true}`)
+		writeFixture(t, filepath.Join(h, "plugins", "cache", "mkt", "plug", "1.0.0", "hooks", "hooks.json"), changedHook)
 		finding(t, Classify(h))
 	})
 	t.Run("names changed kind", func(t *testing.T) {
 		h := mkhome(t, true)
 		Classify(h)
-		writeFixture(t, filepath.Join(h, "hooks.json"), `{"changed":true}`)
+		writeFixture(t, filepath.Join(h, "hooks.json"), changedHook)
 		if got := finding(t, Classify(h)).Kind; got != "changed" {
 			t.Fatalf("want changed, got %q", got)
 		}
@@ -166,7 +169,7 @@ func TestHookClassificationPortPreservesTwentyAssertions(t *testing.T) {
 		h := mkhome(t, true)
 		Classify(h)
 		p := filepath.Join(h, "hooks.json")
-		writeFixture(t, p, `{"changed":true}`)
+		writeFixture(t, p, changedHook)
 		if got := finding(t, Classify(h)).Path; got != p {
 			t.Fatalf("want %q, got %q", p, got)
 		}
@@ -179,7 +182,7 @@ func TestHookClassificationPortPreservesTwentyAssertions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("no baseline to compare against: %v", err)
 		}
-		writeFixture(t, filepath.Join(h, "hooks.json"), `{"changed":true}`)
+		writeFixture(t, filepath.Join(h, "hooks.json"), changedHook)
 		Classify(h)
 		after, _ := os.ReadFile(base)
 		if string(after) != string(before) {

@@ -85,7 +85,7 @@ func codexHomeWithUnacceptedHook(t *testing.T) {
 	home := t.TempDir()
 	for name, body := range map[string]string{
 		"config.toml": "\n",
-		"hooks.json":  `{"hooks":{"SessionStart":[]}}`,
+		"hooks.json":  `{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"true"}]}]}}`,
 	} {
 		if err := os.WriteFile(filepath.Join(home, name), []byte(body), 0o600); err != nil {
 			t.Fatal(err)
@@ -95,14 +95,12 @@ func codexHomeWithUnacceptedHook(t *testing.T) {
 	t.Setenv("HERDR_TANDEM_CONFIG", filepath.Join(t.TempDir(), "tandem.json"))
 }
 
-// Codex 0.167.0 opens on a hook review screen that Herdr reports as idle, so an
-// unattended pane is not launched into it. A planner has a person at the pane.
-func TestPrelaunchRefusesUnacceptedHooksForUnattendedRoles(t *testing.T) {
+// The hook check is a guess from Codex's files, so it warns and pairing goes on.
+func TestPrelaunchOnlyWarnsAboutUnacceptedHooks(t *testing.T) {
 	codexHomeWithUnacceptedHook(t)
-	for role, want := range map[string]int{"builder": 23, "reviewer": 23, "planner": 0} {
-		rc := cmdPrelaunch([]string{"--role", role, "--kind", "codex", "--cwd", t.TempDir()})
-		if rc != want {
-			t.Errorf("%s: got exit %d, want %d", role, rc, want)
+	for _, role := range []string{"builder", "reviewer", "planner"} {
+		if rc := cmdPrelaunch([]string{"--role", role, "--kind", "codex", "--cwd", t.TempDir()}); rc != 0 {
+			t.Errorf("%s: got exit %d, want 0", role, rc)
 		}
 	}
 }

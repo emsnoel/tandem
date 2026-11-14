@@ -135,7 +135,7 @@ func TestDryRunWritesNothing(t *testing.T) {
 	codexHome := os.Getenv("CODEX_HOME")
 	hooksFile := filepath.Join(codexHome, "hooks.json")
 	cfg := `[hooks.state."` + hooksFile + `:session_start:0:0"]` + "\ntrusted_hash = \"sha256:aaa\"\n"
-	for name, body := range map[string]string{"config.toml": cfg, "hooks.json": `{"hooks":{"SessionStart":[]}}`} {
+	for name, body := range map[string]string{"config.toml": cfg, "hooks.json": `{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"true"}]}]}}`} {
 		if err := os.WriteFile(filepath.Join(codexHome, name), []byte(body), 0o600); err != nil {
 			t.Fatal(err)
 		}
@@ -152,17 +152,17 @@ func TestDryRunWritesNothing(t *testing.T) {
 	}
 }
 
-func TestAnUnacceptedHookFails(t *testing.T) {
+func TestAnUnacceptedHookWarns(t *testing.T) {
 	root := isolate(t, codexRepo)
 	codexHome := os.Getenv("CODEX_HOME")
-	for name, body := range map[string]string{"config.toml": "\n", "hooks.json": `{"hooks":{"SessionStart":[]}}`} {
+	for name, body := range map[string]string{"config.toml": "\n", "hooks.json": `{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"true"}]}]}}`} {
 		if err := os.WriteFile(filepath.Join(codexHome, name), []byte(body), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
 	flags := RoleFlags{Builder: config.Overrides{Kind: "codex"}}
-	if r := find(t, repoResults(t, root, flags), "trust:codex:hook-acceptance"); r.Status != Fail || r.Fix == "" {
-		t.Fatalf("a builder would launch into the hook screen: %+v", r)
+	if r := find(t, repoResults(t, root, flags), "trust:codex:hook-acceptance"); r.Status != Warn || r.Fix == "" {
+		t.Fatalf("the hook check is a guess and only warns: %+v", r)
 	}
 }
 

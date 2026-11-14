@@ -9,7 +9,7 @@ can't clear one, it refuses to launch.
 | ---- | ------ | ---------------- |
 | codex | "Do you trust the files in this folder?" | Appends a marked `[projects."<cwd>"]` entry to `~/.codex/config.toml` |
 | codex | Approval dialogs for each command | Passes `--ask-for-approval never`, from `autonomy` |
-| codex | The "Hooks need review" screen, shown when Codex has hook sources it hasn't accepted. Herdr reports it as idle | Reports it and writes nothing. Pairing refuses with exit 23. Accept the hooks in Codex with `/hooks`, and pair again (see [Codex hooks](#codex-hooks)) |
+| codex | The "Hooks need review" screen, shown when Codex has hooks it hasn't accepted. Herdr reports it as idle | Warns before launch when Codex's files suggest it, and never refuses on that guess (see [Codex hooks](#codex-hooks)) |
 | claude | A trust dialog not yet accepted | Reports it and writes nothing. Claude Code owns and rewrites `~/.claude.json`, so tandem never touches it. Pairing refuses with exit 23. Run `claude` once in the folder, accept the dialog, and pair again |
 | copilot | "Do you trust the files in this folder?" | Adds a `trustedFolders` entry to `$COPILOT_HOME/config.json`, but only when you chose the copilot builder yourself. If the repository asked for it and you haven't approved that on this machine, tandem reports it instead, and pairing refuses with exit 23. Approve it once with `tandem-pair --approve-kind copilot`. tandem keeps the `//` comment banner and every other key. `tandem-unpair --clean-trust` removes the entry, but only if tandem added it |
 | copilot | The session-restore picker, which Herdr reports as idle | Passes `--session-id <fresh uuid>`, for the builder and reviewer only |
@@ -27,43 +27,45 @@ it safely on a real machine.
 
 ## Codex hooks
 
-Before it starts a Codex builder, `tandem-pair` also checks whether Codex has hook sources
-it hasn't accepted. Two examples are a newly enabled plugin that ships hooks, and a hook
-whose bytes changed since the last pairing. tandem doesn't try to recompute Codex's
-`trusted_hash`. Codex computes that value over an internal format, and a copy of that code
-would break without warning on a Codex update.
+Which hooks run in a Codex pane is your decision, and you make it in Codex. Run `/hooks`
+there and accept the ones you want. Codex remembers the answer, so every Codex pane tandem
+starts afterwards runs those hooks. tandem never accepts a hook for you.
 
-codex-cli 0.167.0 opens on a "Hooks need review" screen when it finds such a source. The
-screen offers to review the hooks, trust them all, or continue without trusting them. Herdr
-reports a pane on that screen as `idle`, so `tandem-pair` would say `pair ready` and the
-first prompt sent to the pane would be typed into the screen and lost. We measured this on
-2026-11-14 (F29 in `guide/design.md`). So the check reports `manual`, and pairing refuses a
-builder or a reviewer with exit 23. For a planner tandem only notes it, because someone is
-sitting at that pane.
+codex-cli 0.167.0 opens on a "Hooks need review" screen when it has hooks it hasn't
+accepted. The screen offers to review them, trust them all, or continue without trusting
+them. Herdr reports a pane on that screen as `idle`, so a prompt sent to it is typed into
+the screen and lost (F29 in `guide/design.md`). Versions 0.151.0 and 0.152.1 skipped such
+hooks without asking.
 
-Tests against codex-cli 0.151.0 and 0.152.1 showed that those versions skip an unaccepted
-hook without asking. Nobody has measured the versions between them and 0.167.0. tandem
-refuses on every version, because a refusal that turns out unnecessary costs one command and
-a pane stuck on a screen costs the run. The refusal prints the installed `codex --version`
-next to the measured versions.
+Before it starts a Codex pane, `tandem-pair` reads Codex's files and warns when a hook
+source looks unaccepted. That is a guess about what Codex will do, and it never stops a
+pairing. It has been wrong both ways: it missed hooks that 0.167.0 asked about, and it
+named a plugin that Codex loads no hooks from (F31). tandem doesn't try to recompute Codex's
+`trusted_hash` either. Codex computes that value over an internal format, and a copy of
+that code would break without warning on a Codex update.
 
-To clear the refusal, accept the sources in Codex with `/hooks`, then pair again. Choosing
-"Continue without trusting" on the screen clears it for that session only, and Codex then
-prints `Hook failed` after each step. To run the hooks without accepting them, for
-automation, put Codex's own flag in your user config, where a repository can't reach it:
+The check looks where Codex looks. For each enabled plugin it reads the `hooks` entry of
+`.codex-plugin/plugin.json`:
+
+| The manifest says | The hooks are in |
+| --- | --- |
+| nothing, or there is no manifest | `hooks/hooks.json` |
+| a path, such as `"./hooks/hooks.codex.json"` | that file |
+| an object, such as `{"hooks": {...}}` | the manifest itself |
+| an empty object, `{}` | nowhere: the plugin has no Codex hooks |
+
+A file with no hook in it is skipped, because Codex has nothing to accept there.
+
+To clear the warning, accept the hooks in Codex with `/hooks`. Choosing "Continue without
+trusting" on the screen clears it for that session only, and Codex then prints `Hook failed`
+after each step. To run the hooks without accepting them, for automation, put Codex's own
+flag in your user config, where a repository can't reach it:
 
 ```json
 { "adapters": { "codex": { "args": ["--dangerously-bypass-hook-trust"] } } }
 ```
 
 With that flag, every hook source Codex loads runs unchecked, for that run of Codex.
-
-```bash
-HERDR_SKIP_HOOK_CHECK=1 tandem-pair   # ignore a refusing check and pair anyway
-```
-
-With that variable set, tandem launches into the screen and you clear it in each pane
-yourself. It does not make the hooks run.
 
 If the check can't read the config or doesn't recognise its layout, it says nothing and
 doesn't block pairing.
