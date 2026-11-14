@@ -24,6 +24,32 @@ The builder reads a plan with none of the conversation that produced it. State t
 the constraints, and what "done" looks like. Say what the builder must not touch, because
 it can't work out the scope from a conversation it never saw.
 
+`install.sh` links a `tandem-plan` skill into the planner CLI's skills folder. It carries
+the rules on this page, so a planner loads them when it starts to write a plan.
+
+### Tasks and their metadata
+
+tandem splits the plan at headings of the form `### Task 1: title`, at level 2, 3 or 4,
+all at the same level. Everything above the first task heading is repeated in every task
+prompt as constraints, so keep it short. Each task must fit `context_limit` together with
+that opening.
+
+A task can carry up to four metadata lines directly under its heading, with no blank line
+between:
+
+```
+### Task 2: Persist the receipt
+Task-ID: receipt-store
+Depends-On: event-envelope
+Paths: internal/state
+Outputs: receipt-schema
+```
+
+`Task-ID` is one id made of lowercase letters, digits and hyphens. The other three take
+comma-separated lists. tandem uses them to choose what a later task is shown from earlier
+ones. A misspelt field name stops `tandem build start` with a diagnostic. A plan with no
+metadata runs its tasks in order, each depending on the one before.
+
 ### What review will reject
 
 The reviewer checks every plan before it is built (see

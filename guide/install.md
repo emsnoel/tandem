@@ -13,6 +13,9 @@ This installs the latest release. You need `curl`, `tar` and `shasum` (or
    `TANDEM_SHARE_DIR` to put it somewhere else.
 4. It points `~/.local/share/tandem/current` at that version, and links the `tandem` binary
    and the thirteen commands from `~/.local/bin` into it.
+5. It links the `tandem-plan` skill into `~/.claude/skills` and `~/.copilot/skills`, for
+   each of those CLIs that has a home folder. The skill tells a planner how to write a
+   plan that tandem can review and build. A skill of that name that you wrote is kept.
 
 The installer replaces nothing until the download passes its checksum and the new binary
 runs. If an upgrade fails, the old version keeps working.
@@ -76,7 +79,8 @@ curl -fsSL https://raw.githubusercontent.com/emsnoel/tandem/main/install.sh | ba
 
 From a checkout, run `./install.sh --uninstall`. If you installed somewhere other than
 `~/.local/bin`, pass that folder too. The uninstaller removes the command links and the
-release folder, or the source build, and nothing else in that folder.
+release folder, or the source build, and nothing else in that folder. It also removes the
+skill links the install made.
 
 It keeps these, and names each one:
 
