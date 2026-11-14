@@ -42,7 +42,7 @@ for want in tandem/tandem tandem/bin/tandem-pair tandem/bin/lib/reviewer.sh \
             tandem/bin/lib/unpair-gates.sh tandem/bin/lib/unpair-refusals.sh \
             tandem/bin/lib/unpair-close.sh tandem/bin/tandem-handoff \
             tandem/bin/lib/handoff-gate.sh tandem/bin/lib/handoff-start.sh \
-            tandem/bin/tandem-handback \
+            tandem/bin/tandem-handback tandem/bin/lib/planner-name.sh \
             tandem/bin/lib/handback-task.sh tandem/bin/lib/handback-deliver.sh \
             tandem/bin/lib/handback-prompt.txt tandem/bin/tandem-ask tandem/bin/lib/ask-mailbox.sh \
             tandem/bin/tandem-review tandem/bin/lib/review-deliver.sh tandem/bin/lib/review-classes.txt \

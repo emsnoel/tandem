@@ -95,13 +95,14 @@ pair_start() {
   # shellcheck disable=SC2016 # the inner script expands its own arguments
   "${BENV[@]}" bash -c '
     info() { printf "tandem-pair: %s\n" "$*"; }; die() { info "$*"; exit 1; }
-    . "$1/bin/lib/relay.sh"; . "$1/bin/lib/pair-records.sh"; . "$1/bin/lib/bridge-lock.sh"
-    DRY_RUN=0 MB_ROOT="$2" BCWD="$2" PLANNER_NAME=planner; start_bridge' _ "$ROOT_DIR" "$R" 2>&1
+    . "$1/bin/lib/relay.sh"; . "$1/bin/lib/pair-records.sh"; . "$1/bin/lib/bridge-lock.sh"; . "$1/bin/lib/planner-name.sh"
+    DRY_RUN=0 MB_ROOT="$2" BCWD="$2" PLANNER_NAME=planner-3; start_bridge' _ "$ROOT_DIR" "$R" 2>&1
 }
 OUT=$(pair_start)
 PAIRED=$(cat "$MB/bridge.pid" 2>/dev/null)
 has "it starts a bridge when none runs" "$OUT" "relay bridge started (pid $PAIRED)"
 kill -0 "$PAIRED" 2>/dev/null && ok "and that bridge runs" || nope "no bridge at pid $PAIRED: $OUT"
+[ "$(cat "$MB/planner-name" 2>/dev/null)" = planner-3 ] && ok "it records the planner's name for the other panes" || nope "planner-name: $(cat "$MB/planner-name" 2>/dev/null)"
 OUT=$(pair_start)
 has "a second pair reuses it" "$OUT" "relay bridge already running (pid $PAIRED)"
 [ "$(bridges)" = 1 ] && ok "and starts no second bridge" || nope "bridges: $(pgrep -fl "tandem-bridge --mailbox $MB")"

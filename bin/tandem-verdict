@@ -18,8 +18,9 @@ while [[ -L "$_self" ]]; do
 done
 # shellcheck source=lib/reviewer.sh
 . "${_self%/*}/lib/reviewer.sh"
+# shellcheck source=lib/planner-name.sh
+. "${_self%/*}/lib/planner-name.sh"
 
-PLANNER_NAME="${HERDR_PLANNER_NAME:-planner}"
 PLAN=""; REVIEW=""; VERDICT=""; ROLE=""; ROLE_SET=0
 
 usage() {
@@ -93,6 +94,7 @@ fi
 [[ -n "$ROOT" ]] || die "could not resolve a project root for $PWD."
 
 MAILBOX=$(tandem paths relay --root "$ROOT") || die "could not resolve the relay mailbox."
+PLANNER_NAME=$(planner_name "$MAILBOX")
 
 # Same id shape as tandem-handback.
 ID="$(date +%Y%m%d-%H%M%S)-$$-$RANDOM"
