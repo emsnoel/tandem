@@ -93,12 +93,10 @@ func (g codexProjectTrust) Check(cwd string, _ agent.Role, opts Options) agent.A
 // Report, never Apply: Codex's trusted_hash is over an internal canonical form
 // that a reimplementation would break on upgrade.
 //
-// Manual: codex-cli 0.167.0 opens on a "Hooks need review" screen when a
-// source is unaccepted. Herdr reports that screen as idle, so an unattended
-// pane loses the first prompt sent to it. 0.151.0 and 0.152.1 skipped the hook
-// without asking; nothing between them and 0.167.0 was measured, and a refusal
-// that turns out unnecessary costs one command, while a stall costs the run.
-// The remedy names the installed `codex --version` beside the measured ones.
+// Warning, never Manual. The finding is a guess from Codex's files about what
+// Codex will ask, and it has been wrong both ways: it missed hooks 0.167.0
+// asked about, and it named a plugin Codex never loads hooks from (F29, F31).
+// A guess does not stop a launch.
 type codexHookAcceptance struct{}
 
 // codexVersion returns the trimmed `codex --version` output, or "" if it cannot
@@ -144,18 +142,15 @@ func (g codexHookAcceptance) Check(_ string, _ agent.Role, opts Options) agent.A
 	}
 	detail := fmt.Sprintf("%d unaccepted hook source(s): %s", len(findings), strings.Join(paths, "; "))
 
-	measured := "measured on codex-cli 0.167.0; 0.151.0 and 0.152.1 skipped the hook without asking"
+	version := "the installed CLI's version could not be read"
 	if v := codexVersion(); v != "" {
-		measured += "; the installed CLI reports \"" + v + "\""
-	} else {
-		measured += "; the installed CLI's version could not be read"
+		version = "the installed CLI reports \"" + v + "\""
 	}
-
-	remedy := "Codex opens on a \"Hooks need review\" screen, which Herdr reports as idle, so the " +
-		"first prompt sent to the pane is lost (" + measured + "). Accept the hooks in Codex " +
-		"with /hooks and pair again; or add \"--dangerously-bypass-hook-trust\" to " +
-		"adapters.codex.args in ~/.config/herdr/tandem.json to run them unaccepted, which " +
-		"trusts every hook source Codex loads. HERDR_SKIP_HOOK_CHECK=1 launches anyway, and " +
-		"you then clear the screen in the pane yourself."
-	return set(agent.StatusManual, detail, remedy)
+	remedy := "Codex may open on a \"Hooks need review\" screen and wait for you there " +
+		"(codex-cli 0.167.0 does; 0.151.0 and 0.152.1 skipped the hook without asking; " +
+		version + "). Accept the hooks in Codex with /hooks; or add " +
+		"\"--dangerously-bypass-hook-trust\" to adapters.codex.args in " +
+		"~/.config/herdr/tandem.json to run them unaccepted, which trusts every hook source " +
+		"Codex loads. This check reads Codex's files and can be wrong, so it never stops a pairing."
+	return set(agent.StatusWarning, detail, remedy)
 }

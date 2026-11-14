@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/emsnoel/tandem/internal/paths"
-	"strings"
 )
 
 // Finding is a hook source Codex has never reviewed, or one whose bytes have
@@ -17,58 +17,6 @@ import (
 type Finding struct {
 	Kind string
 	Path string
-}
-
-// Source pairs the key Codex stores in hooks.state with the hook file it loads.
-type Source struct {
-	Key  string
-	Path string
-}
-
-// Sources returns the user hook file and hook files belonging to configured
-// plugins. Unknown cache layouts and stale cache entries are ignored.
-func Sources(codexHome string) []Source {
-	cfg, err := os.ReadFile(filepath.Join(codexHome, "config.toml"))
-	if err != nil {
-		// An unreadable config means no sources found; see Classify.
-		return nil
-	}
-
-	var sources []Source
-	user := filepath.Join(codexHome, "hooks.json")
-	if regularFile(user) {
-		sources = append(sources, Source{Key: user, Path: user})
-	}
-
-	pattern := filepath.Join(codexHome, "plugins", "cache", "*", "*", "*", "hooks", "hooks.json")
-	files, err := filepath.Glob(pattern)
-	if err != nil {
-		return nil
-	}
-	for _, path := range files {
-		if !regularFile(path) {
-			continue
-		}
-		// Two levels up from the matched file is the plugin version directory.
-		versionDir := filepath.Dir(filepath.Dir(path))
-		plugin := filepath.Base(filepath.Dir(versionDir))
-		marketplace := filepath.Base(filepath.Dir(filepath.Dir(versionDir)))
-		if plugin == "" || marketplace == "" {
-			continue
-		}
-		key := plugin + "@" + marketplace
-		// Look for the section header instead of parsing the TOML.
-		if !strings.Contains(string(cfg), `[plugins."`+key+`"]`) {
-			continue
-		}
-		sources = append(sources, Source{Key: key, Path: path})
-	}
-	return sources
-}
-
-func regularFile(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && info.Mode().IsRegular()
 }
 
 // plausibleConfig does a shallow sanity check that b looks like TOML, without

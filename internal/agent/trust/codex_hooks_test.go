@@ -28,32 +28,25 @@ func TestCodexHooksCleanWhenNoSources(t *testing.T) {
 func unacceptedHook(t *testing.T) {
 	t.Helper()
 	home := codexHome(t, "")
-	body := []byte(`{"hooks":{"SessionStart":[]}}`)
+	body := []byte(`{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"true"}]}]}}`)
 	if err := os.WriteFile(filepath.Join(home, "hooks.json"), body, 0o644); err != nil {
 		t.Fatal(err)
 	}
 }
 
-// Codex 0.167.0 opens on a "Hooks need review" screen when a hook source is
-// unaccepted, and Herdr reports that screen as idle. An unattended pane would
-// swallow its first prompt there, so the gate needs a person.
-func TestCodexHooksRefusesAnUnacceptedSource(t *testing.T) {
+// The finding is a guess from Codex's files, and it has been wrong both ways
+// (F29, F31). It warns and never refuses, for any role.
+func TestCodexHooksWarnsAboutAnUnacceptedSource(t *testing.T) {
 	unacceptedHook(t)
 
 	got := find(Check("codex", t.TempDir(), agent.RoleBuilder), "hook-acceptance")
-	if got.Status != agent.StatusManual {
-		t.Fatalf("an unaccepted hook source must need a person; got %v (%s)", got.Status, got.Detail)
+	if got.Status != agent.StatusWarning || got.StatusS != "warning" {
+		t.Fatalf("an unaccepted hook source must warn; got %v %q (%s)", got.Status, got.StatusS, got.Detail)
 	}
-	if got.StatusS != "manual" {
-		t.Errorf("the wire form must say manual; got %q", got.StatusS)
-	}
-	for _, role := range []agent.Role{agent.RoleBuilder, agent.RoleReviewer} {
-		if !Blocks(role, *got) {
-			t.Errorf("an unattended %s must not launch into the hook screen", role)
+	for _, role := range []agent.Role{agent.RolePlanner, agent.RoleBuilder, agent.RoleReviewer} {
+		if Blocks(role, *got) {
+			t.Errorf("a guess must not stop a %s from launching", role)
 		}
-	}
-	if Blocks(agent.RolePlanner, *got) {
-		t.Error("a person sits at the planner pane, so the gate only notes it there")
 	}
 }
 
@@ -62,9 +55,9 @@ func TestCodexHooksRemedyNamesTheMeasuredVersionsAndTheWaysOut(t *testing.T) {
 	unacceptedHook(t)
 
 	got := find(Check("codex", t.TempDir(), agent.RoleBuilder), "hook-acceptance")
-	for _, want := range []string{"0.167.0", "0.151.0", "0.152.1", "/hooks", "--dangerously-bypass-hook-trust", "HERDR_SKIP_HOOK_CHECK=1"} {
+	for _, want := range []string{"0.167.0", "0.151.0", "0.152.1", "/hooks", "--dangerously-bypass-hook-trust", "can be wrong"} {
 		if !strings.Contains(got.Remedy, want) {
-			t.Errorf("the remedy does not name %s: %q", want, got.Remedy)
+			t.Errorf("the remedy does not name %q: %q", want, got.Remedy)
 		}
 	}
 }
@@ -96,7 +89,7 @@ func TestCodexHooksRemedyDegradesWhenVersionUnreadable(t *testing.T) {
 	t.Setenv("PATH", bin)
 
 	got := find(Check("codex", t.TempDir(), agent.RoleBuilder), "hook-acceptance")
-	if got.Status != agent.StatusManual {
+	if got.Status != agent.StatusWarning {
 		t.Fatalf("an unreadable version must not change the verdict; got %v", got.Status)
 	}
 	if got.Remedy == "" {
@@ -111,7 +104,7 @@ func TestCodexHooksRemedyDegradesWhenVersionUnreadable(t *testing.T) {
 func TestCodexHooksDryRunRecordsNoBaseline(t *testing.T) {
 	home := t.TempDir()
 	hooksFile := filepath.Join(home, "hooks.json")
-	if err := os.WriteFile(hooksFile, []byte(`{"hooks":{"SessionStart":[]}}`), 0o644); err != nil {
+	if err := os.WriteFile(hooksFile, []byte(`{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"true"}]}]}}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	cfg := `[hooks.state."` + hooksFile + `:session_start:0:0"]` + "\ntrusted_hash = \"sha256:aaa\"\n"
