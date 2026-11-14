@@ -20,8 +20,11 @@ A controller sends each task, runs the check and records the review. See
    doesn't ask the builder to read the whole plan.
 3. The builder acknowledges the prompt with `tandem-handback --started`, does the task and
    runs `tandem-handback --report FILE` with the identity from the prompt, adding `--stuck`
-   if it couldn't finish. That handback goes through the mailbox to the relay bridge, never
-   to the planner.
+   if it couldn't finish. The prompt names five cases where the builder must stop with
+   `--stuck` and not improvise: a step that needs something a later task introduces,
+   contradicts another step, cannot run as written, needs authority the builder lacks, or
+   has a test that would not give the result the plan claims. That handback goes through
+   the mailbox to the relay bridge, never to the planner.
 4. On its next tick the controller snapshots the tree, builds the patch, runs the check
    itself, outside the sandbox, and sends the review to the reviewer pane.
 5. When the check passed and the reviewer accepts, the controller accepts the task and sends

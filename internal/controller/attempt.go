@@ -192,9 +192,20 @@ func promptHeader(p promptData) string {
 	return b.String()
 }
 
+// stopConditions are the five findings the plan review looks for. A builder that
+// meets one has found what the review missed, and reports it instead of
+// improvising.
+const stopConditions = "\n\nStop and hand back with --stuck, changing nothing further, if a step:\n" +
+	"  - needs something a later task introduces;\n" +
+	"  - contradicts another step;\n" +
+	"  - cannot run as written;\n" +
+	"  - needs authority you do not have;\n" +
+	"  - has a test or example that would not give the result the plan claims.\n" +
+	"Name the step and what you found in the report. Stopping then is the correct outcome, not a failure. Do not improvise."
+
 // promptFooter names the identity the builder echoes back, says to acknowledge
-// before touching anything, and says how to wait. A builder that polls pays for
-// its whole conversation on every look (F19).
+// before touching anything, and says how to wait and when to stop. A builder
+// that polls pays for its whole conversation on every look (F19).
 func promptFooter(p promptData) string {
 	var b strings.Builder
 	id := fmt.Sprintf("--task %d --run %s --attempt %s --job %s --effect %s --nonce %s", p.Task, p.Run, p.Attempt, p.Job, p.Effect, p.Nonce)
@@ -204,6 +215,7 @@ func promptFooter(p promptData) string {
 		b.WriteString(" Tandem runs the project's check itself after you hand back; do not paste its output, and do not run the full check yourself unless the task needs its output.")
 	}
 	b.WriteString(" If a command or a subagent takes long, run it in ONE blocking call with the longest timeout your tool accepts. Do not poll it.")
+	b.WriteString(stopConditions)
 	fmt.Fprintf(&b, "\n\nWhen you finish, write a report (under 20 lines: whether the task is complete, anything you changed that the brief did not ask for, anything you could not verify) to a file and hand it back:\n\n    tandem-handback %s --report <file>\n\nAdd --stuck if you could not finish. That call returns immediately. Then stop.", id)
 	return b.String()
 }
