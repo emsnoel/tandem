@@ -111,6 +111,12 @@ func cmdGate(args []string) int {
 				return exitcode.Internal
 			}
 			in.Durable = d
+			if d == nil {
+				if in.Archived, err = controller.ArchivedRuns(*mailboxDir); err != nil {
+					fmt.Fprintln(os.Stderr, "tandem gate teardown: reading the archived runs:", err)
+					return exitcode.Internal
+				}
+			}
 		}
 
 		v := gate.Pre(in)

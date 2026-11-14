@@ -146,11 +146,19 @@ case "$OUT" in *"--verified"*) nope "it asks for --verified on a run: $OUT" ;; *
 [ "$BEFORE" = "$(tree "$R/.tandem-relay")" ] && ok "nothing was changed" || nope "the relay changed"
 
 R="$TMP/repo6"; mkrepo "$R"; R=$(cd "$R" && pwd -P); : > "$FAKE/prompts"
-td env TANDEM_BUILD_ENGINE=durable tandem build start --plan "$R/plan.md" --root "$R" --builder builder --planner planner --builder-kind codex --reviewer reviewer --reviewer-kind claude --check true >/dev/null 2>&1
+RUN6=$(td env TANDEM_BUILD_ENGINE=durable tandem build start --plan "$R/plan.md" --root "$R" --builder builder --planner planner --builder-kind codex --reviewer reviewer --reviewer-kind claude --check true 2>/dev/null | jq -r .run_id)
 td tandem build stop --root "$R" >/dev/null 2>&1; td tandem build tick --root "$R" >/dev/null 2>&1
 OUT=$(unpair); rc=$?
 [ "$rc" -eq 4 ] && ok "a run with nothing accepted is refused (exit 4)" || nope "empty run rc $rc: $OUT"
 case "$OUT" in *"no task"*) ok "and says no task was accepted" ;; *) nope "no reason: $OUT" ;; esac
+# The stopped run's pause note: recover, archive, then "To close the pair
+# instead, run tandem-unpair". The person ended the run on purpose.
+td tandem state recover --run "$RUN6" --root "$R" >/dev/null 2>&1
+td tandem state archive --run "$RUN6" --root "$R" >/dev/null 2>"$TMP/err" && ok "setup: the stopped run is recovered and archived" || nope "setup: archive: $(cat "$TMP/err")"
+OUT=$(unpair); rc=$?
+[ "$rc" -eq 0 ] && ok "after that archive, a plain unpair closes the pair" || nope "unpair after archive rc $rc: $OUT"
+case "$OUT" in *"never handed back"*|*"no task"*) nope "it claims there was no handback: $OUT" ;; *) ok "and does not claim the builder never handed back" ;; esac
+[ ! -e "$R/.tandem-relay" ] && ok "the relay is gone" || nope "the relay is still there"
 
 printf '\n== an unknown engine is refused before anything is written ==\n'
 for ver in '"engine_version":99,"protocol_version":99' '"engine_version":2,"protocol_version":3'; do

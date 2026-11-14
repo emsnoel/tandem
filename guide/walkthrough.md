@@ -247,6 +247,12 @@ tandem lists any reports in the relay as not part of the run,
 and doesn't gate on them. The other gates apply as before: not mid-write, the check, and
 nothing changed while it ran.
 
+**A run you stopped and archived skips gates 4 and 5.** After `tandem build stop`,
+`tandem state recover` and `tandem state archive`, the relay holds no active run, only the
+archived run's marker. You ended the run yourself and the state keeps it, so there is
+nothing left to sign off. A plain `tandem-unpair` closes the pair, as the stopped run's
+pause note says.
+
 `--clean-trust` also removes the project trust entry tandem added for the repository. It
 removes only entries with tandem's marker. It recognises and leaves alone an entry you
 wrote yourself, or one written before tandem used markers. It skips the removal while

@@ -57,9 +57,7 @@ func cmdStateArchive(args []string) int {
 	marker := "none"
 	relay := paths.Relay(id.CanonicalRoot)
 	if ar, err := controller.ReadActiveRun(relay); err == nil && ar != nil && ar.RunID == *runID {
-		// Named by the run, so archiving one run never overwrites the marker an
-		// earlier archive set aside.
-		aside := filepath.Join(relay, "active-run."+*runID+".archived.json")
+		aside := filepath.Join(relay, controller.ArchivedRunFile(*runID))
 		if err := os.Rename(filepath.Join(relay, controller.ActiveRunFile), aside); err != nil {
 			return refusal("archive", fmt.Errorf("the run is archived but its marker could not be set aside: %w", err))
 		}

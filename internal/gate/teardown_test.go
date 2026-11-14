@@ -141,6 +141,23 @@ func TestPreRefusesADurableRunWithNothingAccepted(t *testing.T) {
 	}
 }
 
+// A run archived after a stop was ended by a person, who kept it: the pause
+// note then says to run tandem-unpair. Nothing is left to sign off, and an old
+// legacy report beside it is not part of it.
+func TestPreAllowsARelayWhoseRunWasArchived(t *testing.T) {
+	in := Input{BuilderPane: "p2", Status: "idle", HasCheckCommand: true, Archived: []string{"run-1"},
+		ReportsPending: []string{"old-legacy-report"}}
+	if v := Pre(in); v.Code != 0 {
+		t.Fatalf("an archived run: got %d %v", v.Code, v.Detail)
+	}
+	if v := Pre(Input{BuilderPane: "p2", Status: "working", HasCheckCommand: true, Archived: []string{"run-1"}}); v.Code != 9 {
+		t.Fatalf("a working builder beside an archived run: got %d", v.Code)
+	}
+	if v := Pre(Input{BuilderPane: "p2", Status: "idle", Archived: []string{"run-1"}}); v.Code != 6 {
+		t.Fatalf("no check command beside an archived run: got %d", v.Code)
+	}
+}
+
 func TestPreKeepsTheOtherGatesForADurableRun(t *testing.T) {
 	if v := Pre(Input{BuilderPane: "p2", Status: "working", HasCheckCommand: true, Durable: durableRun(nil)}); v.Code != 9 {
 		t.Fatalf("a working builder: got %d", v.Code)
