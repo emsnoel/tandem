@@ -37,8 +37,12 @@ You and the planner work out the design and write an implementation plan into th
 folder, for example `docs/plans/2026-08-29-rate-limiting.md`.
 
 **tandem leaves this part to you, on purpose.** It automates the handoff and the
-questions between agents, not the thinking. That is why `tandem-handoff` has no opinion on
-the plan's format. It only picks a file.
+questions between agents, not the thinking. `tandem-handoff` only picks a file.
+
+The build does depend on the plan's format, though: task headings, tasks that leave the
+check passing, and optional metadata lines. The `tandem-plan` skill gives a Claude Code or
+Copilot planner those rules when it starts to write a plan, and
+[Plans and reviews](reviews.md#plans) lists them.
 
 ## 3. The reviewer checks the plan
 

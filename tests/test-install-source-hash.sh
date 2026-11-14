@@ -24,7 +24,7 @@ esac
 
 # --- installing --------------------------------------------------------------
 DEST="$TMP/dest"
-OUT=$(HERDR_CONFIG_PATH="$TMP/herdr/config.toml" "$ROOT_DIR/install.sh" --from-source "$DEST" 2>&1); RC=$?
+OUT=$(HERDR_CONFIG_PATH="$TMP/herdr/config.toml" TANDEM_SKILL_HOMES="$TMP/home" "$ROOT_DIR/install.sh" --from-source "$DEST" 2>&1); RC=$?
 [ "$RC" -eq 0 ] && ok "install.sh succeeds into an isolated directory" || nope "install.sh failed (rc $RC): $OUT"
 
 # The installer must not install bin/lib.

@@ -14,3 +14,7 @@ unset HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID HERDR_WORKSPACE_ID
 # (cmd/tandem/confirm_start.go). The fakes settle at once or never, so one
 # second is enough to tell them apart.
 export TANDEM_FAIL_WITHIN_MS=1000
+
+# install.sh links skills into the planner CLIs' homes. No fixture may reach the
+# real ones; a test of the links names its own.
+export TANDEM_SKILL_HOMES="${TMPDIR:-/tmp}/tandem-suite-no-skill-home"

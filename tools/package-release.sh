@@ -68,6 +68,7 @@ for target in "$@"; do
     [ "$(basename "$f")" = source-hash.sh ] || cp -p "$f" "$dir/bin/lib/"
   done
   cp "$ROOT/config/config.toml.example" "$dir/config/"
+  cp -R "$ROOT/skills" "$dir/"
   cp "$ROOT/LICENSE" "$dir/"
   notices "$dir/tandem" > "$dir/THIRD_PARTY_NOTICES" \
     || { printf 'package-release: could not collect the notices for %s\n' "$target" >&2; exit 1; }

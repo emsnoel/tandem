@@ -15,6 +15,11 @@ TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 REL="$TMP/rel"; DEST="$TMP/dest"; SHARE="$TMP/share"
 ASSET="tandem-$(go env GOOS)-$(go env GOARCH).tar.gz"
 HOST="$(go env GOOS)/$(go env GOARCH)"
+# The planner CLIs' homes. Only Claude Code has one here, and MINE holds a
+# skill of the same name that the user wrote.
+CLAUDE="$TMP/home/.claude"; COPILOT="$TMP/home/.copilot"; MINE="$TMP/mine/.claude"
+mkdir -p "$CLAUDE" "$MINE/skills/tandem-plan"; printf 'mine\n' > "$MINE/skills/tandem-plan/SKILL.md"
+export TANDEM_SKILL_HOMES="$CLAUDE:$COPILOT:$MINE"
 
 # --- fixtures, built with the real Go before the stub goes on PATH ------------
 for v in v9.9.8 v9.9.9 v9.9.9-rc.1; do
@@ -52,6 +57,12 @@ case "$(readlink "$DEST/tandem-ask")" in
 esac
 [ -f "$SHARE/current/bin/lib/reviewer.sh" ] && ok "the commands' helpers sit beside them" || nope "bin/lib is missing from the release"
 [ -f "$TMP/herdr/config.toml" ] && ok "writes the example Herdr config when none exists" || nope "no Herdr config written"
+[ "$(readlink "$CLAUDE/skills/tandem-plan")" = "$SHARE/current/skills/tandem-plan" ] && grep -q '^name: tandem-plan$' "$CLAUDE/skills/tandem-plan/SKILL.md" \
+  && ok "links the plan skill into a planner CLI's skills folder" || nope "the plan skill links to '$(readlink "$CLAUDE/skills/tandem-plan")'"
+[ ! -e "$COPILOT" ] && ok "and makes no home for a CLI that has none" || nope "it created $COPILOT"
+[ ! -L "$MINE/skills/tandem-plan" ] && [ "$(cat "$MINE/skills/tandem-plan/SKILL.md")" = mine ] \
+  && ok "and leaves a skill of that name the user wrote" || nope "it replaced the user's own skill"
+case "$OUT" in *"kept your own $MINE/skills/tandem-plan"*) ok "naming it" ;; *) nope "the kept skill is not named: $OUT" ;; esac
 case "$OUT" in *"--from-source links this tree"*) ok "run from a checkout, it names --from-source" ;;
   *) nope "no --from-source hint from a checkout: $OUT" ;; esac
 
@@ -111,6 +122,8 @@ OUT=$(env HERDR_CONFIG_PATH="$TMP/herdr/config.toml" TANDEM_SHARE_DIR="$SHARE" "
   && ok "and the release copy was not written through" || nope "the build overwrote the release copy"
 [ "$(readlink "$DEST/tandem-ask")" = "$ROOT/bin/tandem-ask" ] && ok "and the commands link into the checkout" \
   || nope "tandem-ask links to '$(readlink "$DEST/tandem-ask")'"
+[ "$(readlink "$CLAUDE/skills/tandem-plan")" = "$ROOT/skills/tandem-plan" ] && ok "and so does the plan skill" \
+  || nope "the plan skill links to '$(readlink "$CLAUDE/skills/tandem-plan")'"
 inst -- "$DEST" >/dev/null
 [ -L "$DEST/tandem" ] && [ "$(installed)" = v9.9.9 ] && ok "a release install replaces the dev build" || nope "the release did not replace the dev build"
 ls "$DEST" | grep -q '\.bak\.' && nope "and leaves a .bak behind: $(ls "$DEST")" || ok "without a .bak"
@@ -153,6 +166,7 @@ done
 inst -- "$DEST" >/dev/null
 mkdir -p "$SHARE/other-app"
 ln -sfn /bin/ls "$DEST/ls-link"; printf 'mine\n' > "$DEST/tandem-notes"
+mkdir -p "$CLAUDE/skills/other" "$TMP/elsewhere/skills/tandem-notes"; ln -sfn "$TMP/elsewhere/skills/tandem-notes" "$CLAUDE/skills/tandem-notes"
 printf 'old\n' > "$DEST/tandem-ask.bak.20260101000000"
 OUT=$(inst -- --uninstall "$DEST"); RC=$?
 [ "$RC" -eq 0 ] && ok "--uninstall removes a release install" || nope "--uninstall failed (rc $RC): $OUT"
@@ -160,6 +174,9 @@ LEFT=$(find "$DEST" -name 'tandem*' -type l | tr '\n' ' ')
 [ -z "$LEFT" ] && ok "and every tandem link in DEST" || nope "links left: $LEFT"
 [ ! -e "$SHARE/current" ] && [ ! -e "$SHARE/v9.9.9" ] && ok "and the release in the share directory" \
   || nope "the share directory holds: $(ls "$SHARE" | tr '\n' ' ')"
+[ ! -e "$CLAUDE/skills/tandem-plan" ] && [ ! -L "$CLAUDE/skills/tandem-plan" ] && ok "and the plan skill's link" || nope "the plan skill's link is left"
+[ -d "$CLAUDE/skills/other" ] && [ -L "$CLAUDE/skills/tandem-notes" ] && [ -f "$MINE/skills/tandem-plan/SKILL.md" ] \
+  && ok "but keeps skills that are not tandem's" || nope "it deleted a skill that is not tandem's: $(ls "$CLAUDE/skills" "$MINE/skills" | tr '\n' ' ')"
 [ -d "$SHARE/other-app" ] && ok "but keeps other folders in the share directory" || nope "it deleted other-app"
 [ -L "$DEST/ls-link" ] && [ -f "$DEST/tandem-notes" ] && ok "and files in DEST that are not tandem's" \
   || nope "it deleted files that are not tandem's: $(ls "$DEST" | tr '\n' ' ')"
@@ -168,7 +185,7 @@ case "$OUT" in *"tandem-ask.bak.20260101000000"*) ok "naming them" ;; *) nope "t
 [ -f "$TMP/herdr/config.toml" ] && ok "and the Herdr config" || nope "it deleted the Herdr config"
 case "$OUT" in *"$TMP/herdr/config.toml"*) ok "naming it" ;; *) nope "the Herdr config is not named: $OUT" ;; esac
 case "$OUT" in *"--clean-trust"*) ok "and says how to clear trust entries" ;; *) nope "no trust hint: $OUT" ;; esac
-rm -rf "$SHARE/other-app" "$DEST/ls-link" "$DEST/tandem-notes" "$DEST/tandem-ask.bak.20260101000000"
+rm -rf "$SHARE/other-app" "$DEST/ls-link" "$DEST/tandem-notes" "$DEST/tandem-ask.bak.20260101000000" "$CLAUDE/skills/tandem-notes"
 
 OUT=$(inst -- --uninstall "$DEST"); RC=$?
 case "$RC:$OUT" in 0:*"nothing to remove"*) ok "a second --uninstall has nothing to remove" ;;
@@ -179,6 +196,8 @@ OUT=$(env TANDEM_SHARE_DIR="$SHARE" HERDR_CONFIG_PATH="$TMP/herdr/config.toml" "
 OUT=$(inst -- --uninstall "$DEST"); RC=$?
 [ "$RC" -eq 0 ] && [ -z "$(ls "$DEST")" ] && ok "--uninstall removes a source install" \
   || nope "a source install left (rc $RC): $(ls "$DEST" | tr '\n' ' ') $OUT"
+[ ! -L "$CLAUDE/skills/tandem-plan" ] && [ -f "$ROOT/skills/tandem-plan/SKILL.md" ] && ok "and its plan skill link, not the skill" \
+  || nope "a source uninstall left the link or deleted the skill"
 [ -x "$ROOT/bin/tandem-ask" ] && ok "and leaves the checkout alone" || nope "it deleted the checkout's commands"
 
 inst -- "$DEST" >/dev/null

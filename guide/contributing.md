@@ -87,6 +87,8 @@ builders.
 
 ```
 bin/          the thirteen commands, in bash. install.sh links them, so edits take effect at once
+skills/       the skills a planner loads. install.sh links them into each planner CLI's
+              skills folder
 cmd/tandem/   the compiled binary's entry points: its own subcommands, the handover to
               the bash commands (dispatch.go), and the exit codes
 internal/

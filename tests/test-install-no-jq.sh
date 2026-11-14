@@ -24,7 +24,7 @@ DEST="$TMP/dest"
 
 PATH="$NOJQ" command -v jq >/dev/null 2>&1 && nope "the test PATH still finds jq" || ok "the test PATH has no jq"
 
-OUT=$(PATH="$NOJQ" HERDR_CONFIG_PATH="$TMP/herdr/config.toml" TANDEM_SHARE_DIR="$TMP/share" \
+OUT=$(PATH="$NOJQ" HERDR_CONFIG_PATH="$TMP/herdr/config.toml" TANDEM_SHARE_DIR="$TMP/share" TANDEM_SKILL_HOMES="$TMP/home" \
         "$ROOT/install.sh" --from-source "$DEST" 2>&1); RC=$?
 [ "$RC" -eq 0 ] && ok "install.sh --from-source succeeds with no jq" || nope "install.sh --from-source with no jq (rc $RC): $OUT"
 case "$OUT" in *jq*) nope "install.sh mentions jq: $OUT" ;; *) ok "install.sh does not mention jq" ;; esac

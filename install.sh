@@ -50,6 +50,14 @@ uninstall() {
     rm -f "$f"; removed=$((removed+1))
   done
   [ "$removed" -eq 0 ] || printf 'install: removed %d commands from %s\n' "$removed" "$DEST"
+  for f in "${SKILL_HOMES[@]}"; do
+    for t in "$f"/skills/tandem-*; do
+      [ -L "$t" ] || continue
+      d=$(readlink "$t")
+      case "$d" in "$SHARE"/*) ;; */skills/"$(basename "$t")") [ -f "${d%/skills/*}/bin/lib/source-hash.sh" ] || continue ;; *) continue ;; esac
+      rm -f "$t"; removed=$((removed+1)); printf 'install: removed %s\n' "$t"
+    done
+  done
 
   if [ -L "$SHARE/current" ]; then rm -f "$SHARE/current"; removed=$((removed+1)); fi
   # Only release directories go: TANDEM_SHARE_DIR may hold other folders.
@@ -95,6 +103,8 @@ if [ -n "$WANT" ]; then
 fi
 SHARE="${TANDEM_SHARE_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/tandem}"
 CONFIG="${HERDR_CONFIG_PATH:-$HOME/.config/herdr/config.toml}"
+# The planner CLIs whose personal skills folder gets tandem's skills, split at colons.
+IFS=: read -r -a SKILL_HOMES <<<"${TANDEM_SKILL_HOMES:-$HOME/.claude:$HOME/.copilot}"
 
 if [ "$MODE" = uninstall ]; then uninstall; return; fi
 
@@ -210,6 +220,23 @@ for f in "$PAYLOAD"/bin/*; do
   fi
   ln -sfn "$f" "$target"
   printf 'install: %s -> %s\n' "$target" "$f"
+done
+
+# --- planner skills ---
+# Linked into each planner CLI that has a home here. A skill of the same name
+# that is not a link is the user's own, and is left alone.
+for home in "${SKILL_HOMES[@]}"; do
+  [ -d "$home" ] || continue
+  for f in "$PAYLOAD"/skills/*/; do
+    [ -f "$f/SKILL.md" ] || continue
+    target="$home/skills/$(basename "$f")"
+    if [ -e "$target" ] && [ ! -L "$target" ]; then
+      printf 'install: kept your own %s\n' "$target"; continue
+    fi
+    mkdir -p "$home/skills"
+    ln -sfn "${f%/}" "$target"
+    printf 'install: %s -> %s\n' "$target" "${f%/}"
+  done
 done
 
 printf '\n'
