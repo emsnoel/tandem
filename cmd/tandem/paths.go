@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/emsnoel/tandem/internal/exitcode"
+	"github.com/emsnoel/tandem/internal/pairname"
 	"github.com/emsnoel/tandem/internal/paths"
 )
 
@@ -14,7 +15,8 @@ import (
 // share internal/paths' legacy-name rule instead of restating it. It prints a
 // bare path, since every caller assigns it to a variable.
 func cmdPaths(args []string) int {
-	const usage = "usage: tandem paths <manifest|relay> [--root DIR]\n" +
+	const usage = "usage: tandem paths <manifest|relay|names> [--root DIR]\n" +
+		"       tandem paths names [--root DIR] [--state-home DIR]   (planner, builder and reviewer names, tab separated)\n" +
 		"       tandem paths manifest --from DIR   (nearest manifest at or above DIR, bounded by DIR's git toplevel)"
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, usage)
@@ -25,6 +27,7 @@ func cmdPaths(args []string) int {
 	fs := flag.NewFlagSet("paths "+which, flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	root := fs.String("root", ".", "repository root")
+	stateHome := fs.String("state-home", os.Getenv("TANDEM_STATE_HOME"), "names only: state home, replacing the default base directory")
 	from := fs.String("from", "", "manifest only: search upward from DIR for the nearest manifest, bounded by DIR's git toplevel; mutually exclusive with --root")
 	if err := fs.Parse(args[1:]); err != nil {
 		return exitcode.Usage
@@ -69,6 +72,13 @@ func cmdPaths(args []string) int {
 		fmt.Println(m)
 	case "relay":
 		fmt.Println(paths.Relay(absRoot))
+	case "names":
+		n, err := pairname.Resolve(absRoot, *stateHome, os.Getenv)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "tandem: %v\n", err)
+			return exitcode.Internal
+		}
+		fmt.Printf("%s\t%s\t%s\n", n.Planner, n.Builder, n.Reviewer)
 	default:
 		fmt.Fprintf(os.Stderr, "tandem paths: unknown file %q\n%s\n", which, usage)
 		return exitcode.Usage

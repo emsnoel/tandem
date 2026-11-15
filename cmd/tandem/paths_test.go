@@ -162,3 +162,40 @@ func TestCmdPathsManifestFromResolvesSymlinksAgainstToplevel(t *testing.T) {
 		t.Errorf("got %q, want %q (must not escape to the decoy)", out, want)
 	}
 }
+
+func TestPathsNames(t *testing.T) {
+	base := t.TempDir()
+	main := filepath.Join(base, "main")
+	wt := filepath.Join(base, "wt-b")
+	if err := os.MkdirAll(main, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"init", "-q"},
+		{"-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "init"},
+		{"worktree", "add", "-q", wt},
+	} {
+		if out, err := exec.Command("git", append([]string{"-C", main}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	home := t.TempDir()
+	t.Setenv("HERDR_PLANNER_NAME", "")
+	t.Setenv("HERDR_REVIEWER_NAME", "")
+
+	t.Setenv("HERDR_BUILDER_NAME", "")
+	out, rc := captureStdoutRC(t, func() int {
+		return cmdPaths([]string{"names", "--root", wt, "--state-home", home})
+	})
+	if rc != 0 || out != "planner-wt-b\tbuilder-wt-b\treviewer-wt-b\n" {
+		t.Errorf("rc=%d out=%q", rc, out)
+	}
+
+	t.Setenv("HERDR_BUILDER_NAME", "bob")
+	out, rc = captureStdoutRC(t, func() int {
+		return cmdPaths([]string{"names", "--root", wt, "--state-home", home})
+	})
+	if rc != 0 || out != "planner-wt-b\tbob\treviewer-wt-b\n" {
+		t.Errorf("rc=%d out=%q", rc, out)
+	}
+}
