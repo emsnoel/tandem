@@ -9,12 +9,16 @@
 # The callers set PLANNER_PANE, which shellcheck cannot see from this file.
 # shellcheck shell=bash disable=SC2153
 
-# pair_names DIR: set PLANNER_NAME, BUILDER_NAME and REVIEWER_NAME for the
-# checkout holding DIR.
+# pair_names DIR [--bind|--allow-pending]: set PLANNER_NAME, BUILDER_NAME and
+# REVIEWER_NAME for the checkout holding DIR. Without a flag it only reads, and
+# fails in a checkout whose names need an id it has not been given. Only
+# tandem-pair's real run passes --bind, which gives the checkout that id in the
+# state registry. A builder's or reviewer's sandbox cannot write there.
+# --allow-pending puts a placeholder in place of the missing id instead.
 pair_names() {
   local out rc=0
   # tandem's own error, such as a pair.json that is not JSON, goes with the refusal.
-  out=$(tandem paths names --root "$1" 2>&1) || rc=$?
+  out=$(tandem paths names --root "$1" ${2:+"$2"} 2>&1) || rc=$?
   (( rc == 0 )) || die "could not resolve the pair's names for $1: $out"
   IFS=$'\t' read -r PLANNER_NAME BUILDER_NAME REVIEWER_NAME <<<"$out" || true
   [[ -n "$PLANNER_NAME" && -n "$BUILDER_NAME" && -n "$REVIEWER_NAME" ]] \

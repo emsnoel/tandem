@@ -46,8 +46,10 @@ done
 for c in herdr tandem; do
   command -v "$c" >/dev/null 2>&1 || die "$c not found on PATH."
 done
-# The names come from the planner's checkout (lib/pair-identity.sh).
-pair_names "$PWD"
+# The names come from the planner's checkout (lib/pair-identity.sh). A
+# checkout that was never paired may lack the id its names need, so the status
+# shows a placeholder for it.
+pair_names "$PWD" --allow-pending
 info "pair     $PLANNER_NAME, $BUILDER_NAME, $REVIEWER_NAME  (checkout $(checkout_of "$PWD" || printf '%s' "$PWD"))"
 
 # tandem answers in NUL-separated fields, read from this file.

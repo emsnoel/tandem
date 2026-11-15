@@ -16,7 +16,7 @@ import (
 // bare path, since every caller assigns it to a variable.
 func cmdPaths(args []string) int {
 	const usage = "usage: tandem paths <manifest|relay|names> [--root DIR]\n" +
-		"       tandem paths names [--root DIR] [--state-home DIR]   (planner, builder and reviewer names, tab separated)\n" +
+		"       tandem paths names [--root DIR] [--state-home DIR] [--bind|--allow-pending]   (planner, builder and reviewer names, tab separated)\n" +
 		"       tandem paths manifest --from DIR   (nearest manifest at or above DIR, bounded by DIR's git toplevel)"
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, usage)
@@ -28,6 +28,8 @@ func cmdPaths(args []string) int {
 	fs.SetOutput(os.Stderr)
 	root := fs.String("root", ".", "repository root")
 	stateHome := fs.String("state-home", os.Getenv("TANDEM_STATE_HOME"), "names only: state home, replacing the default base directory")
+	bind := fs.Bool("bind", false, "names only: give the checkout an id in the state registry when its names need one. Only tandem-pair passes it")
+	allowPending := fs.Bool("allow-pending", false, "names only: print "+pairname.PendingID+" in place of an id the checkout does not have yet, instead of failing")
 	from := fs.String("from", "", "manifest only: search upward from DIR for the nearest manifest, bounded by DIR's git toplevel; mutually exclusive with --root")
 	if err := fs.Parse(args[1:]); err != nil {
 		return exitcode.Usage
@@ -44,6 +46,14 @@ func cmdPaths(args []string) int {
 	})
 	if rootGiven && fromGiven {
 		fmt.Fprintln(os.Stderr, "tandem paths: --root and --from are mutually exclusive")
+		return exitcode.Usage
+	}
+	if (*bind || *allowPending) && which != "names" {
+		fmt.Fprintf(os.Stderr, "tandem paths: --bind and --allow-pending are only valid for names, not %q\n", which)
+		return exitcode.Usage
+	}
+	if *bind && *allowPending {
+		fmt.Fprintln(os.Stderr, "tandem paths: --bind and --allow-pending are mutually exclusive")
 		return exitcode.Usage
 	}
 	if fromGiven && which != "manifest" {
@@ -73,9 +83,22 @@ func cmdPaths(args []string) int {
 	case "relay":
 		fmt.Println(paths.Relay(absRoot))
 	case "names":
-		n, err := pairname.Resolve(absRoot, *stateHome, os.Getenv)
+		// Only tandem-pair writes the state registry. A builder or a reviewer
+		// runs in a sandbox that cannot write the state home, so every other
+		// caller reads.
+		var n pairname.Names
+		var pending bool
+		if *bind {
+			n, err = pairname.Resolve(absRoot, *stateHome, os.Getenv)
+		} else {
+			n, pending, err = pairname.ResolveReadOnly(absRoot, *stateHome, os.Getenv)
+		}
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "tandem: %v\n", err)
+			return exitcode.Internal
+		}
+		if pending && !*allowPending {
+			fmt.Fprintf(os.Stderr, "tandem: the pair's names in %s need this checkout's id, and it has none yet. Run tandem-pair in this checkout first.\n", absRoot)
 			return exitcode.Internal
 		}
 		fmt.Printf("%s\t%s\t%s\n", n.Planner, n.Builder, n.Reviewer)

@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -239,4 +240,40 @@ func clashingWorktrees(t *testing.T) string {
 		}
 	}
 	return a
+}
+
+// Only tandem-pair binds a checkout id. Every other caller reads, so a builder
+// or reviewer in a sandbox never writes the state home.
+func TestPathsNamesIsReadOnlyUnlessBind(t *testing.T) {
+	wt := clashingWorktrees(t)
+	home := filepath.Join(t.TempDir(), "state")
+	for _, k := range []string{"HERDR_PLANNER_NAME", "HERDR_BUILDER_NAME", "HERDR_REVIEWER_NAME"} {
+		t.Setenv(k, "")
+	}
+	run := func(extra ...string) (string, int) {
+		return captureStdoutRC(t, func() int {
+			return cmdPaths(append([]string{"names", "--root", wt, "--state-home", home}, extra...))
+		})
+	}
+
+	if out, rc := run(); rc == 0 || out != "" {
+		t.Errorf("read-only with no id: rc=%d out=%q, want a refusal", rc, out)
+	}
+	if out, rc := run("--allow-pending"); rc != 0 || out != "planner-<id>\tbuilder-<id>\treviewer-<id>\n" {
+		t.Errorf("--allow-pending: rc=%d out=%q", rc, out)
+	}
+	if _, err := os.Stat(home); !os.IsNotExist(err) {
+		t.Fatalf("a read-only call created the state home: %v", err)
+	}
+	out, rc := run("--bind")
+	if rc != 0 || !regexp.MustCompile(`^planner-[0-9a-f]{6}\tbuilder-[0-9a-f]{6}\treviewer-[0-9a-f]{6}\n$`).MatchString(out) {
+		t.Fatalf("--bind: rc=%d out=%q", rc, out)
+	}
+	// Once bound, a read-only call finds the same names.
+	if again, rc := run(); rc != 0 || again != out {
+		t.Errorf("read-only after --bind: rc=%d out=%q, want %q", rc, again, out)
+	}
+	if _, rc := run("--bind", "--allow-pending"); rc != 2 {
+		t.Errorf("--bind with --allow-pending: rc=%d, want 2", rc)
+	}
 }
