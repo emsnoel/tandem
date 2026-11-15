@@ -65,5 +65,24 @@ chk "a Codex planner is refused" "codex can't plan"
 lack "and nothing is renamed" 'pane rename'
 unset PLANNER_KIND_STUB
 
+# A linked worktree's panes carry its name after the role, so two sessions on
+# one repository read apart in the sidebar. The main checkout keeps "role (kind)".
+git -C "$REPO" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
+git -C "$REPO" worktree add -q --detach "$TMP/feat-x"
+MAIN="$REPO"; REPO=$(cd "$TMP/feat-x" && pwd -P)
+pair 3
+chk "a worktree planner pane names its worktree" 'pane rename w1:p1 planner · feat-x (claude)'
+chk "a worktree builder pane names its worktree" 'builder · feat-x (claude)'
+chk "a worktree reviewer pane names its worktree" 'reviewer · feat-x (claude)'
+chk "a worktree tab is named for the worktree" 'tab rename w1:t1 tandem: feat-x'
+REPO="$MAIN"
+
+# A name set by hand is shown whole when it does not start with the role.
+HERDR_BUILDER_NAME=bob; export HERDR_BUILDER_NAME
+pair 3
+chk "a builder named by hand shows that name" 'builder · bob (claude)'
+chk "and the planner keeps its plain label" 'pane rename w1:p1 planner (claude)'
+unset HERDR_BUILDER_NAME
+
 printf '\npair-labels: passed %d, failed %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

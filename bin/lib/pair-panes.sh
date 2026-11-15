@@ -172,6 +172,20 @@ ensure_reviewer() {
   fi
 }
 
+# pane_label ROLE NAME KIND: the sidebar label for a pane, "role · who (kind)".
+# "who" is what NAME adds to the role: "feat-x" for builder-feat-x in a linked
+# worktree, the whole name for one set by hand, and nothing for the plain name
+# the main checkout uses, which keeps "builder (codex)".
+pane_label() {
+  local who=""
+  case "$2" in
+    "$1") ;;
+    "$1"-*) who="${2#"$1"-}" ;;
+    *) who="$2" ;;
+  esac
+  printf '%s%s%s' "$1" "${who:+ · $who}" "${3:+ ($3)}"
+}
+
 # label_panes: role tokens for the sidebar, pane and tab labels.
 label_panes() {
   mutate pane report-metadata "$PLANNER_PANE" --source tandem-pair --token role=PLAN  || true
@@ -183,10 +197,10 @@ label_panes() {
   # --- pane and tab labels ---
   # Best-effort. The tab is renamed only while it still has Herdr's default
   # number, so a name someone chose is kept.
-  mutate pane rename "$PLANNER_PANE" "planner${PLANNER_KIND:+ ($PLANNER_KIND)}" || true
-  mutate pane rename "$BUILDER_PANE" "builder (${ADOPTED_KIND:-$BUILDER_KIND})" || true
+  mutate pane rename "$PLANNER_PANE" "$(pane_label planner "$PLANNER_NAME" "$PLANNER_KIND")" || true
+  mutate pane rename "$BUILDER_PANE" "$(pane_label builder "$BUILDER_NAME" "${ADOPTED_KIND:-$BUILDER_KIND}")" || true
   if [[ -n "$REVIEWER_PANE" ]]; then
-    mutate pane rename "$REVIEWER_PANE" "reviewer ($REVIEWER_KIND)" || true
+    mutate pane rename "$REVIEWER_PANE" "$(pane_label reviewer "$REVIEWER_NAME" "$REVIEWER_KIND")" || true
   fi
   if [[ -n "$PLANNER_TAB" ]]; then
     if [[ "$(tandem tab label "$PLANNER_TAB" 2>/dev/null)" == default ]]; then
