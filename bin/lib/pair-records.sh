@@ -18,7 +18,9 @@ resolve_bcwd() {
     rc=0
     _snap=$(tandem agent snapshot "$BUILDER_NAME" 2>/dev/null) || rc=$?
     if (( rc == 0 )); then
-      IFS=$'\t' read -r _ BCWD _ <<<"$_snap"
+      # Not `read`: tabs are IFS whitespace, so an empty cwd would collapse and
+      # the status would land in BCWD.
+      BCWD=${_snap#*$'\t'}; BCWD=${BCWD%%$'\t'*}
     fi
     BCWD="${BCWD:-${CWD_OVERRIDE:-$PWD}}"
     # MB_ROOT is the checkout's toplevel, used only by the relay bridge. The
