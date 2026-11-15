@@ -14,6 +14,8 @@ while [[ -L "$_self" ]]; do
 done
 # shellcheck source=lib/ask-mailbox.sh
 . "${_self%/*}/lib/ask-mailbox.sh"
+# shellcheck source=lib/pair-identity.sh
+. "${_self%/*}/lib/pair-identity.sh"
 
 # The default depends on direction (see below). HERDR_ASK_TIMEOUT_SECONDS
 # overrides it, and --timeout overrides that.
@@ -68,19 +70,8 @@ done
 [[ -n "$TARGET"   ]] || { usage >&2; die "no target agent given."; }
 [[ -n "$QUESTION" ]] || { usage >&2; die "no question given."; }
 
-# Direction-aware default:
-#   asking the builder (90s): the caller is usually Claude Code, whose Bash
-#     tool kills a command at 120s, so the fallback below must run before that.
-#   asking the planner (300s): the planner may need to read code first, and
-#     the sandboxed builder has no such limit.
-if [[ -z "$TIMEOUT_SECONDS" ]]; then
-  case "$TARGET" in
-    planner) TIMEOUT_SECONDS=300 ;;
-    *)       TIMEOUT_SECONDS=90  ;;
-  esac
-fi
-
-[[ "$TIMEOUT_SECONDS" =~ ^[0-9]+$ && "$TIMEOUT_SECONDS" -gt 0 ]] || die "--timeout must be a positive integer."
+[[ -z "$TIMEOUT_SECONDS" || ( "$TIMEOUT_SECONDS" =~ ^[0-9]+$ && "$TIMEOUT_SECONDS" -gt 0 ) ]] \
+  || die "--timeout must be a positive integer."
 [[ "$READ_LINES"      =~ ^[0-9]+$ && "$READ_LINES"      -gt 0 ]] || die "--lines must be a positive integer."
 
 [[ "${HERDR_ENV:-}" == 1 ]] || die "not running inside a Herdr-managed pane (HERDR_ENV != 1)."
@@ -88,14 +79,25 @@ fi
 command -v herdr >/dev/null 2>&1 || die "herdr not found on PATH."
 command -v tandem >/dev/null 2>&1 || die "tandem not found on PATH."
 
+# The git toplevel, as mailbox_dir resolves it. log_exchange needs it in direct
+# mode too, and it names this checkout's pair.
+LOG_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || printf '%s' "$PWD")
+pair_names "$LOG_ROOT"
+
+# Direction-aware default:
+#   asking the builder (90s): the caller is usually Claude Code, whose Bash
+#     tool kills a command at 120s, so the fallback below must run before that.
+#   asking the planner (300s): the planner may need to read code first, and
+#     the sandboxed builder has no such limit. In a worktree the planner is
+#     named after the checkout, such as planner-wt-b.
+if [[ -z "$TIMEOUT_SECONDS" ]]; then
+  if [[ "$TARGET" == "$PLANNER_NAME" ]]; then TIMEOUT_SECONDS=300; else TIMEOUT_SECONDS=90; fi
+fi
+
 TIMEOUT_MS=$(( TIMEOUT_SECONDS * 1000 ))
 
 # One id per exchange, shared by the mailbox files and the history record.
 ID="$(date +%Y%m%d-%H%M%S)-$$-$RANDOM"
-# The git toplevel, as mailbox_dir resolves it. log_exchange needs it in direct
-# mode too.
-LOG_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || printf '%s' "$PWD")
-
 
 rc=0
 _snap=$(tandem agent snapshot "$TARGET" 2>/dev/null) || rc=$?

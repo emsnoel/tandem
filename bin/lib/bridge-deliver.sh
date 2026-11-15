@@ -20,11 +20,11 @@ EOF
 deliver() {
   local qfile="$1" id="" kind="" from="" question="" msg="" answer_path
   # A file with no kind is a question, and one with no sender is from the
-  # builder.
+  # builder, named by pair_names in tandem-bridge.
   read_message "$qfile"
   { read_field id; read_field kind; read_field from; read_field question; read_field msg; } <"$FIELDS"
   kind=${kind:-question}
-  from=${from:-builder}
+  from=${from:-$BUILDER_NAME}
 
   # Handbacks and verdicts carry the message their sender composed. The bridge
   # only transports it.

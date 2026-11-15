@@ -33,7 +33,7 @@ cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
 case "$1 $2" in
   "relay log")   [ "${RELAY_LOG_FAIL:-0}" = 1 ] && exit 1; exec "$REAL_TANDEM" "$@" ;;
-  "relay write"|"relay history"|"config project"|"config write-manifest") exec "$REAL_TANDEM" "$@" ;;
+  "relay write"|"relay history"|"config project"|"config write-manifest"|"paths names") exec "$REAL_TANDEM" "$@" ;;
   "agent snapshot")
     case "${SNAP_MODE:-direct}" in
       direct) printf 'p9\t/repo\tidle\n'; exit 0 ;;

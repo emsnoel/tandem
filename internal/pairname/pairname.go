@@ -193,7 +193,7 @@ func ReadRecord(relay string) (Names, bool, error) {
 	}
 	var n Names
 	if err := json.Unmarshal(raw, &n); err != nil {
-		return Names{}, false, fmt.Errorf("%s is not valid JSON: %w", filepath.Join(relay, RecordName), err)
+		return Names{}, false, fmt.Errorf("%s is not valid JSON (%v); remove it and run tandem-pair again", filepath.Join(relay, RecordName), err)
 	}
 	for _, f := range []*string{&n.Planner, &n.Builder, &n.Reviewer} {
 		if !nameRE.MatchString(*f) {
@@ -204,8 +204,22 @@ func ReadRecord(relay string) (Names, bool, error) {
 }
 
 // Resolve returns the names to use for dir. Per role, an environment override
-// wins over the recorded name, which wins over the derived one.
+// wins over the recorded name, which wins over the derived one. An override
+// that is not a Herdr name is an error, because tandem-pair writes the names
+// into pair.json unescaped.
 func Resolve(dir, stateHome string, getenv func(string) string) (Names, error) {
+	env := Names{
+		Planner:  getenv("HERDR_PLANNER_NAME"),
+		Builder:  getenv("HERDR_BUILDER_NAME"),
+		Reviewer: getenv("HERDR_REVIEWER_NAME"),
+	}
+	for _, o := range []struct{ name, val string }{
+		{"HERDR_PLANNER_NAME", env.Planner}, {"HERDR_BUILDER_NAME", env.Builder}, {"HERDR_REVIEWER_NAME", env.Reviewer},
+	} {
+		if o.val != "" && !nameRE.MatchString(o.val) {
+			return Names{}, fmt.Errorf("%s='%s' is not a Herdr agent name; it must match %s", o.name, o.val, nameRE.String())
+		}
+	}
 	c, err := inspect(dir)
 	if err != nil {
 		return Names{}, err
@@ -218,11 +232,6 @@ func Resolve(dir, stateHome string, getenv func(string) string) (Names, error) {
 	rec, _, err := ReadRecord(paths.Relay(c.top))
 	if err != nil {
 		return Names{}, err
-	}
-	env := Names{
-		Planner:  getenv("HERDR_PLANNER_NAME"),
-		Builder:  getenv("HERDR_BUILDER_NAME"),
-		Reviewer: getenv("HERDR_REVIEWER_NAME"),
 	}
 	return merge(env, rec, derived), nil
 }

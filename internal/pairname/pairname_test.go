@@ -240,3 +240,28 @@ func TestReadRecordCorruptNamesTheFile(t *testing.T) {
 		t.Errorf("err = %v", err)
 	}
 }
+
+func TestResolveRejectsAnInvalidEnvName(t *testing.T) {
+	dir := t.TempDir()
+	env := map[string]string{"HERDR_BUILDER_NAME": `x"y`}
+	_, err := Resolve(dir, t.TempDir(), func(k string) string { return env[k] })
+	if err == nil {
+		t.Fatal("want an error for an invalid HERDR_BUILDER_NAME")
+	}
+	for _, want := range []string{"HERDR_BUILDER_NAME", `x"y`, `^[a-z][a-z0-9_-]{0,31}$`} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not name %q", err, want)
+		}
+	}
+}
+
+func TestReadRecordCorruptNamesTheRemedy(t *testing.T) {
+	relay := t.TempDir()
+	if err := os.WriteFile(filepath.Join(relay, RecordName), []byte(`{"planner":`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err := ReadRecord(relay)
+	if err == nil || !strings.HasSuffix(err.Error(), "remove it and run tandem-pair again") {
+		t.Fatalf("err = %v, want it to end with the remedy", err)
+	}
+}

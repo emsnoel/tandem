@@ -20,13 +20,13 @@ REPO="$TMP/repo"
 git -C "$REPO" init -q
 
 # Forces mailbox mode: agent snapshot exits 3, and paths relay echoes back its
-# --root. The real binary writes the question.
+# --root. The real binary writes the question and names the pair.
 export REAL_TANDEM; REAL_TANDEM=$(command -v tandem) || { echo "need an installed tandem" >&2; exit 2; }
 cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
 case "$1 $2" in
   "agent snapshot") exit 3 ;;
-  "relay write") exec "$REAL_TANDEM" "$@" ;;
+  "relay write"|"paths names") exec "$REAL_TANDEM" "$@" ;;
 esac
 if [ "$1" = "paths" ] && [ "$2" = "relay" ]; then
   shift 2

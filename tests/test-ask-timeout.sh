@@ -15,13 +15,18 @@ nope() { printf '  FAIL %s\n' "$1"; FAIL=$((FAIL+1)); }
 chk()  { case "$OUT" in *"$2"*) ok "$1" ;; *) nope "$1 (missing: $2)" ;; esac; }
 
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
-mkdir -p "$TMP/bin"
+# PLAIN is outside git, so its pair is planner, builder and reviewer.
+PLAIN="$TMP/plain"
+mkdir -p "$TMP/bin" "$PLAIN"
+# The planner's name comes from the branch's own `tandem paths names`.
+(cd "$(dirname "$0")/.." && go build -o "$TMP/tandem-real" ./cmd/tandem) || { echo "could not build tandem" >&2; exit 2; }
 
 # The socket is reachable, so tandem-ask takes the direct path and --dry-run
 # prints the timeout it would use.
-cat > "$TMP/bin/tandem" <<'STUB'
+cat > "$TMP/bin/tandem" <<STUB
 #!/usr/bin/env bash
-case "$1 $2" in
+case "\$1 \$2" in
+  "paths names") exec "$TMP/tandem-real" "\$@" ;;
   "agent snapshot") printf 'p9\t/repo\tidle\n' ;;
   *) exit 3 ;;
 esac
@@ -37,7 +42,7 @@ STUB
 printf '#!/bin/sh\necho "jq was called: $*" >&2\nexit 99\n' > "$TMP/bin/jq"
 chmod +x "$TMP/bin/tandem" "$TMP/bin/herdr" "$TMP/bin/jq"
 
-run_ask() { OUT=$(PATH="$TMP/bin:$PATH" HERDR_ENV=1 HERDR_PANE_ID=pX \
+run_ask() { OUT=$(cd "${DIR:-$PLAIN}" && PATH="$TMP/bin:$PATH" HERDR_ENV=1 HERDR_PANE_ID=pX \
   "$@" "$ASK" --dry-run "${TARGET}" "q" 2>&1); }
 
 echo "--- direction-aware defaults ---"
@@ -47,17 +52,26 @@ chk "asking the planner allows 300s" "--timeout 300000"
 TARGET=builder run_ask env
 chk "asking the builder stays under Claude Code's 120s Bash limit" "--timeout 90000"
 
+echo "--- a worktree's planner is named after its checkout ---"
+git -C "$TMP" init -q main
+git -C "$TMP/main" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
+git -C "$TMP/main" worktree add -q "$TMP/wt-b" 2>/dev/null
+DIR="$TMP/wt-b" TARGET=planner-wt-b run_ask env
+chk "asking planner-wt-b from wt-b allows 300s" "--timeout 300000"
+DIR="$TMP/wt-b" TARGET=planner run_ask env
+chk "a pane named planner is not wt-b's planner, so it gets 90s" "--timeout 90000"
+
 echo "--- explicit values still win ---"
 TARGET=planner
-OUT=$(PATH="$TMP/bin:$PATH" HERDR_ENV=1 HERDR_PANE_ID=pX \
+OUT=$(cd "$PLAIN" && PATH="$TMP/bin:$PATH" HERDR_ENV=1 HERDR_PANE_ID=pX \
   "$ASK" --dry-run --timeout 42 planner "q" 2>&1)
 chk "--timeout overrides the default" "--timeout 42000"
 
-OUT=$(PATH="$TMP/bin:$PATH" HERDR_ENV=1 HERDR_PANE_ID=pX \
+OUT=$(cd "$PLAIN" && PATH="$TMP/bin:$PATH" HERDR_ENV=1 HERDR_PANE_ID=pX \
   HERDR_ASK_TIMEOUT_SECONDS=77 "$ASK" --dry-run planner "q" 2>&1)
 chk "HERDR_ASK_TIMEOUT_SECONDS overrides the default" "--timeout 77000"
 
-OUT=$(PATH="$TMP/bin:$PATH" HERDR_ENV=1 HERDR_PANE_ID=pX \
+OUT=$(cd "$PLAIN" && PATH="$TMP/bin:$PATH" HERDR_ENV=1 HERDR_PANE_ID=pX \
   HERDR_ASK_TIMEOUT_SECONDS=77 "$ASK" --dry-run --timeout 42 planner "q" 2>&1)
 chk "--timeout beats the environment variable" "--timeout 42000"
 

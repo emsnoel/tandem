@@ -52,7 +52,8 @@ mailbox_dir() {
 ask_via_mailbox() {
   local mb qfile afile self
   mb=$(mailbox_dir)
-  self="${HERDR_ROLE:-builder}"
+  # BUILDER_NAME comes from pair_names (lib/pair-identity.sh) in tandem-ask.
+  self="${HERDR_ROLE:-$BUILDER_NAME}"
   [[ "$self" != "$TARGET" ]] || die "refusing to send a question to yourself."
 
   mkdir -p "$mb/q" "$mb/a" || die "cannot create relay directory $mb"
