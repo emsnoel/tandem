@@ -11,6 +11,7 @@ import (
 	"github.com/emsnoel/tandem/internal/agent"
 	"github.com/emsnoel/tandem/internal/doctor"
 	"github.com/emsnoel/tandem/internal/exitcode"
+	"github.com/emsnoel/tandem/internal/pairname"
 	"github.com/emsnoel/tandem/internal/paths"
 	"github.com/emsnoel/tandem/internal/vcs"
 )
@@ -35,6 +36,7 @@ func cmdDoctor(args []string) int {
 	fs.SetOutput(os.Stderr)
 	asJSON := fs.Bool("json", false, "print the results as JSON")
 	problems := fs.Bool("problems", false, "print only the checks that failed or warned; JSON is unchanged")
+	stateHome := fs.String("state-home", os.Getenv("TANDEM_STATE_HOME"), "state home, replacing the default base directory")
 	cwd := fs.String("cwd", ".", "folder the agents will start in; the repo is its git toplevel")
 	var flags doctor.RoleFlags
 	fs.StringVar(&flags.Builder.Kind, "builder", "", "builder kind, as tandem-pair --builder")
@@ -63,6 +65,7 @@ func cmdDoctor(args []string) int {
 	}
 
 	rep := doctorReport{Root: root}
+	names, namesErr := pairname.Resolve(dir, *stateHome, os.Getenv)
 	flags.Planner.Kind = doctor.CallingPlannerKind(doctorProbe, os.Getenv)
 	roles, err := doctor.ResolveRoles(root, flags, os.Getenv)
 	if err != nil {
@@ -76,9 +79,16 @@ func cmdDoctor(args []string) int {
 			Detail: err.Error(), Fix: "fix the file named above, then run tandem doctor again"})
 	} else {
 		rep.Manifest = roles.Manifest
-		roles.Running = doctor.RunningRoles(doctorProbe, os.Getenv)
-		rep.Results = append(doctor.Machine(doctorProbe, roles.Uses(), os.Getenv),
-			doctor.Repo(root, dir, roles, os.Getenv)...)
+		var nameResults []doctor.Result
+		if namesErr != nil {
+			nameResults = []doctor.Result{{Group: "repo", Name: "names", Status: doctor.Fail,
+				Detail: namesErr.Error(), Fix: "fix the name or file named above, then run tandem doctor again"}}
+		} else {
+			roles.Running = doctor.RunningRoles(doctorProbe, root, names)
+			nameResults = doctor.PairNames(doctorProbe, root, names)
+		}
+		rep.Results = append(doctor.Machine(doctorProbe, roles.Uses(), os.Getenv), nameResults...)
+		rep.Results = append(rep.Results, doctor.Repo(root, dir, roles, os.Getenv)...)
 	}
 	rep.Failures, rep.Warnings = doctor.Count(rep.Results)
 

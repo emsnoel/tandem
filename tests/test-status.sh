@@ -87,9 +87,18 @@ chmod +x "$TMP/bin/ps"
 write_builder "$REPO/.tandem-relay"
 
 # Run from $REPO: the not-paired branch uses the git toplevel of the cwd.
-run() { OUT=$(cd "$REPO" && PATH="$TMP/bin:$PATH" HERDR_ENV=1 REPO="$REPO" TANDEM_BUILD_ENGINE= \
+run() { OUT=$(cd "${RUN_DIR:-$REPO}" && PATH="$TMP/bin:$PATH" HERDR_ENV=1 REPO="$REPO" TANDEM_BUILD_ENGINE= \
                 LATEST_PLAN="${LATEST_PLAN:-}" SNAP_MODE="${SNAP_MODE:-ok}" GATE_MODE="${GATE_MODE:-clean}" SNAP_CWD="${SNAP_CWD:-}" INVALID_MANIFEST="${INVALID_MANIFEST:-}" \
                 "$STATUS" "$@" 2>&1); RC=$?; }
+
+# --- a linked worktree names its own pair ------------------------------------
+git -C "$REPO" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
+git -C "$REPO" worktree add -q "$TMP/wt-b"
+WTB=$(cd "$TMP/wt-b" && pwd -P)
+RUN_DIR="$TMP/wt-b" HERDR_PLANNER_NAME=planner-wt-b HERDR_BUILDER_NAME=builder-wt-b HERDR_REVIEWER_NAME=reviewer-wt-b SNAP_MODE=not-found GATE_MODE=absent run
+FIRST=$(printf '%s\n' "$OUT" | head -n 1)
+[ "$FIRST" = "tandem-status: pair     planner-wt-b, builder-wt-b, reviewer-wt-b  (checkout $WTB)" ] \
+  && ok "its first line names the pair and the checkout" || nope "first line was: $FIRST"
 
 # --- paired, clean review, at the repo root -----------------------------------
 SNAP_MODE=ok GATE_MODE=clean run
