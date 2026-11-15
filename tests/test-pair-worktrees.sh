@@ -9,7 +9,10 @@
 #   - each checkout has its own pair.json and its own bridge;
 #   - a verdict or a handback reaches only its own planner;
 #   - after `git worktree move wt-b wt-c` the record still names planner-wt-b;
-#   - tandem-unpair in that worktree closes only its own panes.
+#   - tandem-unpair in that worktree closes only its own panes;
+#   - a builder or reviewer from another checkout is refused with exit 35, even
+#     under a forced name or from a separate repository, while one in a
+#     subdirectory of the checkout or behind a symlink to it is adopted.
 set -uo pipefail
 ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
 
@@ -20,7 +23,7 @@ nope() { printf '  FAIL %s\n' "$1"; FAIL=$((FAIL+1)); }
 TMP=$(mktemp -d)
 cleanup() {
   local f p
-  for f in "$TMP"/main/.tandem-relay/bridge.pid "$TMP"/wt-*/.tandem-relay/bridge.pid; do
+  for f in "$TMP"/main/.tandem-relay/bridge.pid "$TMP"/wt-*/.tandem-relay/bridge.pid "$TMP"/other/.tandem-relay/bridge.pid; do
     p=$(cat "$f" 2>/dev/null) || continue
     pkill -P "$p" 2>/dev/null; kill "$p" 2>/dev/null
   done
@@ -37,69 +40,8 @@ fake_herdr_install "$TMP/bin" "$FAKE"
 mv "$TMP/bin/herdr" "$TMP/bin/herdr.fake"
 printf '› Ask Codex to do anything\n\n  ← for agents · ? for shortcuts\n' > "$FAKE/pane"
 
-# The single-agent fake keeps the status and logs prompts. This wrapper keeps
-# the panes: FAKE/agents has one line per pane, "pane<TAB>name<TAB>cwd<TAB>kind<TAB>tab",
-# with "-" for no name.
-cat > "$TMP/bin/herdr" <<'STUB'
-#!/usr/bin/env bash
-A="$FAKE/agents"
-printf '%s\n' "$*" >> "$FAKE/calls"
-# row FIELD VALUE: the first line whose FIELD (1 pane, 2 name) is VALUE.
-row() { awk -F'\t' -v f="$1" -v v="$2" '$f == v { print; exit }' "$A"; }
-# set_row PANE LINE: replace PANE's line, or drop it when LINE is empty.
-set_row() {
-  awk -F'\t' -v p="$1" -v l="$2" '$1 == p { if (l != "") print l; next } { print }' "$A" > "$A.$$" && mv -f "$A.$$" "$A"
-}
-# agent_json LINE: one agent object with the shared status.
-agent_json() {
-  local pane name cwd kind tab st seq sess n
-  IFS=$'\t' read -r pane name cwd kind tab <<<"$1"
-  read -r st seq < "$FAKE/state"; sess=$(cat "$FAKE/session")
-  n="\"$name\""; [ "$name" = - ] && n=null
-  printf '{"agent":"%s","agent_status":"%s","cwd":"%s","name":%s,"pane_id":"%s","tab_id":"%s","state_change_seq":%s,"agent_session":{"value":"%s"}}' \
-    "$kind" "$st" "$cwd" "$n" "$pane" "$tab" "$seq" "$sess"
-}
-not_found() { printf '{"error":{"code":"agent_not_found","message":"agent target %s not found"}}\n' "$1" >&2; exit 1; }
-case "$1 $2" in
-  "agent list")
-    sep=""; printf '{"id":"x","result":{"agents":['
-    while IFS= read -r l; do printf '%s' "$sep"; agent_json "$l"; sep=","; done < "$A"
-    printf '],"type":"agent_list"}}\n'; exit 0 ;;
-  "agent get")
-    l=$(row 2 "$3"); [ -n "$l" ] || l=$(row 1 "$3"); [ -n "$l" ] || not_found "$3"
-    printf '{"id":"x","result":{"agent":%s,"type":"agent_info"}}\n' "$(agent_json "$l")"; exit 0 ;;
-  "agent prompt"|"agent read"|"agent wait"|"agent send-keys")
-    l=$(row 2 "$3"); [ -n "$l" ] || l=$(row 1 "$3"); [ -n "$l" ] || not_found "$3"
-    exec "$(dirname "$0")/herdr.fake" "$@" ;;
-  "agent rename")
-    IFS=$'\t' read -r pane _ cwd kind tab <<<"$(row 1 "$3")"
-    set_row "$3" "$(printf '%s\t%s\t%s\t%s\t%s' "$pane" "$4" "$cwd" "$kind" "$tab")"
-    printf '{"result":{}}\n'; exit 0 ;;
-  "agent start")
-    name="$3"; shift 3; pane=""; kind=""
-    while [ $# -gt 0 ]; do
-      case "$1" in --pane) pane="$2"; shift 2 ;; --kind) kind="$2"; shift 2 ;; --) break ;; *) shift ;; esac
-    done
-    IFS=$'\t' read -r _ _ cwd _ tab <<<"$(row 1 "$pane")"
-    set_row "$pane" "$(printf '%s\t%s\t%s\t%s\t%s' "$pane" "$name" "$cwd" "$kind" "$tab")"
-    printf '{"result":{"agent":{"name":"%s"}}}\n' "$name"; exit 0 ;;
-  "pane split")
-    parent="$3"; shift 3; cwd=""
-    while [ $# -gt 0 ]; do case "$1" in --cwd) cwd="$2"; shift 2 ;; *) shift ;; esac; done
-    IFS=$'\t' read -r _ _ _ _ tab <<<"$(row 1 "$parent")"
-    n=$(( $(cat "$FAKE/next" 2>/dev/null || echo 10) + 1 )); printf '%s\n' "$n" > "$FAKE/next"
-    pane="${parent%%:*}:p$n"
-    # A shell until an agent starts in it.
-    printf '%s\t-\t%s\tshell\t%s\n' "$pane" "$cwd" "$tab" >> "$A"
-    printf '{"result":{"pane":{"pane_id":"%s"}}}\n' "$pane"; exit 0 ;;
-  "pane close")
-    set_row "$3" ""; printf '{"result":{}}\n'; exit 0 ;;
-  "pane run"|"pane rename"|"pane title"|"pane report-metadata"|"tab rename"|"tab set-title")
-    printf '{"result":{}}\n'; exit 0 ;;
-esac
-exec "$(dirname "$0")/herdr.fake" "$@"
-STUB
-chmod +x "$TMP/bin/herdr"
+. "$ROOT_DIR/tests/lib/fake-herdr-panes.sh"
+fake_herdr_panes_install "$TMP/bin"
 
 MAIN="$TMP/main"; WT_B="$TMP/wt-b"; WT_C="$TMP/wt-c"
 mkdir -p "$MAIN"; git -C "$MAIN" init -q
@@ -126,7 +68,11 @@ as_pane() {
     HERDR_CONFIG_PATH="$TMP/herdr/config.toml" HERDR_PAIR_START_TIMEOUT_MS=1000 HERDR_SKIP_HOOK_CHECK=1 \
     TANDEM_FAIL_WITHIN_MS=1000 HERDR_BRIDGE_BACKSTOP_SECONDS=1 "$@" 2>&1)
 }
-pair() { as_pane "$1" "$2" "$ROOT_DIR/bin/tandem-pair" --skip-doctor --approve-kind codex --cwd "$1"; }
+# pair DIR PANE [ARG...]: run tandem-pair for the checkout DIR from PANE.
+pair() {
+  local dir="$1" pane="$2"; shift 2
+  as_pane "$dir" "$pane" "$ROOT_DIR/bin/tandem-pair" --skip-doctor --approve-kind codex --cwd "$dir" "$@"
+}
 # pane_of NAME: the pane holding agent NAME.
 pane_of() { awk -F'\t' -v n="$1" '$2 == n { print $1; exit }' "$FAKE/agents"; }
 names_in() { awk -F'\t' -v t="$1" '$5 == t && $2 != "-" { print $2 }' "$FAKE/agents" | sort | tr '\n' ' '; }
@@ -138,7 +84,7 @@ record_of() { cat "$1/.tandem-relay/pair.json" 2>/dev/null; }
 
 # exits_within PID: the process ends within 5 s. A killed bridge exits once its
 # event wait returns, which the 1 s backstop below bounds.
-exits_within() { local i; for i in $(seq 1 50); do kill -0 "$1" 2>/dev/null || return 0; sleep 0.1; done; return 1; }
+exits_within() { local _; for _ in $(seq 1 50); do kill -0 "$1" 2>/dev/null || return 0; sleep 0.1; done; return 1; }
 
 printf '\n== each checkout pairs under its own names ==\n'
 OUT=$(pair "$MAIN" w1:p1); rc=$?
@@ -241,6 +187,89 @@ OUT=$(as_pane "$WT_C" w2:p9 "$ROOT_DIR/bin/tandem-unpair" --force --skip-checks)
 [ "$(names_in w1:t1)" = "builder planner reviewer " ] && ok "the main checkout's panes are untouched" || nope "main agents: $(names_in w1:t1)"
 [ -n "$B_BRIDGE" ] && exits_within "$B_BRIDGE" && ok "wt-b's bridge is stopped" || nope "wt-b's bridge '$B_BRIDGE' still runs: $OUT"
 kill -0 "$MAIN_BRIDGE" 2>/dev/null && ok "the main checkout's bridge keeps running" || nope "the main bridge stopped"
+
+printf '\n== a builder or reviewer from another checkout is refused ==\n'
+MAIN_RECORD=$(record_of "$MAIN"); MAIN_ARGS=$(ps -p "$MAIN_BRIDGE" -o command= 2>/dev/null)
+MAIN_BUILDER=$(pane_of builder); MAIN_REVIEWER=$(pane_of reviewer)
+AGENTS=$(cat "$FAKE/agents")
+# refused OUT NAME PANE DIR: OUT is the exit-35 refusal for agent NAME in PANE,
+# which works in DIR.
+refused() {
+  printf '%s\n' "$1" | grep -qF "tandem-pair: the agent named '$2' in pane $3 works in another checkout: $4." \
+    && printf '%s\n' "$1" | grep -qF "tandem does not adopt it, because its messages would go to that checkout's pair." \
+    && printf '%s\n' "$1" | grep -qF "close it from that checkout with tandem-unpair, or pair here under other names (HERDR_BUILDER_NAME, HERDR_REVIEWER_NAME)."
+}
+# untouched: the main checkout's record, bridge and every pane are as they were.
+untouched() {
+  [ "$(record_of "$MAIN")" = "$MAIN_RECORD" ] && kill -0 "$MAIN_BRIDGE" 2>/dev/null \
+    && [ "$(ps -p "$MAIN_BRIDGE" -o command= 2>/dev/null)" = "$MAIN_ARGS" ] && [ "$(cat "$FAKE/agents")" = "$AGENTS" ]
+}
+# The worktree's planner forces the main checkout's builder name.
+OUT=$(HERDR_PLANNER_NAME=planner-b HERDR_BUILDER_NAME=builder HERDR_REVIEWER_NAME=reviewer pair "$WT_C" w2:p9 --dry-run); rc=$?
+[ "$rc" -eq 35 ] && refused "$OUT" builder "$MAIN_BUILDER" "$MAIN" \
+  && ok "a dry run refuses the main checkout's builder with exit 35" || nope "dry run: rc $rc: $OUT"
+untouched && ok "and the main checkout's record, bridge and panes are unchanged" || nope "main pair changed: $(record_of "$MAIN")"
+OUT=$(HERDR_PLANNER_NAME=planner-b HERDR_BUILDER_NAME=builder HERDR_REVIEWER_NAME=reviewer pair "$WT_C" w2:p9); rc=$?
+[ "$rc" -eq 35 ] && refused "$OUT" builder "$MAIN_BUILDER" "$MAIN" \
+  && ok "a real run refuses it with exit 35" || nope "real run: rc $rc: $OUT"
+[ ! -e "$WT_C/.tandem-relay" ] && ok "the worktree gets no relay" || nope "wt-c relay: $(ls -A "$WT_C/.tandem-relay")"
+untouched && ok "and nothing was renamed or started" || nope "agents changed: $(cat "$FAKE/agents")"
+# Only the reviewer's name clashes. It is refused before the planner is renamed.
+OUT=$(HERDR_PLANNER_NAME=planner-b HERDR_REVIEWER_NAME=reviewer pair "$WT_C" w2:p9); rc=$?
+[ "$rc" -eq 35 ] && refused "$OUT" reviewer "$MAIN_REVIEWER" "$MAIN" \
+  && ok "the main checkout's reviewer is refused with exit 35" || nope "reviewer: rc $rc: $OUT"
+untouched && [ ! -e "$WT_C/.tandem-relay" ] && ok "and nothing was renamed, started or recorded" \
+  || nope "after the reviewer refusal: $(cat "$FAKE/agents")"
+
+printf '\n== a builder in a subdirectory or behind a symlink is adopted ==\n'
+# set_cwd PANE DIR: Herdr reports DIR as PANE's cwd.
+set_cwd() {
+  awk -F'\t' -v OFS='\t' -v p="$1" -v d="$2" '$1 == p { $3 = d } { print }' "$FAKE/agents" > "$FAKE/agents.new" \
+    && mv "$FAKE/agents.new" "$FAKE/agents"
+}
+mkdir -p "$MAIN/sub/dir"; ln -s "$MAIN" "$TMP/main-link"
+for d in "$MAIN/sub/dir" "$TMP/main-link"; do
+  label="main/sub/dir"; [ "$d" = "$TMP/main-link" ] && label="a symlink to main"
+  set_cwd "$MAIN_BUILDER" "$d"
+  OUT=$(pair "$MAIN" w1:p1); rc=$?; fake_set_state idle
+  if [ "$rc" -eq 0 ] && [ "$(pane_of builder)" = "$MAIN_BUILDER" ] && [ "$(record_of "$MAIN")" = "$MAIN_RECORD" ]; then
+    ok "a builder working in $label is adopted"
+  else
+    nope "builder in $d: rc $rc: $OUT"
+  fi
+done
+set_cwd "$MAIN_BUILDER" "$MAIN"
+MAIN_BRIDGE=$(bridge_of "$MAIN")
+# builder.json follows the builder's cwd, where its readers look; the bridge
+# stays at the checkout's top.
+[ ! -e "$MAIN/sub/dir/.tandem-relay/bridge.pid" ] && kill -0 "$MAIN_BRIDGE" 2>/dev/null \
+  && ok "the relay bridge stays at the checkout's top" || nope "bridge moved: $(ls -A "$MAIN/sub/dir/.tandem-relay")"
+
+printf '\n== a separate repository does not adopt the first one'"'"'s builder ==\n'
+OTHER="$TMP/other"; mkdir -p "$OTHER"; git -C "$OTHER" init -q
+git -C "$OTHER" config user.email t@t; git -C "$OTHER" config user.name t
+cp "$MAIN/.gitignore" "$MAIN/.tandem.json" "$OTHER/"
+git -C "$OTHER" add . && git -C "$OTHER" commit -qm init
+OTHER=$(cd "$OTHER" && pwd -P)
+printf 'w3:p1\t-\t%s\tclaude\tw3:t1\n' "$OTHER" >> "$FAKE/agents"
+AGENTS=$(cat "$FAKE/agents")
+# Both are main checkouts, so both derive planner, builder and reviewer.
+OUT=$(pair "$OTHER" w3:p1); rc=$?
+[ "$rc" -ne 0 ] && printf '%s\n' "$OUT" | grep -qF "the name 'planner' is already held by pane w1:p1" \
+  && ok "the second repository's planner name clash is refused" || nope "planner clash: rc $rc: $OUT"
+OUT=$(HERDR_PLANNER_NAME=planner-o pair "$OTHER" w3:p1); rc=$?
+[ "$rc" -eq 35 ] && refused "$OUT" builder "$MAIN_BUILDER" "$MAIN" \
+  && ok "under another planner name it refuses the first repository's builder with exit 35" || nope "other repo: rc $rc: $OUT"
+[ "$(cat "$FAKE/agents")" = "$AGENTS" ] && [ ! -e "$OTHER/.tandem-relay/pair.json" ] \
+  && ok "and nothing was renamed or recorded" || nope "after the other repo's refusal: $(cat "$FAKE/agents")"
+# An unnamed agent beside the planner that works in the first repository is not
+# adopted either.
+printf 'w3:p2\t-\t%s\tcodex\tw3:t1\n' "$MAIN" >> "$FAKE/agents"
+AGENTS=$(cat "$FAKE/agents")
+OUT=$(HERDR_PLANNER_NAME=planner-o HERDR_BUILDER_NAME=builder-o HERDR_REVIEWER_NAME=reviewer-o pair "$OTHER" w3:p1); rc=$?
+[ "$rc" -eq 35 ] && printf '%s\n' "$OUT" | grep -qF "tandem-pair: the unnamed agent in pane w3:p2 works in another checkout: $MAIN." \
+  && ok "an unnamed agent from the first repository is not adopted" || nope "adoption: rc $rc: $OUT"
+[ "$(cat "$FAKE/agents")" = "$AGENTS" ] && ok "and nothing was renamed" || nope "after the adoption refusal: $(cat "$FAKE/agents")"
 
 printf '\ntests/test-pair-worktrees: passed %d, failed %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

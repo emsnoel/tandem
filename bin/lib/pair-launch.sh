@@ -158,7 +158,8 @@ resolve_launch_args() {
     done; } < "$FIELDS"
 }
 
-# resolve_reviewer: resolve the reviewer and whether it must start.
+# resolve_reviewer: resolve the reviewer's settings. find_reviewer then decides
+# whether it must start.
 # The reviewer has its own settings and never inherits the builder's. It is
 # resolved before any pane changes, so a bad reviewer stops the pairing early.
 # `tandem config resolve` reports none, resolved or invalid, and exits 0.
@@ -190,7 +191,12 @@ resolve_reviewer() {
       die "could not read the reviewer configuration."
       ;;
   esac
+}
 
+# find_reviewer: find a running reviewer to keep, and refuse one that cannot
+# be. It changes nothing, so tandem-pair runs it before renaming the planner.
+# A reviewer about to start gets its launch spec here.
+find_reviewer() {
   if [[ -n "$REVIEWER_KIND" ]]; then
     rc=0
     _snap=$(tandem agent snapshot "$REVIEWER_NAME" 2>/dev/null) || rc=$?
@@ -198,6 +204,8 @@ resolve_reviewer() {
       IFS=$'\t' read -r REVIEWER_PANE _ _ <<<"$_snap"
       _running=$(tandem agent kind "$REVIEWER_NAME" 2>/dev/null) || _running=""
       refuse_unsupported_pane reviewer "$REVIEWER_PANE" "$_running"
+      _cwd=${_snap#*$'\t'}
+      refuse_foreign_pane reviewer "$REVIEWER_NAME" "$REVIEWER_PANE" "${_cwd%%$'\t'*}"
     elif (( rc != 10 )); then
       die "could not check for an existing reviewer."
     fi

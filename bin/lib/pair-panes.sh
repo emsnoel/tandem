@@ -19,32 +19,46 @@ refuse_unsupported_pane() {
   exit 20
 }
 
-# ensure_builder: find, adopt or start the builder.
-ensure_builder() {
-  BUILDER_PANE=""; rc=0
+# find_builder: find the builder to keep or adopt, and refuse one that cannot
+# be. It changes nothing, so tandem-pair runs it before renaming the planner.
+# Sets BUILDER_PANE, and BUILDER_ADOPT=1 and ADOPTED_KIND for an unnamed agent
+# to adopt.
+find_builder() {
+  BUILDER_PANE=""; BUILDER_ADOPT=0; ADOPTED_KIND=""; rc=0
   _snap=$(tandem agent snapshot "$BUILDER_NAME" 2>/dev/null) || rc=$?
   if (( rc == 0 )); then
     IFS=$'\t' read -r BUILDER_PANE _ _ <<<"$_snap"
-  elif (( rc != 10 )); then
-    die "could not check for an existing builder."
-  fi
-
-  if [[ -n "$BUILDER_PANE" ]]; then
     _running=$(tandem agent kind "$BUILDER_NAME" 2>/dev/null) || _running=""
     refuse_unsupported_pane builder "$BUILDER_PANE" "$_running"
+    _cwd=${_snap#*$'\t'}
+    refuse_foreign_pane builder "$BUILDER_NAME" "$BUILDER_PANE" "${_cwd%%$'\t'*}"
+    return 0
+  fi
+  (( rc == 10 )) || die "could not check for an existing builder."
+
+  # Adopt the single unnamed agent in the planner's tab, whatever its kind, so a
+  # config change does not start a second one. --builder KIND narrows it. The
+  # planner may still be unnamed, so exclude it by pane id.
+  rc=0
+  tandem agent adoptable --exclude-pane "$PLANNER_PANE" ${PLANNER_TAB:+--tab "$PLANNER_TAB"} \
+    ${OV_BUILDER_KIND:+--kind "$OV_BUILDER_KIND"} >"$FIELDS" 2>/dev/null || rc=$?
+  (( rc == 0 || rc == 20 )) || die "could not list agents to look for one to adopt."
+  { IFS= read -r -d '' BUILDER_PANE; IFS= read -r -d '' ADOPTED_KIND; } < "$FIELDS" || true
+  (( rc == 0 )) || refuse_unsupported_pane builder "$BUILDER_PANE" "$ADOPTED_KIND"
+  [[ -n "$BUILDER_PANE" ]] || return 0
+  _snap=$(tandem agent snapshot "$BUILDER_PANE" 2>/dev/null) \
+    || die "could not read the cwd of pane $BUILDER_PANE, the agent to adopt."
+  _cwd=${_snap#*$'\t'}
+  refuse_foreign_pane builder "" "$BUILDER_PANE" "${_cwd%%$'\t'*}"
+  BUILDER_ADOPT=1
+}
+
+# ensure_builder: keep, adopt or start the builder that find_builder found.
+ensure_builder() {
+  if [[ -n "$BUILDER_PANE" ]] && (( ! BUILDER_ADOPT )); then
     info "builder already present in pane $BUILDER_PANE."
   else
-    # Adopt the single unnamed agent in the planner's tab, whatever its kind, so a
-    # config change does not start a second one. --builder KIND narrows it. A dry
-    # run leaves the planner unnamed, so exclude it by pane id.
-    ADOPTED_KIND=""; rc=0
-    tandem agent adoptable --exclude-pane "$PLANNER_PANE" ${PLANNER_TAB:+--tab "$PLANNER_TAB"} \
-      ${OV_BUILDER_KIND:+--kind "$OV_BUILDER_KIND"} >"$FIELDS" 2>/dev/null || rc=$?
-    (( rc == 0 || rc == 20 )) || die "could not list agents to look for one to adopt."
-    { IFS= read -r -d '' BUILDER_PANE; IFS= read -r -d '' ADOPTED_KIND; } < "$FIELDS" || true
-    (( rc == 0 )) || refuse_unsupported_pane builder "$BUILDER_PANE" "$ADOPTED_KIND"
-
-    if [[ -n "$BUILDER_PANE" ]]; then
+    if (( BUILDER_ADOPT )); then
       info "adopting the running $ADOPTED_KIND agent in pane $BUILDER_PANE."
       tandem config resolve --role builder --root "$ROOT" --adopted "$ADOPTED_KIND" --fields \
         >"$FIELDS" 2>/dev/null || : >"$FIELDS"

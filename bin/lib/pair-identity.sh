@@ -57,3 +57,30 @@ check_relay_owner() {
   fi
   die "this checkout's relay bridge still delivers to planner '$owner', which is gone. Clear the old pair with: HERDR_PLANNER_NAME=$owner tandem-unpair --force"
 }
+
+# checkout_of DIR: print the checkout holding DIR, as its git toplevel with
+# symlinks resolved, or DIR itself, resolved, when DIR is not inside git. Fails
+# for an empty or missing DIR.
+checkout_of() {
+  local top
+  [[ -n "$1" ]] || return 1
+  top=$(git -C "$1" rev-parse --show-toplevel 2>/dev/null) || top="$1"
+  (cd "$top" 2>/dev/null && pwd -P)
+}
+
+# refuse_foreign_pane ROLE NAME PANE CWD: stop the pairing when the agent NAME
+# in PANE works in a checkout other than ROOT's. Its messages go to its own
+# checkout's relay, so adopting it would cross two pairs. A pane outside git, or
+# with no cwd, counts as another checkout. An empty NAME is an unnamed agent
+# about to be adopted. Reads ROOT.
+refuse_foreign_pane() {
+  local here there who="the agent named '$2'"
+  here=$(checkout_of "$ROOT") || here="$ROOT"
+  there=$(checkout_of "$4") || there=""
+  [[ -n "$there" && "$there" == "$here" ]] && return 0
+  [[ -n "$2" ]] || who="the unnamed agent"
+  printf 'tandem-pair: %s in pane %s works in another checkout: %s.\n' "$who" "$3" "${there:-${4:-an unknown folder}}" >&2
+  printf "tandem-pair: tandem does not adopt it, because its messages would go to that checkout's pair.\n" >&2
+  printf 'tandem-pair: close it from that checkout with tandem-unpair, or pair here under other names (HERDR_BUILDER_NAME, HERDR_REVIEWER_NAME).\n' >&2
+  exit 35
+}

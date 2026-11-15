@@ -51,6 +51,25 @@ func TestSnapshotLineRejectsEmbeddedTabs(t *testing.T) {
 	}
 }
 
+// snapshot takes a name or a pane id, so tandem-pair can read the cwd of an
+// unnamed agent it is about to adopt. A name wins over a pane id.
+func TestSnapshotTargetFindsANameThenAPane(t *testing.T) {
+	agents := []herdr.Agent{
+		{PaneID: "w1:p2", CWD: "/unnamed"},
+		{PaneID: "w1:p3", CWD: "/named", Name: s("w1:p2")},
+		{PaneID: "w1:p4", CWD: "/builder", Name: s("builder")},
+	}
+	for target, want := range map[string]string{"builder": "/builder", "w1:p2": "/named", "w1:p4": "/builder"} {
+		a := snapshotTarget(agents, target)
+		if a == nil || a.CWD != want {
+			t.Fatalf("snapshotTarget(%q): want cwd %q, got %+v", target, want, a)
+		}
+	}
+	if a := snapshotTarget(agents, "w9:p9"); a != nil {
+		t.Fatalf("want nil for an unknown target, got %+v", a)
+	}
+}
+
 func TestPromptArgsUsesHerdrFlagNames(t *testing.T) {
 	got := promptArgs("builder", "do the thing", true, nil, 120000)
 	want := []string{"agent", "prompt", "builder", "do the thing", "--wait", "--timeout", "120000"}

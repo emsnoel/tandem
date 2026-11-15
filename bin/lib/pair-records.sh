@@ -21,8 +21,11 @@ resolve_bcwd() {
       IFS=$'\t' read -r _ BCWD _ <<<"$_snap"
     fi
     BCWD="${BCWD:-${CWD_OVERRIDE:-$PWD}}"
-    # MB_ROOT is the git toplevel, used only by the relay bridge.
-    MB_ROOT=$(git -C "$BCWD" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$BCWD")
+    # MB_ROOT is the checkout's toplevel, used only by the relay bridge. The
+    # relay never follows the builder to another checkout.
+    MB_ROOT="$ROOT"
+    [[ "$(checkout_of "$BCWD")" == "$(checkout_of "$ROOT")" ]] \
+      || die "the builder's folder $BCWD is outside this checkout $ROOT; nothing was recorded."
   fi
 }
 
