@@ -3,6 +3,7 @@ package herdr
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 )
 
@@ -61,22 +62,57 @@ func SplitDirection(w, h int) string {
 	return "down"
 }
 
-// TabIsDefault reports whether `herdr tab get`'s answer shows a tab still
-// labelled with its own number, the label Herdr gives a tab nobody named.
-func TabIsDefault(out []byte) (bool, error) {
-	var env struct {
+// TabIsDefault reports whether a tab still has the label Herdr gives a tab
+// nobody named: its 1-based position in its workspace, which Herdr renumbers
+// when an earlier tab closes. tab is `herdr tab get`'s answer and list is
+// `herdr tab list --workspace`'s answer for the tab's workspace. The tab's
+// "number" is a global counter, not its label.
+func TabIsDefault(tab, list []byte) (bool, error) {
+	type tabInfo struct {
+		ID    string `json:"tab_id"`
+		Label string `json:"label"`
+	}
+	var got struct {
+		Result struct {
+			Tab *tabInfo `json:"tab"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(tab, &got); err != nil {
+		return false, err
+	}
+	if got.Result.Tab == nil {
+		return false, errors.New("herdr tab get: answer has no result.tab")
+	}
+	var all struct {
+		Result struct {
+			Tabs []tabInfo `json:"tabs"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(list, &all); err != nil {
+		return false, err
+	}
+	for i, t := range all.Result.Tabs {
+		if t.ID == got.Result.Tab.ID {
+			return got.Result.Tab.Label == strconv.Itoa(i+1), nil
+		}
+	}
+	return false, fmt.Errorf("herdr tab list: tab %s is not in its workspace's list", got.Result.Tab.ID)
+}
+
+// TabWorkspace returns the workspace id from `herdr tab get`'s answer.
+func TabWorkspace(tab []byte) (string, error) {
+	var got struct {
 		Result struct {
 			Tab *struct {
-				Label  string `json:"label"`
-				Number int    `json:"number"`
+				Workspace string `json:"workspace_id"`
 			} `json:"tab"`
 		} `json:"result"`
 	}
-	if err := json.Unmarshal(out, &env); err != nil {
-		return false, err
+	if err := json.Unmarshal(tab, &got); err != nil {
+		return "", err
 	}
-	if env.Result.Tab == nil {
-		return false, errors.New("herdr tab get: answer has no result.tab")
+	if got.Result.Tab == nil || got.Result.Tab.Workspace == "" {
+		return "", errors.New("herdr tab get: answer has no result.tab.workspace_id")
 	}
-	return env.Result.Tab.Label == strconv.Itoa(env.Result.Tab.Number), nil
+	return got.Result.Tab.Workspace, nil
 }
