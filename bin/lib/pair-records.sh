@@ -25,7 +25,7 @@ resolve_bcwd() {
     # relay never follows the builder to another checkout.
     MB_ROOT="$ROOT"
     [[ "$(checkout_of "$BCWD")" == "$(checkout_of "$ROOT")" ]] \
-      || die "the builder's folder $BCWD is outside this checkout $ROOT; nothing was recorded."
+      || die "the builder's folder $BCWD is outside this checkout $ROOT. The panes are set up, but nothing was recorded, so the pair cannot work. Close the builder pane in $BCWD, or run tandem-pair from that pane's checkout."
   fi
 }
 
