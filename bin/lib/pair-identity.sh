@@ -72,8 +72,8 @@ checkout_of() {
 
 # refuse_foreign_pane ROLE NAME PANE CWD: stop the pairing when the agent NAME
 # in PANE works in a checkout other than ROOT's. Its messages go to its own
-# checkout's relay, so adopting it would cross two pairs. A pane outside git, or
-# with no cwd, counts as another checkout. An empty NAME is an unnamed agent
+# checkout's relay, so adopting it would cross two pairs. A pane with no cwd
+# counts as another checkout, and so does a pane outside git when ROOT is in git. An empty NAME is an unnamed agent
 # about to be adopted. Reads ROOT.
 refuse_foreign_pane() {
   local here there who="the agent named '$2'"
