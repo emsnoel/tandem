@@ -51,22 +51,37 @@ func TestSnapshotLineRejectsEmbeddedTabs(t *testing.T) {
 	}
 }
 
-// snapshot takes a name or a pane id, so tandem-pair can read the cwd of an
-// unnamed agent it is about to adopt. A name wins over a pane id.
-func TestSnapshotTargetFindsANameThenAPane(t *testing.T) {
+// snapshot looks up a name, and with --pane a pane id, so tandem-pair can read
+// the cwd of an unnamed agent it is about to adopt. A plain snapshot never
+// falls back to a pane id: tandem-ask relies on an unknown name failing.
+func TestSnapshotTargetByNameOrByPane(t *testing.T) {
 	agents := []herdr.Agent{
 		{PaneID: "w1:p2", CWD: "/unnamed"},
 		{PaneID: "w1:p3", CWD: "/named", Name: s("w1:p2")},
 		{PaneID: "w1:p4", CWD: "/builder", Name: s("builder")},
 	}
-	for target, want := range map[string]string{"builder": "/builder", "w1:p2": "/named", "w1:p4": "/builder"} {
-		a := snapshotTarget(agents, target)
-		if a == nil || a.CWD != want {
-			t.Fatalf("snapshotTarget(%q): want cwd %q, got %+v", target, want, a)
-		}
+	cases := []struct {
+		target string
+		byPane bool
+		want   string
+	}{
+		{"builder", false, "/builder"},
+		{"w1:p2", false, "/named"},
+		{"w1:p4", false, ""},
+		{"w1:p2", true, "/unnamed"},
+		{"w1:p4", true, "/builder"},
+		{"builder", true, ""},
+		{"w9:p9", true, ""},
 	}
-	if a := snapshotTarget(agents, "w9:p9"); a != nil {
-		t.Fatalf("want nil for an unknown target, got %+v", a)
+	for _, c := range cases {
+		a := snapshotTarget(agents, c.target, c.byPane)
+		got := ""
+		if a != nil {
+			got = a.CWD
+		}
+		if got != c.want {
+			t.Fatalf("snapshotTarget(%q, pane=%v): want cwd %q, got %q", c.target, c.byPane, c.want, got)
+		}
 	}
 }
 

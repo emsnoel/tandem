@@ -23,7 +23,7 @@ nope() { printf '  FAIL %s\n' "$1"; FAIL=$((FAIL+1)); }
 TMP=$(mktemp -d)
 cleanup() {
   local f p
-  for f in "$TMP"/main/.tandem-relay/bridge.pid "$TMP"/wt-*/.tandem-relay/bridge.pid "$TMP"/other/.tandem-relay/bridge.pid; do
+  for f in "$TMP"/main/.tandem-relay/bridge.pid "$TMP"/wt-*/.tandem-relay/bridge.pid "$TMP"/other/.tandem-relay/bridge.pid "$TMP"/third/.tandem-relay/bridge.pid; do
     p=$(cat "$f" 2>/dev/null) || continue
     pkill -P "$p" 2>/dev/null; kill "$p" 2>/dev/null
   done
@@ -246,11 +246,14 @@ MAIN_BRIDGE=$(bridge_of "$MAIN")
   && ok "the relay bridge stays at the checkout's top" || nope "bridge moved: $(ls -A "$MAIN/sub/dir/.tandem-relay")"
 
 printf '\n== a separate repository does not adopt the first one'"'"'s builder ==\n'
-OTHER="$TMP/other"; mkdir -p "$OTHER"; git -C "$OTHER" init -q
-git -C "$OTHER" config user.email t@t; git -C "$OTHER" config user.name t
-cp "$MAIN/.gitignore" "$MAIN/.tandem.json" "$OTHER/"
-git -C "$OTHER" add . && git -C "$OTHER" commit -qm init
-OTHER=$(cd "$OTHER" && pwd -P)
+# new_repo DIR: a separate repository like the main one, in its main checkout.
+new_repo() {
+  mkdir -p "$1" && git -C "$1" init -q
+  git -C "$1" config user.email t@t; git -C "$1" config user.name t
+  cp "$MAIN/.gitignore" "$MAIN/.tandem.json" "$1/"
+  git -C "$1" add . && git -C "$1" commit -qm init
+}
+OTHER="$TMP/other"; new_repo "$OTHER"; OTHER=$(cd "$OTHER" && pwd -P)
 printf 'w3:p1\t-\t%s\tclaude\tw3:t1\n' "$OTHER" >> "$FAKE/agents"
 AGENTS=$(cat "$FAKE/agents")
 # Both are main checkouts, so both derive planner, builder and reviewer.
@@ -270,6 +273,19 @@ OUT=$(HERDR_PLANNER_NAME=planner-o HERDR_BUILDER_NAME=builder-o HERDR_REVIEWER_N
 [ "$rc" -eq 35 ] && printf '%s\n' "$OUT" | grep -qF "tandem-pair: the unnamed agent in pane w3:p2 works in another checkout: $MAIN." \
   && ok "an unnamed agent from the first repository is not adopted" || nope "adoption: rc $rc: $OUT"
 [ "$(cat "$FAKE/agents")" = "$AGENTS" ] && ok "and nothing was renamed" || nope "after the adoption refusal: $(cat "$FAKE/agents")"
+
+printf '\n== a planner pane that holds the builder'"'"'s name is renamed, not kept ==\n'
+THIRD="$TMP/third"; new_repo "$THIRD"; THIRD=$(cd "$THIRD" && pwd -P)
+printf 'w4:p1\tbuilder-t\t%s\tclaude\tw4:t1\n' "$THIRD" >> "$FAKE/agents"
+OUT=$(HERDR_PLANNER_NAME=planner-t HERDR_BUILDER_NAME=builder-t HERDR_REVIEWER_NAME=reviewer-t pair "$THIRD" w4:p1); rc=$?
+fake_set_state idle
+T_BUILDER=$(pane_of builder-t)
+if [ "$rc" -eq 0 ] && [ "$(pane_of planner-t)" = w4:p1 ] && [ -n "$T_BUILDER" ] && [ "$T_BUILDER" != w4:p1 ] \
+  && [ -n "$(pane_of reviewer-t)" ]; then
+  ok "the planner is renamed and a builder starts in its own pane"
+else
+  nope "planner holding the builder name: rc $rc, builder in '$T_BUILDER': $OUT"
+fi
 
 printf '\ntests/test-pair-worktrees: passed %d, failed %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

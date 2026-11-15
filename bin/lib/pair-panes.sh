@@ -26,6 +26,10 @@ refuse_unsupported_pane() {
 find_builder() {
   BUILDER_PANE=""; BUILDER_ADOPT=0; ADOPTED_KIND=""; rc=0
   _snap=$(tandem agent snapshot "$BUILDER_NAME" 2>/dev/null) || rc=$?
+  # The planner's own pane may hold the name until it is renamed next.
+  if (( rc == 0 )) && [[ "${_snap%%$'\t'*}" == "$PLANNER_PANE" ]]; then
+    rc=10
+  fi
   if (( rc == 0 )); then
     IFS=$'\t' read -r BUILDER_PANE _ _ <<<"$_snap"
     _running=$(tandem agent kind "$BUILDER_NAME" 2>/dev/null) || _running=""
@@ -46,7 +50,7 @@ find_builder() {
   { IFS= read -r -d '' BUILDER_PANE; IFS= read -r -d '' ADOPTED_KIND; } < "$FIELDS" || true
   (( rc == 0 )) || refuse_unsupported_pane builder "$BUILDER_PANE" "$ADOPTED_KIND"
   [[ -n "$BUILDER_PANE" ]] || return 0
-  _snap=$(tandem agent snapshot "$BUILDER_PANE" 2>/dev/null) \
+  _snap=$(tandem agent snapshot "$BUILDER_PANE" --pane 2>/dev/null) \
     || die "could not read the cwd of pane $BUILDER_PANE, the agent to adopt."
   _cwd=${_snap#*$'\t'}
   refuse_foreign_pane builder "" "$BUILDER_PANE" "${_cwd%%$'\t'*}"

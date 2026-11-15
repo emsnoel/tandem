@@ -200,6 +200,10 @@ find_reviewer() {
   if [[ -n "$REVIEWER_KIND" ]]; then
     rc=0
     _snap=$(tandem agent snapshot "$REVIEWER_NAME" 2>/dev/null) || rc=$?
+    # The planner's own pane may hold the name until it is renamed next.
+    if (( rc == 0 )) && [[ "${_snap%%$'\t'*}" == "$PLANNER_PANE" ]]; then
+      rc=10
+    fi
     if (( rc == 0 )); then
       IFS=$'\t' read -r REVIEWER_PANE _ _ <<<"$_snap"
       _running=$(tandem agent kind "$REVIEWER_NAME" 2>/dev/null) || _running=""
