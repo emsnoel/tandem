@@ -90,59 +90,85 @@ func derive(isMain bool, slug string, otherSlugs []string, checkoutID func() (st
 	return suffixed(id[:6]), nil
 }
 
+// checkout is what Derive and Resolve need to know about the directory.
+type checkout struct {
+	real   string // dir, absolute with symlinks resolved
+	top    string // git toplevel, or real when dir is not inside git
+	inGit  bool
+	isMain bool
+	others []string // slugs of the other worktrees' folders
+}
+
+func inspect(dir string) (checkout, error) {
+	real, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return checkout{}, err
+	}
+	if real, err = filepath.Abs(real); err != nil {
+		return checkout{}, err
+	}
+	out, err := exec.Command("git", "-C", real, "rev-parse", "--show-toplevel", "--git-dir", "--git-common-dir").Output()
+	if err != nil {
+		return checkout{real: real, top: real}, nil // not inside git
+	}
+	lines := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
+	if len(lines) != 3 {
+		return checkout{}, fmt.Errorf("unexpected git rev-parse output %q", out)
+	}
+	top, err := filepath.EvalSymlinks(lines[0])
+	if err != nil {
+		return checkout{}, err
+	}
+	gitDir, err := resolveFrom(real, lines[1])
+	if err != nil {
+		return checkout{}, err
+	}
+	common, err := resolveFrom(real, lines[2])
+	if err != nil {
+		return checkout{}, err
+	}
+	c := checkout{real: real, top: top, inGit: true, isMain: gitDir == common}
+	if c.isMain {
+		return c, nil
+	}
+	list, err := exec.Command("git", "-C", real, "worktree", "list", "--porcelain").Output()
+	if err != nil {
+		return checkout{}, fmt.Errorf("listing worktrees: %w", err)
+	}
+	for _, l := range strings.Split(string(list), "\n") {
+		p, ok := strings.CutPrefix(l, "worktree ")
+		if !ok {
+			continue
+		}
+		if rp, err := filepath.EvalSymlinks(p); err == nil {
+			p = rp
+		}
+		if p != top {
+			c.others = append(c.others, Slug(filepath.Base(p)))
+		}
+	}
+	return c, nil
+}
+
+func (c checkout) derive(dir, stateHome string) (Names, error) {
+	if !c.inGit {
+		return plain, nil
+	}
+	return derive(c.isMain, Slug(filepath.Base(c.top)), c.others, func() (string, error) {
+		id, err := state.ResolveIdentity(dir, stateHome)
+		return id.CheckoutID, err
+	})
+}
+
 // Derive returns the names for the checkout containing dir. Outside git and in
 // a repository's main checkout the names are the plain ones. Only a linked
 // worktree whose folder name is unusable or clashes consults the state registry.
 func Derive(dir, stateHome string) (Names, error) {
-	real, err := filepath.EvalSymlinks(dir)
+	c, err := inspect(dir)
 	if err != nil {
 		return Names{}, err
 	}
-	out, err := exec.Command("git", "-C", real, "rev-parse", "--show-toplevel", "--git-dir", "--git-common-dir").Output()
-	if err != nil {
-		return plain, nil // not inside git
-	}
-	lines := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
-	if len(lines) != 3 {
-		return Names{}, fmt.Errorf("unexpected git rev-parse output %q", out)
-	}
-	top, err := filepath.EvalSymlinks(lines[0])
-	if err != nil {
-		return Names{}, err
-	}
-	gitDir, err := resolveFrom(real, lines[1])
-	if err != nil {
-		return Names{}, err
-	}
-	common, err := resolveFrom(real, lines[2])
-	if err != nil {
-		return Names{}, err
-	}
-	isMain := gitDir == common
-
-	var others []string
-	if !isMain {
-		list, err := exec.Command("git", "-C", real, "worktree", "list", "--porcelain").Output()
-		if err != nil {
-			return Names{}, fmt.Errorf("listing worktrees: %w", err)
-		}
-		for _, l := range strings.Split(string(list), "\n") {
-			p, ok := strings.CutPrefix(l, "worktree ")
-			if !ok {
-				continue
-			}
-			if rp, err := filepath.EvalSymlinks(p); err == nil {
-				p = rp
-			}
-			if p != top {
-				others = append(others, Slug(filepath.Base(p)))
-			}
-		}
-	}
-	return derive(isMain, Slug(filepath.Base(top)), others, func() (string, error) {
-		id, err := state.ResolveIdentity(dir, stateHome)
-		return id.CheckoutID, err
-	})
+	return c.derive(dir, stateHome)
 }
 
 // resolveFrom makes a path printed by git absolute against base and resolves
@@ -167,7 +193,7 @@ func ReadRecord(relay string) (Names, bool, error) {
 	}
 	var n Names
 	if err := json.Unmarshal(raw, &n); err != nil {
-		return Names{}, false, fmt.Errorf("%s is not valid JSON: %w", RecordName, err)
+		return Names{}, false, fmt.Errorf("%s is not valid JSON: %w", filepath.Join(relay, RecordName), err)
 	}
 	for _, f := range []*string{&n.Planner, &n.Builder, &n.Reviewer} {
 		if !nameRE.MatchString(*f) {
@@ -180,15 +206,16 @@ func ReadRecord(relay string) (Names, bool, error) {
 // Resolve returns the names to use for dir. Per role, an environment override
 // wins over the recorded name, which wins over the derived one.
 func Resolve(dir, stateHome string, getenv func(string) string) (Names, error) {
-	derived, err := Derive(dir, stateHome)
+	c, err := inspect(dir)
 	if err != nil {
 		return Names{}, err
 	}
-	abs, err := filepath.Abs(dir)
+	derived, err := c.derive(dir, stateHome)
 	if err != nil {
 		return Names{}, err
 	}
-	rec, _, err := ReadRecord(paths.Relay(abs))
+	// The relay lives at the checkout's toplevel, wherever dir is inside it.
+	rec, _, err := ReadRecord(paths.Relay(c.top))
 	if err != nil {
 		return Names{}, err
 	}
