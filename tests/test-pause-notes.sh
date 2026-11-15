@@ -86,7 +86,7 @@ has "writer_unknown settles the delivery" "$OUT" "tandem state settle-delivery -
 OUT=$(pause_note agent_exited "$RUN" /r task-7 bldr rev "")
 has "agent_exited names tandem-pair and recover" "$OUT" "tandem-pair"
 has "agent_exited continues with recover" "$OUT" "tandem build recover --root /r"
-has "agent_exited says how to bring back a the builder name from pair.json" "$OUT" "pair.json"
+has "agent_exited says how to bring back the builder name from pair.json" "$OUT" "pair.json"
 OUT=$(pause_note no_reviewer "$RUN" /r "" bldr "" "")
 has "no_reviewer gives the reviewer remedy" "$OUT" "$REVIEWER_REMEDY"
 OUT=$(pause_note agent_unsupported "$RUN" /r "" bldr "" "")
@@ -163,7 +163,7 @@ OUT=$(pause_note stopping "$RUN" /r task-7 b r "")
 lack "stopping is not called stopped" "$OUT" "stopped:"
 has "stopping says it waits for the current turn" "$OUT" "waiting for the builder's current turn"
 has "stopping says what a gone builder pane needs" "$OUT" "bring the agent back with tandem-pair"
-has "stopping says how to bring back a the builder name from pair.json" "$OUT" "pair.json"
+has "stopping says how to bring back the builder name from pair.json" "$OUT" "pair.json"
 has "and how to finish the stop" "$OUT" "tandem build wait --root /r --until paused --tick --timeout 120000"
 OUT=$(restart_steps "$RUN" /r)
 stop_at=$(printf '%s\n' "$OUT" | grep -n 'tandem build stop' | cut -d: -f1)
