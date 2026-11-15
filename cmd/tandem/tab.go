@@ -10,8 +10,8 @@ import (
 
 // cmdTab handles `tandem tab <get|rename|label> ...`. get and rename forward to
 // Herdr unchanged. label prints `default` for a tab still labelled with its
-// number and `named` for one a person named, so bin/tandem-pair names only the
-// first kind.
+// position in its workspace and `named` for one a person named, so
+// bin/tandem-pair names only the first kind.
 func cmdTab(args []string) int {
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "usage: tandem tab <get|rename|label> ...")
@@ -38,7 +38,17 @@ func cmdTabLabel(args []string) int {
 		fmt.Fprintln(os.Stderr, err.Error())
 		return herdr.ExitCodeFor(err)
 	}
-	def, err := herdr.TabIsDefault(out)
+	ws, err := herdr.TabWorkspace(out)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "tandem: %v\n", err)
+		return exitcode.Internal
+	}
+	list, err := herdr.Raw("tab", "list", "--workspace", ws)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		return herdr.ExitCodeFor(err)
+	}
+	def, err := herdr.TabIsDefault(out, list)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "tandem: %v\n", err)
 		return exitcode.Internal

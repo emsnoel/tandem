@@ -29,7 +29,10 @@ case "$1 $2" in
   "agent list")
     printf '{"result":{"agents":[{"pane_id":"w1:p1","agent":"%s","name":"","agent_status":"idle","cwd":"%s","tab_id":"w1:t1"}]}}\n' "${PLANNER_KIND_STUB:-claude}" "$REPO" ;;
   "tab get")
-    printf '{"result":{"tab":{"label":"%s","number":3,"tab_id":"w1:t1"}}}\n' "$TABLABEL" ;;
+    printf '{"result":{"tab":{"label":"%s","number":84,"tab_id":"w1:t1","workspace_id":"w1"}}}\n' "$TABLABEL" ;;
+  "tab list")
+    # Herdr labels an unnamed tab with its position, so the planner's tab is third.
+    printf '{"result":{"tabs":[{"tab_id":"w1:t7","label":"notes"},{"tab_id":"w1:t8","label":"2"},{"tab_id":"w1:t1","label":"%s"}]}}\n' "$TABLABEL" ;;
   *)
     printf '{"error":{"code":"agent_not_found","message":"agent target %s not found"}}\n' "${3:-}" >&2
     exit 1 ;;
@@ -54,6 +57,9 @@ chk "a tab that still has its number is named for the repo" 'tab rename w1:t1 ta
 pair "my own tab"
 chk "a labelled pair still labels its panes" 'builder (claude)'
 lack "a tab a person named is left alone" 'tab rename'
+
+pair 84
+lack "a tab labelled with its number, not its position, is left alone" 'tab rename'
 
 PLANNER_KIND_STUB=copilot; export PLANNER_KIND_STUB
 pair 3

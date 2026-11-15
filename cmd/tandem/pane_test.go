@@ -33,11 +33,20 @@ func TestPaneSplitDirection(t *testing.T) {
 }
 
 func TestTabLabel(t *testing.T) {
-	stubHerdrAnswers(t, map[string]string{"tab get": `{"result":{"tab":{"label":"4","number":4}}}`})
+	// The tab is second in its workspace, so Herdr's default label is "2"; its
+	// number is a global counter.
+	const list = `{"result":{"tabs":[{"tab_id":"w1:t5","label":"notes"},{"tab_id":"w1:t1","label":"2"}]}}`
+	stubHerdrAnswers(t, map[string]string{
+		"tab get":  `{"result":{"tab":{"label":"2","number":40,"tab_id":"w1:t1","workspace_id":"w1"}}}`,
+		"tab list": list,
+	})
 	if out, rc := captureStdoutRC(t, func() int { return cmdTab([]string{"label", "w1:t1"}) }); rc != exitcode.OK || out != "default\n" {
 		t.Fatalf("rc %d, out %q", rc, out)
 	}
-	stubHerdrAnswers(t, map[string]string{"tab get": `{"result":{"tab":{"label":"mine","number":4}}}`})
+	stubHerdrAnswers(t, map[string]string{
+		"tab get":  `{"result":{"tab":{"label":"mine","number":40,"tab_id":"w1:t1","workspace_id":"w1"}}}`,
+		"tab list": list,
+	})
 	if out, rc := captureStdoutRC(t, func() int { return cmdTab([]string{"label", "w1:t1"}) }); rc != exitcode.OK || out != "named\n" {
 		t.Fatalf("rc %d, out %q", rc, out)
 	}

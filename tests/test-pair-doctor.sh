@@ -31,7 +31,9 @@ case "$1 $2" in
   "agent list")
     printf '{"result":{"agents":[{"pane_id":"w1:p1","agent":"claude","name":"","agent_status":"idle","cwd":"%s","tab_id":"w1:t1"}]}}\n' "$REPO" ;;
   "tab get")
-    printf '{"result":{"tab":{"label":"mine","number":3,"tab_id":"w1:t1"}}}\n' ;;
+    printf '{"result":{"tab":{"label":"mine","number":3,"tab_id":"w1:t1","workspace_id":"w1"}}}\n' ;;
+  "tab list")
+    printf '{"result":{"tabs":[{"tab_id":"w1:t1","label":"mine"}]}}\n' ;;
   *)
     printf '{"error":{"code":"agent_not_found","message":"agent target %s not found"}}\n' "${3:-}" >&2
     exit 1 ;;
