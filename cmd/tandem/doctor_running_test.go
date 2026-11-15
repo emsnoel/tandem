@@ -72,20 +72,10 @@ func TestDoctorReportsNames(t *testing.T) {
 	}
 }
 
-// Doctor writes nothing, even for a worktree whose names need a checkout id.
+// Doctor writes nothing, even for a worktree whose names need a checkout id:
+// its folder slug clashes with another linked worktree's.
 func TestDoctorLeavesAFreshStateHomeEmpty(t *testing.T) {
-	main := filepath.Join(t.TempDir(), "proj")
-	wt := filepath.Join(t.TempDir(), "proj")
-	if err := os.MkdirAll(main, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	for _, a := range [][]string{{"-C", main, "init", "-q"},
-		{"-C", main, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "i"},
-		{"-C", main, "worktree", "add", "-q", wt}} {
-		if out, err := exec.Command("git", a...).CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", a, err, out)
-		}
-	}
+	wt := clashingWorktrees(t)
 	for _, k := range []string{"HERDR_PLANNER_NAME", "HERDR_BUILDER_NAME", "HERDR_REVIEWER_NAME"} {
 		t.Setenv(k, "")
 	}

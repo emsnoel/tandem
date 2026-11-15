@@ -217,3 +217,26 @@ func TestPathsNames(t *testing.T) {
 		t.Errorf("rc=%d out=%q", rc, out)
 	}
 }
+
+// clashingWorktrees makes linked worktrees at a/proj and b/proj, whose folder
+// slugs clash, so their names need the registry's checkout id.
+func clashingWorktrees(t *testing.T) string {
+	t.Helper()
+	base := t.TempDir()
+	main := filepath.Join(base, "main", "proj")
+	a, b := filepath.Join(base, "a", "proj"), filepath.Join(base, "b", "proj")
+	if err := os.MkdirAll(main, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"init", "-q"},
+		{"-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "init"},
+		{"worktree", "add", "-q", "-b", "br-a", a},
+		{"worktree", "add", "-q", "-b", "br-b", b},
+	} {
+		if out, err := exec.Command("git", append([]string{"-C", main}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	return a
+}
