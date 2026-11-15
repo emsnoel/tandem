@@ -86,7 +86,7 @@ has "writer_unknown settles the delivery" "$OUT" "tandem state settle-delivery -
 OUT=$(pause_note agent_exited "$RUN" /r task-7 bldr rev "")
 has "agent_exited names tandem-pair and recover" "$OUT" "tandem-pair"
 has "agent_exited continues with recover" "$OUT" "tandem build recover --root /r"
-has "agent_exited says how to bring back a custom name" "$OUT" "HERDR_BUILDER_NAME"
+has "agent_exited says how to bring back a the builder name from pair.json" "$OUT" "pair.json"
 OUT=$(pause_note no_reviewer "$RUN" /r "" bldr "" "")
 has "no_reviewer gives the reviewer remedy" "$OUT" "$REVIEWER_REMEDY"
 OUT=$(pause_note agent_unsupported "$RUN" /r "" bldr "" "")
@@ -123,7 +123,7 @@ has "the restart names settle-delivery for an archive refusal" "$OUT" "settle-de
 has "and says when to give up on a prompt" "$OUT" "idle and handed nothing back"
 has "and that its files are not accepted work" "$OUT" "aren't counted as accepted work"
 has "and to check them first" "$OUT" "git status"
-has "a pair with a custom name says how to bring it back" "$OUT" "HERDR_BUILDER_NAME"
+has "a pair with a name from pair.json says how to bring it back" "$OUT" "pair.json"
 lack "the archive step no longer carries the git status advice" "$(_pn_n=0; _pn_end_run "$RUN" /r)" "git status"
 # Every route that hands the plan off again says to check the tree first.
 n=0
@@ -163,7 +163,7 @@ OUT=$(pause_note stopping "$RUN" /r task-7 b r "")
 lack "stopping is not called stopped" "$OUT" "stopped:"
 has "stopping says it waits for the current turn" "$OUT" "waiting for the builder's current turn"
 has "stopping says what a gone builder pane needs" "$OUT" "bring the agent back with tandem-pair"
-has "stopping says how to bring back a custom name" "$OUT" "HERDR_BUILDER_NAME"
+has "stopping says how to bring back a the builder name from pair.json" "$OUT" "pair.json"
 has "and how to finish the stop" "$OUT" "tandem build wait --root /r --until paused --tick --timeout 120000"
 OUT=$(restart_steps "$RUN" /r)
 stop_at=$(printf '%s\n' "$OUT" | grep -n 'tandem build stop' | cut -d: -f1)

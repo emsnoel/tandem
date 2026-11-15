@@ -134,7 +134,85 @@ An adopted agent keeps the settings it was started with. tandem reports the mode
 and autonomy from `.tandem.json` as not enforced, and doesn't apply them after the fact.
 Restart that pane when the configured settings must take effect.
 
-tandem adopts a reviewer only when an agent already has the reviewer's name: `reviewer`,
-or the value of `HERDR_REVIEWER_NAME`. It keeps the settings it was started with, and tandem
+tandem adopts a reviewer only when an agent already has this checkout's reviewer name
+(see [Several sessions on one repository](#several-sessions-on-one-repository)). It keeps the settings it was started with, and tandem
 reports a declared model or effort it doesn't run with as not enforced. Close it and pair
 again to apply them.
+
+## Several sessions on one repository
+
+One checkout holds one pair. To run a second pair on the same repository, give it its own
+git worktree:
+
+```bash
+git worktree add ../repo-feat-x
+cd ../repo-feat-x
+```
+
+Start a planner in that folder and run `tandem-pair`. The worktree gets its own relay, its
+own bridge and its own agents, so the two pairs never read each other's messages.
+
+### Names
+
+`tandem-pair` picks the agent names from the checkout it runs in:
+
+- The main checkout keeps `planner`, `builder` and `reviewer`.
+- A linked worktree gets `planner-<folder>`, `builder-<folder>` and `reviewer-<folder>`. The
+  folder part is the worktree's folder name in lowercase, with every other character turned
+  into `-`, cut to 23 characters. The folder `Repo Feat_X` gives `planner-repo-feat-x`.
+- When two worktree folders give the same name, or the name is empty, the suffix is the
+  first 6 characters of the checkout id instead.
+- `HERDR_PLANNER_NAME`, `HERDR_BUILDER_NAME` and `HERDR_REVIEWER_NAME` override a name.
+
+`tandem paths names [--root DIR]` prints the three names for a checkout. `tandem-pair`
+records them in `.tandem-relay/pair.json`, and every script reads them from that file. The
+first line of `tandem-status` shows them, as `pair     P, B, R  (checkout <path>)`.
+`tandem doctor` shows them as "this checkout pairs as ..." and warns when an agent in
+another checkout holds one of them.
+
+### Setup a new folder meets once
+
+Each worktree folder is new to the agent CLIs, so the first `tandem-pair` there can stop on:
+
+- Claude Code's trust dialog. Run `claude` once in the folder and accept it. tandem will not
+  write `~/.claude.json`.
+- A builder kind that `.tandem.json` requests and you haven't approved on this machine.
+  Doctor says `builder kind codex requested by .tandem.json, not approved`. Run
+  `tandem-pair --approve-kind codex`, with the kind it names.
+- Codex's trust prompt. `tandem-pair` writes the `~/.codex/config.toml` entry for the folder.
+- Copilot's trusted folders. `tandem-pair` adds the folder only for a builder kind you chose
+  yourself.
+
+Run `tandem doctor` in the new folder first to see which of these apply.
+
+### Closing a pair
+
+`tandem-unpair` closes only the pair of the worktree it runs in. The other worktrees keep
+their agents and bridges.
+
+If a worktree's planner pane is gone while its bridge still runs, `tandem-pair` from a new
+pane refuses and prints the command that clears it:
+
+```
+HERDR_PLANNER_NAME=<owner> tandem-unpair --force
+```
+
+### Agents from another checkout
+
+`tandem-pair` refuses, with exit 35, to adopt a builder or reviewer whose pane works in
+another checkout. That agent sends its verdicts and handbacks to its own checkout's relay,
+so adopting it would cross two pairs. The refusal names the pane and the checkout:
+
+```
+tandem-pair: the agent named 'builder' in pane w8:p9Z works in another checkout: /path/to/other.
+tandem-pair: tandem does not adopt it, because its messages would go to that checkout's pair.
+tandem-pair: close it from that checkout with tandem-unpair, or pair here under other names (HERDR_BUILDER_NAME, HERDR_REVIEWER_NAME).
+```
+
+A pane outside git counts as another checkout.
+
+### After upgrading
+
+Older versions kept the planner's name in `.tandem-relay/planner-name`. Run `tandem-pair`
+once in each live pair after upgrading. It writes `pair.json` and the scripts read it from
+then on.

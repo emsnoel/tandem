@@ -105,7 +105,7 @@ does not always show a turn starting.
 
 If the builder's pane is gone, a stop stays `stopping`, because a gone builder is not a builder
 seen to have stopped, and the stop keeps the writer lease. Giving up cannot end that. Bring the
-agent back with `tandem-pair`, setting `HERDR_BUILDER_NAME` if the pair used a custom name, and
+agent back with `tandem-pair`, which takes the builder's name from `.tandem-relay/pair.json`, and
 wait again (`tandem build wait --root DIR --until paused --tick --timeout 120000`).
 
 `state recover` also ends any builder job whose attempt is already settled. On a stopped run
