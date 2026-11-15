@@ -16,32 +16,7 @@
 set -uo pipefail
 ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
 
-PASS=0; FAIL=0
-ok()   { printf '  ok   %s\n' "$1"; PASS=$((PASS+1)); }
-nope() { printf '  FAIL %s\n' "$1"; FAIL=$((FAIL+1)); }
-
-TMP=$(mktemp -d)
-cleanup() {
-  local f p
-  for f in "$TMP"/main/.tandem-relay/bridge.pid "$TMP"/wt-*/.tandem-relay/bridge.pid "$TMP"/other/.tandem-relay/bridge.pid "$TMP"/third/.tandem-relay/bridge.pid; do
-    p=$(cat "$f" 2>/dev/null) || continue
-    pkill -P "$p" 2>/dev/null; kill "$p" 2>/dev/null
-  done
-  rm -rf "$TMP"
-}
-trap cleanup EXIT
-# The branch's own tandem, ahead of any installed one.
-(cd "$ROOT_DIR" && go build -o "$TMP/bin/tandem" ./cmd/tandem) || { echo "could not build tandem"; exit 1; }
-
-. "$ROOT_DIR/tests/lib/fake-herdr.sh"
-. "$ROOT_DIR/tests/lib/fake-socket.sh"
-FAKE="$TMP/fake"
-fake_herdr_install "$TMP/bin" "$FAKE"
-mv "$TMP/bin/herdr" "$TMP/bin/herdr.fake"
-printf '› Ask Codex to do anything\n\n  ← for agents · ? for shortcuts\n' > "$FAKE/pane"
-
-. "$ROOT_DIR/tests/lib/fake-herdr-panes.sh"
-fake_herdr_panes_install "$TMP/bin"
+. "$ROOT_DIR/tests/lib/pair-worktrees.sh"
 
 MAIN="$TMP/main"; WT_B="$TMP/wt-b"; WT_C="$TMP/wt-c"
 mkdir -p "$MAIN"; git -C "$MAIN" init -q
@@ -56,35 +31,6 @@ MAIN=$(cd "$MAIN" && pwd -P); WT_B=$(cd "$WT_B" && pwd -P); WT_C="${WT_B%/*}/wt-
 # Two Claude planners, each in its own tab and checkout, both still unnamed.
 printf 'w1:p1\t-\t%s\tclaude\tw1:t1\nw2:p1\t-\t%s\tclaude\tw2:t1\n' "$MAIN" "$WT_B" > "$FAKE/agents"
 FAKE="$FAKE" PATH="$TMP/bin:$PATH" fake_socket_start "$TMP" || exit 1
-
-# as_pane DIR PANE CMD...: run CMD in DIR as the shell in PANE, with every home the
-# test's own.
-as_pane() {
-  local dir="$1" pane="$2"; shift 2
-  (cd "$dir" && env PATH="$TMP/bin:$ROOT_DIR/bin:/usr/bin:/bin" HOME="$TMP/home" FAKE="$FAKE" REPO="$dir" \
-    HERDR_ENV=1 HERDR_PANE_ID="$pane" HERDR_SOCKET_PATH="$HERDR_SOCKET_PATH" \
-    TANDEM_STATE_HOME="$TMP/state" HERDR_TANDEM_CONFIG="$TMP/tandem.json" CODEX_HOME="$TMP/codex" \
-    COPILOT_HOME="$TMP/copilot" TANDEM_SKILL_HOMES="$TMP/skills" TANDEM_SHARE_DIR="$TMP/share" \
-    HERDR_CONFIG_PATH="$TMP/herdr/config.toml" HERDR_PAIR_START_TIMEOUT_MS=1000 HERDR_SKIP_HOOK_CHECK=1 \
-    TANDEM_FAIL_WITHIN_MS=1000 HERDR_BRIDGE_BACKSTOP_SECONDS=1 "$@" 2>&1)
-}
-# pair DIR PANE [ARG...]: run tandem-pair for the checkout DIR from PANE.
-pair() {
-  local dir="$1" pane="$2"; shift 2
-  as_pane "$dir" "$pane" "$ROOT_DIR/bin/tandem-pair" --skip-doctor --approve-kind codex --cwd "$dir" "$@"
-}
-# pane_of NAME: the pane holding agent NAME.
-pane_of() { awk -F'\t' -v n="$1" '$2 == n { print $1; exit }' "$FAKE/agents"; }
-names_in() { awk -F'\t' -v t="$1" '$5 == t && $2 != "-" { print $2 }' "$FAKE/agents" | sort | tr '\n' ' '; }
-# last_to: the agent the latest prompt went to.
-last_to() { tail -1 "$FAKE/prompts" 2>/dev/null | cut -f1; }
-prompts() { [ -f "$FAKE/prompts" ] && wc -l < "$FAKE/prompts" | tr -d ' ' || echo 0; }
-bridge_of() { cat "$1/.tandem-relay/bridge.pid" 2>/dev/null; }
-record_of() { cat "$1/.tandem-relay/pair.json" 2>/dev/null; }
-
-# exits_within PID: the process ends within 5 s. A killed bridge exits once its
-# event wait returns, which the 1 s backstop below bounds.
-exits_within() { local _; for _ in $(seq 1 50); do kill -0 "$1" 2>/dev/null || return 0; sleep 0.1; done; return 1; }
 
 printf '\n== each checkout pairs under its own names ==\n'
 OUT=$(pair "$MAIN" w1:p1); rc=$?

@@ -147,7 +147,9 @@ info "planner pane: $PLANNER_PANE (cwd: ${PLANNER_CWD:-unknown})"
 
 SPLIT_CWD="${CWD_OVERRIDE:-${PLANNER_CWD:-$PWD}}"
 ROOT=$(git -C "$SPLIT_CWD" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$SPLIT_CWD")
-pair_names "$ROOT"
+# Only a real run gives the checkout an id in the state registry. A dry run
+# writes nothing, so it shows a placeholder for an id the checkout lacks.
+if (( DRY_RUN )); then pair_names "$ROOT" --allow-pending; else pair_names "$ROOT" --bind; fi
 [[ "$REVIEWER_NAME" != "$BUILDER_NAME" && "$REVIEWER_NAME" != "$PLANNER_NAME" ]] \
   || die "the reviewer cannot be named '$REVIEWER_NAME': that is the builder or the planner, which would review its own work."
 
