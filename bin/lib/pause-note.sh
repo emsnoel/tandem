@@ -23,8 +23,8 @@ _pn_step() {
   [[ -z "${2:-}" ]] || printf '    %s\n' "$2"
 }
 
-# How to bring back a builder, named here so a custom name is never forgotten.
-_PN_CUSTOM_NAME="If the pair used a custom builder name, set HERDR_BUILDER_NAME to it first."
+# How to bring back a builder. tandem-pair reads its name from pair.json.
+_PN_CUSTOM_NAME="tandem-pair takes the builder's name from .tandem-relay/pair.json, so run it from this checkout."
 
 # _pn_stop_wait ROOT: stop the run and wait for it to settle. The wait ticks the
 # run, which is what finishes a stop and frees the writer. A builder pane that is

@@ -73,12 +73,13 @@ that dialog as a warning instead of a failure.
 A builder or reviewer that already runs needs no launch, so doctor skips what `tandem-pair`
 skips for it. For a running builder that is its trust checks. For a running reviewer it is
 also its approval and launch settings. Doctor finds them by the names `tandem-pair` gives
-them (`HERDR_BUILDER_NAME` and `HERDR_REVIEWER_NAME`, `builder` and `reviewer` by default).
+them in this checkout, and its first lines show them as "this checkout pairs as ...".
 
-The planner is `planner` by default. When another pane already holds that name,
-`tandem-pair` refuses. Set `HERDR_PLANNER_NAME` in the planner's pane and pair again.
-`tandem-pair` writes the name to `.tandem-relay/planner-name`, because the builder's and
-the reviewer's panes don't inherit it. Their verdicts and handbacks read it from there.
+The planner is `planner` in the main checkout and `planner-<folder>` in a linked worktree.
+`tandem-pair` writes the three names to `.tandem-relay/pair.json`, because the builder's and
+the reviewer's panes don't inherit the planner's environment. Every script reads the names
+from that file. `tandem paths names` prints them, and `HERDR_PLANNER_NAME` overrides the
+planner's. See [Several sessions on one repository](launching.md#several-sessions-on-one-repository).
 
 One checkout holds one pair, because the relay keeps one set of records and one bridge.
 While a pair's bridge runs, `tandem-pair` refuses a planner under another name and names
