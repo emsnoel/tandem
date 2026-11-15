@@ -167,10 +167,15 @@ own bridge and its own agents, so the two pairs never read each other's messages
   clashes, because the main checkout keeps the plain names.
 - `HERDR_PLANNER_NAME`, `HERDR_BUILDER_NAME` and `HERDR_REVIEWER_NAME` override a name.
 
+Each pane's label in the sidebar shows the role, then what the name adds to it, then the
+agent's kind. The builder of the worktree `feat-x` reads `builder · feat-x (codex)`. The
+main checkout's panes keep `builder (codex)`. A name set by hand shows whole, as
+`builder · bob (codex)`.
+
 `tandem-pair` records the names in `.tandem-relay/pair.json`, and every script reads them
 from that file. `tandem paths names [--root DIR]` prints them for a checkout. It writes
-nothing, because the builder and the reviewer run it from a sandbox that cannot write the
-state home. The first line of `tandem-status` shows them, as
+nothing unless `tandem-pair` passes `--bind`, because the builder and the reviewer run it
+from a sandbox that cannot write the state home. The first line of `tandem-status` shows them, as
 `pair     P, B, R  (checkout <path>)`. `tandem doctor` shows them as "this checkout pairs as
 ..." and warns when an agent in another checkout holds one of them.
 
