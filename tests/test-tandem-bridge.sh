@@ -110,6 +110,17 @@ grep -q "builder cannot see this conversation, so put" "$PROMPT_LOG" && ok "the 
   || nope "the prompt lost its self-contained line: $(cat "$PROMPT_LOG")"
 grep -q '—' "$PROMPT_LOG" && nope "the prompt has an em dash" || ok "the prompt has no em dash"
 
+echo "--- a question with no sender is from this checkout's builder ---"
+# The mailbox's parent records a builder under another name, as a worktree's
+# pair.json does.
+reset_mb; mkdir -p "$MB/q" "$TMP/.tandem-relay"
+printf '{"planner":"planner-wt","builder":"builder-wt","reviewer":"reviewer-wt"}\n' > "$TMP/.tandem-relay/pair.json"
+jq -n --arg id q0 --arg q "who am I?" '{id:$id, question:$q, created:(now|todate)}' > "$MB/q/q0.json"
+run_bridge
+rm -rf "$TMP/.tandem-relay"
+grep -q "^\[from builder-wt\] who am I?" "$PROMPT_LOG" && ok "the prompt names the recorded builder" \
+  || nope "the prompt does not name builder-wt: $(cat "$PROMPT_LOG")"
+
 echo "--- a question that fails delivery gets a fail_answer, not silence ---"
 reset_mb; mkdir -p "$MB/q"
 jq -n --arg id q2 --arg from builder --arg q "still there?" \
