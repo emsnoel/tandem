@@ -136,6 +136,10 @@ prompts() { [ -f "$FAKE/prompts" ] && wc -l < "$FAKE/prompts" | tr -d ' ' || ech
 bridge_of() { cat "$1/.tandem-relay/bridge.pid" 2>/dev/null; }
 record_of() { cat "$1/.tandem-relay/pair.json" 2>/dev/null; }
 
+# exits_within PID: the process ends within 5 s. A killed bridge exits once its
+# event wait returns, which the 1 s backstop below bounds.
+exits_within() { local i; for i in $(seq 1 50); do kill -0 "$1" 2>/dev/null || return 0; sleep 0.1; done; return 1; }
+
 printf '\n== each checkout pairs under its own names ==\n'
 OUT=$(pair "$MAIN" w1:p1); rc=$?
 [ "$rc" -eq 0 ] && ok "the main checkout pairs" || nope "main pair rc $rc: $OUT"
@@ -193,6 +197,31 @@ for c in "$MAIN builder planner" "$WT_B builder-wt-b planner-wt-b"; do
   fi
 done
 
+printf '\n== a pair whose planner is gone can be cleared and paired again ==\n'
+OLD_BRIDGE=$(bridge_of "$WT_B")
+# The planner's pane closes. Its bridge, builder and reviewer keep running, and
+# the person opens a new pane in the same tab and checkout.
+as_pane "$WT_B" w2:p1 herdr pane close w2:p1 >/dev/null
+printf 'w2:p9\t-\t%s\tclaude\tw2:t1\n' "$WT_B" >> "$FAKE/agents"
+# A planner under another name is refused, and the refusal names the way out.
+OUT=$(HERDR_PLANNER_NAME=planner-alt pair "$WT_B" w2:p9); rc=$?
+CMD=$(printf '%s\n' "$OUT" | sed -n 's/.*Clear the old pair with: //p')
+[ "$rc" -ne 0 ] && [ "$CMD" = "HERDR_PLANNER_NAME=planner-wt-b tandem-unpair --force" ] \
+  && ok "a planner under another name is told to clear the old pair" || nope "refusal: rc $rc, '$CMD': $OUT"
+# Run the printed command as is, from the new pane.
+OUT=$(as_pane "$WT_B" w2:p9 env HERDR_PLANNER_NAME=planner-wt-b "$ROOT_DIR/bin/tandem-unpair" --force --skip-checks); rc=$?
+[ "$rc" -eq 0 ] && ok "the printed unpair command succeeds from another pane" || nope "unpair rc $rc: $OUT"
+[ -z "$(names_in w2:t1)" ] && ok "wt-b's builder and reviewer panes are closed" || nope "wt-b agents left: $(names_in w2:t1)"
+[ "$(names_in w1:t1)" = "builder planner reviewer " ] && ok "the main checkout's panes are untouched" || nope "main agents: $(names_in w1:t1)"
+[ -n "$OLD_BRIDGE" ] && exits_within "$OLD_BRIDGE" && ok "wt-b's bridge is stopped" || nope "wt-b's bridge '$OLD_BRIDGE' still runs"
+[ ! -e "$WT_B/.tandem-relay" ] && ok "wt-b's relay is removed" || nope "wt-b relay left: $(ls -A "$WT_B/.tandem-relay")"
+kill -0 "$MAIN_BRIDGE" 2>/dev/null && [ -f "$MAIN/.tandem-relay/pair.json" ] \
+  && ok "the main checkout's bridge and relay are untouched" || nope "the main pair was disturbed"
+OUT=$(pair "$WT_B" w2:p9); rc=$?; fake_set_state idle
+[ "$rc" -eq 0 ] && ok "wt-b pairs again from the new pane" || nope "re-pair rc $rc: $OUT"
+[ "$(names_in w2:t1)" = "builder-wt-b planner-wt-b reviewer-wt-b " ] && ok "under the same names" || nope "wt-b agents: $(names_in w2:t1)"
+B_BRIDGE=$(bridge_of "$WT_B")
+
 printf '\n== a moved worktree keeps its recorded names ==\n'
 git -C "$MAIN" worktree move "$WT_B" "$WT_C" || nope "git worktree move failed"
 # The agents' shells moved with the folder, so Herdr reports the new cwd.
@@ -206,13 +235,10 @@ else
 fi
 
 printf '\n== tandem-unpair in the worktree closes only its own pair ==\n'
-OUT=$(as_pane "$WT_C" w2:p1 "$ROOT_DIR/bin/tandem-unpair" --force --skip-checks); rc=$?
+OUT=$(as_pane "$WT_C" w2:p9 "$ROOT_DIR/bin/tandem-unpair" --force --skip-checks); rc=$?
 [ "$rc" -eq 0 ] && ok "tandem-unpair runs in the moved worktree" || nope "unpair rc $rc: $OUT"
 [ "$(names_in w2:t1)" = "planner-wt-b " ] && ok "wt-b's builder and reviewer panes are closed" || nope "wt-b agents left: $(names_in w2:t1)"
 [ "$(names_in w1:t1)" = "builder planner reviewer " ] && ok "the main checkout's panes are untouched" || nope "main agents: $(names_in w1:t1)"
-# exits_within PID: the process ends within 5 s. A killed bridge exits once its
-# event wait returns, which the 1 s backstop below bounds.
-exits_within() { local i; for i in $(seq 1 50); do kill -0 "$1" 2>/dev/null || return 0; sleep 0.1; done; return 1; }
 [ -n "$B_BRIDGE" ] && exits_within "$B_BRIDGE" && ok "wt-b's bridge is stopped" || nope "wt-b's bridge '$B_BRIDGE' still runs: $OUT"
 kill -0 "$MAIN_BRIDGE" 2>/dev/null && ok "the main checkout's bridge keeps running" || nope "the main bridge stopped"
 
