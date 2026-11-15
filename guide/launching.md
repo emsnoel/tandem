@@ -135,9 +135,9 @@ and autonomy from `.tandem.json` as not enforced, and doesn't apply them after t
 Restart that pane when the configured settings must take effect.
 
 tandem adopts a reviewer only when an agent already has this checkout's reviewer name
-(see [Several sessions on one repository](#several-sessions-on-one-repository)). It keeps the settings it was started with, and tandem
-reports a declared model or effort it doesn't run with as not enforced. Close it and pair
-again to apply them.
+(see [Several sessions on one repository](#several-sessions-on-one-repository)). It keeps
+the settings it was started with, and tandem reports a declared model or effort it doesn't
+run with as not enforced. Close it and pair again to apply them.
 
 ## Several sessions on one repository
 
@@ -158,8 +158,10 @@ own bridge and its own agents, so the two pairs never read each other's messages
 
 - The main checkout keeps `planner`, `builder` and `reviewer`.
 - A linked worktree gets `planner-<folder>`, `builder-<folder>` and `reviewer-<folder>`. The
-  folder part is the worktree's folder name in lowercase, with every other character turned
-  into `-`, cut to 23 characters. The folder `Repo Feat_X` gives `planner-repo-feat-x`.
+  folder part is the worktree's folder name in lowercase. It keeps `a` to `z`, `0` to `9`,
+  `_` and `-`, turns every other character into `-`, collapses repeated `-`, trims `-` from
+  both ends and cuts the result to 23 characters. The folder `Repo Feat_X` gives
+  `planner-repo-feat_x`.
 - When two worktree folders give the same name, or the name is empty, the suffix is the
   first 6 characters of the checkout id instead.
 - `HERDR_PLANNER_NAME`, `HERDR_BUILDER_NAME` and `HERDR_REVIEWER_NAME` override a name.
@@ -170,7 +172,7 @@ first line of `tandem-status` shows them, as `pair     P, B, R  (checkout <path>
 `tandem doctor` shows them as "this checkout pairs as ..." and warns when an agent in
 another checkout holds one of them.
 
-### Setup a new folder meets once
+### Setup for each new folder
 
 Each worktree folder is new to the agent CLIs, so the first `tandem-pair` there can stop on:
 
@@ -180,8 +182,7 @@ Each worktree folder is new to the agent CLIs, so the first `tandem-pair` there 
   Doctor says `builder kind codex requested by .tandem.json, not approved`. Run
   `tandem-pair --approve-kind codex`, with the kind it names.
 - Codex's trust prompt. `tandem-pair` writes the `~/.codex/config.toml` entry for the folder.
-- Copilot's trusted folders. `tandem-pair` adds the folder only for a builder kind you chose
-  yourself.
+- Copilot's trusted folders. `tandem-pair` adds the folder only for a builder kind you approved.
 
 Run `tandem doctor` in the new folder first to see which of these apply.
 
