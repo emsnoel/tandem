@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/emsnoel/tandem/internal/paths"
@@ -153,6 +154,15 @@ func TestResolvePrecedence(t *testing.T) {
 	if got != (Names{"p2", "b2", "reviewer-wt-b"}) {
 		t.Fatalf("record: %+v", got)
 	}
+	// A subdirectory finds the record at the toplevel.
+	sub := filepath.Join(wt, "sub")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = Resolve(sub, home, func(string) string { return "" })
+	if got != (Names{"p2", "b2", "reviewer-wt-b"}) {
+		t.Fatalf("subdir record: %+v", got)
+	}
 	// Env beats the record, per role.
 	env := map[string]string{"HERDR_BUILDER_NAME": "bob"}
 	got, _ = Resolve(wt, home, func(k string) string { return env[k] })
@@ -184,5 +194,49 @@ func TestReadRecordDropsInvalidNames(t *testing.T) {
 	}
 	if _, ok, err := ReadRecord(t.TempDir()); ok || err != nil {
 		t.Errorf("missing file: ok=%v err=%v", ok, err)
+	}
+}
+
+func TestDeriveRealClashUsesCheckoutID(t *testing.T) {
+	base := t.TempDir()
+	main := filepath.Join(base, "main")
+	a, b := filepath.Join(base, "A b"), filepath.Join(base, "a-b")
+	if err := os.MkdirAll(main, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	git(t, main, "init", "-q")
+	git(t, main, "commit", "-q", "--allow-empty", "-m", "init")
+	git(t, main, "worktree", "add", "-q", "-b", "br-a", a)
+	git(t, main, "worktree", "add", "-q", "-b", "br-b", b)
+	sub := filepath.Join(a, "sub")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	na, err := Derive(sub, home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nb, err := Derive(b, home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	re := regexp.MustCompile(`^planner-[0-9a-f]{6}$`)
+	if !re.MatchString(na.Planner) || !re.MatchString(nb.Planner) {
+		t.Errorf("want 6-hex suffixes, got %q and %q", na.Planner, nb.Planner)
+	}
+	if na.Planner == nb.Planner {
+		t.Errorf("both worktrees got %q", na.Planner)
+	}
+}
+
+func TestReadRecordCorruptNamesTheFile(t *testing.T) {
+	relay := t.TempDir()
+	if err := os.WriteFile(filepath.Join(relay, RecordName), []byte("{"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err := ReadRecord(relay)
+	if err == nil || !strings.Contains(err.Error(), filepath.Join(relay, RecordName)) {
+		t.Errorf("err = %v", err)
 	}
 }

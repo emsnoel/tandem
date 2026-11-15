@@ -191,11 +191,29 @@ func TestPathsNames(t *testing.T) {
 		t.Errorf("rc=%d out=%q", rc, out)
 	}
 
+	sub := filepath.Join(wt, "sub")
+	relay := filepath.Join(wt, ".tandem-relay")
+	if err := os.MkdirAll(relay, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(relay, "pair.json"), []byte(`{"reviewer":"rev9"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out, rc = captureStdoutRC(t, func() int {
+		return cmdPaths([]string{"names", "--root", sub, "--state-home", home})
+	})
+	if rc != 0 || out != "planner-wt-b\tbuilder-wt-b\trev9\n" {
+		t.Errorf("subdir: rc=%d out=%q", rc, out)
+	}
+
 	t.Setenv("HERDR_BUILDER_NAME", "bob")
 	out, rc = captureStdoutRC(t, func() int {
 		return cmdPaths([]string{"names", "--root", wt, "--state-home", home})
 	})
-	if rc != 0 || out != "planner-wt-b\tbob\treviewer-wt-b\n" {
+	if rc != 0 || out != "planner-wt-b\tbob\trev9\n" {
 		t.Errorf("rc=%d out=%q", rc, out)
 	}
 }
