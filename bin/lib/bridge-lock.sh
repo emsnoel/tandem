@@ -11,7 +11,8 @@
 #     can both take over a stale file, and the one that no longer owns it stops;
 #   - it removes the file when it ends by itself. A killed bridge leaves it, and
 #     the next bridge takes it over.
-# tandem-pair reads the same file to reuse a running bridge.
+# tandem-pair reads the same file to reuse a running bridge, or to restart one
+# that delivers to the planner under an older name.
 
 # bridge_alive PID: PID is a running tandem-bridge. The OS reuses pids, so the
 # command line is checked too. When ps cannot answer, kill -0 is trusted.
@@ -20,6 +21,31 @@ bridge_alive() {
   [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null || return 1
   cmd=$(ps -p "$pid" -o command= 2>/dev/null) || return 0
   [[ "$cmd" == *tandem-bridge* ]]
+}
+
+# bridge_planner PID: print the planner the bridge PID delivers to, from its
+# --planner argument. Fails when the command line names none.
+bridge_planner() {
+  local cmd
+  cmd=$(ps -p "$1" -o command= 2>/dev/null) || return 1
+  [[ "$cmd" =~ --planner\ ([a-z][a-z0-9_-]{0,31})(\ |$) ]] || return 1
+  printf '%s\n' "${BASH_REMATCH[1]}"
+}
+
+# stop_bridge_wait PID: stop the bridge PID and wait up to 5 s for it to end.
+# Its foreground `tandem agent watch` can hold off the exit for the whole
+# backstop, so the bridge's child processes are stopped too.
+stop_bridge_wait() {
+  local pid="$1" kid _
+  kill "$pid" 2>/dev/null || return 0
+  for kid in $(ps -A -o pid= -o ppid= | awk -v p="$pid" '$2 == p { print $1 }'); do
+    kill "$kid" 2>/dev/null
+  done
+  for _ in $(seq 1 50); do
+    kill -0 "$pid" 2>/dev/null || return 0
+    sleep 0.1
+  done
+  return 1
 }
 
 # claim_mailbox: make this bridge the mailbox's one bridge, or exit 1 saying

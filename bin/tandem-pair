@@ -199,7 +199,8 @@ BUILDER_KIND="$LAUNCH_KIND"
 resolve_reviewer
 
 # One checkout holds one pair: refuse before anything is renamed or started.
-check_relay_owner "$(tandem paths relay --root "$SPLIT_CWD")"
+# It reads the relay at ROOT, the one start_bridge uses.
+check_relay_owner "$(tandem paths relay --root "$ROOT")"
 
 # --- name the planner ---
 # Every check runs before the planner is renamed, so a refusal changes nothing.
