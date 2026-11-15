@@ -183,6 +183,18 @@ func resolve(dir, stateHome string, getenv func(string) string, readOnly bool) (
 	if err != nil {
 		return Names{}, false, err
 	}
+	// The relay lives at the checkout's toplevel, wherever dir is inside it.
+	rec, _, err := ReadRecord(paths.Relay(c.top))
+	if err != nil {
+		return Names{}, false, err
+	}
+	// The overrides and the record come first. A builder or a reviewer reads
+	// them from a sandbox that cannot write the state home, so the registry is
+	// consulted only for a role that neither names.
+	n := merge(env, rec, Names{})
+	if n.Planner != "" && n.Builder != "" && n.Reviewer != "" {
+		return n, false, nil
+	}
 	derived, err := c.derive(dir, stateHome, readOnly)
 	pending := errors.Is(err, errUnbound)
 	if pending {
@@ -191,15 +203,7 @@ func resolve(dir, stateHome string, getenv func(string) string, readOnly bool) (
 	if err != nil {
 		return Names{}, false, err
 	}
-	// The relay lives at the checkout's toplevel, wherever dir is inside it.
-	rec, _, err := ReadRecord(paths.Relay(c.top))
-	if err != nil {
-		return Names{}, false, err
-	}
-	n := merge(env, rec, derived)
-	// Overrides and the record may cover every role that would have used the id.
-	pending = pending && (n.Planner == derived.Planner || n.Builder == derived.Builder || n.Reviewer == derived.Reviewer)
-	return n, pending, nil
+	return merge(n, Names{}, derived), pending, nil
 }
 
 // merge picks, per role, the first non-empty of env, rec and derived.
