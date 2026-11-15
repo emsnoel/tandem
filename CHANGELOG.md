@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.14.0](https://github.com/emsnoel/tandem/compare/v0.13.2...v0.14.0) (2026-11-15)
+
+
+### Features
+
+* derive pair names from the checkout ([f67201a](https://github.com/emsnoel/tandem/commit/f67201aa09746a7b07434e0489c06d507eb4ef07))
+* label each pane with its worktree ([f7ac270](https://github.com/emsnoel/tandem/commit/f7ac270eaa56818330eb2d3b982600ec3792eb05))
+* name each worktree's pair after its checkout ([6b8d429](https://github.com/emsnoel/tandem/commit/6b8d42930489aff4d8a062f2a7a21e98e589ac21))
+* show the pair's names in doctor and status ([927296c](https://github.com/emsnoel/tandem/commit/927296c4cca4d0c7f016f0d936978f4d70dbc29c))
+
+
+### Bug Fixes
+
+* check pair name overrides and key ask and sender defaults to the pair ([9837b61](https://github.com/emsnoel/tandem/commit/9837b614f6013a8272ac1939b597d747ed2d140c))
+* count only linked worktrees when pair names clash ([05a9645](https://github.com/emsnoel/tandem/commit/05a96452d2b8b0d76c2a74fa20415c2a41ada784))
+* keep doctor read-only when the pair's names need a checkout id ([93e4831](https://github.com/emsnoel/tandem/commit/93e483198bd00cf4acca61f09df1d4ac18b6b11f))
+* keep the planner's own pane out of the builder and reviewer lookups ([53471af](https://github.com/emsnoel/tandem/commit/53471af7003653f5f5e4aa90feeb67b1cec449f2))
+* keep the status out of the builder's cwd when Herdr reports none ([27ca826](https://github.com/emsnoel/tandem/commit/27ca826e93383554fbcaeb649073c6d348df07f6))
+* read pair names from pair.json before the state registry ([f0e3a02](https://github.com/emsnoel/tandem/commit/f0e3a02be593fce2118136a3c448ace899442cd5))
+* read the pair record from the checkout toplevel ([7d5d9e0](https://github.com/emsnoel/tandem/commit/7d5d9e0efe037b890e24602a0308bfd693a08031))
+* refuse to adopt a builder or reviewer from another checkout ([38a55b1](https://github.com/emsnoel/tandem/commit/38a55b1af44b643c201cb7cdd393806543272027))
+* rename a tab that still has its position as its label ([f1eeded](https://github.com/emsnoel/tandem/commit/f1eeded84f627078739dfc8b0141101db7d03f9e))
+* restart a relay bridge that delivers to the pair's old planner name ([e82d148](https://github.com/emsnoel/tandem/commit/e82d148a2750ac7dd6bd8eb0b7cb0f1bc61f7d11))
+* write the state registry only from tandem-pair's real run ([c9533e0](https://github.com/emsnoel/tandem/commit/c9533e079b669e2368c57fb755b75f2a62ede243))
+
 ## [0.13.2](https://github.com/emsnoel/tandem/compare/v0.13.1...v0.13.2) (2026-11-14)
 
 
