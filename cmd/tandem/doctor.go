@@ -65,7 +65,7 @@ func cmdDoctor(args []string) int {
 	}
 
 	rep := doctorReport{Root: root}
-	names, namesErr := pairname.Resolve(dir, *stateHome, os.Getenv)
+	names, pending, namesErr := pairname.ResolveReadOnly(dir, *stateHome, os.Getenv)
 	flags.Planner.Kind = doctor.CallingPlannerKind(doctorProbe, os.Getenv)
 	roles, err := doctor.ResolveRoles(root, flags, os.Getenv)
 	if err != nil {
@@ -85,7 +85,7 @@ func cmdDoctor(args []string) int {
 				Detail: namesErr.Error(), Fix: "fix the name or file named above, then run tandem doctor again"}}
 		} else {
 			roles.Running = doctor.RunningRoles(doctorProbe, root, names)
-			nameResults = doctor.PairNames(doctorProbe, root, names)
+			nameResults = doctor.PairNames(doctorProbe, root, names, pending)
 		}
 		rep.Results = append(doctor.Machine(doctorProbe, roles.Uses(), os.Getenv), nameResults...)
 		rep.Results = append(rep.Results, doctor.Repo(root, dir, roles, os.Getenv)...)

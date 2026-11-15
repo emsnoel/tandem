@@ -265,3 +265,29 @@ func TestReadRecordCorruptNamesTheRemedy(t *testing.T) {
 		t.Fatalf("err = %v, want it to end with the remedy", err)
 	}
 }
+
+// A worktree whose folder name clashes needs the registry's id. The read-only
+// form reports that without creating the state home.
+func TestResolveReadOnlyWritesNothing(t *testing.T) {
+	base := t.TempDir()
+	main := filepath.Join(base, "main", "proj")
+	wt := filepath.Join(base, "wt", "proj")
+	if err := os.MkdirAll(main, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	git(t, main, "init", "-q")
+	git(t, main, "commit", "-q", "--allow-empty", "-m", "init")
+	git(t, main, "worktree", "add", "-q", wt)
+	home := filepath.Join(t.TempDir(), "state")
+
+	got, pending, err := ResolveReadOnly(wt, home, func(string) string { return "" })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !pending || got.Planner != "planner-"+PendingID {
+		t.Fatalf("got %+v pending=%v, want planner-%s pending", got, pending, PendingID)
+	}
+	if _, err := os.Stat(home); !os.IsNotExist(err) {
+		t.Fatalf("state home was created: %v", err)
+	}
+}

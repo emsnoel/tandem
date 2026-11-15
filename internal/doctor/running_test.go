@@ -55,7 +55,7 @@ func TestRunningRolesIgnoresAnotherCheckout(t *testing.T) {
 	if got := RunningRoles(p, root, plainNames); len(got) != 0 {
 		t.Fatalf("got %v, want none", got)
 	}
-	rs := PairNames(p, root, plainNames)
+	rs := PairNames(p, root, plainNames, false)
 	w := find(t, rs, "names:builder")
 	want := "pane w8:pB5 holds 'builder' but works in " + other + "; tandem-pair will refuse to adopt it"
 	if w.Status != Warn || w.Detail != want {
@@ -81,7 +81,7 @@ func TestRunningRolesAcceptsASubdirectory(t *testing.T) {
 }
 
 func TestPairNamesReportsTheNames(t *testing.T) {
-	rs := PairNames(healthy(), t.TempDir(), pairname.Names{Planner: "planner-wt-b", Builder: "builder-wt-b", Reviewer: "reviewer-wt-b"})
+	rs := PairNames(healthy(), t.TempDir(), pairname.Names{Planner: "planner-wt-b", Builder: "builder-wt-b", Reviewer: "reviewer-wt-b"}, false)
 	r := find(t, rs, "names")
 	if r.Status != OK || r.Detail != "this checkout pairs as planner-wt-b, builder-wt-b, reviewer-wt-b" {
 		t.Fatalf("got %+v", r)
@@ -185,5 +185,33 @@ func TestRunningRoleIsReported(t *testing.T) {
 	}
 	if !strings.Contains(names(rs), "running:builder running:reviewer") {
 		t.Errorf("want builder before reviewer: %s", names(rs))
+	}
+}
+
+// An agent with no cwd cannot be shown to work here.
+func TestPairNamesWarnsOfAnAgentWithNoCwd(t *testing.T) {
+	p := healthy()
+	p.agents = []herdr.Agent{named("builder", "w2:p4", "codex", "")}
+	w := find(t, PairNames(p, t.TempDir(), plainNames, false), "names:builder")
+	if w.Status != Warn || w.Detail != "pane w2:p4 holds 'builder' but works in an unknown folder; tandem-pair will refuse to adopt it" {
+		t.Fatalf("got %+v", w)
+	}
+}
+
+func TestPairNamesWordsThePlannerWarning(t *testing.T) {
+	p := healthy()
+	p.agents = []herdr.Agent{named("planner", "w2:p1", "claude", t.TempDir())}
+	w := find(t, PairNames(p, t.TempDir(), plainNames, false), "names:planner")
+	if !strings.HasSuffix(w.Detail, "; tandem-pair will refuse to take that name") {
+		t.Fatalf("got %+v", w)
+	}
+}
+
+func TestPairNamesSaysWhenTheIDIsPending(t *testing.T) {
+	n := pairname.Names{Planner: "planner-<id>", Builder: "builder-<id>", Reviewer: "reviewer-<id>"}
+	r := find(t, PairNames(healthy(), t.TempDir(), n, true), "names")
+	want := "this checkout pairs as planner-<id>, builder-<id>, reviewer-<id>, with the id assigned on the first tandem-pair"
+	if r.Status != OK || r.Detail != want {
+		t.Fatalf("got %+v", r)
 	}
 }

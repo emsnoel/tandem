@@ -56,10 +56,14 @@ func RunningRoles(p Probe, root string, names pairname.Names) map[agent.Role]str
 }
 
 // PairNames reports the names this checkout pairs under, and warns for each
-// live agent that holds one of them from another checkout.
-func PairNames(p Probe, root string, names pairname.Names) []Result {
-	rs := []Result{{Group: "repo", Name: "names", Status: OK,
-		Detail: "this checkout pairs as " + names.Planner + ", " + names.Builder + ", " + names.Reviewer}}
+// live agent that holds one of them from another checkout. With pending, the
+// names carry pairname.PendingID because the checkout has no id yet.
+func PairNames(p Probe, root string, names pairname.Names, pending bool) []Result {
+	detail := "this checkout pairs as " + names.Planner + ", " + names.Builder + ", " + names.Reviewer
+	if pending {
+		detail += ", with the id assigned on the first tandem-pair"
+	}
+	rs := []Result{{Group: "repo", Name: "names", Status: OK, Detail: detail}}
 	agents, err := bounded(p.Agents)
 	if err != nil {
 		return rs
@@ -73,9 +77,12 @@ func PairNames(p Probe, root string, names pairname.Names) []Result {
 		if where == "" {
 			where = "an unknown folder"
 		}
+		outcome := "tandem-pair will refuse to adopt it"
+		if r.role == agent.RolePlanner {
+			outcome = "tandem-pair will refuse to take that name"
+		}
 		rs = append(rs, Result{Group: "repo", Name: "names:" + string(r.role), Status: Warn,
-			Detail: "pane " + a.PaneID + " holds '" + r.name + "' but works in " + where +
-				"; tandem-pair will refuse to adopt it",
+			Detail: "pane " + a.PaneID + " holds '" + r.name + "' but works in " + where + "; " + outcome,
 			Fix: "close it from its own checkout with tandem-unpair, or pair here under other names (HERDR_" +
 				strings.ToUpper(string(r.role)) + "_NAME)"})
 	}
