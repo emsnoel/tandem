@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -68,5 +69,35 @@ func TestDoctorReportsNames(t *testing.T) {
 	})
 	if !strings.Contains(out, "this checkout pairs as planner-wt-b, builder-wt-b, reviewer-wt-b") {
 		t.Fatalf("doctor did not report the names:\n%s", out)
+	}
+}
+
+// Doctor writes nothing, even for a worktree whose names need a checkout id.
+func TestDoctorLeavesAFreshStateHomeEmpty(t *testing.T) {
+	main := filepath.Join(t.TempDir(), "proj")
+	wt := filepath.Join(t.TempDir(), "proj")
+	if err := os.MkdirAll(main, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range [][]string{{"-C", main, "init", "-q"},
+		{"-C", main, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "i"},
+		{"-C", main, "worktree", "add", "-q", wt}} {
+		if out, err := exec.Command("git", a...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", a, err, out)
+		}
+	}
+	for _, k := range []string{"HERDR_PLANNER_NAME", "HERDR_BUILDER_NAME", "HERDR_REVIEWER_NAME"} {
+		t.Setenv(k, "")
+	}
+	home := filepath.Join(t.TempDir(), "state")
+	doctorProbe = okProbe{}
+	out, _ := captureStdoutRC(t, func() int {
+		return cmdDoctor([]string{"--cwd", wt, "--state-home", home, "--builder", "claude", "--reviewer", "claude"})
+	})
+	if !strings.Contains(strings.Join(strings.Fields(out), " "), "with the id assigned on the first tandem-pair") {
+		t.Fatalf("doctor did not report the pending id:\n%s", out)
+	}
+	if _, err := os.Stat(home); !os.IsNotExist(err) {
+		t.Fatalf("doctor created the state home: %v", err)
 	}
 }

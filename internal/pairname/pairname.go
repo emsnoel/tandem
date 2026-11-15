@@ -150,13 +150,29 @@ func inspect(dir string) (checkout, error) {
 	return c, nil
 }
 
-func (c checkout) derive(dir, stateHome string) (Names, error) {
+// PendingID stands in for the checkout id in names that ResolveReadOnly cannot
+// complete, because the checkout has no id yet.
+const PendingID = "<id>"
+
+var errUnbound = errors.New("checkout has no id yet")
+
+func (c checkout) derive(dir, stateHome string, readOnly bool) (Names, error) {
 	if !c.inGit {
 		return plain, nil
 	}
 	return derive(c.isMain, Slug(filepath.Base(c.top)), c.others, func() (string, error) {
-		id, err := state.ResolveIdentity(dir, stateHome)
-		return id.CheckoutID, err
+		if !readOnly {
+			id, err := state.ResolveIdentity(dir, stateHome)
+			return id.CheckoutID, err
+		}
+		id, bound, err := state.LookupIdentity(dir, stateHome)
+		if err != nil {
+			return "", err
+		}
+		if !bound {
+			return "", errUnbound
+		}
+		return id.CheckoutID, nil
 	})
 }
 
@@ -179,7 +195,7 @@ func Derive(dir, stateHome string) (Names, error) {
 	if err != nil {
 		return Names{}, err
 	}
-	return c.derive(dir, stateHome)
+	return c.derive(dir, stateHome, false)
 }
 
 // resolveFrom makes a path printed by git absolute against base and resolves
@@ -219,6 +235,18 @@ func ReadRecord(relay string) (Names, bool, error) {
 // that is not a Herdr name is an error, because tandem-pair writes the names
 // into pair.json unescaped.
 func Resolve(dir, stateHome string, getenv func(string) string) (Names, error) {
+	n, _, err := resolve(dir, stateHome, getenv, false)
+	return n, err
+}
+
+// ResolveReadOnly is Resolve without any write. A linked worktree that needs
+// the registry's checkout id but has none yet gets PendingID in place of the id,
+// and pending is true. It never creates the state home, the registry or a binding.
+func ResolveReadOnly(dir, stateHome string, getenv func(string) string) (names Names, pending bool, err error) {
+	return resolve(dir, stateHome, getenv, true)
+}
+
+func resolve(dir, stateHome string, getenv func(string) string, readOnly bool) (Names, bool, error) {
 	env := Names{
 		Planner:  getenv("HERDR_PLANNER_NAME"),
 		Builder:  getenv("HERDR_BUILDER_NAME"),
@@ -228,23 +256,30 @@ func Resolve(dir, stateHome string, getenv func(string) string) (Names, error) {
 		{"HERDR_PLANNER_NAME", env.Planner}, {"HERDR_BUILDER_NAME", env.Builder}, {"HERDR_REVIEWER_NAME", env.Reviewer},
 	} {
 		if o.val != "" && !nameRE.MatchString(o.val) {
-			return Names{}, fmt.Errorf("%s='%s' is not a Herdr agent name; it must match %s", o.name, o.val, nameRE.String())
+			return Names{}, false, fmt.Errorf("%s='%s' is not a Herdr agent name; it must match %s", o.name, o.val, nameRE.String())
 		}
 	}
 	c, err := inspect(dir)
 	if err != nil {
-		return Names{}, err
+		return Names{}, false, err
 	}
-	derived, err := c.derive(dir, stateHome)
+	derived, err := c.derive(dir, stateHome, readOnly)
+	pending := errors.Is(err, errUnbound)
+	if pending {
+		derived, err = suffixed(PendingID), nil
+	}
 	if err != nil {
-		return Names{}, err
+		return Names{}, false, err
 	}
 	// The relay lives at the checkout's toplevel, wherever dir is inside it.
 	rec, _, err := ReadRecord(paths.Relay(c.top))
 	if err != nil {
-		return Names{}, err
+		return Names{}, false, err
 	}
-	return merge(env, rec, derived), nil
+	n := merge(env, rec, derived)
+	// Overrides and the record may cover every role that would have used the id.
+	pending = pending && (n.Planner == derived.Planner || n.Builder == derived.Builder || n.Reviewer == derived.Reviewer)
+	return n, pending, nil
 }
 
 // merge picks, per role, the first non-empty of env, rec and derived.
