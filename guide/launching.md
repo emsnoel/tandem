@@ -159,18 +159,24 @@ own bridge and its own agents, so the two pairs never read each other's messages
 - The main checkout keeps `planner`, `builder` and `reviewer`.
 - A linked worktree gets `planner-<folder>`, `builder-<folder>` and `reviewer-<folder>`. The
   folder part is the worktree's folder name in lowercase. It keeps `a` to `z`, `0` to `9`,
-  `_` and `-`, turns every other character into `-`, collapses repeated `-`, trims `-` from
-  both ends and cuts the result to 23 characters. The folder `Repo Feat_X` gives
-  `planner-repo-feat_x`.
-- When two worktree folders give the same name, or the name is empty, the suffix is the
-  first 6 characters of the checkout id instead.
+  `_` and `-`, turns every other character into `-`, collapses repeated `-` and trims `-`
+  from both ends. Then it cuts the result to 23 characters and trims a `-` the cut leaves at
+  the end. The folder `Repo Feat_X` gives `planner-repo-feat_x`.
+- When two linked worktree folders give the same name, or the name is empty, the suffix is
+  the first 6 characters of the checkout id instead. The main checkout's folder never
+  clashes, because the main checkout keeps the plain names.
 - `HERDR_PLANNER_NAME`, `HERDR_BUILDER_NAME` and `HERDR_REVIEWER_NAME` override a name.
 
-`tandem paths names [--root DIR]` prints the three names for a checkout. `tandem-pair`
-records them in `.tandem-relay/pair.json`, and every script reads them from that file. The
-first line of `tandem-status` shows them, as `pair     P, B, R  (checkout <path>)`.
-`tandem doctor` shows them as "this checkout pairs as ..." and warns when an agent in
-another checkout holds one of them.
+`tandem-pair` records the names in `.tandem-relay/pair.json`, and every script reads them
+from that file. `tandem paths names [--root DIR]` prints them for a checkout. It writes
+nothing, because the builder and the reviewer run it from a sandbox that cannot write the
+state home. The first line of `tandem-status` shows them, as
+`pair     P, B, R  (checkout <path>)`. `tandem doctor` shows them as "this checkout pairs as
+..." and warns when an agent in another checkout holds one of them.
+
+A checkout id comes from the state registry, and only a real `tandem-pair` run writes one.
+Until then, `tandem-pair --dry-run`, `tandem-status` and `tandem doctor` show `<id>` in its
+place, and the other scripts stop and ask you to run `tandem-pair` in that checkout.
 
 ### Setup for each new folder
 
@@ -210,10 +216,26 @@ tandem-pair: tandem does not adopt it, because its messages would go to that che
 tandem-pair: close it from that checkout with tandem-unpair, or pair here under other names (HERDR_BUILDER_NAME, HERDR_REVIEWER_NAME).
 ```
 
-A pane outside git counts as another checkout.
+When this checkout is in git, a pane outside git counts as another checkout.
 
 ### After upgrading
 
-Older versions kept the planner's name in `.tandem-relay/planner-name`. Run `tandem-pair`
-once in each live pair after upgrading. It writes `pair.json` and the scripts read it from
-then on.
+Older versions named every pair `planner`, `builder` and `reviewer`, and kept the planner's
+name in `.tandem-relay/planner-name`. The scripts now read the names from `pair.json`. A
+pair that was live before the upgrade has no such file, so check where it runs:
+
+- In a main checkout, the names stay the same, so nothing is needed. If the pair runs
+  under custom names, run `tandem-pair` once with the same `HERDR_PLANNER_NAME`,
+  `HERDR_BUILDER_NAME` and `HERDR_REVIEWER_NAME` values to record them.
+- In a linked worktree, the pair runs under the plain names, but the worktree now derives
+  `planner-<folder>`. Run this once in its planner pane to record the names it runs under:
+
+  ```bash
+  HERDR_PLANNER_NAME=planner HERDR_BUILDER_NAME=builder HERDR_REVIEWER_NAME=reviewer tandem-pair
+  ```
+
+  Or close the pair with `tandem-unpair`, with those three variables set, and pair again.
+
+  If you pair the worktree under its new names without this step, `tandem-pair` moves the
+  bridge to the new planner name and starts a new builder and reviewer. The old builder and
+  reviewer keep running under the plain names until you close their panes.
