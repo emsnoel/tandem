@@ -21,6 +21,7 @@ need. This table lists each exit code for reference.
 | 26 | From `tandem agent prompt --as`, the turn ended at once with no model work. The scripts report this as their own 8 | As for 8 |
 | 27 | From `tandem agent alive`, an agent quit right after it started: Herdr stopped listing it, or its pane is back at the shell. From `tandem agent watch`, a watched agent was released or its pane closed, or it was already gone when the watch started. `tandem-pair` runs this check after starting each agent, and stops with the pane's last lines | Fix what the pane shows, then run `tandem-pair` again |
 | 30 | `tandem doctor` found at least one problem that would stop a pairing. `tandem-pair` runs doctor first, and stops with its code | Fix each `FAIL` line as its `fix:` line says, or run `tandem-pair --skip-doctor` |
+| 35 | `tandem-pair` found a builder or reviewer under this pair's name, or an unnamed agent to adopt, that works in another checkout. Its messages would go to that checkout's pair, so tandem does not adopt it. A pane outside git counts as another checkout. The message names the pane and the checkout | Close that pair from its own checkout with `tandem-unpair`, or pair here under other names with `HERDR_BUILDER_NAME` and `HERDR_REVIEWER_NAME` |
 
 ## A pane showing a subagent or a list
 

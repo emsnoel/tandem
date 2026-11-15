@@ -65,4 +65,10 @@ const (
 	// NotAPlanner: the pane or kind chosen as the planner is one that cannot
 	// plan, such as Codex. bin/tandem-pair prints the reason Go gives.
 	NotAPlanner = 34
+
+	// ForeignCheckout: tandem-pair found a builder or reviewer under this
+	// pair's name, or an agent to adopt, that works in another checkout. Its
+	// messages would go to that checkout's pair, so tandem does not adopt it.
+	// Only bin/tandem-pair uses this code.
+	ForeignCheckout = 35
 )

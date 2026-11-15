@@ -28,6 +28,16 @@ func snapshotLine(a *herdr.Agent) (string, error) {
 	return a.PaneID + "\t" + a.CWD + "\t" + status, nil
 }
 
+// snapshotTarget finds the agent `tandem agent snapshot` reports: the one
+// named target, or else the one in pane target, so an unnamed agent can be read
+// by its pane id.
+func snapshotTarget(agents []herdr.Agent, target string) *herdr.Agent {
+	if a := herdr.Find(agents, target); a != nil {
+		return a
+	}
+	return herdr.FindPane(agents, target)
+}
+
 // stringList collects a flag given more than once, e.g. --until idle --until done.
 type stringList []string
 
@@ -219,9 +229,9 @@ func cmdAgent(args []string) int {
 			fmt.Fprintln(os.Stderr, err.Error())
 			return herdr.ExitCodeFor(err)
 		}
-		a := herdr.Find(agents, name)
+		a := snapshotTarget(agents, name)
 		if a == nil {
-			fmt.Fprintf(os.Stderr, "not_found\tno agent named %q\n", name)
+			fmt.Fprintf(os.Stderr, "not_found\tno agent named or in pane %q\n", name)
 			return exitcode.HerdrError
 		}
 		line, err := snapshotLine(a)

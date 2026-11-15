@@ -200,9 +200,8 @@ resolve_reviewer
 check_relay_owner "$(tandem paths relay --root "$SPLIT_CWD")"
 
 # --- name the planner ---
-if [[ "$PLANNER_CURRENT_NAME" == "$PLANNER_NAME" ]]; then
-  info "planner already named '$PLANNER_NAME'."
-else
+# Every check runs before the planner is renamed, so a refusal changes nothing.
+if [[ "$PLANNER_CURRENT_NAME" != "$PLANNER_NAME" ]]; then
   clash=""; rc=0
   _snap=$(tandem agent snapshot "$PLANNER_NAME" 2>/dev/null) || rc=$?
   if (( rc == 0 )); then
@@ -212,6 +211,12 @@ else
     die "could not check whether '$PLANNER_NAME' is already in use."
   fi
   [[ -z "$clash" ]] || die "the name '$PLANNER_NAME' is already held by pane $clash. Release it or set HERDR_PLANNER_NAME."
+fi
+find_builder
+find_reviewer
+if [[ "$PLANNER_CURRENT_NAME" == "$PLANNER_NAME" ]]; then
+  info "planner already named '$PLANNER_NAME'."
+else
   mutate agent rename "$PLANNER_PANE" "$PLANNER_NAME" \
     || die "could not name the planner: $(printf '%s' "$MUTATE_ERR" | cut -f2-)"
   info "named planner agent '$PLANNER_NAME'."
