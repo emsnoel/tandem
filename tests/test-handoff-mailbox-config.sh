@@ -21,6 +21,8 @@ cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
 case "$1 $2" in
   'paths relay') printf '%s\n' "$RELAY"; exit 0 ;;
+  # The plain names, or HERDR_*_NAME, as for a main checkout with no pair.json.
+  'paths names') printf '%s\t%s\t%s\n' "${HERDR_PLANNER_NAME:-planner}" "${HERDR_BUILDER_NAME:-builder}" "${HERDR_REVIEWER_NAME:-reviewer}"; exit 0 ;;
   'agent snapshot') printf '%%1\t%s\tidle\n' "$REPO"; exit 0 ;;
   'config project') exec "$TANDEM_REAL" "$@" ;;
   'build start')

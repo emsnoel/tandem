@@ -29,9 +29,11 @@ done
 . "${_self%/*}/lib/bridge-durable.sh"
 # shellcheck source=lib/bridge-lock.sh
 . "${_self%/*}/lib/bridge-lock.sh"
+# shellcheck source=lib/pair-identity.sh
+. "${_self%/*}/lib/pair-identity.sh"
 
 MAILBOX=""
-PLANNER_NAME="${HERDR_PLANNER_NAME:-planner}"
+PLANNER_OVERRIDE=""
 POLL_SECONDS="${HERDR_BRIDGE_POLL_SECONDS:-1}"
 BACKSTOP_SECONDS="${HERDR_BRIDGE_BACKSTOP_SECONDS:-30}"
 PROMPT_TIMEOUT_MS="${HERDR_BRIDGE_PROMPT_TIMEOUT_MS:-120000}"
@@ -46,7 +48,8 @@ to the named agent, and drives the relay's run.
 Normally started in the background by tandem-pair; run it by hand only to debug.
 
   --mailbox DIR   relay directory (contains q/ and a/)
-  --planner NAME  agent to deliver to (default: planner)
+  --planner NAME  agent to deliver to (default: the planner the checkout's
+                  pair.json names, as tandem paths names prints it)
   --once          process what is queued, then exit (for testing)
 
 One bridge watches a mailbox. A second start on the same mailbox refuses while
@@ -72,7 +75,7 @@ relay_guard() {
 while (( $# )); do
   case "$1" in
     --mailbox) MAILBOX="${2:-}"; shift 2 ;;
-    --planner) PLANNER_NAME="${2:-}"; shift 2 ;;
+    --planner) PLANNER_OVERRIDE="${2:-}"; shift 2 ;;
     --once)    ONESHOT=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; die "unknown argument: $1" ;;
@@ -82,6 +85,11 @@ done
 [[ -n "$MAILBOX" ]] || { usage >&2; die "--mailbox is required."; }
 [[ "${HERDR_ENV:-}" == 1 ]] || die "must run inside a Herdr pane (HERDR_ENV != 1), because it needs the Herdr socket."
 command -v herdr >/dev/null 2>&1 || die "herdr not found on PATH."
+
+# The relay sits at the checkout's toplevel. Its names also give
+# lib/bridge-durable.sh the builder to watch.
+pair_names "$(dirname "$MAILBOX")"
+PLANNER_NAME="${PLANNER_OVERRIDE:-$PLANNER_NAME}"
 
 relay_guard "$MAILBOX"
 

@@ -22,6 +22,8 @@ mkdir -p "$TMP/bin"
 cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$MARKER"
+# Naming the pair reads files, not the socket.
+[ "$1 $2" = "paths names" ] && { printf 'planner\tbuilder\treviewer\n'; exit 0; }
 exit 3
 STUB
 # Only for tandem-handoff's `command -v herdr` check; never run.

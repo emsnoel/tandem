@@ -19,9 +19,8 @@ HANDOFF_LIB="${_self%/*}/lib"
 . "$HANDOFF_LIB/handoff-gate.sh"
 # shellcheck source=lib/handoff-start.sh
 . "$HANDOFF_LIB/handoff-start.sh"
-
-BUILDER_NAME="${HERDR_BUILDER_NAME:-builder}"
-PLANNER_NAME="${HERDR_PLANNER_NAME:-planner}"
+# shellcheck source=lib/pair-identity.sh
+. "$HANDOFF_LIB/pair-identity.sh"
 
 DRY_RUN=0
 CONTINUE=0
@@ -120,6 +119,8 @@ trap 'rm -f "$FIELDS"' EXIT
 for c in herdr tandem tandem-review; do
   command -v "$c" >/dev/null 2>&1 || die "$c not found on PATH."
 done
+# The names come from the planner's checkout (lib/pair-identity.sh).
+pair_names "$PWD"
 
 # Pane, cwd and status come from one Herdr read, so they cannot disagree.
 # `|| rc=$?` keeps set -e from exiting before the case below. IFS is a tab

@@ -46,7 +46,10 @@ case "$1 $2" in
   "gate review")    exit 0 ;;
 esac
 case "$1" in
-  paths) printf '%s/.tandem-relay\n' "$REPO"; exit 0 ;;
+  paths)
+    # `tandem paths names` for a main checkout with no pair.json.
+    [ "$2" = names ] && { printf '%s\t%s\t%s\n' "${HERDR_PLANNER_NAME:-planner}" "${HERDR_BUILDER_NAME:-builder}" "${HERDR_REVIEWER_NAME:-reviewer}"; exit 0; }
+    printf '%s/.tandem-relay\n' "$REPO"; exit 0 ;;
 esac
 exit 0
 STUB

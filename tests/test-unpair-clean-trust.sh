@@ -59,7 +59,10 @@ case "$1 $2" in
   "build archive") exit 0 ;;
 esac
 case "$1" in
-  paths) shift; while (( $# )); do [[ "$1" == --root ]] && { printf '%s/.tandem-relay\n' "$2"; exit 0; }; shift; done; exit 1 ;;
+  paths)
+    # `tandem paths names` for a main checkout with no pair.json.
+    [ "$2" = names ] && { printf '%s\t%s\t%s\n' "${HERDR_PLANNER_NAME:-planner}" "${HERDR_BUILDER_NAME:-builder}" "${HERDR_REVIEWER_NAME:-reviewer}"; exit 0; }
+    shift; while (( $# )); do [[ "$1" == --root ]] && { printf '%s/.tandem-relay\n' "$2"; exit 0; }; shift; done; exit 1 ;;
   pane) exit 0 ;;
 esac
 exit 0

@@ -95,17 +95,28 @@ pair_start() {
   # shellcheck disable=SC2016 # the inner script expands its own arguments
   "${BENV[@]}" bash -c '
     info() { printf "tandem-pair: %s\n" "$*"; }; die() { info "$*"; exit 1; }
-    . "$1/bin/lib/relay.sh"; . "$1/bin/lib/pair-records.sh"; . "$1/bin/lib/bridge-lock.sh"; . "$1/bin/lib/planner-name.sh"
-    DRY_RUN=0 MB_ROOT="$2" BCWD="$2" PLANNER_NAME=planner-3; start_bridge' _ "$ROOT_DIR" "$R" 2>&1
+    . "$1/bin/lib/relay.sh"; . "$1/bin/lib/pair-records.sh"; . "$1/bin/lib/bridge-lock.sh"; . "$1/bin/lib/pair-identity.sh"
+    DRY_RUN=0 MB_ROOT="$2" BCWD="$2" PLANNER_NAME=planner-3 BUILDER_NAME=builder-3 REVIEWER_NAME=reviewer-3; start_bridge' _ "$ROOT_DIR" "$R" 2>&1
 }
 OUT=$(pair_start)
 PAIRED=$(cat "$MB/bridge.pid" 2>/dev/null)
 has "it starts a bridge when none runs" "$OUT" "relay bridge started (pid $PAIRED)"
 kill -0 "$PAIRED" 2>/dev/null && ok "and that bridge runs" || nope "no bridge at pid $PAIRED: $OUT"
-[ "$(cat "$MB/planner-name" 2>/dev/null)" = planner-3 ] && ok "it records the planner's name for the other panes" || nope "planner-name: $(cat "$MB/planner-name" 2>/dev/null)"
+[ "$(cat "$MB/pair.json" 2>/dev/null)" = '{"planner":"planner-3","builder":"builder-3","reviewer":"reviewer-3"}' ] \
+  && ok "it records the pair's names for the other panes" || nope "pair.json: $(cat "$MB/pair.json" 2>/dev/null)"
+[ ! -e "$MB/pair.json.tmp" ] && ok "through a rename, leaving no temp file" || nope "pair.json.tmp left behind"
+case "$(ps -p "$PAIRED" -o command= 2>/dev/null)" in
+  *"--planner planner-3"*) ok "and the bridge delivers to that planner" ;;
+  *) nope "bridge command: $(ps -p "$PAIRED" -o command= 2>/dev/null)" ;;
+esac
 OUT=$(pair_start)
 has "a second pair reuses it" "$OUT" "relay bridge already running (pid $PAIRED)"
 [ "$(bridges)" = 1 ] && ok "and starts no second bridge" || nope "bridges: $(pgrep -fl "tandem-bridge --mailbox $MB")"
+
+printf '\n== a bridge started without --planner ==\n'
+pkill -P "$PAIRED" 2>/dev/null; kill "$PAIRED" 2>/dev/null; exits_within "$PAIRED" || nope "the paired bridge did not stop"
+"${BENV[@]}" "$ROOT_DIR/bin/tandem-bridge" --mailbox "$MB" --once >"$TMP/bridge.noflag.log" 2>&1
+has "it delivers to the planner pair.json names" "$(cat "$TMP/bridge.noflag.log")" "-> planner-3"
 
 printf '\ntests/test-bridge-single: passed %d, failed %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

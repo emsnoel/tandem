@@ -57,6 +57,9 @@ cat > "$TMP/bin/tandem" <<'STUB'
 case "$1 $2" in
   "relay read") [ "${RELAY_READ_FAIL:-0}" = 1 ] && exit 1; exec "$TANDEM_REAL" "$@" ;;
   "state active-run") exec "$TANDEM_REAL" "$@" ;;
+  # The real names for the mailbox's parent, which is outside git: the plain
+  # ones unless HERDR_*_NAME or a pair.json says otherwise.
+  "paths names") exec "$TANDEM_REAL" "$@" ;;
 esac
 case "$1 $2" in
   "agent prompt")
@@ -316,6 +319,9 @@ printf '%s\n' "$*" >> "$TANDEM_LOG"
 case "$1 $2" in
   "relay read") [ "${RELAY_READ_FAIL:-0}" = 1 ] && exit 1; exec "$TANDEM_REAL" "$@" ;;
   "state active-run") exec "$TANDEM_REAL" "$@" ;;
+  # The real names for the mailbox's parent, which is outside git: the plain
+  # ones unless HERDR_*_NAME or a pair.json says otherwise.
+  "paths names") exec "$TANDEM_REAL" "$@" ;;
 esac
 case "$1 $2" in
   "agent watch")

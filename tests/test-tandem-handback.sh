@@ -15,7 +15,10 @@ chk()  { case "$OUT" in *"$2"*) ok "$1" ;; *) nope "$1 (missing: $2)" ;; esac; }
 command -v jq >/dev/null || { echo "need jq" >&2; exit 2; }
 
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
-mkdir -p "$TMP/bin" "$TMP/mailbox"
+# REPO stands in for the checkout whose names `tandem paths names` resolves. It
+# is outside git, so its names are the plain ones unless it records others.
+REPO="$TMP/repo"
+mkdir -p "$TMP/bin" "$TMP/mailbox" "$REPO"
 # A jq that fails: tandem-handback asks tandem, so any jq call is a bug. The
 # test reads the queued messages with the real jq.
 printf '#!/bin/sh\necho "jq was called: $*" >&2\nexit 99\n' > "$TMP/bin/jq"
@@ -34,6 +37,7 @@ printf '%s\n' "$*" >> "$MARKER"
 case "$1 $2" in
   # The real binary writes the messages and reads the run marker.
   "relay write"|"state active-run") exec "$TANDEM_REAL" "$@" ;;
+  "paths names") exec "$TANDEM_REAL" paths names --root "$REPO" ;;
   "agent snapshot")
     rc="${AGENT_SNAPSHOT_RC:-0}"
     [[ "$rc" == 0 ]] || exit "$rc"
@@ -91,7 +95,7 @@ MARKER="$TMP/calls"
 run() {
   : > "$MARKER"
   OUT=$(env -i PATH="$TMP/bin:/usr/bin:/bin" HOME="$HOME" TANDEM_REAL="$TMP/tandem-real" \
-          MAILBOX="$TMP/mailbox" MARKER="$MARKER" HERDR_ENV=1 \
+          MAILBOX="$TMP/mailbox" REPO="$REPO" MARKER="$MARKER" HERDR_ENV=1 \
           ${ENV[@]+"${ENV[@]}"} "$@" 2>&1)
   RC=$?
 }
@@ -201,12 +205,14 @@ REPFILE=$(ls "$TMP/mailbox/reports"/*.md 2>/dev/null | head -1)
 [[ -n "$REPFILE" ]] && ok "the report was still written to disk" || nope "the report was still written to disk"
 
 # --- a planner under another name: the relay records it ---------------------
-rm -rf "$TMP/mailbox"; mkdir -p "$TMP/mailbox"; printf 'planner-3\n' > "$TMP/mailbox/planner-name"
+rm -rf "$TMP/mailbox"; mkdir -p "$TMP/mailbox" "$REPO/.tandem-relay"
+printf '{"planner":"planner-3","builder":"builder","reviewer":"reviewer"}\n' > "$REPO/.tandem-relay/pair.json"
 ENV=(HERDR_ROLE=builder AGENT_SNAPSHOT_RC=3)
 run "$HANDBACK_BIN" --report "$REPORT" --plan "$PLAN"
 QFILE=$(ls "$TMP/mailbox/q"/*.json 2>/dev/null | head -1)
 [[ "$RC" == 0 && -n "$QFILE" && "$(jq -r '.to' "$QFILE")" == planner-3 ]] && ok "the handback goes to the planner the relay names" \
   || nope "the handback goes to the planner the relay names (rc $RC, to $(jq -r '.to' "$QFILE" 2>/dev/null))"
+rm -rf "$REPO/.tandem-relay"
 
 # --- no planner agent found (not sandboxed, just gone) -----------------------
 rm -rf "$TMP/mailbox"; mkdir -p "$TMP/mailbox"
@@ -289,8 +295,8 @@ chk "planner already working: hands back" "handed back to 'planner'"
 # --- report can also arrive on stdin -----------------------------------------
 rm -rf "$TMP/mailbox"; mkdir -p "$TMP/mailbox"
 : > "$MARKER"
-OUT=$(env -i PATH="$TMP/bin:/usr/bin:/bin" HOME="$HOME" MAILBOX="$TMP/mailbox" MARKER="$MARKER" \
-        HERDR_ENV=1 HERDR_ROLE=builder \
+OUT=$(env -i PATH="$TMP/bin:/usr/bin:/bin" HOME="$HOME" TANDEM_REAL="$TMP/tandem-real" MAILBOX="$TMP/mailbox" \
+        REPO="$REPO" MARKER="$MARKER" HERDR_ENV=1 HERDR_ROLE=builder \
         "$HANDBACK_BIN" --report - <<<"piped report body" 2>&1); RC=$?
 [[ "$RC" == 0 ]] && ok "report via stdin (--report -): exits 0" || nope "report via stdin (--report -): exits 0 (got $RC)"
 REPFILE=$(ls "$TMP/mailbox/reports"/*.md 2>/dev/null | head -1)

@@ -20,14 +20,11 @@ done
 . "${_self%/*}/lib/pair-panes.sh"
 # shellcheck source=lib/pair-records.sh
 . "${_self%/*}/lib/pair-records.sh"
-# shellcheck source=lib/planner-name.sh
-. "${_self%/*}/lib/planner-name.sh"
+# shellcheck source=lib/pair-identity.sh
+. "${_self%/*}/lib/pair-identity.sh"
 # shellcheck source=lib/bridge-lock.sh
 . "${_self%/*}/lib/bridge-lock.sh"
 
-PLANNER_NAME="${HERDR_PLANNER_NAME:-planner}"
-BUILDER_NAME="${HERDR_BUILDER_NAME:-builder}"
-REVIEWER_NAME="${HERDR_REVIEWER_NAME:-reviewer}"
 START_TIMEOUT_MS="${HERDR_PAIR_START_TIMEOUT_MS:-60000}"
 
 DRY_RUN=0
@@ -112,8 +109,6 @@ command -v tandem >/dev/null 2>&1 || die "tandem not found on PATH."
 [[ -z "$DIRECTION" || "$DIRECTION" == right || "$DIRECTION" == down ]] \
   || die "--direction must be right or down (got: $DIRECTION)."
 [[ -z "$CWD_OVERRIDE" || -d "$CWD_OVERRIDE" ]] || die "--cwd is not a directory: $CWD_OVERRIDE"
-[[ "$REVIEWER_NAME" != "$BUILDER_NAME" && "$REVIEWER_NAME" != "$PLANNER_NAME" ]] \
-  || die "the reviewer cannot be named '$REVIEWER_NAME': that is the builder or the planner, which would review its own work."
 
 # Go writes NUL-separated fields here, which a bash variable cannot hold.
 FIELDS=$(mktemp)
@@ -152,6 +147,9 @@ info "planner pane: $PLANNER_PANE (cwd: ${PLANNER_CWD:-unknown})"
 
 SPLIT_CWD="${CWD_OVERRIDE:-${PLANNER_CWD:-$PWD}}"
 ROOT=$(git -C "$SPLIT_CWD" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$SPLIT_CWD")
+pair_names "$ROOT"
+[[ "$REVIEWER_NAME" != "$BUILDER_NAME" && "$REVIEWER_NAME" != "$PLANNER_NAME" ]] \
+  || die "the reviewer cannot be named '$REVIEWER_NAME': that is the builder or the planner, which would review its own work."
 
 for _kind in $OV_APPROVE_KINDS; do
   rc=0

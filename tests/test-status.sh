@@ -29,6 +29,8 @@ cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
 case "$1 $2" in
   "reviewer show"|"config builder") exec "$REAL_TANDEM" "$@" ;;
+  # The plain names, or HERDR_*_NAME, as for a main checkout with no pair.json.
+  "paths names") printf '%s\t%s\t%s\n' "${HERDR_PLANNER_NAME:-planner}" "${HERDR_BUILDER_NAME:-builder}" "${HERDR_REVIEWER_NAME:-reviewer}"; exit 0 ;;
   "config project")
     root=""; shift 2
     while [ $# -gt 0 ]; do

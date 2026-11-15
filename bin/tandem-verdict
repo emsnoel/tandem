@@ -18,8 +18,8 @@ while [[ -L "$_self" ]]; do
 done
 # shellcheck source=lib/reviewer.sh
 . "${_self%/*}/lib/reviewer.sh"
-# shellcheck source=lib/planner-name.sh
-. "${_self%/*}/lib/planner-name.sh"
+# shellcheck source=lib/pair-identity.sh
+. "${_self%/*}/lib/pair-identity.sh"
 
 PLAN=""; REVIEW=""; VERDICT=""; ROLE=""; ROLE_SET=0
 
@@ -94,7 +94,9 @@ fi
 [[ -n "$ROOT" ]] || die "could not resolve a project root for $PWD."
 
 MAILBOX=$(tandem paths relay --root "$ROOT") || die "could not resolve the relay mailbox."
-PLANNER_NAME=$(planner_name "$MAILBOX")
+# This pane never has the planner's environment; the names come from the
+# record tandem-pair wrote for this checkout.
+pair_names "$ROOT"
 
 # Same id shape as tandem-handback.
 ID="$(date +%Y%m%d-%H%M%S)-$$-$RANDOM"

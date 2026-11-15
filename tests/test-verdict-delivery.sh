@@ -108,10 +108,11 @@ fi
 
 # --- a planner under another name ---
 # The reviewer's pane never has the planner's HERDR_PLANNER_NAME. tandem-pair
-# records the name in the relay, so the verdict reaches that planner and not a
+# records the names in the checkout's relay (pair.json), so the verdict reaches that planner and not a
 # pane that happens to be called "planner".
 rm -rf "$TMP/mailbox/reviews" "$TMP/mailbox/q"
-printf 'planner-3\n' > "$TMP/mailbox/planner-name"
+mkdir -p "$TMP/repo/.tandem-relay"
+printf '{"planner":"planner-3","builder":"builder","reviewer":"reviewer"}\n' > "$TMP/repo/.tandem-relay/pair.json"
 OUT=$(PATH="$TMP/bin:$PATH" MAILBOX="$TMP/mailbox" REPO="$TMP/repo" MARKER="$MARKER" AGENT_SNAPSHOT_RC=3 \
         "$VERDICT_BIN" --plan "$PLAN" --review "$REVIEW" --verdict clean 2>&1); RC=$?
 Q=$(ls "$TMP/mailbox/q/"*.json 2>/dev/null | head -1)
@@ -122,12 +123,19 @@ OUT=$(PATH="$TMP/bin:$PATH" MAILBOX="$TMP/mailbox" REPO="$TMP/repo" MARKER="$MAR
         "$VERDICT_BIN" --plan "$PLAN" --review "$REVIEW" --verdict clean 2>&1)
 Q=$(ls "$TMP/mailbox/q/"*.json 2>/dev/null | head -1)
 [[ -n "$Q" && "$(jq -r '.to' "$Q")" == other ]] && ok "HERDR_PLANNER_NAME still wins" || nope "HERDR_PLANNER_NAME still wins (to $(jq -r '.to' "$Q" 2>/dev/null))"
-printf 'Not A Name\n' > "$TMP/mailbox/planner-name"; rm -rf "$TMP/mailbox/q"
+printf '{"planner":"Not A Name","builder":"builder","reviewer":"reviewer"}\n' > "$TMP/repo/.tandem-relay/pair.json"; rm -rf "$TMP/mailbox/q"
 OUT=$(PATH="$TMP/bin:$PATH" MAILBOX="$TMP/mailbox" REPO="$TMP/repo" MARKER="$MARKER" AGENT_SNAPSHOT_RC=3 \
         "$VERDICT_BIN" --plan "$PLAN" --review "$REVIEW" --verdict clean 2>&1)
 Q=$(ls "$TMP/mailbox/q/"*.json 2>/dev/null | head -1)
 [[ -n "$Q" && "$(jq -r '.to' "$Q")" == planner ]] && ok "a recorded name that is not a Herdr name is ignored" || nope "a bad recorded name is ignored (to $(jq -r '.to' "$Q" 2>/dev/null))"
-rm -f "$TMP/mailbox/planner-name"; rm -rf "$TMP/mailbox/q"
+printf '{"planner":' > "$TMP/repo/.tandem-relay/pair.json"; rm -rf "$TMP/mailbox/reviews" "$TMP/mailbox/q"
+OUT=$(PATH="$TMP/bin:$PATH" MAILBOX="$TMP/mailbox" REPO="$TMP/repo" MARKER="$MARKER" AGENT_SNAPSHOT_RC=3 \
+        "$VERDICT_BIN" --plan "$PLAN" --review "$REVIEW" --verdict clean 2>&1); RC=$?
+[[ "$RC" == 1 ]] && ok "a pair.json that is not JSON refuses the verdict" || nope "a corrupt pair.json refuses (rc $RC)"
+chk "and names the file" "$TMP/repo/.tandem-relay/pair.json"
+[[ -z "$(ls "$TMP/mailbox/reviews" 2>/dev/null)$(ls "$TMP/mailbox/q" 2>/dev/null)" ]] && ok "and stores and sends nothing" \
+  || nope "a corrupt pair.json still stored or queued something"
+rm -rf "$TMP/repo/.tandem-relay" "$TMP/mailbox/q"
 
 # --- from a sandboxed reviewer pane ---
 # A Codex reviewer queues like a Codex builder. The sidecar records the

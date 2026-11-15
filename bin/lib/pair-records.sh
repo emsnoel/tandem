@@ -115,9 +115,10 @@ start_bridge() {
       && mv "$MAILBOX/builder-cwd.tmp" "$MAILBOX/builder-cwd" \
       || info "WARNING could not record the builder cwd in $MAILBOX/builder-cwd; tandem-unpair may leave the identity mailbox behind."
     # The builder's and the reviewer's panes never see this pane's
-    # HERDR_PLANNER_NAME, so their handbacks and verdicts read it here.
-    record_planner_name "$MAILBOX" "$PLANNER_NAME" \
-      || info "WARNING could not record the planner's name in $MAILBOX/planner-name; verdicts may go to a pane named 'planner'."
+    # environment, so their handbacks and verdicts read the names here
+    # (lib/pair-identity.sh).
+    record_pair "$MAILBOX" \
+      || info "WARNING could not record the pair's names in $MAILBOX/pair.json; verdicts and handbacks may go to the wrong planner."
 
     # The bridge writes bridge.pid itself and refuses to start while another
     # live bridge holds it (lib/bridge-lock.sh), so a running one is reused.
