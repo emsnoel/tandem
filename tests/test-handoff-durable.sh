@@ -36,7 +36,10 @@ cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$CALLS"
 case "$1" in
-  paths) printf '%s\n' "$RELAY"; exit 0 ;;
+  paths)
+    # `tandem paths names` for a main checkout with no pair.json.
+    [ "$2" = names ] && { printf '%s\t%s\t%s\n' "${HERDR_PLANNER_NAME:-planner}" "${HERDR_BUILDER_NAME:-builder}" "${HERDR_REVIEWER_NAME:-reviewer}"; exit 0; }
+    printf '%s\n' "$RELAY"; exit 0 ;;
     # root plans_dir check_command conventions_file builder_kind prompt_extra
   # task_input_budget context_limit review_delivery
   # acceptance_policy collaboration source invalid_manifest

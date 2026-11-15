@@ -1,0 +1,59 @@
+# bin/lib/pair-identity.sh: the names of a pair's agents, and its record.
+#
+# Sourced, never run. Herdr agent names are global, so two worktrees of one
+# repository need different names. `tandem paths names` resolves them per role:
+# HERDR_PLANNER_NAME, HERDR_BUILDER_NAME or HERDR_REVIEWER_NAME, then the names
+# tandem-pair recorded in the checkout's relay (pair.json), then names derived
+# from the checkout. The builder's and the reviewer's panes never have the
+# planner's environment, so they read the record. The caller defines die.
+# The callers set PLANNER_PANE, which shellcheck cannot see from this file.
+# shellcheck shell=bash disable=SC2153
+
+# pair_names DIR: set PLANNER_NAME, BUILDER_NAME and REVIEWER_NAME for the
+# checkout holding DIR.
+pair_names() {
+  local out rc=0
+  # tandem's own error, such as a pair.json that is not JSON, goes with the refusal.
+  out=$(tandem paths names --root "$1" 2>&1) || rc=$?
+  (( rc == 0 )) || die "could not resolve the pair's names for $1: $out"
+  IFS=$'\t' read -r PLANNER_NAME BUILDER_NAME REVIEWER_NAME <<<"$out" || true
+  [[ -n "$PLANNER_NAME" && -n "$BUILDER_NAME" && -n "$REVIEWER_NAME" ]] \
+    || die "could not resolve the pair's names for $1"
+}
+
+# record_pair MAILBOX: write the names to MAILBOX/pair.json, through a rename so
+# a reader never sees half a file. The names match Herdr's pattern, so they
+# need no JSON escaping.
+record_pair() {
+  printf '{"planner":"%s","builder":"%s","reviewer":"%s"}\n' "$PLANNER_NAME" "$BUILDER_NAME" "$REVIEWER_NAME" \
+    > "$1/pair.json.tmp" && mv "$1/pair.json.tmp" "$1/pair.json"
+}
+
+# check_relay_owner MAILBOX: refuse when MAILBOX belongs to another planner's
+# live pair. The relay holds one pair's records and one bridge, so a second
+# planner would take over the first pair's verdicts and handbacks. A pair is
+# live while its bridge runs. Its owner is the planner that bridge delivers to:
+# its --planner argument, then the planner in pair.json (or the checkout's
+# derived name). The owner's own pane may pair again under a new name. Reads
+# PLANNER_NAME and PLANNER_PANE; needs bridge_alive (lib/bridge-lock.sh).
+check_relay_owner() {
+  local mb="$1" owner="" pid cmd snap rc=0 pane=""
+  pid=$(cat "$mb/bridge.pid" 2>/dev/null || true)
+  bridge_alive "$pid" || return 0
+  cmd=$(ps -p "$pid" -o command= 2>/dev/null || true)
+  if [[ "$cmd" =~ --planner\ ([a-z][a-z0-9_-]{0,31})(\ |$) ]]; then
+    owner="${BASH_REMATCH[1]}"
+  else
+    # This pane's own HERDR_PLANNER_NAME says nothing about the bridge's owner.
+    owner=$(env -u HERDR_PLANNER_NAME tandem paths names --root "$(dirname "$mb")" 2>/dev/null | cut -f1) || owner=""
+    [[ -n "$owner" ]] || die "could not tell which planner this checkout's relay bridge delivers to; see $mb/pair.json"
+  fi
+  [[ "$owner" != "$PLANNER_NAME" ]] || return 0
+  snap=$(tandem agent snapshot "$owner" 2>/dev/null) || rc=$?
+  if (( rc == 0 )); then
+    IFS=$'\t' read -r pane _ _ <<<"$snap"
+    [[ "$pane" != "$PLANNER_PANE" ]] || return 0
+    die "this checkout already has a live pair, run by planner '$owner' in pane $pane. One checkout holds one pair: close that pair with tandem-unpair from pane $pane, or pair this planner in a separate git worktree."
+  fi
+  die "this checkout's relay bridge still delivers to planner '$owner', which is gone. Clear the old pair with: HERDR_PLANNER_NAME=$owner tandem-unpair --force"
+}

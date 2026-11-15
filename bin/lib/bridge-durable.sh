@@ -31,7 +31,7 @@ quarantine_v1() {
 ingest_durable() {
   local taken="$1" root st rc=0 settled=() disp="" why=""
   root=$(dirname "$MAILBOX")
-  st=$(tandem agent status "${HERDR_BUILDER_NAME:-builder}" 2>/dev/null || printf unknown)
+  st=$(tandem agent status "$BUILDER_NAME" 2>/dev/null || printf unknown)
   case "$st" in idle|done) settled=(--session-settled) ;; esac
   tandem build event ingest --root "$root" --claimed "$taken" ${settled[@]+"${settled[@]}"} --fields \
     >"$FIELDS" 2>"$MAILBOX/.last_error" || rc=$?

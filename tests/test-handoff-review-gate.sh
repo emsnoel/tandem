@@ -33,7 +33,10 @@ case "$1 $2" in
 esac
 case "$1" in
   config) printf '{"kind":{"value":"codex"},"autonomy":{"value":"auto"}}\n'; exit 0 ;;
-  paths)  printf '%s/.tandem-relay\n' "$REPO"; exit 0 ;;
+  paths)
+    # `tandem paths names` for a main checkout with no pair.json.
+    [ "$2" = names ] && { printf '%s\t%s\t%s\n' "${HERDR_PLANNER_NAME:-planner}" "${HERDR_BUILDER_NAME:-builder}" "${HERDR_REVIEWER_NAME:-reviewer}"; exit 0; }
+    printf '%s/.tandem-relay\n' "$REPO"; exit 0 ;;
 esac
 exit 0
 STUB
@@ -123,7 +126,10 @@ case "$1 $2" in
 esac
 case "$1" in
   config) printf '{"kind":{"value":"codex"},"autonomy":{"value":"auto"}}\n'; exit 0 ;;
-  paths)  printf '%s/.tandem-relay\n' "$REPO"; exit 0 ;;
+  paths)
+    # `tandem paths names` for a main checkout with no pair.json.
+    [ "$2" = names ] && { printf '%s\t%s\t%s\n' "${HERDR_PLANNER_NAME:-planner}" "${HERDR_BUILDER_NAME:-builder}" "${HERDR_REVIEWER_NAME:-reviewer}"; exit 0; }
+    printf '%s/.tandem-relay\n' "$REPO"; exit 0 ;;
 esac
 exit 0
 STUB
@@ -182,7 +188,10 @@ case "$1 $2" in
 esac
 case "$1" in
   config) printf '{"kind":{"value":"codex"},"autonomy":{"value":"auto"}}\n'; exit 0 ;;
-  paths)  printf '%s/.tandem-relay\n' "$REPO"; exit 0 ;;
+  paths)
+    # `tandem paths names` for a main checkout with no pair.json.
+    [ "$2" = names ] && { printf '%s\t%s\t%s\n' "${HERDR_PLANNER_NAME:-planner}" "${HERDR_BUILDER_NAME:-builder}" "${HERDR_REVIEWER_NAME:-reviewer}"; exit 0; }
+    printf '%s/.tandem-relay\n' "$REPO"; exit 0 ;;
 esac
 exit 0
 STUB
@@ -302,7 +311,10 @@ case "$1 $2" in
   "gate review")    printf 'superseded\n20260910-000099-1-1\n'; exit 24 ;;
 esac
 case "$1" in
-  paths) printf '%s/.tandem-relay\n' "$REPO"; exit 0 ;;
+  paths)
+    # `tandem paths names` for a main checkout with no pair.json.
+    [ "$2" = names ] && { printf '%s\t%s\t%s\n' "${HERDR_PLANNER_NAME:-planner}" "${HERDR_BUILDER_NAME:-builder}" "${HERDR_REVIEWER_NAME:-reviewer}"; exit 0; }
+    printf '%s/.tandem-relay\n' "$REPO"; exit 0 ;;
 esac
 exit 0
 STUB
@@ -366,7 +378,10 @@ case "$1 $2" in
 esac
 case "$1" in
   config) printf '{"kind":{"value":"codex"},"autonomy":{"value":"auto"}}\n'; exit 0 ;;
-  paths)  printf '%s/.tandem-relay\n' "$REPO"; exit 0 ;;
+  paths)
+    # `tandem paths names` for a main checkout with no pair.json.
+    [ "$2" = names ] && { printf '%s\t%s\t%s\n' "${HERDR_PLANNER_NAME:-planner}" "${HERDR_BUILDER_NAME:-builder}" "${HERDR_REVIEWER_NAME:-reviewer}"; exit 0; }
+    printf '%s/.tandem-relay\n' "$REPO"; exit 0 ;;
 esac
 exit 0
 STUB
@@ -423,7 +438,10 @@ case "$1 $2" in
 esac
 case "$1" in
   config) printf '{"kind":{"value":"codex"},"autonomy":{"value":"auto"}}\n'; exit 0 ;;
-  paths)  printf '%s/.tandem-relay\n' "$REPO"; exit 0 ;;
+  paths)
+    # `tandem paths names` for a main checkout with no pair.json.
+    [ "$2" = names ] && { printf '%s\t%s\t%s\n' "${HERDR_PLANNER_NAME:-planner}" "${HERDR_BUILDER_NAME:-builder}" "${HERDR_REVIEWER_NAME:-reviewer}"; exit 0; }
+    printf '%s/.tandem-relay\n' "$REPO"; exit 0 ;;
 esac
 exit 0
 STUB
@@ -463,7 +481,10 @@ case "$1 $2" in
   "gate review")    printf 'builder\ncodex/auto\n?/?\n%s\n' "$BADID"; exit 24 ;;
 esac
 case "$1" in
-  paths) printf '%s/.tandem-relay\n' "$REPO"; exit 0 ;;
+  paths)
+    # `tandem paths names` for a main checkout with no pair.json.
+    [ "$2" = names ] && { printf '%s\t%s\t%s\n' "${HERDR_PLANNER_NAME:-planner}" "${HERDR_BUILDER_NAME:-builder}" "${HERDR_REVIEWER_NAME:-reviewer}"; exit 0; }
+    printf '%s/.tandem-relay\n' "$REPO"; exit 0 ;;
 esac
 exit 0
 STUB
@@ -527,7 +548,10 @@ case "$1 $2" in
   "gate review")    printf '%s\n' "$GATE_REASON" ${GATE_SIDES:+$GATE_SIDES} "$RVID"; exit 24 ;;
 esac
 case "$1" in
-  paths) printf '%s/.tandem-relay\n' "$REPO"; exit 0 ;;
+  paths)
+    # `tandem paths names` for a main checkout with no pair.json.
+    [ "$2" = names ] && { printf '%s\t%s\t%s\n' "${HERDR_PLANNER_NAME:-planner}" "${HERDR_BUILDER_NAME:-builder}" "${HERDR_REVIEWER_NAME:-reviewer}"; exit 0; }
+    printf '%s/.tandem-relay\n' "$REPO"; exit 0 ;;
 esac
 exit 0
 STUB

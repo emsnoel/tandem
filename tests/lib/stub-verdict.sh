@@ -38,6 +38,10 @@ printf '%s\n' "$*" >> "$MARKER"
 case "$1 $2" in
   "agent self"|"reviewer show"|"config builder"|"relay write")
     exec "$TANDEM_REAL" "$@" ;;
+  "paths names")
+    # The real resolution, against REPO, which is outside git: plain names
+    # unless REPO/.tandem-relay/pair.json or HERDR_*_NAME says otherwise.
+    exec "$TANDEM_REAL" paths names --root "$REPO" ;;
   "gate record")
     [[ "${GATE_RECORD_RC:-0}" == 0 ]] || exit "$GATE_RECORD_RC"
     exec "$TANDEM_REAL" "$@" ;;
