@@ -208,8 +208,8 @@ OUT=$(HERDR_PLANNER_NAME=planner-alt pair "$WT_B" w2:p9); rc=$?
 CMD=$(printf '%s\n' "$OUT" | sed -n 's/.*Clear the old pair with: //p')
 [ "$rc" -ne 0 ] && [ "$CMD" = "HERDR_PLANNER_NAME=planner-wt-b tandem-unpair --force" ] \
   && ok "a planner under another name is told to clear the old pair" || nope "refusal: rc $rc, '$CMD': $OUT"
-# Run the printed command as is, from the new pane.
-OUT=$(as_pane "$WT_B" w2:p9 env HERDR_PLANNER_NAME=planner-wt-b "$ROOT_DIR/bin/tandem-unpair" --force --skip-checks); rc=$?
+# Run the printed command exactly as printed, from the new pane.
+OUT=$(as_pane "$WT_B" w2:p9 bash -c "$CMD"); rc=$?
 [ "$rc" -eq 0 ] && ok "the printed unpair command succeeds from another pane" || nope "unpair rc $rc: $OUT"
 [ -z "$(names_in w2:t1)" ] && ok "wt-b's builder and reviewer panes are closed" || nope "wt-b agents left: $(names_in w2:t1)"
 [ "$(names_in w1:t1)" = "builder planner reviewer " ] && ok "the main checkout's panes are untouched" || nope "main agents: $(names_in w1:t1)"
