@@ -39,15 +39,13 @@ record_pair() {
 # live while its bridge runs. Its owner is the planner that bridge delivers to:
 # its --planner argument, then the planner in pair.json (or the checkout's
 # derived name). The owner's own pane may pair again under a new name. Reads
-# PLANNER_NAME and PLANNER_PANE; needs bridge_alive (lib/bridge-lock.sh).
+# PLANNER_NAME and PLANNER_PANE; needs bridge_alive and bridge_planner
+# (lib/bridge-lock.sh).
 check_relay_owner() {
-  local mb="$1" owner="" pid cmd snap rc=0 pane=""
+  local mb="$1" owner="" pid snap rc=0 pane=""
   pid=$(cat "$mb/bridge.pid" 2>/dev/null || true)
   bridge_alive "$pid" || return 0
-  cmd=$(ps -p "$pid" -o command= 2>/dev/null || true)
-  if [[ "$cmd" =~ --planner\ ([a-z][a-z0-9_-]{0,31})(\ |$) ]]; then
-    owner="${BASH_REMATCH[1]}"
-  else
+  if ! owner=$(bridge_planner "$pid"); then
     # This pane's own HERDR_PLANNER_NAME says nothing about the bridge's owner.
     owner=$(env -u HERDR_PLANNER_NAME tandem paths names --root "$(dirname "$mb")" 2>/dev/null | cut -f1) || owner=""
     [[ -n "$owner" ]] || die "could not tell which planner this checkout's relay bridge delivers to; see $mb/pair.json"

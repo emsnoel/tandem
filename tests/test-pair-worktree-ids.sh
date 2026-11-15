@@ -8,6 +8,11 @@
 #   - the real run binds the id and records the names in pair.json;
 #   - a handback and a verdict sent from a sandbox, which reaches neither the
 #     Herdr socket nor a writable state home, still reach that pair's planner.
+# A linked worktree "up" paired under the plain names with no pair.json, as
+# before this change:
+#   - pairing again under those names records them and keeps the bridge;
+#   - pairing under the derived names restarts the bridge for the new planner,
+#     so a relayed handback reaches it.
 set -uo pipefail
 ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
 
@@ -76,6 +81,34 @@ OUT=$(sandboxed "$WT_A" "reviewer-$ID" "$ROOT_DIR/bin/tandem-verdict" --plan "$W
 [ "$rc" -eq 0 ] && delivered_to "planner-$ID" "$before" \
   && ok "the reviewer's verdict reaches planner-$ID" || nope "verdict: rc $rc, last to '$(last_to)': $OUT"
 fake_set_state idle
+
+printf '\n== a pair from before pair.json keeps working ==\n'
+# plain_pair: pair up under the plain names.
+plain_pair() { HERDR_PLANNER_NAME=planner HERDR_BUILDER_NAME=builder HERDR_REVIEWER_NAME=reviewer pair "$UP" w3:p1; }
+OUT=$(plain_pair); rc=$?
+fake_set_state idle
+rm -f "$UP/.tandem-relay/pair.json"; OLD=$(bridge_of "$UP")
+[ "$rc" -eq 0 ] && [ -n "$OLD" ] && ok "up runs a pair under the plain names, with no pair.json" || nope "old pair: rc $rc: $OUT"
+# The guide's advice: pair once under the names the live pair runs under.
+OUT=$(plain_pair); rc=$?
+fake_set_state idle
+[ "$rc" -eq 0 ] && [ "$(record_of "$UP")" = '{"planner":"planner","builder":"builder","reviewer":"reviewer"}' ] \
+  && [ "$(bridge_of "$UP")" = "$OLD" ] && [ "$(names_in w3:t1)" = "builder planner reviewer " ] \
+  && ok "pairing under those names records them and keeps the bridge" || nope "record: rc $rc, '$(record_of "$UP")': $OUT"
+# Pairing under the derived names instead moves the bridge to the new planner.
+rm -f "$UP/.tandem-relay/pair.json"
+OUT=$(pair "$UP" w3:p1); rc=$?; fake_set_state idle
+NEW=$(bridge_of "$UP")
+case "$(ps -p "$NEW" -o command= 2>/dev/null)" in
+  *"--planner planner-up"*) [ "$rc" -eq 0 ] && [ "$NEW" != "$OLD" ] && ok "pairing as planner-up restarts the bridge for it" \
+    || nope "bridge: rc $rc, '$OLD' -> '$NEW': $OUT" ;;
+  *) nope "the bridge still runs as: $(ps -p "$NEW" -o command= 2>/dev/null) (rc $rc): $OUT" ;;
+esac
+exits_within "$OLD" && ok "the old bridge stops" || nope "the old bridge '$OLD' still runs"
+before=$(prompts)
+OUT=$(sandboxed "$UP" builder-up "$ROOT_DIR/bin/tandem-handback" --report "$TMP/report.md" --plan "$UP/plan.md"); rc=$?
+[ "$rc" -eq 0 ] && delivered_to planner-up "$before" \
+  && ok "a relayed handback from builder-up reaches planner-up" || nope "handback: rc $rc, last to '$(last_to)': $OUT"
 
 printf '\ntests/test-pair-worktree-ids: passed %d, failed %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

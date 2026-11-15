@@ -125,8 +125,16 @@ start_bridge() {
 
     # The bridge writes bridge.pid itself and refuses to start while another
     # live bridge holds it (lib/bridge-lock.sh), so a running one is reused.
+    # check_relay_owner has shown that a live bridge belongs to this pane. One
+    # that delivers to another name is this pane's pair under its old name,
+    # from before a rename, so it is restarted for the new one.
     BRIDGE_PID_FILE="$MAILBOX/bridge.pid"
     _bpid=$(cat "$BRIDGE_PID_FILE" 2>/dev/null || true)
+    if bridge_alive "$_bpid" && _bowner=$(bridge_planner "$_bpid") && [[ "$_bowner" != "$PLANNER_NAME" ]]; then
+      info "the relay bridge (pid $_bpid) delivers to '$_bowner', so it is restarted for '$PLANNER_NAME'."
+      stop_bridge_wait "$_bpid" \
+        || info "WARNING the old relay bridge (pid $_bpid) did not stop; stop it by hand and run tandem-pair again."
+    fi
     if bridge_alive "$_bpid"; then
       info "relay bridge already running (pid $_bpid)."
     else
