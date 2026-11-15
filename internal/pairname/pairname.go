@@ -160,6 +160,17 @@ func (c checkout) derive(dir, stateHome string) (Names, error) {
 	})
 }
 
+// Checkout returns the checkout holding dir: its git toplevel with symlinks
+// resolved, or dir itself, resolved, outside git. Two directories are in the
+// same checkout when their Checkout values are equal.
+func Checkout(dir string) (string, error) {
+	c, err := inspect(dir)
+	if err != nil {
+		return "", err
+	}
+	return c.top, nil
+}
+
 // Derive returns the names for the checkout containing dir. Outside git and in
 // a repository's main checkout the names are the plain ones. Only a linked
 // worktree whose folder name is unusable or clashes consults the state registry.

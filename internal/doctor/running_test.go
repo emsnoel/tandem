@@ -3,39 +3,91 @@ package doctor
 import (
 	"errors"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/emsnoel/tandem/internal/agent"
 	"github.com/emsnoel/tandem/internal/config"
 	"github.com/emsnoel/tandem/internal/herdr"
+	"github.com/emsnoel/tandem/internal/pairname"
 )
 
-func named(name, pane, kind string) herdr.Agent {
-	return herdr.Agent{PaneID: pane, Name: &name, Kind: kind}
+func named(name, pane, kind, cwd string) herdr.Agent {
+	return herdr.Agent{PaneID: pane, Name: &name, Kind: kind, CWD: cwd}
 }
 
 func env(kv map[string]string) func(string) string {
 	return func(k string) string { return kv[k] }
 }
 
+var plainNames = pairname.Names{Planner: "planner", Builder: "builder", Reviewer: "reviewer"}
+
 func TestRunningRolesFindsBuilderAndReviewer(t *testing.T) {
+	root := t.TempDir()
 	p := healthy()
-	p.agents = []herdr.Agent{named("planner", "w1:p1", "claude"),
-		named("builder", "w1:p2", "codex"), named("reviewer", "w1:p3", "claude")}
-	got := RunningRoles(p, env(nil))
+	p.agents = []herdr.Agent{named("planner", "w1:p1", "claude", root),
+		named("builder", "w1:p2", "codex", root), named("reviewer", "w1:p3", "claude", root)}
+	got := RunningRoles(p, root, plainNames)
 	if len(got) != 2 || got[agent.RoleBuilder] != "w1:p2" || got[agent.RoleReviewer] != "w1:p3" {
 		t.Fatalf("got %v, want builder w1:p2 and reviewer w1:p3", got)
 	}
 }
 
-// Review focus 2: tandem-pair reads the same two variables.
+// tandem-pair reads the names Resolve gives it, so a custom name is found.
 func TestRunningRolesHonourCustomNames(t *testing.T) {
+	root := t.TempDir()
 	p := healthy()
-	p.agents = []herdr.Agent{named("builder", "w1:p9", "codex"), named("bob", "w1:p2", "codex")}
-	got := RunningRoles(p, env(map[string]string{"HERDR_BUILDER_NAME": "bob"}))
+	p.agents = []herdr.Agent{named("builder", "w1:p9", "codex", root), named("bob", "w1:p2", "codex", root)}
+	got := RunningRoles(p, root, pairname.Names{Planner: "planner", Builder: "bob", Reviewer: "reviewer"})
 	if len(got) != 1 || got[agent.RoleBuilder] != "w1:p2" {
 		t.Fatalf("got %v, want only builder w1:p2", got)
+	}
+}
+
+// An agent with the pair's name that works in another checkout is not this
+// pair's builder: tandem-pair refuses to adopt it.
+func TestRunningRolesIgnoresAnotherCheckout(t *testing.T) {
+	root, other := t.TempDir(), t.TempDir()
+	p := healthy()
+	p.agents = []herdr.Agent{named("builder", "w8:pB5", "codex", other)}
+	if got := RunningRoles(p, root, plainNames); len(got) != 0 {
+		t.Fatalf("got %v, want none", got)
+	}
+	rs := PairNames(p, root, plainNames)
+	w := find(t, rs, "names:builder")
+	want := "pane w8:pB5 holds 'builder' but works in " + other + "; tandem-pair will refuse to adopt it"
+	if w.Status != Warn || w.Detail != want {
+		t.Fatalf("got %+v, want warning %q", w, want)
+	}
+}
+
+// An agent working in a subdirectory of the checkout is in it.
+func TestRunningRolesAcceptsASubdirectory(t *testing.T) {
+	root := t.TempDir()
+	sub := filepath.Join(root, "pkg")
+	if err := os.Mkdir(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := exec.Command("git", "-C", root, "init", "-q").CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v\n%s", err, out)
+	}
+	p := healthy()
+	p.agents = []herdr.Agent{named("builder", "w1:p2", "codex", sub)}
+	if got := RunningRoles(p, root, plainNames); got[agent.RoleBuilder] != "w1:p2" {
+		t.Fatalf("got %v, want builder w1:p2", got)
+	}
+}
+
+func TestPairNamesReportsTheNames(t *testing.T) {
+	rs := PairNames(healthy(), t.TempDir(), pairname.Names{Planner: "planner-wt-b", Builder: "builder-wt-b", Reviewer: "reviewer-wt-b"})
+	r := find(t, rs, "names")
+	if r.Status != OK || r.Detail != "this checkout pairs as planner-wt-b, builder-wt-b, reviewer-wt-b" {
+		t.Fatalf("got %+v", r)
+	}
+	if len(rs) != 1 {
+		t.Fatalf("got %d results, want only names", len(rs))
 	}
 }
 
@@ -43,8 +95,8 @@ func TestRunningRolesHonourCustomNames(t *testing.T) {
 func TestRunningRolesEmptyWhenHerdrFails(t *testing.T) {
 	p := healthy()
 	p.socketErr = errors.New("server not running")
-	p.agents = []herdr.Agent{named("builder", "w1:p2", "codex")}
-	if got := RunningRoles(p, env(nil)); len(got) != 0 {
+	p.agents = []herdr.Agent{named("builder", "w1:p2", "codex", "")}
+	if got := RunningRoles(p, t.TempDir(), plainNames); len(got) != 0 {
 		t.Fatalf("got %v, want none", got)
 	}
 }

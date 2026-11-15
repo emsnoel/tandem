@@ -48,6 +48,7 @@ for c in herdr tandem; do
 done
 # The names come from the planner's checkout (lib/pair-identity.sh).
 pair_names "$PWD"
+info "pair     $PLANNER_NAME, $BUILDER_NAME, $REVIEWER_NAME  (checkout $(checkout_of "$PWD" || printf '%s' "$PWD"))"
 
 # tandem answers in NUL-separated fields, read from this file.
 FIELDS=$(mktemp)
