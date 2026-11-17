@@ -225,6 +225,7 @@ type reviewPromptData struct {
 	Slug                          string
 	Job, Attempt, PatchHash, Tree string
 	Patch                         string
+	TaskPaths                     []string
 	WarmPane                      bool
 }
 
@@ -241,7 +242,7 @@ func reviewPrompt(p reviewPromptData) string {
 	fmt.Fprintf(&b, "{\"schema_version\":1,\"job_id\":%q,\"attempt_id\":%q,\"patch_hash\":%q,\"tree_hash\":%q,\n \"status\":\"passed|changes_requested|failed\",\n \"findings\":[{\"severity\":\"high|medium|low\",\"path\":\"file\",\"disposition\":\"open\",\"message\":\"what is wrong\",\"start_line\":null,\"end_line\":null}]}\n\n",
 		p.Job, p.Attempt, p.PatchHash, p.Tree)
 	b.WriteString("changes_requested must list at least one finding. Do not edit files.\n\nThe patch:\n\n")
-	b.WriteString(p.Patch)
+	b.WriteString(patchOrNote(p.Patch, p.TaskPaths))
 	return b.String()
 }
 

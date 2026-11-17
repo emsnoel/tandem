@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -158,8 +159,27 @@ func (c *Controller) reviewPromptText(ctx context.Context, run state.Run, cfg ru
 	if err != nil {
 		return "", err
 	}
+	var paths []string
+	if strings.TrimSpace(text) == "" {
+		if paths, err = c.taskPaths(ctx, task); err != nil {
+			return "", err
+		}
+	}
 	return reviewPrompt(reviewPromptData{Task: task.Ordinal, Slug: task.ID, Job: jobID, Attempt: att.ID,
-		PatchHash: att.PatchHash, Tree: att.EndSnapshotHash, Patch: text, WarmPane: true}), nil
+		PatchHash: att.PatchHash, Tree: att.EndSnapshotHash, Patch: text, TaskPaths: paths, WarmPane: true}), nil
+}
+
+// taskPaths is every file a task's spec names.
+func (c *Controller) taskPaths(ctx context.Context, task state.TaskRow) ([]string, error) {
+	raw, err := c.d.Artifacts.ReadAll(ctx, task.SpecHash, 4<<20)
+	if err != nil {
+		return nil, err
+	}
+	var spec workflow.TaskSpec
+	if err := json.Unmarshal(raw, &spec); err != nil {
+		return nil, fmt.Errorf("%w: the spec of task %s is unreadable: %v", workflow.ErrCorruptArtifact, task.ID, err)
+	}
+	return specPaths(spec), nil
 }
 
 func (c *Controller) taskOf(ctx context.Context, run state.Run, att workflow.Attempt) (state.TaskRow, error) {
