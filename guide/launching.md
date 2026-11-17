@@ -167,10 +167,37 @@ own bridge and its own agents, so the two pairs never read each other's messages
   clashes, because the main checkout keeps the plain names.
 - `HERDR_PLANNER_NAME`, `HERDR_BUILDER_NAME` and `HERDR_REVIEWER_NAME` override a name.
 
-Each pane's label in the sidebar shows the role, then what the name adds to it, then the
-agent's kind. The builder of the worktree `feat-x` reads `builder · feat-x (codex)`. The
-main checkout's panes keep `builder (codex)`. A name set by hand shows whole, as
-`builder · bob (codex)`.
+Each pane's label shows the role, then what the name adds to it, then the agent's kind.
+The builder of the worktree `feat-x` reads `builder · feat-x (codex)`. The main checkout's
+panes keep `builder (codex)`. A name set by hand shows whole, as `builder · bob (codex)`.
+`tandem-pair` sets the label with `herdr pane rename`. Herdr shows it on the pane's border
+and in the window title. The sidebar shows it only where a row in `config.toml` names the
+`pane` token, and the example config names none.
+
+### What each pane is doing
+
+Each pane's `activity` token says what the pane works on. The example config shows it as the
+second sidebar row of each agent, under the role. The token never changes the pane's name,
+so a name you set by hand stays.
+
+| Pane | Shows | Set by | Cleared when |
+| --- | --- | --- | --- |
+| builder | `task 2/3 · count plan` | the bridge, while a run is running or paused | the run finishes, stops or is archived |
+| planner | `waiting for handback`, or `run paused` | the bridge, while a run is live | the run ends, or `tandem-unpair` runs |
+| reviewer | `reviewing count plan` | `tandem-review`, once the reviewer has the prompt | the verdict is stored or delivered |
+
+The plan's name is its file name without the leading date and the `.md`, with each `-` as a
+space, so `2026-11-17-count-plan.md` gives `count plan`. The whole text is cut to 30
+characters, which fits the sidebar at its widest (36 columns) beside the state icon.
+
+Updates are best-effort. A Herdr call that fails never fails a delivery, a tick or a review.
+The bridge keeps the last text it wrote for each agent in `.tandem-relay/activity/`, and
+calls Herdr only when a text changes. When the socket is unreachable, it writes nothing,
+and the next pass tries again.
+
+An existing Herdr config needs the row added by hand, because the installer never
+overwrites one. The installer names the `$activity` row when it is missing. Copy the
+`rows_by_agent` lines from `config/config.toml.example`.
 
 `tandem-pair` records the names in `.tandem-relay/pair.json`, and every script reads them
 from that file. `tandem paths names [--root DIR]` prints them for a checkout. It writes

@@ -375,6 +375,7 @@ practice.
 | `show_agent_labels_on_pane_borders` | Names the detected agent per pane                                                                                        |
 | `resume_agents_on_restore`          | Reattaches **both** native conversations after a server restart mid-plan                                                 |
 | `rows_by_agent` with `$role`        | Role-first sidebar rows, colour-coded per agent                                                                          |
+| `$activity` row in `rows_by_agent`  | What each pane works on, such as `task 2/3 · count plan` (see "What each pane is doing" in guide/launching.md)           |
 
 **Custom sidebar tokens must start with `$`.** Established by probing `herdr config check`
 with `HERDR_CONFIG_PATH` against throwaway files: `{ token = "role" }` is rejected,

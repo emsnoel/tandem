@@ -58,6 +58,8 @@ review
 [ "$(sent_to)" = "reviewer " ] && ok "the prompt goes to the reviewer, and only there" || nope "prompted: $(sent_to)"
 [ "$(resets)" = "reviewer:/new " ] && ok "the reviewer is reset with Codex's /new, not the builder's /clear" || nope "resets: $(resets)"
 has "delivery is confirmed against the reviewer" "$OUT" "review requested (reviewer now working)"
+has "the reviewer's sidebar label names the plan" "$(cat "$FAKE/metadata" 2>/dev/null)" \
+  "pane report-metadata w1:reviewer --source tandem --token activity=reviewing p"
 
 printf '\n== the prompt does not assume its reader builds ==\n'
 P=$(cat "$FAKE/prompt.1.txt" 2>/dev/null)

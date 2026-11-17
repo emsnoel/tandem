@@ -29,8 +29,8 @@ func TestStatusFieldsAppendTaskAndAgents(t *testing.T) {
 		return cmdBuild([]string{"status", "--root", d.root, "--state-home", d.home, "--fields"})
 	})
 	got := fields(out)
-	if rc != exitcode.OK || len(got) != 9 {
-		t.Fatalf("rc %d, %d fields %q, want 9", rc, len(got), got)
+	if rc != exitcode.OK || len(got) != 11 {
+		t.Fatalf("rc %d, %d fields %q, want 11", rc, len(got), got)
 	}
 	if got[0] != "paused" || got[1] != "no_reviewer" {
 		t.Errorf("state and pause_code moved: %q", got)
@@ -40,6 +40,9 @@ func TestStatusFieldsAppendTaskAndAgents(t *testing.T) {
 	}
 	if got[7] != "docs/my plan.md" || got[8] != strings.Repeat("7", 32) {
 		t.Errorf("plan and collaboration = %q %q", got[7], got[8])
+	}
+	if got[9] != "1" || got[10] != "1" {
+		t.Errorf("task number and count = %q %q, want 1 1", got[9], got[10])
 	}
 }
 

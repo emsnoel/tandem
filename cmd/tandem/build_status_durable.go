@@ -40,6 +40,8 @@ type statusDurableOut struct {
 	Reviewer       string    `json:"reviewer,omitempty"`
 	Plan           string    `json:"plan,omitempty"`
 	Collaboration  string    `json:"collaboration,omitempty"`
+	TaskNumber     int       `json:"task_number,omitempty"`
+	TaskCount      int       `json:"task_count"`
 	TaskInputLimit int64     `json:"task_input_limit"`
 	RunInputLimit  int64     `json:"run_input_limit"`
 	Tasks          []taskOut `json:"tasks"`
@@ -87,7 +89,8 @@ func durableStatus(d *openRun) (statusDurableOut, error) {
 			}
 		}
 	}
-	for _, t := range tasks {
+	out.TaskCount = len(tasks)
+	for i, t := range tasks {
 		to := taskOut{ID: t.ID, Ordinal: t.Ordinal, Accepted: t.AcceptedAttemptID != "", Attempts: []attemptOut{}}
 		attempts, err := d.st.TaskAttempts(ctx, run.ID, t.ID)
 		if err != nil {
@@ -101,7 +104,7 @@ func durableStatus(d *openRun) (statusDurableOut, error) {
 			rejection := ""
 			if a.Current {
 				if out.Task == "" && !to.Accepted {
-					out.Task = t.ID
+					out.Task, out.TaskNumber = t.ID, i+1
 				}
 				rejection = latestRejection[a.ID]
 				if run.PauseJobID == "" && rejection != "" {
@@ -128,7 +131,7 @@ func cmdBuildStatusDurable(args []string) int {
 	var f durableFlags
 	f.register(fs)
 	asJSON := fs.Bool("json", false, "print the status as one JSON object")
-	asFields := fs.Bool("fields", false, "print NUL-separated fields for bash (state, pause_code, dispatch, pause_reason, task, builder, reviewer, plan, collaboration)")
+	asFields := fs.Bool("fields", false, "print NUL-separated fields for bash (state, pause_code, dispatch, pause_reason, task, builder, reviewer, plan, collaboration, task_number, task_count)")
 	if err := fs.Parse(args); err != nil {
 		return exitcode.Usage
 	}

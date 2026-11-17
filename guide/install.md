@@ -37,7 +37,7 @@ the commands by bare name.
 doesn't exist, it writes the example config there. If it does exist, the installer leaves
 it alone and lists which tandem settings it is missing, so you can copy across only the
 parts you want. The commands work without any of those settings. They only add
-keybindings, notifications and the role rows in the sidebar. Set `HERDR_CONFIG_PATH` if you
+keybindings, notifications, and the role and activity rows in the sidebar. Set `HERDR_CONFIG_PATH` if you
 keep the config somewhere else.
 
 Then check your setup from the repo you want to pair in:

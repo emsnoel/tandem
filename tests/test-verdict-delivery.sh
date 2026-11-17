@@ -262,6 +262,14 @@ run env SNAPSHOT_STATUS=working "$VERDICT_BIN" --plan "$PLAN" --review "$REVIEW"
 [[ "$RC" == 0 ]] && ok "planner already working: exits 0" || nope "planner already working: exits 0 (got $RC)"
 chk "planner already working: notifies" "planner notified"
 
+# --- the reviewer's sidebar label goes back to plain once the review is stored ---
+mkdir -p "$TMP/mailbox/activity"; printf 'reviewing p\n' > "$TMP/mailbox/activity/reviewer"
+run env AGENT_SNAPSHOT_RC=3 "$VERDICT_BIN" --plan "$PLAN" --review "$REVIEW" --verdict clean
+[[ "$(cat "$TMP/mailbox/activity/reviewer")" == "reviewing p" ]] \
+  && ok "from a sandbox the label is left for the bridge to clear" || nope "a sandboxed verdict recorded a clear it could not make"
+run "$VERDICT_BIN" --plan "$PLAN" --review "$REVIEW" --verdict clean
+grep -qxF "pane report-metadata w7:p1 --source tandem --clear-token activity" "$MARKER" \
+  && ok "with the socket reachable the verdict clears the reviewer's label" || nope "the reviewer's label was not cleared: $(cat "$MARKER")"
 
 printf '\nverdict-delivery: passed %d, failed %d\n' "$PASS" "$FAIL"
 (( FAIL == 0 ))

@@ -31,6 +31,8 @@ MSG
   IFS=$'\t' read -r _code _msg <<<"$_pres"
   case "$rc" in
     0)
+      # The reviewer's sidebar label names the plan until its verdict returns.
+      activity_set "$TARGET_NAME" "$(with_plan "reviewing " "$PLAN_ABS")" "$TARGET_PANE"
       if [[ "$_code" == queued ]]; then
         info "review prompt accepted, but $TARGET_NAME was already $_msg, so tandem could not confirm delivery."
       else

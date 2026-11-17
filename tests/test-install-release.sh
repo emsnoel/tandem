@@ -68,6 +68,16 @@ case "$OUT" in *"kept your own $MINE/skills/tandem-plan"*) ok "naming it" ;; *) 
 case "$OUT" in *"--from-source links this tree"*) ok "run from a checkout, it names --from-source" ;;
   *) nope "no --from-source hint from a checkout: $OUT" ;; esac
 
+# --- an existing config without the activity row is told to add it ---------
+sed 's/"\$activity"/"terminal_title_stripped"/' "$ROOT/config/config.toml.example" > "$TMP/herdr/config.toml"
+OUT=$(inst -- "$DEST")
+case "$OUT" in *'$activity row'*) ok "an existing config with no \$activity row is told it is missing" ;;
+  *) nope "the missing \$activity row is not named: $OUT" ;; esac
+cp "$ROOT/config/config.toml.example" "$TMP/herdr/config.toml"
+OUT=$(inst -- "$DEST")
+case "$OUT" in *"already has every setting"*) ok "the example config has every setting" ;;
+  *) nope "the example config lacks a setting: $OUT" ;; esac
+
 # --- a pinned version, then an upgrade ---------------------------------------
 OUT=$(inst -- --version v9.9.8 "$DEST"); RC=$?
 [ "$RC" -eq 0 ] && [ "$(installed)" = v9.9.8 ] && ok "--version installs that release" || nope "--version v9.9.8 gave '$(installed)' (rc $RC): $OUT"

@@ -29,6 +29,8 @@ REVIEW_LIB="${_self%/*}/lib"
 . "$REVIEW_LIB/review-deliver.sh"
 # shellcheck source=lib/pair-identity.sh
 . "$REVIEW_LIB/pair-identity.sh"
+# shellcheck source=lib/pane-activity.sh
+. "$REVIEW_LIB/pane-activity.sh"
 
 DRY_RUN=0
 PLAN_ARG=""

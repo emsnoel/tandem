@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -61,7 +62,12 @@ func writeStatusFields(w io.Writer, out statusDurableOut) int {
 	if err := json.Unmarshal(raw, &v); err != nil {
 		return fail(err)
 	}
-	writeFields(w, out.State, out.PauseCode, v.dispatch(), out.PauseReason, out.Task, out.Builder, out.Reviewer, out.Plan, out.Collaboration)
+	number := ""
+	if out.TaskNumber > 0 {
+		number = strconv.Itoa(out.TaskNumber)
+	}
+	writeFields(w, out.State, out.PauseCode, v.dispatch(), out.PauseReason, out.Task, out.Builder, out.Reviewer, out.Plan, out.Collaboration,
+		number, strconv.Itoa(out.TaskCount))
 	return exitcode.OK
 }
 
@@ -125,7 +131,7 @@ func cmdBuildWait(args []string) int {
 	timeoutMS := fs.Int("timeout", 0, "milliseconds to wait")
 	untilNot := fs.String("until-not", "", "return once the run's state is not this one")
 	tick := fs.Bool("tick", false, "run a tick before each check")
-	asFields := fs.Bool("fields", false, "print NUL-separated fields for bash (state, pause_code, dispatch, pause_reason, task, builder, reviewer, plan, collaboration) in place of JSON")
+	asFields := fs.Bool("fields", false, "print NUL-separated fields for bash (state, pause_code, dispatch, pause_reason, task, builder, reviewer, plan, collaboration, task_number, task_count) in place of JSON")
 	if err := fs.Parse(args); err != nil || fs.NArg() != 0 || f.root == "" || (len(until) == 0 && *untilNot == "") || *timeoutMS < 0 {
 		fmt.Fprintln(os.Stderr, "usage: tandem build wait --root DIR --until STATE... [--until-not STATE] --timeout MS [--tick] [--fields] [--state-home DIR]")
 		return exitcode.Usage

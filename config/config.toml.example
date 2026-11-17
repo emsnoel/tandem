@@ -37,11 +37,13 @@ rows = [["state_icon", "workspace", "tab"], ["agent"]]
 
 # Role-first rows for the two paired agents. $role is the custom token set by
 # tandem-pair via `herdr pane report-metadata --token role=PLAN|BUILD`.
+# $activity says what the pane works on, such as "task 2/3 · count plan". The
+# bridge and tandem-review set it, and clear it when the work ends.
 # Role colour-coding: planner blue, builder peach. The styled-token form and the
 # mandatory "$" prefix for custom tokens were both confirmed via `herdr config check`.
 [ui.sidebar.agents.rows_by_agent]
-claude = [["state_icon", { token = "$role", fg = "#89b4fa", bold = true }, "state_text"], ["terminal_title_stripped"]]
-codex = [["state_icon", { token = "$role", fg = "#fab387", bold = true }, "state_text"], ["terminal_title_stripped"]]
+claude = [["state_icon", { token = "$role", fg = "#89b4fa", bold = true }, "state_text"], ["$activity"]]
+codex = [["state_icon", { token = "$role", fg = "#fab387", bold = true }, "state_text"], ["$activity"]]
 
 [keys]
 # Two-agent toggle. The prefix stays ctrl+b.

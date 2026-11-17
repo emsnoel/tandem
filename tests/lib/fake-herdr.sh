@@ -37,6 +37,8 @@ fake_status() { local s _; read -r s _ < "$FAKE/state"; printf '%s\n' "$s"; }
 # FAKE/end_after N: the Nth read after a prompt finds the agent idle again, as
 # for a rejected model. `agent read` prints FAKE/pane.
 #
+# `pane report-metadata` is logged to FAKE/metadata, one call per line.
+#
 # FAKE/kind is the agent kind (codex by default). For copilot, /new moves
 # neither Herdr's session nor its counter, and the process log under
 # $COPILOT_HOME/logs records the new conversation. A codex agent writes each
@@ -148,6 +150,9 @@ case "$1 $2" in
     exit 0 ;;
   "agent read")
     cat "$FAKE/pane" 2>/dev/null
+    exit 0 ;;
+  "pane report-metadata")
+    printf '%s\n' "$*" >> "$FAKE/metadata"
     exit 0 ;;
   "pane process-info")
     printf '{"id":"x","result":{"process_info":{"pane_id":"%s","shell_pid":1,"foreground_process_group_id":4242,"foreground_processes":[{"name":"%s","argv0":"%s","pid":4242}]},"type":"pane_process_info"}}\n' "$4" "$kind" "$kind"
