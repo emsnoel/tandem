@@ -56,7 +56,9 @@ export GOCACHE="${GOCACHE_OVERRIDE:-$ROOT/.gocache}"
 export GOMODCACHE="${GOMODCACHE_OVERRIDE:-$ROOT/.gocache/mod}"
 if command -v go >/dev/null 2>&1; then
   if go build ./... 2>&1; then printf '  ok   go build\n'; else printf '  FAIL go build\n'; FAILED=$((FAILED+1)); fi
-  if go test ./... 2>&1; then printf '  ok   go test\n';  else printf '  FAIL go test\n';  FAILED=$((FAILED+1)); fi
+  # internal/controller takes 6 to 10 minutes on a loaded machine, so Go's
+  # 10-minute default per package fails it with a panic that is not a test failure.
+  if go test -timeout 30m ./... 2>&1; then printf '  ok   go test\n';  else printf '  FAIL go test\n';  FAILED=$((FAILED+1)); fi
 else
   printf '  FAIL go is not on PATH\n'; FAILED=$((FAILED+1))
 fi
