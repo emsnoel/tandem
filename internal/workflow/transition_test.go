@@ -173,8 +173,14 @@ func TestCheckCompleted(t *testing.T) {
 	}
 	failed := okFacts()
 	failed.CheckCertificateValid = true
+	// A failed check goes back to the builder as a repair while the task has
+	// repairs left, so it does not pause the run.
+	if tr = reduce(t, a, EventCheckCompleted, failed); tr.Attempt.Check != CheckFailed || tr.PauseCode != "" || len(tr.Effects) != 0 {
+		t.Fatalf("failed with a repair left: %+v", tr)
+	}
+	failed.RepairAllowed = false
 	if tr = reduce(t, a, EventCheckCompleted, failed); tr.Attempt.Check != CheckFailed || tr.PauseCode != PauseCheckFailed || len(tr.Effects) != 0 {
-		t.Fatalf("failed: %+v", tr)
+		t.Fatalf("failed with no repair left: %+v", tr)
 	}
 	// Without a valid certificate there is no check result at all, whatever the event says.
 	refuses(t, a, EventCheckCompleted, okFacts(), ErrIncompleteEvidence)
@@ -218,6 +224,14 @@ func TestRepairStartedSupersedesTheAttempt(t *testing.T) {
 	passed := submitted()
 	passed.Check, passed.Review = CheckPassed, ReviewPassed
 	refuses(t, passed, EventRepairStarted, okFacts(), ErrInvalidTransition)
+
+	// A failed check is repaired the same way, from the same repair budget.
+	checkFailed := submitted()
+	checkFailed.Check = CheckFailed
+	if tr := reduce(t, checkFailed, EventRepairStarted, okFacts()); tr.Attempt.Current || kinds(tr)[0] != EffectCreateRepairAttempt {
+		t.Fatalf("repair of a failed check: %+v", tr)
+	}
+	refuses(t, checkFailed, EventRepairStarted, f, ErrInvalidTransition)
 }
 
 func TestAcceptRequiresTheTrustedFacts(t *testing.T) {

@@ -269,7 +269,7 @@ func (c *Controller) freshStart(ctx context.Context, cfg runConfig) (string, err
 }
 
 // advanceSubmitted accepts an attempt whose evidence is complete, or starts
-// its repair when the reviewer asked for changes.
+// its repair when the check failed or the reviewer asked for changes.
 func (c *Controller) advanceSubmitted(ctx context.Context, run state.Run, cfg runConfig, att workflow.Attempt) (bool, error) {
 	checkOK := att.Check == workflow.CheckPassed || att.Check == workflow.CheckNotApplicable
 	if att.Check == workflow.CheckFailed {
@@ -313,7 +313,7 @@ func (c *Controller) advanceSubmitted(ctx context.Context, run state.Run, cfg ru
 			}
 		}
 		return true, nil
-	case checkOK && att.Review == workflow.ReviewChangesRequested:
+	case att.Check == workflow.CheckFailed, checkOK && att.Review == workflow.ReviewChangesRequested:
 		return c.startRepair(ctx, run, cfg, att)
 	}
 	return false, nil

@@ -38,7 +38,8 @@ whole plan first, and a review round costs far more than writing the plan right.
 1. Ordering. A task needs something a later task adds.
 2. Contradiction. Two tasks expect different things of one file, command or state.
 3. A step that cannot run as written. A task that ends with the check failing
-   counts, because tandem stops the build on a failed check. Put a failing test in
+   counts, because tandem sends a failed check back to the builder until the
+   task's repairs run out, then stops the build. Put a failing test in
    the same task as the code that makes it pass.
 4. A step that needs authority the builder lacks. Commits are the usual case.
    Run `tandem-status` and read the builder's autonomy before you write a commit

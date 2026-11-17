@@ -97,8 +97,13 @@ func Reduce(cur Attempt, ev Event, f Facts) (Transition, error) {
 			return Transition{}, incomplete("no valid, complete check certificate for this attempt")
 		}
 		if !f.CheckPassed {
+			// A failed check goes back to the builder as a repair, like a
+			// review that asks for changes. The run pauses only when the task
+			// has no repairs left.
 			at.Check = CheckFailed
-			tr.PauseCode = PauseCheckFailed
+			if !f.RepairAllowed {
+				tr.PauseCode = PauseCheckFailed
+			}
 			break
 		}
 		at.Check = CheckPassed
@@ -123,11 +128,11 @@ func Reduce(cur Attempt, ev Event, f Facts) (Transition, error) {
 		}
 
 	case EventRepairStarted:
-		// A repair follows a builder review that asked for changes, or a valid
-		// independent verification that did.
+		// A repair follows a failed check, a builder review that asked for
+		// changes, or a valid independent verification that did.
 		verificationAsked := f.VerificationRequired && f.VerificationValid && f.VerificationStatus == ReviewChangesRequested
-		if cur.Review != ReviewChangesRequested && !verificationAsked {
-			return Transition{}, invalid("repair_started with review %s; only changes_requested permits a repair", cur.Review)
+		if cur.Check != CheckFailed && cur.Review != ReviewChangesRequested && !verificationAsked {
+			return Transition{}, invalid("repair_started with check %s and review %s; only a failed check or changes_requested permits a repair", cur.Check, cur.Review)
 		}
 		if !f.RepairAllowed {
 			return Transition{}, invalid("no automatic repair attempts remain for task %s", cur.TaskID)

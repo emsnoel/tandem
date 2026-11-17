@@ -86,6 +86,11 @@ Tandem tells the planner once, with a note that says what stopped, why, and what
 To print the note again, run `tandem-pause-note`. A failed check, for example, names the task,
 the exit code and the end of the check's log.
 
+A failed check does not stop the run at once. Tandem sends it back to the builder as a repair,
+the same way it handles a review that asks for changes. The repair is a new attempt of the same
+task, and its prompt holds the end of the check's log. It counts against the same limit of 3
+attempts per task. The run pauses `check_failed` only when the check fails on the last attempt.
+
 The commands the notes point at:
 
 | Intent | Command |

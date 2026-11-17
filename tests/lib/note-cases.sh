@@ -68,14 +68,15 @@ bridge_up() {
     "$ROOT_DIR/bin/tandem-bridge" --mailbox "$R/.tandem-relay" --planner planner >>"$TMP/bridge.log" 2>&1 &
   DRIVER=$!
 }
-# builder_turn: the builder reads its prompt, works, and hands in a report.
+# builder_turn: the builder reads its latest prompt, works, and hands in a report.
 builder_turn() {
-  local pl att job eff nonce
+  local n pl att job eff nonce
   pass 4
-  pl=$(cat "$FAKE/prompt.1.txt"); att=$(field "$pl" attempt); job=$(field "$pl" job); eff=$(field "$pl" effect); nonce=$(field "$pl" nonce)
+  n=$(grep -n "^builder$TAB" "$FAKE/prompts" | tail -1 | cut -d: -f1)
+  pl=$(cat "$FAKE/prompt.$n.txt"); att=$(field "$pl" attempt); job=$(field "$pl" job); eff=$(field "$pl" effect); nonce=$(field "$pl" nonce)
   [ -n "$att" ] && [ -n "$nonce" ] || { nope "$C: no identity in the task prompt"; return 1; }
   td build event new --root "$R" --kind builder_started --task 1 --attempt "$att" --job "$job" --effect "$eff" --nonce "$nonce" >/dev/null 2>&1
-  printf 'work\n' > "$R/file1.txt"; printf 'done\n' > "$TMP/report.md"
+  printf 'work of %s\n' "$att" > "$R/file1.txt"; printf 'done\n' > "$TMP/report.md"
   td build event new --root "$R" --kind builder_submitted --task 1 --attempt "$att" --job "$job" --effect "$eff" --nonce "$nonce" --payload "$TMP/report.md" >/dev/null 2>&1
   fake_set_state idle
   pass 4

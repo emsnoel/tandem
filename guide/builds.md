@@ -28,7 +28,10 @@ A controller sends each task, runs the check and records the review. See
 4. On its next tick the controller snapshots the tree, builds the patch, runs the check
    itself, outside the sandbox, and sends the review to the reviewer pane.
 5. When the check passed and the reviewer accepts, the controller accepts the task and sends
-   the next one in a fresh conversation. If the review asks for changes, it sends a repair.
+   the next one in a fresh conversation. If the check fails or the review asks for changes,
+   it sends a repair: a new attempt of the same task, with the end of the check's log or the
+   open findings. A task gets 3 attempts in all. The run pauses `check_failed` or
+   `repairs_exhausted` only after the last one.
 6. tandem wakes the planner once, when the run finishes or pauses. The planner signs the run
    off on its stored evidence with `tandem-unpair`.
 

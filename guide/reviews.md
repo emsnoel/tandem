@@ -60,8 +60,9 @@ Writing the plan with them in mind costs less than answering them later.
 2. **Contradiction.** Two tasks expect different things of one file, command output or
    state.
 3. **Impossible step.** A step can't run as written. A task that must end with the check
-   failing counts. tandem checks every task and stops the build when the check fails, so
-   write failing tests in the same task as the code that makes them pass.
+   failing counts. tandem checks every task, sends a failed check back to the builder, and
+   stops the build when the repairs run out, so write failing tests in the same task as the
+   code that makes them pass.
 4. **Not possible for the builder.** A step needs authority the builder doesn't have.
    Commits are the usual case, so check whether the builder in this repo commits at all
    before you write a task that ends in one. The review prompt names the builder's kind and
