@@ -205,10 +205,14 @@ const stopConditions = "\n\nStop and hand back with --stuck, changing nothing fu
 
 // promptFooter names the identity the builder echoes back, says to acknowledge
 // before touching anything, and says how to wait and when to stop. A builder
-// that polls pays for its whole conversation on every look (F19).
+// that polls pays for its whole conversation on every look (F19). The command
+// names the run's root, so it finds the run from any directory (#61).
 func promptFooter(p promptData) string {
 	var b strings.Builder
 	id := fmt.Sprintf("--task %d --run %s --attempt %s --job %s --effect %s --nonce %s", p.Task, p.Run, p.Attempt, p.Job, p.Effect, p.Nonce)
+	if p.Root != "" {
+		id = "--root " + shellQuote(p.Root) + " " + id
+	}
 	fmt.Fprintf(&b, "BEFORE YOU EDIT ANYTHING, acknowledge this prompt. It is your first action:\n\n    tandem-handback %s --started\n\n", id)
 	b.WriteString("Do the task. Do not commit unless the brief says to.")
 	if p.CheckCommand != "" {

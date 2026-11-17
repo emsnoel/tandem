@@ -188,10 +188,39 @@ mark "$R/sub/.tandem-relay" bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 hb "$R/sub" --task 1 "${D[@]}" --report "$REPORT"
 refused "conflicting markers" "two runs" "$R"
 
+printf '\n== a handback away from the run root (#61) ==\n'
+fixture "$R"; mkdir -p "$R/app/src"
+hb "$R/app/src" --task 1 "${D[@]}" --report "$REPORT"
+[ "$RC" -eq 0 ] && [ -n "$(queued "$R/.tandem-relay/durable/$RUN")" ] && ok "a handback from a subdirectory finds the run at the toplevel" || nope "subdirectory handback (rc $RC): $OUT"
+WT="$TMP/wt"; rm -rf "$WT"; git -C "$R" -c user.email=t@t -c user.name=t commit -q --allow-empty -m base
+git -C "$R" worktree add -q "$WT" 2>/dev/null; mark "$WT/.tandem-relay" "$RUN"; mkdir -p "$WT/app"
+hb "$WT/app" --task 1 "${D[@]}" --report "$REPORT"
+[ "$RC" -eq 0 ] && [ -n "$(queued "$WT/.tandem-relay/durable/$RUN")" ] && ok "a handback from a subdirectory of a git worktree finds that worktree's run" || nope "worktree subdirectory handback (rc $RC): $OUT"
+fixture "$R"; S="$TMP/scratch"; rm -rf "$S"; mkdir -p "$S"
+cp "$REPORT" "$S/report10.md"
+hb "$S" --root "$R" --task 1 "${D[@]}" --report report10.md
+[ "$RC" -eq 0 ] && ok "--root finds the run from a directory outside the repo" || nope "--root handback outside the repo (rc $RC): $OUT"
+Q=$(queued "$R/.tandem-relay/durable/$RUN")
+PP=$(jq -r '.payload_path' "$Q" 2>/dev/null)
+[ "$(cat "$R/.tandem-relay/durable/$RUN/$PP" 2>/dev/null)" = "implemented, check green" ] && ok "a relative --report is read from the directory the builder is in" || nope "the relative report did not travel ($(cat "$Q" 2>/dev/null))"
+no_writes "a handback outside the repo" "$S"
+mkdir -p "$R/app/src"
+hb "$S" --root "$R/app/src" --task 1 "${D[@]}" --started
+[ "$RC" -eq 0 ] && ok "--root may name a directory inside the checkout" || nope "--root below the toplevel (rc $RC): $OUT"
+fixture "$R"
+hb "$S" --task 1 "${D[@]}" --report "$REPORT"
+refused "a handback outside the repo with no --root" "the directory searched (" "$R"
+has "the refusal names the directory it searched" "$OUT" "/scratch)"
+has "the refusal says how to fix it" "$OUT" "--root"
+hasnt "the refusal does not say the run is gone" "$OUT" "none is active here"
+hb "$S" --root "$TMP/missing" --task 1 "${D[@]}" --report "$REPORT"
+refused "a --root that does not exist" "not a directory" "$R"
+
 printf '\n== durable flags need a run ==\n'
 L="$TMP/norun"; rm -rf "$L"; mkdir -p "$L/.tandem-relay"; git -C "$L" init -q .
 hb "$L" --task 1 "${D[@]}" --report "$REPORT"
-refused "v2 flags without a run" "none is active" "$L"
+refused "v2 flags without a run" "no run is marked in the relay of the directory searched" "$L"
+has "the refusal names the repo it searched" "$OUT" "/norun"
 hb "$L" --task 2 --report "$REPORT"
 refused "a plain task with no run" "no run is active" "$L"
 
