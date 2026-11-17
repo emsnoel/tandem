@@ -252,3 +252,55 @@ func TestPacketFramingNamesTheReviewerPane(t *testing.T) {
 		t.Errorf("verification packet framing:\n%s", v)
 	}
 }
+
+// toReviewUnchanged takes a task to review with the builder changing no file,
+// as when the task's work is already in the tree from an earlier run.
+func (e *cenv) toReviewUnchanged(taskID string) workflow.Attempt {
+	e.t.Helper()
+	e.tick()
+	att := e.current(taskID)
+	e.mustSend(taskID, workflow.EventBuilderStarted, "{}\n")
+	e.settle(att)
+	e.mustSend(taskID, workflow.EventBuilderSubmitted, "{\"message\":\"the work was already there; I changed nothing\"}\n")
+	e.tick()
+	return att
+}
+
+// An empty patch gives the reviewer nothing to judge, so the packet says the
+// builder changed nothing and asks for the tree to be checked against the
+// brief instead (issue #66).
+func TestReviewPacketForAnEmptyPatchAsksForTheTree(t *testing.T) {
+	e := newCEnv(t)
+	e.startReviewHandback()
+	att := e.toReviewUnchanged("task-1")
+	text := e.promptText("review_prompt", att)
+	for _, want := range []string{
+		"the builder changed no files on this attempt",
+		"Check the working tree itself against the brief",
+		"Pass if it already meets the brief",
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("an empty patch's packet leaves out %q:\n%s", want, text)
+		}
+	}
+}
+
+func TestLegacyReviewPromptForAnEmptyPatchAsksForTheTree(t *testing.T) {
+	e := newCEnv(t)
+	e.start()
+	att := e.toReviewUnchanged("task-1")
+	text := e.promptText("review_prompt", att)
+	if !strings.Contains(text, "the builder changed no files on this attempt") || strings.HasSuffix(strings.TrimSpace(text), "The patch:") {
+		t.Fatalf("a legacy prompt for an empty patch ends at an empty patch:\n%s", text)
+	}
+}
+
+// The packet names the files the task lists, so the reviewer knows where to look.
+func TestEmptyPatchNoteNamesTheTaskFiles(t *testing.T) {
+	p := fixturePacket(stageReview)
+	p.Patch, p.TaskPaths = "", []string{"greet.go", "greet_test.go"}
+	text := renderReviewPacket(p, 3)
+	if !strings.Contains(text, "The task names these files:\n- greet.go\n- greet_test.go") {
+		t.Fatalf("the note does not list the task's files:\n%s", text)
+	}
+}

@@ -57,6 +57,8 @@ type ReviewPacket struct {
 	PatchHash, TreeHash     string
 	Patch                   string
 	PatchTruncated          bool
+	// TaskPaths are the files the task names, for a patch that is empty.
+	TaskPaths []string
 	// WarmPane says the reviewer is a pane that keeps earlier tasks in its
 	// context, and is told to judge this packet on its own.
 	WarmPane    bool
@@ -84,7 +86,7 @@ func (c *Controller) buildReviewPacket(ctx context.Context, run state.Run, cfg r
 	if err := json.Unmarshal(raw, &spec); err != nil {
 		return p, fmt.Errorf("%w: the spec of task %s is unreadable: %v", workflow.ErrCorruptArtifact, task.ID, err)
 	}
-	p.Brief, p.Constraints = spec.Brief, spec.Constraints
+	p.Brief, p.Constraints, p.TaskPaths = spec.Brief, spec.Constraints, specPaths(spec)
 	for _, dep := range spec.DependsOn {
 		var found bool
 		for _, t := range tasks {
@@ -198,12 +200,45 @@ func renderReviewPacket(p ReviewPacket, protocol int) string {
 				maxPacketLogBytes, p.Check.LogHash, p.Check.LogHash, p.AttemptID)
 		}
 	}
-	fmt.Fprintf(&b, "\n== Evidence under review\npatch: %s\ntree: %s\n\n%s\n", p.PatchHash, p.TreeHash, p.Patch)
+	fmt.Fprintf(&b, "\n== Evidence under review\npatch: %s\ntree: %s\n\n%s\n", p.PatchHash, p.TreeHash, patchOrNote(p.Patch, p.TaskPaths))
 	if p.PatchTruncated {
 		fmt.Fprintf(&b, "[patch truncated: only its first %d bytes are shown. The whole patch is artifact %s: tandem artifact read %s --attempt %s]\n",
 			maxPacketPatchBytes, p.PatchHash, p.PatchHash, p.AttemptID)
 	}
 	fmt.Fprintf(&b, "\n== Result\n%s\n\n== Delivery\n%s\n", packetResultFormat(p, protocol), deliveryBlock(p, protocol))
+	return b.String()
+}
+
+// specPaths is every file a task names, its paths then its outputs, once each.
+func specPaths(spec workflow.TaskSpec) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, p := range append(append([]string{}, spec.Paths...), spec.Outputs...) {
+		if p = strings.TrimSpace(p); p != "" && !seen[p] {
+			seen[p] = true
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// patchOrNote is the patch, or for an empty one, what to review instead. A
+// builder that finds the task's work already in the tree, as after an earlier
+// run, rightly changes nothing. An empty patch gives the reviewer nothing to
+// judge, so the reviewer is asked to judge the tree.
+func patchOrNote(patch string, paths []string) string {
+	if strings.TrimSpace(patch) != "" {
+		return patch
+	}
+	var b strings.Builder
+	b.WriteString("The patch is empty: the builder changed no files on this attempt. The work the brief asks for may already be in the tree, for example from an earlier run. " +
+		"Check the working tree itself against the brief. Pass if it already meets the brief. If it does not, ask for changes, with findings that name the files.")
+	if len(paths) > 0 {
+		b.WriteString("\n\nThe task names these files:")
+		for _, p := range paths {
+			fmt.Fprintf(&b, "\n- %s", p)
+		}
+	}
 	return b.String()
 }
 
