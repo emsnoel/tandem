@@ -18,8 +18,10 @@ func (copilotAdapter) Supports(axis string) []string {
 	case "autonomy":
 		return []string{"readonly", "ask", "auto", "full"}
 	case "effort":
-		// --effort also accepts none, minimal and xhigh, which the normalised
-		// vocabulary has no name for; user-config args can still select them.
+		// --reasoning-effort also accepts none, minimal and xhigh, which the
+		// normalised vocabulary has no name for; user-config args can still select
+		// them. Copilot added the flag in 1.0.4. Its --effort alias came in 1.0.10
+		// and is no longer in --help, so the adapter passes the documented name.
 		// `max` is real here, unlike Codex, where it is model-specific.
 		return []string{"low", "medium", "high", "max"}
 	case "subagent_effort":
@@ -94,7 +96,7 @@ func (c copilotAdapter) Resolve(s Spec) (Launch, error) {
 		l.Warnings = append(l.Warnings, *ew)
 	}
 	if effort != "" {
-		l.Args = append(l.Args, "--effort", effort)
+		l.Args = append(l.Args, "--reasoning-effort", effort)
 	}
 
 	if s.Cwd != "" {

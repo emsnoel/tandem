@@ -207,7 +207,7 @@ func TestCopilotModelEffortAndCwd(t *testing.T) {
 	want := []string{
 		"--allow-all-tools", "--allow-all-urls", "--allow-all-paths", "--no-ask-user",
 		"--model", "claude-sonnet-5",
-		"--effort", "max",
+		"--reasoning-effort", "max",
 		"-C", "/repo",
 	}
 	if !reflect.DeepEqual(l.Args, want) {
@@ -229,7 +229,7 @@ func TestCopilotDisablesAskUserForBuilderOnly(t *testing.T) {
 	}
 }
 
-// max is a real --effort value here, unlike Codex, where it is model-specific
+// max is a real --reasoning-effort value here, unlike Codex, where it is model-specific
 // and the model-agnostic adapter withholds it.
 func TestCopilotSupportsMaxEffort(t *testing.T) {
 	a := adapter(t, "copilot")
