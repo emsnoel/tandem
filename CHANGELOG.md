@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.14.1](https://github.com/emsnoel/tandem/compare/v0.14.0...v0.14.1) (2026-11-17)
+
+
+### Bug Fixes
+
+* ask the reviewer to check the tree when the builder changed nothing ([37726b6](https://github.com/emsnoel/tandem/commit/37726b6fede72b5f9e6062bafe38523088344786))
+* hold a message the busy planner has not started on instead of failing it ([f330b50](https://github.com/emsnoel/tandem/commit/f330b50567fe0be61a530881406c9e0a7c87afec))
+
 ## [0.14.0](https://github.com/emsnoel/tandem/compare/v0.13.2...v0.14.0) (2026-11-15)
 
 
