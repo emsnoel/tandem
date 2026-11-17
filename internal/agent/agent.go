@@ -51,6 +51,20 @@ const (
 
 var EffortOrder = []string{"low", "medium", "high", "max"}
 
+// Isolation says how much of the user's own CLI setup an unattended agent
+// loads. It never applies to the planner, which is the person's own pane.
+type Isolation string
+
+const (
+	// IsolationLean, the default, leaves out the user's plugins, hooks, output
+	// style and MCP servers. Each one adds tokens to every request.
+	IsolationLean Isolation = "lean"
+	// IsolationNone loads the user's whole setup, as a plain launch would.
+	IsolationNone Isolation = "none"
+)
+
+var IsolationValues = []string{"lean", "none"}
+
 type Direction int
 
 const (
@@ -107,7 +121,9 @@ type Spec struct {
 	Cwd      string
 	// SessionID, when set, names a new session for adapters that can start one.
 	// The caller generates it so Resolve stays deterministic.
-	SessionID    string
+	SessionID string
+	// Isolation is empty for the default, IsolationLean.
+	Isolation    Isolation
 	ExtraArgs    []string
 	AllowDegrade []string
 	AllowWiden   []string

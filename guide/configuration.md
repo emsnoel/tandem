@@ -208,8 +208,8 @@ nothing.
 
 The reviewer never reads the builder's choices: the `builder` block, `HERDR_BUILDER_*`,
 `defaults.builder_kind`, or the `model`, `effort` and `autonomy` in your user config's
-`adapters.<kind>` entry. The `args`, `path`, `allow_widen` and `allow_degrade` in that entry
-do apply to the reviewer of that kind, because they describe the CLI on this machine.
+`adapters.<kind>` entry. The `args`, `path`, `isolation`, `allow_widen` and `allow_degrade` in
+that entry do apply to the reviewer of that kind, because they describe the CLI on this machine.
 
 ```bash
 tandem-pair --reviewer claude --reviewer-model opus --reviewer-effort high
@@ -235,3 +235,40 @@ Your own adapter settings live in `~/.config/herdr/tandem.json`:
 A repository can ask for settings, but it can't grant extra authority. tandem accepts
 `allow_widen`, raw `args` and an executable `path` only from your user config. It ignores
 the same keys in `.tandem.json` and prints a warning.
+
+### A lean Claude builder and reviewer
+
+tandem starts a Claude builder or reviewer without your own Claude Code setup. Your
+plugins, their skills and agents, your user hooks, your output style and your MCP servers
+all stay out. Each of them adds text to every request the agent sends. On a machine with
+about 30 plugins, a one-word prompt took 39,989 input tokens with the whole setup and
+18,572 without it. A task of 30 to 40 requests pays that difference on each one.
+
+The launch adds three flags:
+
+- `--setting-sources project,local` loads the repository's `.claude/settings.json` and
+  `.claude/settings.local.json`, and not `~/.claude/settings.json`.
+- `--settings` adds one SessionStart hook, which runs Herdr's Claude integration script.
+  Herdr then still learns which session the pane holds, after the launch and after `/clear`.
+- `--strict-mcp-config` loads no MCP server, including one in the repository's `.mcp.json`.
+
+The repository's own `CLAUDE.md` still applies. Your planner pane is yours, and tandem
+never changes it.
+
+The trade-off: anything the builder needs from your user settings is gone. That includes
+your permission rules, your default model and a plugin skill you expect it to use. Put
+what the project needs in its `.claude/settings.json`, or opt back in for one agent kind:
+
+```json
+{
+  "adapters": {
+    "claude": { "isolation": "none" }
+  }
+}
+```
+
+`isolation` is `lean`, the default, or `none`. It applies to every builder and reviewer of
+that kind. If your `args` already pass `--setting-sources`, `--settings` or
+`--strict-mcp-config`, tandem leaves that flag to you and does not add its own.
+
+Codex and Copilot builders still load your whole setup for their CLI.

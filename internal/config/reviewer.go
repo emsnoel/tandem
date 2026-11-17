@@ -81,6 +81,7 @@ func ResolveReviewer(repo *Repo, user *User, getenv func(string) string, flags O
 	r.AllowDegrade = union(rr.AllowDegrade, ua.AllowDegrade)
 	r.AllowWiden = ua.AllowWiden
 	r.ExtraArgs = ua.Args
+	r.Isolation = agent.Isolation(ua.Isolation)
 	r.Path = ua.Path
 	return ReviewerResolution{Status: ReviewerResolved, Resolved: &r}
 }

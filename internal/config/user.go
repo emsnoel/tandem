@@ -17,6 +17,9 @@ type UserAdapter struct {
 	Model        string   `json:"model"`
 	Effort       string   `json:"effort"`
 	Autonomy     string   `json:"autonomy"`
+	// Isolation is "lean" (the default) or "none". It decides whether a
+	// builder or reviewer of this kind loads the user's own CLI setup.
+	Isolation string `json:"isolation"`
 }
 
 type UserDefaults struct {

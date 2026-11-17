@@ -93,6 +93,18 @@ chk  "maps autonomy to Claude's auto mode" "--permission-mode auto"
 nchk "never acceptEdits, which asks before every shell command" "acceptEdits"
 chk  "passes the model" "--model opus"
 nchk "never passes -s"  "--sandbox"
+# A lean builder loads none of the user's plugins, hooks or MCP servers (#63),
+# and keeps Herdr's session hook.
+chk  "leaves out user settings"       "--setting-sources project,local"
+chk  "keeps only Herdr's session hook" "hooks/herdr-agent-state.sh"
+chk  "leaves out user MCP servers"    "--strict-mcp-config"
+mkdir -p "$TMP/home/.config/herdr"
+printf '{"adapters":{"claude":{"isolation":"none"}}}\n' > "$TMP/home/.config/herdr/tandem.json"
+run_pair env HERDR_BUILDER_KIND=claude HERDR_BUILDER_AUTONOMY=auto
+chk  "isolation none still starts claude" "agent start builder --kind claude"
+nchk "isolation none loads user settings"  "--setting-sources"
+nchk "isolation none loads user MCP servers" "--strict-mcp-config"
+rm -f "$TMP/home/.config/herdr/tandem.json"
 
 echo "--- a reviewer pane ---"
 # The reviewer's launch line alone, so a leaked builder flag cannot hide.
@@ -123,6 +135,7 @@ chk  "records the reviewer for the run"       'would record reviewer: {"kind":"c
 nchk "no warning when a reviewer is flagged"  "review and build will refuse"
 case "$(reviewer_line)" in *"--model opus"*) ok "passes the reviewer's model" ;; *) nope "no reviewer model: $(reviewer_line)" ;; esac
 case "$(reviewer_line)" in *"--effort high"*) ok "passes the reviewer's effort" ;; *) nope "no reviewer effort: $(reviewer_line)" ;; esac
+case "$(reviewer_line)" in *"--setting-sources project,local"*"--strict-mcp-config"*) ok "a claude reviewer is lean too" ;; *) nope "the claude reviewer is not lean: $(reviewer_line)" ;; esac
 case "$(reviewer_line)" in *gpt-5.4*|*low*) nope "the builder's model or effort reached the reviewer: $(reviewer_line)" ;; *) ok "the builder's model and effort stay the builder's" ;; esac
 # With no model of its own, the reviewer must not inherit the builder's.
 run_pair env HERDR_BUILDER_MODEL=gpt-5.4 HERDR_BUILDER_EFFORT=low -- --reviewer codex

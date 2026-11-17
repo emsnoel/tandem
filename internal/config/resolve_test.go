@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/emsnoel/tandem/internal/agent"
@@ -113,5 +115,30 @@ func TestMarkAdoptedRewritesProvenance(t *testing.T) {
 	}
 	if len(got.Unenforced) == 0 {
 		t.Error("Unenforced must name the axes that were configured but not applied")
+	}
+}
+
+// isolation is a user-only machine key, like args, and reaches the adapter.
+func TestIsolationComesFromTheUsersAdapterEntry(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "tandem.json")
+	if err := os.WriteFile(path, []byte(`{"adapters":{"claude":{"isolation":"none"}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	user, err := LoadUser(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := ResolveRole(agent.RoleBuilder, &Repo{Builder: &RepoRole{Kind: "claude"}}, user, envFrom(nil), Overrides{})
+	if r.Isolation != agent.IsolationNone || r.Spec("/repo").Isolation != agent.IsolationNone {
+		t.Fatalf("builder: got %q, spec %q", r.Isolation, r.Spec("/repo").Isolation)
+	}
+	rv := mustResolve(t, ResolveReviewer(&Repo{Reviewer: &RepoRole{Kind: "claude"}}, user, envFrom(nil), Overrides{}))
+	if rv.Spec("/repo").Isolation != agent.IsolationNone {
+		t.Fatalf("reviewer: got %q", rv.Isolation)
+	}
+	// Another kind's entry does not leak across.
+	r = ResolveRole(agent.RoleBuilder, &Repo{Builder: &RepoRole{Kind: "codex"}}, user, envFrom(nil), Overrides{})
+	if r.Isolation != "" {
+		t.Fatalf("codex: got %q", r.Isolation)
 	}
 }

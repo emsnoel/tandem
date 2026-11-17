@@ -25,7 +25,7 @@ probe() { # probe <cli> <help-args> <flag>...
 }
 
 probe codex    --help -s --sandbox -a --ask-for-approval -m -C --dangerously-bypass-approvals-and-sandbox --dangerously-bypass-hook-trust
-probe claude   --help --permission-mode --model --effort
+probe claude   --help --permission-mode --model --effort --setting-sources --settings --strict-mcp-config
 probe copilot  --help --model --effort --mode --allow-all-tools --allow-all-urls --allow-all --no-ask-user -C
 
 printf '\ncli-drift: passed %d, failed %d, skipped %d\n' "$PASS" "$FAIL" "$SKIP"

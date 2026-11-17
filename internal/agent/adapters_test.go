@@ -114,7 +114,8 @@ func TestClaudeAutonomyMapping(t *testing.T) {
 		Full: {"--permission-mode", "bypassPermissions"},
 	}
 	for autonomy, want := range cases {
-		l := resolve(t, Spec{Kind: "claude", Role: RoleBuilder, Autonomy: autonomy})
+		// claude_isolation_test.go pins the flags a lean builder adds.
+		l := resolve(t, Spec{Kind: "claude", Role: RoleBuilder, Autonomy: autonomy, Isolation: IsolationNone})
 		if !reflect.DeepEqual(l.Args, want) {
 			t.Errorf("autonomy=%s: got %v, want %v", autonomy, l.Args, want)
 		}
