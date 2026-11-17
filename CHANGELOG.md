@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.0](https://github.com/emsnoel/tandem/compare/v0.14.3...v0.15.0) (2026-11-17)
+
+
+### Features
+
+* show what each pane is working on in Herdr's sidebar ([fede03d](https://github.com/emsnoel/tandem/commit/fede03d62f4fccbabc790540dabf85891d43c030))
+
 ## [0.14.3](https://github.com/emsnoel/tandem/compare/v0.14.2...v0.14.3) (2026-11-17)
 
 
