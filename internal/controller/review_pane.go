@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -84,7 +85,16 @@ func (c *Controller) readPaneReview(ctx context.Context, pr runner.PaneReader, r
 				return nil // a pane that cannot be read now is read on the next pass
 			}
 		}
-		raw := lastReviewObject(text, job.ID)
+		raw, broken := lastReviewObject(text, job.ID)
+		if broken != nil {
+			// A reply that is not JSON is told to the reviewer now, rather
+			// than left to the review timeout.
+			reason := fmt.Sprintf("%v: review result: %v", workflow.ErrIncompleteEvidence, broken)
+			if err := c.recordReviewRejection(ctx, run, cfg, att.ID, job.ID, prompt.ID, sha256Hex(raw), reason); err != nil {
+				return err
+			}
+			continue
+		}
 		if raw == nil {
 			continue
 		}
@@ -101,8 +111,13 @@ func (c *Controller) readPaneReview(ctx context.Context, pr runner.PaneReader, r
 	return nil
 }
 
-// lastReviewObject is the last JSON object in text that names jobID, or nil.
-// Surrounding text is skipped.
+// lastReviewObject is the reviewer's last reply in text: the last JSON object
+// that names jobID, or nil. Surrounding text is skipped.
+//
+// A reply that names the job but is not JSON, as when a finding quotes text
+// without escaping its quotes, comes back as an error that says where it
+// breaks, with the reply's bytes up to that point. That holds only when the
+// broken reply comes after every reply that decodes.
 //
 // A CLI may wrap long lines and indent the rest (Codex does), so the text is
 // searched with line breaks and the following indent removed. Ids and hashes
@@ -111,28 +126,50 @@ func (c *Controller) readPaneReview(ctx context.Context, pr runner.PaneReader, r
 //
 // The prompt's own example names this job too, but its status is the list of
 // choices, so it is never taken for a reply.
-func lastReviewObject(text, jobID string) []byte {
+func lastReviewObject(text, jobID string) ([]byte, error) {
 	if !strings.Contains(text, jobID) {
-		return nil
+		return nil, nil
 	}
-	return scanObjects(wrapBreak.ReplaceAllString(text, ""), jobID)
+	text = wrapBreak.ReplaceAllString(text, "")
+	found, end := scanObjects(text, jobID)
+	named := regexp.MustCompile(`"job_id"\s*:\s*"`+regexp.QuoteMeta(jobID)+`"`).FindAllStringIndex(text, -1)
+	if len(named) == 0 {
+		return found, nil
+	}
+	at := named[len(named)-1][0]
+	start := strings.LastIndexByte(text[:at], '{')
+	if at < end || start < 0 || strings.ContainsRune(text[start:at], '}') {
+		return found, nil
+	}
+	reply := text[start:]
+	var raw json.RawMessage
+	err := json.NewDecoder(strings.NewReader(reply)).Decode(&raw)
+	var syntax *json.SyntaxError
+	if !errors.As(err, &syntax) {
+		// It decodes, so it is the prompt's example, or it runs past the
+		// end of what was read and is not a whole reply.
+		return found, nil
+	}
+	return []byte(reply[:min(int(syntax.Offset), len(reply))]), workflow.JSONError([]byte(reply), err)
 }
 
 var wrapBreak = regexp.MustCompile(`\r?\n[ \t]*`)
 
-// scanObjects is the last JSON object in text that names jobID.
-func scanObjects(text, jobID string) []byte {
+// scanObjects is the last JSON object in text that names jobID, and the index
+// just past it.
+func scanObjects(text, jobID string) ([]byte, int) {
 	var found []byte
+	end := 0
 	for i := 0; i < len(text); i++ {
 		if text[i] != '{' {
 			continue
 		}
 		if raw := decodeObject(text[i:], jobID); raw != nil {
-			found = raw
+			found, end = raw, i+len(raw)
 			i += len(raw) - 1
 		}
 	}
-	return found
+	return found, end
 }
 
 // decodeObject is the JSON object s starts with, when it names jobID and is

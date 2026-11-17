@@ -38,18 +38,21 @@ tree: eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
 
 
 == Result
-Your verdict is ONE JSON object:
+Your verdict is plain text, not JSON. Tandem builds the JSON, so nothing needs escaping. Write it like this:
 
-{"schema_version":1,"status":"passed|changes_requested|failed","findings":[]}
+status: OUTCOME
 
-changes_requested must list at least one finding, with severity, path, disposition and message. Optional start_line and end_line are 1-based. A passed verdict cannot leave blocking findings unresolved. Tandem supplies the job, attempt, patch and tree from the stored job. Edit only the verdict file; do not edit source files.
+finding: SEVERITY DISPOSITION PATH[:START[-END]]
+The message, on as many lines as you need. Write quotes, backslashes and code exactly as they are.
+
+OUTCOME is passed, changes_requested or failed. Start each finding with its own finding: line. SEVERITY is critical, high, medium, low or info. DISPOSITION is open, fixed or rejected. START and END are optional 1-based line numbers. changes_requested must list at least one finding. A passed verdict cannot leave blocking findings unresolved. Tandem supplies the job, attempt, patch and tree from the stored job. Edit only the verdict file; do not edit source files.
 
 == Delivery
 When you begin, acknowledge with:
 
     '/repo/.tandem-relay/durable/run/review/effect/handback' --started
 
-Write your verdict to '/repo/.tandem-relay/durable/run/review/effect/verdict.json', then run:
+Write your verdict to '/repo/.tandem-relay/durable/run/review/effect/verdict.txt', then run:
 
     '/repo/.tandem-relay/durable/run/review/effect/handback'
 

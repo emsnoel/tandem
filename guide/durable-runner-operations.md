@@ -145,6 +145,12 @@ line) is joined first. The example object in the review prompt carries the job's
 but its status lists the choices (`passed|changes_requested|failed`), so it is never taken for
 the reply. Nothing needs to be done for a reply that is there.
 
+A reply that names the job but is not valid JSON does not wait for the timeout. The usual
+cause is a finding that quotes text without escaping its quotes. The same tick tells the
+reviewer the decoder's error, the byte offset in the reply and the text just before it, and
+asks for a corrected reply. `tandem build review-record` reports the same offset for a file
+that is not valid JSON.
+
 If no valid reply is found by then (the reviewer answered in prose, named another job, or
 reviewed a different tree), the prompt becomes `delivery_unknown` and the run pauses as
 `review_unknown`. `tandem build status` gives this as the pause's reason. Nothing is lost:
@@ -344,7 +350,8 @@ An older tandem refuses a store with a newer schema.
 
 A collaboration run can also start with `--review-delivery mailbox` and an
 `--acceptance-policy` file. Reviewers then hand their results to Tandem with
-`tandem-handback --review-started` and `--review-result FILE`. The reviewer pane's passing
+`tandem-handback --review-started` and `--review-result FILE`. FILE holds the verdict as
+plain text, and Tandem builds the JSON, so a quoted message needs no escaping. The reviewer pane's passing
 review is the independent check, so the planner is asked to verify only an attempt with no
 reviewer result, as after a waived review. A run keeps the protocol it started with. See
 `guide/architecture/review-handback.md` for the flow, the manual stop and review-record

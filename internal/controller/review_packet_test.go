@@ -68,7 +68,8 @@ func TestReviewPacketCarriesEveryMandatoryField(t *testing.T) {
 			"the run":                "run: " + p.RunID,
 			"the attempt":            "attempt: " + p.AttemptID,
 			"the job":                "job: " + p.JobID,
-			"the verdict file":       p.HandbackDir + "/verdict.json",
+			"the verdict file":       p.HandbackDir + "/verdict.txt",
+			"the verdict as text":    "status: OUTCOME\n\nfinding: SEVERITY DISPOSITION PATH[:START[-END]]\n",
 			"the handback command":   p.HandbackDir + "/handback",
 		} {
 			if !strings.Contains(text, want) {

@@ -57,6 +57,7 @@ hb() { # hb <cwd> <args...>; ENVX holds extra NAME=value pairs
 queued() { ls "$1"/q/*.json 2>/dev/null | head -1; }
 clear_q() { rm -f "$1"/q/* "$1"/payloads/*; }
 RESULT="$TMP/result.json"; printf '{"schema_version":1,"status":"passed","findings":[]}\n' > "$RESULT"
+VERDICT="$TMP/verdict.txt"
 ENVX=()
 
 printf '== a run that opted in takes version 3 ==\n'
@@ -70,12 +71,22 @@ else nope "review_started envelope ($(cat "$Q" 2>/dev/null))"; fi
 [ "$(tr -d '[:space:]' < "$DIR/$(jq -r .payload_path "$Q")")" = "{}" ] && ok "a start carries no more than an optional session" || nope "start payload"
 
 clear_q "$DIR"
-hb "$R" --task 1 "${D[@]}" --review-result "$RESULT"
+# The verdict is text, so a finding that quotes the plan needs no escaping.
+QUOTED='Step 5 requires: "Lint must pass with no icon warnings." See C:\icons.'
+printf 'status: changes_requested\n\nfinding: high open src/a.go:4-6\n%s\n' "$QUOTED" > "$VERDICT"
+hb "$R" --task 1 "${D[@]}" --review-result "$VERDICT"
 [ "$RC" -eq 0 ] && ok "--review-result FILE exits 0" || nope "--review-result exits 0 (rc $RC): $OUT"
 Q=$(queued "$DIR")
 jq -e '.schema_version==3 and .kind=="review_result"' "$Q" >/dev/null 2>&1 && ok "it queues a version 3 review_result" || nope "review_result envelope ($(cat "$Q" 2>/dev/null))"
-cmp -s "$RESULT" "$DIR/$(jq -r .payload_path "$Q")" && ok "the result travels as the exact bytes of the file" || nope "result bytes differ"
+P="$DIR/$(jq -r .payload_path "$Q" 2>/dev/null)"
+jq -e --arg m "$QUOTED" '.status=="changes_requested" and .findings==[{"severity":"high","path":"src/a.go","disposition":"open","message":$m,"start_line":4,"end_line":6}]' "$P" >/dev/null 2>&1 \
+  && ok "tandem builds the JSON, with the quoted message as written" || nope "queued verdict ($(cat "$P" 2>/dev/null))"
 has "it tells the reviewer to stop" "$OUT" "Stop here"
+
+clear_q "$DIR"
+hb "$R" --task 1 "${D[@]}" --review-result "$RESULT"
+[ "$RC" -ne 0 ] && [ -z "$(queued "$DIR")" ] && has "a JSON verdict is refused at once, naming the format" "$OUT" "plain text, not JSON" \
+  || nope "a JSON verdict on a run that opted in (rc $RC): $OUT"
 
 clear_q "$DIR"
 hb "$R" --task 1 "${D[@]}" --started

@@ -45,7 +45,7 @@ func TestLiveCodexReviewHandback(t *testing.T) {
 	att := e.toReview("task-1", 1)
 	promptEffect := e.effects(effectReviewPrompt)[0]
 	dir := filepath.Join(RunDir(e.relay, e.runID), "review", promptEffect.ID)
-	prompt := fmt.Sprintf("This is an authorized isolated protocol smoke test, not a code review. Write exactly {\"schema_version\":1,\"status\":\"passed\",\"findings\":[]} to %q. Then execute %q with no arguments and stop. Do not copy or type any run, attempt, job, effect, or nonce identifiers. The executable command already binds them. Use the inherited PATH for tandem-handback and tandem. Do not change any other file or run other tools. Report the command result.", filepath.Join(dir, "verdict.json"), filepath.Join(dir, "handback"))
+	prompt := fmt.Sprintf("This is an authorized isolated protocol smoke test, not a code review. Write exactly the one line \"status: passed\" to %q. Then execute %q with no arguments and stop. Do not copy or type any run, attempt, job, effect, or nonce identifiers. The executable command already binds them. Use the inherited PATH for tandem-handback and tandem. Do not change any other file or run other tools. Report the command result.", filepath.Join(dir, verdictFile), filepath.Join(dir, "handback"))
 	// Preserve the provider transcript after Go removes its fixture directories.
 	log, err := os.CreateTemp("", "tandem-review-handback-live-*.log")
 	if err != nil {
@@ -94,7 +94,7 @@ func TestLiveCodexReviewHandback(t *testing.T) {
 	if got := e.eventCount("review_completed"); got != 1 {
 		t.Fatalf("live verdict applied %d times", got)
 	}
-	if b, err := os.ReadFile(filepath.Join(dir, "verdict.json")); err != nil || strings.Contains(string(b), "attempt_id") {
+	if b, err := os.ReadFile(filepath.Join(dir, verdictFile)); err != nil || strings.Contains(string(b), "attempt_id") {
 		t.Fatalf("reviewer did not leave a verdict-only file: %s: %v", b, err)
 	}
 	t.Log("real workspace-write Codex queued a v3 verdict; controller applied it once after reviewer settlement")

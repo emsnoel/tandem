@@ -170,6 +170,9 @@ func (d *durable) envelopeOf(t *testing.T, got map[string]any) controller.Envelo
 func TestReviewHandbackEventVersionFollowsTheStoredProtocol(t *testing.T) {
 	result := filepath.Join(t.TempDir(), "result.json")
 	os.WriteFile(result, []byte("{\"schema_version\":1,\"status\":\"passed\",\"findings\":[]}\n"), 0o644)
+	// A run that opted in takes the verdict as text.
+	verdict := filepath.Join(t.TempDir(), "verdict.txt")
+	os.WriteFile(verdict, []byte("status: passed\n"), 0o644)
 
 	old := durableRepo(t)
 	if rc, _, errOut := old.newEvent(t, "review_started"); rc != exitcode.Usage || !strings.Contains(errOut, "review_started") {
@@ -195,7 +198,7 @@ func TestReviewHandbackEventVersionFollowsTheStoredProtocol(t *testing.T) {
 	if b, _ := os.ReadFile(got["payload"].(string)); strings.TrimSpace(string(b)) != "{}" {
 		t.Errorf("a start payload is %q: it may only name a session", b)
 	}
-	rc, got, errOut = opted.newEvent(t, "review_result", "--payload", result)
+	rc, got, errOut = opted.newEvent(t, "review_result", "--payload", verdict)
 	if rc != exitcode.OK {
 		t.Fatalf("%d %s", rc, errOut)
 	}
