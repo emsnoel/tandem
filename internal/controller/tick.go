@@ -272,6 +272,15 @@ func (c *Controller) freshStart(ctx context.Context, cfg runConfig) (string, err
 // its repair when the reviewer asked for changes.
 func (c *Controller) advanceSubmitted(ctx context.Context, run state.Run, cfg runConfig, att workflow.Attempt) (bool, error) {
 	checkOK := att.Check == workflow.CheckPassed || att.Check == workflow.CheckNotApplicable
+	if att.Check == workflow.CheckFailed {
+		// A failed check the planner waived for this tree no longer holds the
+		// task back.
+		waived, err := c.checkWaived(ctx, run, cfg, att)
+		if err != nil {
+			return false, err
+		}
+		checkOK = waived
+	}
 	reviewOK := att.Review == workflow.ReviewPassed || att.Review == workflow.ReviewWaived || att.Review == workflow.ReviewNotApplicable
 	switch {
 	case checkOK && reviewOK:

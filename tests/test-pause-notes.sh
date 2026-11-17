@@ -136,9 +136,16 @@ done < "$CODES"
 [ "$n" -gt 10 ] && ok "$n routes warn about the tree before they hand off" || nope "only $n routes hand the plan off"
 
 printf '\n== the rulings ==\n'
-for c in check_failed review_failed stuck repairs_exhausted source_mutated recovery_blocked; do
+for c in check_failed stuck source_mutated recovery_blocked; do
   OUT=$(pause_note "$c" "$RUN" /r task-7 b r "")
   lack "$c does not offer waive" "$OUT" "--waive"
+  lack "$c has no SCOPE placeholder" "$OUT" "SCOPE"
+done
+# A review waiver lifts these pauses, so their notes offer it before the restart.
+for c in review_failed repairs_exhausted; do
+  OUT=$(pause_note "$c" "$RUN" /r task-7 b r "")
+  has "$c offers the review waiver, which lifts it" "$OUT" "tandem build accept --task task-7 --waive review --because WHY --root /r"
+  has "$c can still restart" "$OUT" "Or restart the run instead"
   lack "$c has no SCOPE placeholder" "$OUT" "SCOPE"
 done
 OUT=$(pause_note review_unknown "$RUN" /r task-7 b r "")

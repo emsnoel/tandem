@@ -219,7 +219,8 @@ pause_note() {
       else
         _pn_read_pane "$reviewer" "Read the reviewer pane for what it found."
       fi
-      restart_steps "$run" "$root" ;;
+      _pn_step "If the findings are wrong, overrule the review. The next tick accepts the task and starts the next one." "tandem build accept --task ${task:-N} --waive review --because WHY --root $q"
+      restart_steps "$run" "$root" alt ;;
     review_unknown)
       _pn_read_pane "$reviewer" "Read the reviewer pane for its reply."
       _pn_step "Save the whole JSON object of the reply to a file, then record it." "tandem build review-record --result FILE --root $q"
@@ -234,7 +235,8 @@ pause_note() {
       else
         _pn_read_pane "$reviewer" "Read the reviewer pane for what kept failing."
       fi
-      restart_steps "$run" "$root" ;;
+      _pn_step "If the work is good enough, overrule the review. Add --waive check if the check failed too. The next tick accepts the task and starts the next one." "tandem build accept --task ${task:-N} --waive review --because WHY --root $q"
+      restart_steps "$run" "$root" alt ;;
     writer_unknown) _pn_writer_unknown "$run" "$root" "$task" "$builder" ;;
     builder_silent) _pn_builder_silent "$run" "$root" "$builder" ;;
     builder_blocked) _pn_builder_blocked "$run" "$root" "$builder" ;;
