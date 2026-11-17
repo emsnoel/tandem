@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.14.2](https://github.com/emsnoel/tandem/compare/v0.14.1...v0.14.2) (2026-11-17)
+
+
+### Bug Fixes
+
+* count cached input at a tenth against the token budgets ([647c14b](https://github.com/emsnoel/tandem/commit/647c14b6eb5293cda4507da9cbdbd2548731c0eb))
+* resume a run once a waiver covers the failure that paused it ([918c639](https://github.com/emsnoel/tandem/commit/918c63992a679e8b42a7679b0c82733f7905de0b))
+
 ## [0.14.1](https://github.com/emsnoel/tandem/compare/v0.14.0...v0.14.1) (2026-11-17)
 
 
