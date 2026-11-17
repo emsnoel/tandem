@@ -162,7 +162,7 @@ func (c *Controller) Recover(ctx context.Context, runID string) error {
 		return err
 	}
 	// A run paused only because its writer was unknown may continue once the
-	// writer is known; any other pause waits for a person.
+	// writer is known. A pause not lifted below waits for a person.
 	if run.State == "paused" && run.PauseCode == pauseWriterUnknown {
 		unknown, err := c.hasUnknownWriter(ctx, run)
 		if err != nil {
@@ -185,6 +185,13 @@ func (c *Controller) Recover(ctx context.Context, runID string) error {
 			if err := c.d.State.SetRunState(ctx, run.ID, "running", ""); err != nil {
 				return err
 			}
+		}
+	}
+	// A run paused by a failed attempt continues once a person's waivers cover
+	// it, such as a review waived while an older tandem kept the pause.
+	if run.State == "paused" {
+		if err := c.liftWaivedPause(ctx, run.ID); err != nil {
+			return err
 		}
 	}
 	if err := c.recoverSilence(ctx, runID); err != nil {

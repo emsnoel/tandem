@@ -276,7 +276,8 @@ func (c *Controller) resolveReviewPrompts(ctx context.Context, run state.Run, at
 // Waive records the planner's decision to overrule one requirement of a task's
 // current attempt, for the tree it examined, with a stated reason. Only a
 // review waiver changes what acceptance needs; the others stay facts the
-// acceptance check reads.
+// acceptance check reads. A waiver that covers every requirement the attempt
+// failed also lifts the pause that failure caused.
 func (c *Controller) Waive(ctx context.Context, runID, taskID, scope, reason, actor string) error {
 	if strings.TrimSpace(reason) == "" {
 		return fmt.Errorf("%w: a waiver needs a reason", workflow.ErrInvalidTransition)
@@ -311,15 +312,18 @@ func (c *Controller) Waive(ctx context.Context, runID, taskID, scope, reason, ac
 	if _, err := c.apply(ctx, run, cfg, *att, derive(id, "waive"), workflow.EventWaiveRequested, reasonHash); err != nil {
 		return err
 	}
-	if scope != "review" {
-		return nil
+	if scope == "review" {
+		// A waived review is not waited for: its prompts are moot, and a
+		// review_unknown pause waiting on one of them has nothing left to wait for.
+		if err := c.resolveReviewPrompts(ctx, run, *att, "", "cancelled"); err != nil {
+			return err
+		}
+		if err := c.d.State.CancelReviewJobs(ctx, att.ID); err != nil {
+			return err
+		}
 	}
-	// A waived review is not waited for: its prompts are moot, and a
-	// review_unknown pause waiting on one of them has nothing left to wait for.
-	if err := c.resolveReviewPrompts(ctx, run, *att, "", "cancelled"); err != nil {
-		return err
-	}
-	return c.d.State.CancelReviewJobs(ctx, att.ID)
+	// A run paused by this attempt's failure goes on once the waivers cover it.
+	return c.liftWaivedPause(ctx, runID)
 }
 
 // mailboxDeps builds the ingestion dependencies for a run, with the
