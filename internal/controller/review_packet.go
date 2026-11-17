@@ -168,7 +168,7 @@ func deliveryBlock(p ReviewPacket, protocol int) string {
 		return "Reply with the JSON object and nothing else."
 	}
 	return fmt.Sprintf("When you begin, acknowledge with:\n\n    %s --started\n\nWrite your verdict to %s, then run:\n\n    %s\n\nIf the command rejects it, correct the verdict and retry in this turn. Each call returns immediately. Then stop.",
-		shellQuote(p.HandbackDir+"/handback"), shellQuote(p.HandbackDir+"/verdict.json"), shellQuote(p.HandbackDir+"/handback"))
+		shellQuote(p.HandbackDir+"/handback"), shellQuote(p.HandbackDir+"/"+verdictFile), shellQuote(p.HandbackDir+"/handback"))
 }
 
 // renderReviewPacket writes the packet for a protocol.
@@ -253,7 +253,8 @@ func packetResultFormat(p ReviewPacket, protocol int) string {
 	if protocol < 3 {
 		return resultFormat(p)
 	}
-	return "Your verdict is ONE JSON object:\n\n" +
-		`{"schema_version":1,"status":"passed|changes_requested|failed","findings":[]}` +
-		"\n\nchanges_requested must list at least one finding, with severity, path, disposition and message. Optional start_line and end_line are 1-based. A passed verdict cannot leave blocking findings unresolved. Tandem supplies the job, attempt, patch and tree from the stored job. Edit only the verdict file; do not edit source files."
+	return "Your verdict is plain text, not JSON. Tandem builds the JSON, so nothing needs escaping. Write it like this:\n\n" +
+		workflow.VerdictFormat +
+		"\n\nOUTCOME is passed, changes_requested or failed. Start each finding with its own finding: line. SEVERITY is critical, high, medium, low or info. DISPOSITION is open, fixed or rejected. START and END are optional 1-based line numbers. " +
+		"changes_requested must list at least one finding. A passed verdict cannot leave blocking findings unresolved. Tandem supplies the job, attempt, patch and tree from the stored job. Edit only the verdict file; do not edit source files."
 }

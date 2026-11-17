@@ -32,27 +32,35 @@ At start Tandem hashes the run's configuration, including the policy and the rev
 
 ## What the reviewer does
 
-Each mailbox review effect creates a private directory under `<relay>/durable/<run>/review/<effect>/`. It contains an executable `handback` and an initially empty `verdict.json`. The prompt gives the paths and asks the reviewer to:
+Each mailbox review effect creates a private directory under `<relay>/durable/<run>/review/<effect>/`. It contains an executable `handback` and an initially empty `verdict.txt`. The prompt gives the paths and asks the reviewer to:
 
 1. Run `<path>/handback --started` when it begins.
-2. Write one verdict to `<path>/verdict.json`.
+2. Write one verdict to `<path>/verdict.txt`.
 3. Run `<path>/handback`, then stop when it succeeds.
 
-The verdict contains only the reviewer's judgment:
+The verdict holds only the reviewer's judgment, as plain text:
 
-```json
-{"schema_version":1,"status":"passed","findings":[]}
+```text
+status: changes_requested
+
+finding: high open internal/app/main.go:12-14
+Step 5 requires: "Lint must pass with no icon warnings." The check still prints one.
+
+finding: low open README.md
+Another message, on as many lines as needed.
 ```
 
-`changes_requested` needs at least one finding. Each finding has `severity`, `path`, `disposition` and `message`, with optional 1-based `start_line` and `end_line`. The existing severity, disposition and blocking-finding rules apply unchanged.
+The first line is `status:` and then `passed`, `changes_requested` or `failed`. Each finding starts with a `finding:` line that gives the severity, the disposition and the path, with an optional 1-based `:START` or `:START-END` line range. The lines after it, up to the next `finding:` line, are the message. `changes_requested` needs at least one finding. The existing severity, disposition and blocking-finding rules apply unchanged.
+
+Tandem builds the JSON from this text, so the reviewer escapes nothing. A finding often quotes code, a plan step or an error. When reviewers wrote the JSON by hand, they left those quotes unescaped, and the verdict did not parse (issue #60). A verdict written as JSON is refused, and the error shows the text format.
 
 The generated command holds the run, task, attempt, job, effect and nonce, and delegates to `tandem-handback`. The reviewer copies no identifiers or hashes. The command changes to the repository root, so it also works when invoked from another directory. Retrying prompt creation preserves a verdict already written.
 
-Before writing any queue files, the CLI checks the verdict using the workflow validator. A malformed verdict exits nonzero with its exact reason, so the reviewer can repair it in the same turn. These checks do not open the state database.
+Before writing any queue files, `tandem build event new` reads the text, builds the JSON and checks it with the workflow validator. A malformed verdict exits nonzero with its exact reason, and the reason names the line it could not read. The reviewer can repair it in the same turn. These checks do not open the state database.
 
-Tandem stages valid submissions and applies them only after the reviewer has finished its turn. It binds the verdict to the stored job's identifiers and hashes, then runs the existing validation, current-attempt, reviewer-identity, tree and transaction-fence checks. Removing echoed hashes transfers responsibility for the tree binding to the controller: it checks the checkout against `job.TreeHash` again before recording the bound result, and pauses with `source_mutated` if it moved. The exact submitted verdict remains an immutable artifact, separate from the bound result.
+Tandem stages valid submissions and applies them only after the reviewer has finished its turn. It binds the verdict to the stored job's identifiers and hashes, then runs the existing validation, current-attempt, reviewer-identity, tree and transaction-fence checks. Removing echoed hashes transfers responsibility for the tree binding to the controller: it checks the checkout against `job.TreeHash` again before recording the bound result, and pauses with `source_mutated` if it moved. The verdict JSON that Tandem built remains an immutable artifact, separate from the bound result.
 
-Complete old-style result objects remain accepted, but any supplied identity field requires the full identity and matching hashes. Tandem never repairs a supplied identity. Manual `review-record` and protocol 2 continue to require the full result.
+The mailbox still accepts a queued complete result object, but any supplied identity field requires the full identity and matching hashes. Tandem never repairs a supplied identity. Manual `review-record` and protocol 2 continue to require the full result as JSON. A protocol 2 reply in the pane that names the job but is not valid JSON is rejected at once: the reviewer gets the decoder's error, the byte offset and the text just before it, and need not wait out the review timeout.
 
 A rejected submission records its reason on the attempt and in `review/<effect>/rejected.txt`. `build status --json` exposes `review_rejection` on the current attempt, and a `review_unknown` pause includes the reason. Once its pane settles, the reviewer receives one correction prompt per rejected payload. Repeated ticks do not repeat that prompt, and a successful result clears the current rejection. Ambiguous feedback delivery is not retried automatically.
 

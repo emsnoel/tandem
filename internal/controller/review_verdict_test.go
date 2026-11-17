@@ -59,8 +59,8 @@ func TestGeneratedReviewHandbackBindsArgumentsAndPreservesVerdict(t *testing.T) 
 	if err := prepareReviewHandback(cfg, &p); err != nil {
 		t.Fatal(err)
 	}
-	verdict := filepath.Join(p.HandbackDir, "verdict.json")
-	want := `{"schema_version":1,"status":"passed","findings":[]}`
+	verdict := filepath.Join(p.HandbackDir, verdictFile)
+	want := "status: passed\n"
 	if err := os.WriteFile(verdict, []byte(want), 0600); err != nil {
 		t.Fatal(err)
 	}

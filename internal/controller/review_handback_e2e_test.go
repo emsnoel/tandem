@@ -72,19 +72,26 @@ func TestGeneratedReviewHandbackEndToEnd(t *testing.T) {
 				e.tick()
 			}
 			// A malformed verdict must fail locally, leaving no event for the
-			// controller to reject.
-			verdict := filepath.Join(dir, "verdict.json")
-			if err := os.WriteFile(verdict, []byte(`{"schema_version":1,"status":"changes_requested","findings":[]}`), 0600); err != nil {
-				t.Fatal(err)
+			// controller to reject. JSON is refused with the format to use.
+			verdict := filepath.Join(dir, "verdict.txt")
+			for body, want := range map[string]string{
+				`{"schema_version":1,"status":"failed","findings":[{"message":"it requires: "Lint must pass.""}]}`: "plain text, not JSON",
+				"status: changes_requested\n": "must say what to change",
+			} {
+				if err := os.WriteFile(verdict, []byte(body), 0600); err != nil {
+					t.Fatal(err)
+				}
+				out, err := run()
+				if err == nil || !strings.Contains(string(out), want) {
+					t.Fatalf("invalid verdict should fail with %q: %v\n%s", want, err, out)
+				}
+				if len(queued()) != 0 {
+					t.Fatal("invalid verdict queued an event")
+				}
 			}
-			out, err := run()
-			if err == nil || !strings.Contains(string(out), "must say what to change") {
-				t.Fatalf("invalid verdict should fail with actionable error: %v\n%s", err, out)
-			}
-			if len(queued()) != 0 {
-				t.Fatal("invalid verdict queued an event")
-			}
-			if err := os.WriteFile(verdict, []byte(`{"schema_version":1,"status":"passed","findings":[]}`), 0600); err != nil {
+			// A finding that quotes the plan is recorded as written (#60).
+			quoted := "Task 1, Step 5 explicitly requires: \"Lint must pass with no icon warnings.\" See `C:\\icons`."
+			if err := os.WriteFile(verdict, []byte("status: changes_requested\n\nfinding: medium open greet.go:1-2\n"+quoted+"\n"), 0600); err != nil {
 				t.Fatal(err)
 			}
 			if out, err := run(); err != nil {
@@ -110,17 +117,30 @@ func TestGeneratedReviewHandbackEndToEnd(t *testing.T) {
 				t.Fatalf("wrapper queued wrong binding: %s", raw)
 			}
 			e.tick()
-			if e.reviewState(att) == workflow.ReviewPassed {
-				t.Fatal("accepted verdict before reviewer turn ended")
+			if e.reviewState(att) != workflow.ReviewPending && e.reviewState(att) != workflow.ReviewRunning {
+				t.Fatalf("applied verdict before reviewer turn ended: %s", e.reviewState(att))
 			}
 			e.reviewerFinished(att, "reviewer-session")
 			e.tick()
-			if got := e.reviewState(att); got != workflow.ReviewPassed {
+			if got := e.reviewState(att); got != workflow.ReviewChangesRequested {
 				t.Fatalf("queued verdict did not apply: %s", got)
 			}
 			e.tick()
 			if got := e.eventCount("review_completed"); got != 1 {
 				t.Fatalf("review applied %d times", got)
+			}
+			hash, found, err := e.st.RecordedReviewResult(ctx, prompt.JobID)
+			if err != nil || !found {
+				t.Fatalf("no recorded result: %v", err)
+			}
+			raw, err = e.art.ReadAll(ctx, hash, 1<<20)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var recorded workflow.ReviewResult
+			if err := json.Unmarshal(raw, &recorded); err != nil || len(recorded.Findings) != 1 || recorded.Findings[0].Message != quoted ||
+				recorded.Findings[0].Path != "greet.go" || *recorded.Findings[0].StartLine != 1 || *recorded.Findings[0].EndLine != 2 {
+				t.Fatalf("recorded %s (%v); want the message %q as written", raw, err, quoted)
 			}
 		})
 	}

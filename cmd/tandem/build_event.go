@@ -5,7 +5,9 @@ package main
 //
 //	tandem build event new --root DIR --kind K --task N --attempt A --job J --effect E --nonce X [--payload FILE]
 //	    run by the builder (tandem-handback): writes the payload and a versioned
-//	    envelope into the run's mailbox, with a random event id.
+//	    envelope into the run's mailbox, with a random event id. A version 3
+//	    review_result payload is the reviewer's verdict text; tandem queues
+//	    the JSON it builds from it.
 //	tandem build event ingest --root DIR --claimed FILE [--state-home H] [--session-settled]
 //	    run by the bridge on a file it has claimed: validates, imports, applies,
 //	    records a receipt, removes the file or quarantines it.
@@ -101,7 +103,16 @@ func cmdEventNew(args []string) int {
 		}
 	}
 	if version >= 3 && *kind == controller.EventReviewResult {
-		if err := workflow.ValidateVerdictRaw(body); err != nil {
+		// A reviewer writes its verdict as text and tandem builds the JSON,
+		// so a message that quotes text needs no escaping.
+		verdict, err := workflow.ParseVerdict(body)
+		if err == nil {
+			body, err = json.Marshal(verdict)
+		}
+		if err == nil {
+			err = workflow.ValidateVerdictRaw(body)
+		}
+		if err != nil {
 			fmt.Fprintln(os.Stderr, "tandem build event:", err)
 			return exitcode.Usage
 		}

@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -60,5 +61,23 @@ func TestDecodeReviewRejectsMalformedOrIncompletePayloads(t *testing.T) {
 				t.Fatal("local validation accepted invalid payload")
 			}
 		})
+	}
+}
+
+// A result that is not JSON says where it stops being JSON: the decoder's
+// error, the byte offset and the text just before it (#60).
+func TestDecodeReviewNamesTheByteWhereJSONBreaks(t *testing.T) {
+	_, job := reviewFixture()
+	raw := `{"schema_version":1,"status":"failed","findings":[{"severity":"high","path":"a.go","disposition":"open","message":"it requires: "Lint must pass.""}]}`
+	offset := strings.Index(raw, `"Lint`) + 2
+	for name, err := range map[string]error{"DecodeReview": func() error { _, err := DecodeReview([]byte(raw), job); return err }(), "ValidateVerdictRaw": ValidateVerdictRaw([]byte(raw))} {
+		if err == nil {
+			t.Fatalf("%s accepted unescaped quotes", name)
+		}
+		for _, want := range []string{"not valid JSON", "invalid character 'L'", fmt.Sprintf("at byte %d", offset), `requires: \"L`} {
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("%s: %q does not say %q", name, err, want)
+			}
+		}
 	}
 }

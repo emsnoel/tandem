@@ -3,6 +3,7 @@ package workflow
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"regexp"
@@ -121,7 +122,7 @@ func decodeReviewObject(raw []byte) (ReviewResult, bool, error) {
 	}
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &fields); err != nil {
-		return bad(err)
+		return bad(JSONError(raw, err))
 	}
 	if fields == nil {
 		return bad(fmt.Errorf("must be one JSON object"))
@@ -146,6 +147,24 @@ func decodeReviewObject(raw []byte) (ReviewResult, bool, error) {
 		return bad(fmt.Errorf("must be one JSON object"))
 	}
 	return result, hasIdentity, nil
+}
+
+// JSONError says where raw stops being JSON: the decoder's error, the byte
+// offset it stopped at and the text just before that byte. A reviewer who
+// quoted text without escaping its quotes can find the quote from this alone.
+// Any other error is returned unchanged.
+func JSONError(raw []byte, err error) error {
+	var syntax *json.SyntaxError
+	if !errors.As(err, &syntax) {
+		return err
+	}
+	end := int(min(syntax.Offset, int64(len(raw))))
+	start := max(0, end-40)
+	for start < end && !utf8.RuneStart(raw[start]) {
+		start++
+	}
+	return fmt.Errorf("not valid JSON: %v at byte %d, just after %q. Where a string quotes text, escape each double quote in it as \\\"",
+		err, syntax.Offset, raw[start:end])
 }
 
 // ValidateReview checks a result's structure and that it belongs to job: the

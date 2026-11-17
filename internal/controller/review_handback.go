@@ -9,6 +9,10 @@ import (
 
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'" }
 
+// verdictFile is where a reviewer writes its verdict, as text. Tandem builds
+// the JSON from it, so the reviewer escapes nothing.
+const verdictFile = "verdict.txt"
+
 // prepareReviewHandback creates a command bound to one effect. Retrying prompt
 // creation never truncates the verdict the reviewer may already have written.
 func prepareReviewHandback(cfg runConfig, p *ReviewPacket) error {
@@ -16,7 +20,7 @@ func prepareReviewHandback(cfg runConfig, p *ReviewPacket) error {
 	if err := os.MkdirAll(p.HandbackDir, 0700); err != nil {
 		return err
 	}
-	verdict := filepath.Join(p.HandbackDir, "verdict.json")
+	verdict := filepath.Join(p.HandbackDir, verdictFile)
 	f, err := os.OpenFile(verdict, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err == nil {
 		err = f.Close()

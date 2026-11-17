@@ -2,6 +2,7 @@ package controller
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -14,13 +15,13 @@ func TestLastReviewObjectFindsTheReplyAmongNoise(t *testing.T) {
 	other := `{"job_id":"00000000000000000000000000000000","status":"passed"}`
 	mine := `{"job_id":"` + job + `","status":"passed","findings":[]}`
 	text := "> prompt {example}\n• " + other + "\n• " + mine + "\n  Worked for 2s\n"
-	if got := string(lastReviewObject(text, job)); got != mine {
+	if got := string(replyIn(t, text, job)); got != mine {
 		t.Fatalf("got %q, want %q", got, mine)
 	}
-	if got := lastReviewObject(text, "ffffffffffffffffffffffffffffffff"); got != nil {
+	if got := replyIn(t, text, "ffffffffffffffffffffffffffffffff"); got != nil {
 		t.Fatalf("an object for another job was returned: %q", got)
 	}
-	if got := lastReviewObject("{ not json "+job, job); got != nil {
+	if got := replyIn(t, "{ not json "+job, job); got != nil {
 		t.Fatalf("broken JSON was returned: %q", got)
 	}
 }
@@ -30,7 +31,7 @@ func TestLastReviewObjectJoinsALineTheCLIWrapped(t *testing.T) {
 	hash := "d781c704c8d88a05719572136f455c769b360a0106d63cf6a00657202008a0d7"
 	text := "• {\"schema_version\":1,\"job_id\":\"" + job + "\",\"tree_hash\":\"" + hash[:40] + "\n  " + hash[40:] + "\",\"status\":\"passed\",\"findings\":[]}\n  Worked for 2s\n"
 	want := `{"schema_version":1,"job_id":"` + job + `","tree_hash":"` + hash + `","status":"passed","findings":[]}`
-	if got := string(lastReviewObject(text, job)); got != want {
+	if got := string(replyIn(t, text, job)); got != want {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 }
@@ -59,7 +60,7 @@ func wrappedReply(job string) (shown, want string) {
 func TestLastReviewObjectSkipsTheEchoedPromptForAWrappedReply(t *testing.T) {
 	job := strings.Repeat("a", 32)
 	shown, want := wrappedReply(job)
-	if got := string(lastReviewObject(echoedPane(job, shown), job)); got != want {
+	if got := string(replyIn(t, echoedPane(job, shown), job)); got != want {
 		t.Fatalf("got %q, want the wrapped reply %q", got, want)
 	}
 }
@@ -67,14 +68,14 @@ func TestLastReviewObjectSkipsTheEchoedPromptForAWrappedReply(t *testing.T) {
 func TestLastReviewObjectSkipsTheEchoedPromptForAnUnwrappedReply(t *testing.T) {
 	job := strings.Repeat("a", 32)
 	reply := `{"schema_version":1,"job_id":"` + job + `","status":"passed","findings":[]}`
-	if got := string(lastReviewObject(echoedPane(job, reply), job)); got != reply {
+	if got := string(replyIn(t, echoedPane(job, reply), job)); got != reply {
 		t.Fatalf("got %q, want %q", got, reply)
 	}
 }
 
 func TestLastReviewObjectIgnoresAnEchoedPromptWithoutAReply(t *testing.T) {
 	job := strings.Repeat("a", 32)
-	if got := lastReviewObject(echoedPane(job), job); got != nil {
+	if got := replyIn(t, echoedPane(job), job); got != nil {
 		t.Fatalf("the prompt's own example was returned: %q", got)
 	}
 }
@@ -83,8 +84,35 @@ func TestLastReviewObjectTakesTheResendOverARejectedReply(t *testing.T) {
 	job := strings.Repeat("a", 32)
 	rejected := `{"schema_version":1,"job_id":"` + job + `","attempt_id":"` + strings.Repeat("b", 33) + `","status":"passed","findings":[]}`
 	shown, want := wrappedReply(job)
-	if got := string(lastReviewObject(echoedPane(job, rejected, shown), job)); got != want {
+	if got := string(replyIn(t, echoedPane(job, rejected, shown), job)); got != want {
 		t.Fatalf("got %q, want the resend %q", got, want)
+	}
+}
+
+// replyIn is the reply lastReviewObject finds in text, failing the test when
+// it calls the reply broken.
+func replyIn(t *testing.T, text, job string) []byte {
+	t.Helper()
+	raw, err := lastReviewObject(text, job)
+	if err != nil {
+		t.Fatalf("a reply was called broken: %v", err)
+	}
+	return raw
+}
+
+func TestLastReviewObjectReportsABrokenReplyOnlyWhenItIsTheLast(t *testing.T) {
+	job := strings.Repeat("a", 32)
+	good := `{"schema_version":1,"job_id":"` + job + `","status":"passed","findings":[]}`
+	broken := `{"schema_version":1,"job_id":"` + job + `","status":"failed","findings":[{"message":"it says "no""}]}`
+	raw, err := lastReviewObject(echoedPane(job, good, broken), job)
+	if err == nil || !strings.Contains(err.Error(), "at byte") || !strings.HasPrefix(broken, string(raw)) || len(raw) == 0 {
+		t.Fatalf("a broken last reply: %q, %v", raw, err)
+	}
+	if got := replyIn(t, echoedPane(job, broken, good), job); string(got) != good {
+		t.Fatalf("got %q, want the resend %q", got, good)
+	}
+	if got := replyIn(t, echoedPane(job, `{"schema_version":1,"job_id":"`+job+`","status":"pas`), job); got != nil {
+		t.Fatalf("a reply cut off at the end of the pane was returned: %q", got)
 	}
 }
 
@@ -154,4 +182,61 @@ func (e *cenv) toDeliveredReview() workflow.Attempt {
 		e.t.Fatalf("the review prompt was not delivered: %v", e.delivered())
 	}
 	return att
+}
+
+// A pane reply that quotes the plan without escaping its quotes is not JSON.
+// The reviewer hears why, with the byte the decoder stopped at, in the same
+// tick, and a corrected reply is recorded as written (issue #60).
+func TestRunRejectsAPaneReplyWithUnescapedQuotesAtOnce(t *testing.T) {
+	e := newCEnv(t)
+	att := e.toDeliveredReview()
+	e.reviewerFinished(att, "reviewer-session")
+	quoted := `Step 5 requires: "Lint must pass with no icon warnings."`
+	result := e.resultFor(att, workflow.ReviewStatusChangesRequested, workflow.Finding{Severity: workflow.SeverityHigh, Path: "a.go", Disposition: workflow.DispositionOpen, Message: quoted})
+	good := string(encode(result))
+	escaped, _ := json.Marshal(quoted)
+	bad := strings.Replace(good, string(escaped), `"`+quoted+`"`, 1)
+	if bad == good {
+		t.Fatal("the fixture did not unescape the quotes")
+	}
+	prompt := reviewPrompt(reviewPromptData{Task: 1, Slug: "task-1", Job: result.JobID, Attempt: result.AttemptID, PatchHash: result.PatchHash, Tree: result.TreeHash, Patch: "diff"})
+	e.tr.setPane("reviewer-session", "› "+prompt+"\n\n• "+bad+"\n  Worked for 2s\n")
+	before := e.tr.attempts
+	e.tick()
+	rejects, err := e.st.RunReviewRejections(ctx, e.runID)
+	if err != nil || len(rejects) != 1 {
+		t.Fatalf("rejections %+v: %v", rejects, err)
+	}
+	offset := strings.Index(bad, `"Lint`) + 2
+	for _, want := range []string{"not valid JSON", fmt.Sprintf("at byte %d", offset), `requires: \"L`} {
+		if !strings.Contains(rejects[0].Reason, want) {
+			t.Errorf("reason %q does not say %q", rejects[0].Reason, want)
+		}
+	}
+	if !rejects[0].Notified || e.tr.attempts != before+1 {
+		t.Fatalf("the reviewer was not told in the same tick: notified %t, sends %d", rejects[0].Notified, e.tr.attempts-before)
+	}
+	e.tick()
+	if e.tr.attempts != before+1 {
+		t.Fatal("the same rejection was sent again")
+	}
+
+	e.tr.setPane("reviewer-session", "› "+prompt+"\n\n• "+bad+"\n\n• "+good+"\n")
+	e.reviewerFinished(att, "reviewer-session")
+	e.tick()
+	if got := e.reviewState(att); got != workflow.ReviewChangesRequested {
+		t.Fatalf("review state %q after the corrected reply", got)
+	}
+	hash, found, err := e.st.RecordedReviewResult(ctx, result.JobID)
+	if err != nil || !found {
+		t.Fatalf("no recorded result: %v", err)
+	}
+	raw, err := e.art.ReadAll(ctx, hash, 1<<20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var recorded workflow.ReviewResult
+	if err := json.Unmarshal(raw, &recorded); err != nil || len(recorded.Findings) != 1 || recorded.Findings[0].Message != quoted {
+		t.Fatalf("recorded %s (%v); want the message %q as written", raw, err, quoted)
+	}
 }

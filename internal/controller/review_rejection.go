@@ -103,7 +103,7 @@ func (c *Controller) sendReviewRejections(ctx context.Context, run state.Run, cf
 		message := fmt.Sprintf("Tandem rejected your review: %s. Correct the result and resend for this review. Do not edit source files.", r.Reason)
 		if cfg.ReviewProtocol >= 3 {
 			dir := filepath.Join(RunDir(cfg.relay(), run.ID), "review", eff.ID)
-			message = fmt.Sprintf("Tandem rejected your review: %s. Read %s, correct %s and run %s. Do not edit source files.", r.Reason, shellQuote(filepath.Join(dir, "rejected.txt")), shellQuote(filepath.Join(dir, "verdict.json")), shellQuote(filepath.Join(dir, "handback")))
+			message = fmt.Sprintf("Tandem rejected your review: %s. Read %s, correct %s and run %s. Do not edit source files.", r.Reason, shellQuote(filepath.Join(dir, "rejected.txt")), shellQuote(filepath.Join(dir, verdictFile)), shellQuote(filepath.Join(dir, "handback")))
 		}
 		hash, err := c.put(ctx, strings.Join(strings.Fields(message), " "))
 		if err != nil {
