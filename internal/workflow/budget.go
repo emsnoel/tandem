@@ -5,10 +5,10 @@ import (
 	"math"
 )
 
-// BudgetPolicy limits what model work a run may start. The limits count total
-// logical input (cache included), as the legacy task budget did; 0 turns a limit
-// off. TaskInputLimit is for one task, across its attempts and their reviews;
-// RunInputLimit is for the whole run. The two are independent.
+// BudgetPolicy limits what model work a run may start. The limits count input
+// as BudgetInput weighs it; 0 turns a limit off. TaskInputLimit is for one task,
+// across its attempts and their reviews; RunInputLimit is for the whole run. The
+// two are independent.
 type BudgetPolicy struct {
 	TaskInputLimit, RunInputLimit int64
 	// WarnFraction of a limit is where a warning starts, inclusive.
@@ -78,23 +78,52 @@ func rank(s BudgetState) int {
 	return 0
 }
 
+// CachedInputDivisor sets how much a cached input token counts against a budget.
+// A cache read costs about a tenth of fresh input, so a cached token counts as
+// 1/10 of a token. This is the only place that sets the weight.
+const CachedInputDivisor = 10
+
+// BudgetInput is the input a budget counts. When the cache split is known (see
+// Usage.Uncached), it is the fresh input plus the cached input divided by
+// CachedInputDivisor, rounded up, and weighted is true. Otherwise it is the whole
+// input, counted in full, since a discount would be a guess. With no input known
+// it is 0 and false.
+func BudgetInput(u Usage) (counted int64, weighted bool) {
+	if fresh, ok := u.Uncached(); ok {
+		cached := *u.CachedInput
+		w := cached / CachedInputDivisor
+		if cached%CachedInputDivisor != 0 {
+			w++
+		}
+		return fresh + w, true
+	}
+	if u.Input == nil {
+		return 0, false
+	}
+	return *u.Input, false
+}
+
 func evaluateScope(scope string, limit int64, u Usage, p BudgetPolicy) BudgetDecision {
 	if limit <= 0 {
 		return BudgetDecision{State: BudgetAvailable, SchedulingAllowed: true}
 	}
 	if u.Input != nil {
-		in := *u.Input
+		in, weighted := BudgetInput(u)
+		split := " (the cached share is not known, so every token counts in full)"
+		if weighted {
+			split = fmt.Sprintf(" (%d fresh and %d cached, and a cached token counts as 1/%d)", *u.Input-*u.CachedInput, *u.CachedInput, CachedInputDivisor)
+		}
 		switch {
 		case in >= limit:
-			return BudgetDecision{State: BudgetExhausted, Scope: scope, Reason: fmt.Sprintf("the %s has used %d input tokens, which reaches its limit of %d", scope, in, limit)}
+			return BudgetDecision{State: BudgetExhausted, Scope: scope, Reason: fmt.Sprintf("the %s's input counts as %d tokens%s, which reaches its limit of %d", scope, in, split, limit)}
 		case u.Completeness == UsageComplete:
 			if float64(in) >= p.WarnFraction*float64(limit) {
 				return BudgetDecision{State: BudgetWarning, SchedulingAllowed: true, Scope: scope,
-					Reason: fmt.Sprintf("the %s has used %d of %d input tokens", scope, in, limit)}
+					Reason: fmt.Sprintf("the %s's input counts as %d of its %d tokens%s", scope, in, limit, split)}
 			}
 			return BudgetDecision{State: BudgetAvailable, SchedulingAllowed: true, Scope: scope}
 		}
-		return unknown(scope, p, fmt.Sprintf("the %s's usage is only partly known (at least %d of %d input tokens)", scope, in, limit))
+		return unknown(scope, p, fmt.Sprintf("the %s's usage is only partly known, at least %d of %d input tokens%s", scope, in, limit, split))
 	}
 	return unknown(scope, p, fmt.Sprintf("the %s's usage is not known, so its limit of %d cannot be checked", scope, limit))
 }

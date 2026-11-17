@@ -55,8 +55,8 @@ JSON array, it looks at the whole tree. tandem doesn't guess a value, because un
 `check_command` there is no sensible default.
 
 `task_input_budget` is how many input tokens one build task may use, subagents included,
-before tandem stops the build for a person to look. The default is 3,000,000, and 0 turns it
-off. See [What stops a build](builds.md#what-stops-a-build).
+before tandem stops the build for a person to look. A cached input token counts as a tenth
+of a token. The default is 3,000,000, and 0 turns it off. See [What stops a build](builds.md#what-stops-a-build).
 
 `context_limit` is the largest prompt, in bytes, that a durable run gives the builder for
 one task. When unset or 0, the engine's default of 24,000 applies.

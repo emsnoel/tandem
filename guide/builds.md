@@ -47,6 +47,12 @@ a missed reset or a runaway task long before a usage window runs out. tandem mea
 from the session logs of Codex, Claude and Copilot. When usage can't be read, a configured
 budget pauses the run.
 
+The limit counts fresh input in full and a cache read as a tenth of a token, because a cache
+read costs about a tenth as much. A task that re-reads 8.89M cached tokens and adds 0.26M
+fresh counts as 1.15M, so it keeps going. When a log doesn't say which part came from cache,
+every token counts in full. The pause note names the fresh and cached figures, and
+`tandem build usage` still shows the raw counts.
+
 `tandem build status --json` shows each task's attempts, check and review.
 
 We measured a live run on 2026-09-28, with codex-cli 0.158.0 and the eval fixture's 3-task
