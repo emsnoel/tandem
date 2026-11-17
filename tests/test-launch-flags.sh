@@ -82,7 +82,7 @@ chk  "auto-approves tools"            "--allow-all-tools"
 chk  "auto-approves urls"             "--allow-all-urls"
 chk  "removes the ask_user stall"     "--no-ask-user"
 chk  "starts a fresh session"         "--session-id"
-chk  "passes the effort"              "--effort high"
+chk  "passes the effort"              "--reasoning-effort high"
 nchk "never passes a codex sandbox"   "--sandbox"
 chk  "auto-approves paths"            "--allow-all-paths"
 
