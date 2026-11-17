@@ -69,3 +69,17 @@ func TestTheTaskFooterSaysWhenToStop(t *testing.T) {
 		at = i
 	}
 }
+
+// A builder that hands back from outside the repo found no run (#61), so both
+// handback commands name the run's root.
+func TestTheTaskFooterNamesTheRoot(t *testing.T) {
+	footer := promptFooter(promptData{Task: 1, Root: "/work/my repo", Run: "r", Attempt: "a", Job: "j", Effect: "e", Nonce: "n"})
+	for _, want := range []string{
+		"tandem-handback --root '/work/my repo' --task 1 --run r --attempt a --job j --effect e --nonce n --started",
+		"tandem-handback --root '/work/my repo' --task 1 --run r --attempt a --job j --effect e --nonce n --report <file>",
+	} {
+		if !strings.Contains(footer, want) {
+			t.Errorf("the footer is missing %q:\n%s", want, footer)
+		}
+	}
+}

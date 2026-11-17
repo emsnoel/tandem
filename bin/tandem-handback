@@ -35,10 +35,11 @@ STARTED=0
 REVIEW_STARTED=0
 REVIEW_RESULT=""
 RUN_ID=""; ATTEMPT_ID=""; JOB_ID=""; EFFECT_ID=""; NONCE=""
+ROOT_OPT=""
 
 usage() {
   cat <<'USAGE'
-usage: tandem-handback [--report FILE|-] [--plan PATH] [--task N [--stuck]] [--role NAME] [--dry-run]
+usage: tandem-handback [--root DIR] [--report FILE|-] [--plan PATH] [--task N [--stuck]] [--role NAME] [--dry-run]
 
 Tells the planner the plan is implemented and hands it the completion report.
 Run this from the builder when you finish; it is how the session gets closed.
@@ -47,6 +48,8 @@ With --task, hands back ONE task of the run tandem is driving: the report is
 queued for the relay bridge, which checks the task and sends the next one to
 a fresh conversation. It never goes to the planner directly.
 
+  --root DIR      the repo the work is in, so this runs from any directory.
+                  Without it, the current directory's repo.
   --report FILE   file holding the report. "-" or omitted reads stdin.
   --plan PATH     the plan that was implemented, named in the message
   --task N        the task being handed back
@@ -79,6 +82,7 @@ info() { printf 'tandem-handback: %s\n' "$*" >&2; }
 
 while (( $# )); do
   case "$1" in
+    --root)    ROOT_OPT="${2:-}"; shift 2 ;;
     --report)  REPORT_FILE="${2:-}"; shift 2 ;;
     --plan)    PLAN_PATH="${2:-}"; shift 2 ;;
     --task)    TASK="${2:-}"; shift 2 ;;
@@ -111,6 +115,10 @@ elif (( STARTED )); then
   die "--started only means something with --task."
 elif (( REVIEW_STARTED )) || [[ -n "$REVIEW_RESULT" ]]; then
   die "--review-started and --review-result only mean something with --task."
+fi
+if [[ -n "$ROOT_OPT" ]]; then
+  [[ -d "$ROOT_OPT" ]] || die "--root $ROOT_OPT is not a directory."
+  ROOT_OPT=$(cd "$ROOT_OPT" && pwd)
 fi
 [[ -z "$ROLE" || "$ROLE" =~ ^[A-Za-z0-9_-]+$ ]] || die "--role must be a pane name such as reviewer (got '$ROLE')."
 if (( REVIEW_STARTED )) && [[ -n "$REVIEW_RESULT" ]]; then
@@ -146,8 +154,8 @@ fi
 
 # --- where the report lands ---
 # Inside the relay, which is already ignored and cleared by tandem-unpair.
-ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
-ROOT="${ROOT:-$PWD}"
+ROOT=$(git -C "${ROOT_OPT:-$PWD}" rev-parse --show-toplevel 2>/dev/null || true)
+ROOT="${ROOT:-${ROOT_OPT:-$PWD}}"
 MAILBOX=$(tandem paths relay --root "$ROOT") \
   || die "the installed tandem is behind these commands (no 'tandem paths'); re-run install.sh."
 pair_names "$ROOT"

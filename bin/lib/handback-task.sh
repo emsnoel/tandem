@@ -8,12 +8,15 @@
 
 # --- a run? ---
 # Look for the run marker in both the git toplevel's relay and the builder's
-# own directory. An unreadable marker stops
+# own directory. --root stands in for the builder's directory, so a builder
+# that works outside the repo still finds the run. SEARCHED names the
+# directories looked in, for the refusal. An unreadable marker stops
 # here rather than reading as "no run".
 detect_durable() {
-  local top cand dir found id
-  top=$(git rev-parse --show-toplevel 2>/dev/null || true); top="${top:-$PWD}"
-  for cand in "$top" "$PWD"; do
+  local here="${ROOT_OPT:-$PWD}" top cand dir id
+  top=$(git -C "$here" rev-parse --show-toplevel 2>/dev/null || true); top="${top:-$here}"
+  SEARCHED="$top"; [[ "$here" == "$top" ]] || SEARCHED="$top and $here"
+  for cand in "$top" "$here"; do
     dir=$(tandem paths relay --root "$cand") || die "the installed tandem is behind these commands (no 'tandem paths'); re-run install.sh."
     [[ -e "$dir/active-run.json" ]] || continue
     id=$(tandem state active-run --relay "$dir" 2>/dev/null) && [[ -n "$id" ]] \
@@ -32,7 +35,7 @@ durable_handback() {
     detect_durable
   fi
   if [[ -z "$DURABLE_RUN" && -n "$RUN_ID$ATTEMPT_ID$JOB_ID$EFFECT_ID$NONCE" ]]; then
-    die "--run/--attempt/--job/--effect/--nonce name a run, but none is active here. Nothing was sent."
+    die "--run/--attempt/--job/--effect/--nonce name a run, but no run is marked in the relay of the directory searched ($SEARCHED). Run this from the repo the task is in, or pass --root REPO. Nothing was sent."
   fi
   if [[ -z "$DURABLE_RUN" && -n "$TASK" ]]; then
     die "no run is active here, so there is no task $TASK to hand back. Hand back without --task. Nothing was sent."

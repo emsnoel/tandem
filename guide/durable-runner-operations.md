@@ -70,11 +70,13 @@ does not always show a turn starting.
        tandem state export --run ID --output PATH --root DIR
 
 3. If the builder read it, it can acknowledge with the identity from its prompt
-   (`tandem-handback --task N --run ID --attempt ID --job ID --effect ID --nonce ID --started`).
+   (`tandem-handback --root DIR --task N --run ID --attempt ID --job ID --effect ID --nonce ID --started`).
 
    Durable task acknowledgements and handbacks use the active-run marker and the
    identity from the task prompt. Run the commands as printed even if your agent
    shell does not inherit `HERDR_ENV` or `HERDR_ROLE`. Keep every identity flag.
+   `--root` names the run's repo, so the command works from any directory.
+   Without it, tandem-handback looks for the run in the current directory's repo.
 
    Then reconcile:
 

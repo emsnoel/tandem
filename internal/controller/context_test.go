@@ -61,7 +61,7 @@ func TestBuilderPromptIsThePersistedPacketWithItsManifest(t *testing.T) {
 	prompt, m := e.packet(att)
 	eff := e.builderEffect(att)
 	for _, want := range []string{"Implement task 1 of 2 (task-1)", "**Goal:** greet.", "Do the first thing.", "Your task:",
-		"tandem-handback --task 1 --run " + e.runID + " --attempt " + att.ID, "--nonce " + eff.Nonce + " --started", "--report <file>"} {
+		"tandem-handback --root '", "/repo' --task 1 --run " + e.runID + " --attempt " + att.ID, "--nonce " + eff.Nonce + " --started", "--report <file>"} {
 		if !strings.Contains(prompt, want) {
 			t.Errorf("the prompt is missing %q:\n%s", want, prompt)
 		}
