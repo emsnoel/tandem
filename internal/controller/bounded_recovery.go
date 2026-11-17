@@ -58,21 +58,7 @@ func (c *Controller) failureEvidence(ctx context.Context, run state.Run, parent 
 		}
 		return failureEvidence{}, notShown()
 	case state.CauseCheckFailure:
-		if parent.Check != workflow.CheckFailed {
-			return failureEvidence{}, notShown()
-		}
-		cert, found, err := c.d.State.AttemptCheckCertificate(ctx, parent.ID)
-		if err != nil {
-			return failureEvidence{}, err
-		}
-		if !found || !cert.Complete || cert.ExitCode == 0 {
-			return failureEvidence{}, notShown()
-		}
-		log, err := c.d.Artifacts.ReadAll(ctx, cert.LogHash, 64<<20)
-		if err != nil {
-			return failureEvidence{}, err
-		}
-		return failureEvidence{Hash: cert.LogHash, Excerpt: boundExcerpt(string(log), false)}, nil
+		return c.checkFailure(ctx, parent)
 	case state.CauseStuck:
 		if parent.Implementation != workflow.ImplementationStuck {
 			return failureEvidence{}, notShown()

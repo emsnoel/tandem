@@ -7,7 +7,8 @@
 #   - a provider that rejects every turn pauses dispatch_failed;
 #   - a send nobody saw start waits for an acknowledgement before any note is typed;
 #   - a startup dialog leaves the send delivery_unknown, and the note names the builder;
-#   - a failed check names the task and offers no waiver that cannot move the run;
+#   - a failed check goes back to the builder as a repair, and once the repairs
+#     are used up its note names the task and offers no waiver that cannot move the run;
 #   - a plan edited mid-run, and a deliberate stop, each get their own note;
 #   - a reviewer's changes_requested starts a repair and sends no note.
 # The quiet pauses, which need a bridge that stays up, are in
@@ -81,13 +82,20 @@ has "and tells the planner to look at that pane" "$NOTE" "Look at the builder pa
 once_only dialog
 rm -f "$FAKE/swallow"
 
-printf '\n== a failed check names the task ==\n'
+printf '\n== a failed check goes back to the builder, then names the task ==\n'
 new_case check false
 builder_turn
-[ "$(state)" = paused/check_failed ] && ok "the run pauses check_failed" || nope "state $(state)"
+[ "$(state)" = running/ ] && ok "a failed check does not pause the run" || nope "state $(state)"
+[ "$(sent_to builder)" = 2 ] && ok "the builder gets a repair prompt" || nope "builder prompts: $(sent_to builder)"
+has "the repair prompt says the check failed" "$(cat "$FAKE/prompt.$(grep -n "^builder$TAB" "$FAKE/prompts" | tail -1 | cut -d: -f1).txt")" "The check failed on attempt 1"
+[ "$(sent_to planner)" = 0 ] && ok "the planner was told nothing yet" || nope "notes: $(sent_to planner)"
+builder_turn
+builder_turn
+[ "$(sent_to builder)" = 3 ] && ok "the task gets three attempts in all" || nope "builder prompts: $(sent_to builder)"
+[ "$(state)" = paused/check_failed ] && ok "the run pauses check_failed once the repairs are used up" || nope "state $(state)"
 NOTE=$(last_note)
 [ "$(sent_to planner)" = 1 ] && ok "the planner got one note" || nope "notes: $(sent_to planner)"
-has "it says the check failed" "$NOTE" "stopped: the check for the task failed."
+has "it says the check failed" "$NOTE" "stopped: the check for the task failed on every attempt the task had."
 has "it names the task" "$NOTE" "Task: task-1"
 # A waiver does not move a paused run (pause-note.sh), so the note must not offer one.
 lack "it offers no waiver" "$NOTE" "--waive"

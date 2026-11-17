@@ -1,10 +1,11 @@
 package controller
 
 // What a repair attempt is told. A repair is a new attempt in a fresh
-// conversation, so it is given the reviewer's findings that are still open and
-// the files the previous attempt changed, not the previous conversation. The
-// text is bounded, and the full review stays readable through the artifact
-// protocol for the new attempt.
+// conversation, so it is given the end of the failed check's log or the
+// reviewer's findings that are still open, and the files the previous attempt
+// changed, not the previous conversation. The text is bounded, and the full
+// log or review stays readable through the artifact protocol for the new
+// attempt.
 
 import (
 	"context"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/emsnoel/tandem/internal/state"
 	"github.com/emsnoel/tandem/internal/workflow"
 )
 
@@ -35,9 +37,24 @@ type repairContext struct {
 // repairFor builds the context for the attempt that repairs parent.
 func (c *Controller) repairFor(ctx context.Context, parent workflow.Attempt) (repairContext, error) {
 	var b strings.Builder
-	fmt.Fprintf(&b, "This is attempt %d. The reviewer asked for changes to attempt %d; its work is still in the tree. This is a fresh conversation: fix what the reviewer found, starting from what follows.",
-		parent.Ordinal+1, parent.Ordinal)
 	var rc repairContext
+	if parent.Check == workflow.CheckFailed {
+		ev, err := c.checkFailure(ctx, parent)
+		if err != nil {
+			return rc, err
+		}
+		fmt.Fprintf(&b, "This is attempt %d. The check failed on attempt %d; its work is still in the tree. This is a fresh conversation: make the check pass, starting from what follows.",
+			parent.Ordinal+1, parent.Ordinal)
+		if ev.Excerpt == "" {
+			b.WriteString("\n\nThe check printed nothing. Run the project's check command to see why it fails.\n")
+		} else {
+			fmt.Fprintf(&b, "\n\nThe end of the check's log (the whole log is `tandem artifact read %s --attempt ATTEMPT`, where ATTEMPT is in the Context line):\n%s\n", ev.Hash, ev.Excerpt)
+		}
+		rc.Refs = append(rc.Refs, [2]string{"parent_check_log", ev.Hash})
+	} else {
+		fmt.Fprintf(&b, "This is attempt %d. The reviewer asked for changes to attempt %d; its work is still in the tree. This is a fresh conversation: fix what the reviewer found, starting from what follows.",
+			parent.Ordinal+1, parent.Ordinal)
+	}
 
 	if hash, found, err := c.d.State.LatestReviewResult(ctx, parent.ID); err != nil {
 		return rc, err
@@ -91,6 +108,28 @@ func (c *Controller) repairFor(ctx context.Context, parent workflow.Attempt) (re
 	}
 	rc.Note = strings.TrimRight(b.String(), "\n")
 	return rc, nil
+}
+
+// checkFailure reads the failed check of parent: the hash of its log and the
+// end of that log, bounded. It refuses an attempt whose check did not fail or
+// left no complete certificate.
+func (c *Controller) checkFailure(ctx context.Context, parent workflow.Attempt) (failureEvidence, error) {
+	notShown := fmt.Errorf("%w: attempt %s does not show a %s failure", workflow.ErrIncompleteEvidence, parent.ID, state.CauseCheckFailure)
+	if parent.Check != workflow.CheckFailed {
+		return failureEvidence{}, notShown
+	}
+	cert, found, err := c.d.State.AttemptCheckCertificate(ctx, parent.ID)
+	if err != nil {
+		return failureEvidence{}, err
+	}
+	if !found || !cert.Complete || cert.ExitCode == 0 {
+		return failureEvidence{}, notShown
+	}
+	log, err := c.d.Artifacts.ReadAll(ctx, cert.LogHash, 64<<20)
+	if err != nil {
+		return failureEvidence{}, err
+	}
+	return failureEvidence{Hash: cert.LogHash, Excerpt: boundExcerpt(string(log), false)}, nil
 }
 
 func findingLine(f workflow.Finding) string {

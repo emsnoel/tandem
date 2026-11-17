@@ -733,13 +733,13 @@ func TestTickRequiresTheWriterLease(t *testing.T) {
 	}
 }
 
-func TestCheckFailureAndMutationPauseTheRun(t *testing.T) {
+// A failed check is repaired instead (check_repair_test.go).
+func TestCheckMutationPausesTheRun(t *testing.T) {
 	for name, tc := range map[string]struct {
 		exit    int
 		mutated bool
 		code    string
 	}{
-		"a failing check":    {exit: 1, code: "check_failed"},
 		"a check that edits": {mutated: true, code: "source_mutated"},
 	} {
 		t.Run(name, func(t *testing.T) {

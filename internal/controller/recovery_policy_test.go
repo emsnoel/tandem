@@ -142,9 +142,9 @@ func TestRecoveryStartNeedsACollaborationAndAValidPolicy(t *testing.T) {
 	}
 }
 
-// Without the flag nothing changes: the configuration carries no recovery key, a
-// failed check pauses and stays paused, and a reviewer's request for changes
-// takes the existing repair path with no admission and no incident.
+// Without the flag nothing changes: the configuration carries no recovery key,
+// and a failed check takes the default repair path with no admission and no
+// incident.
 func TestRecoveryFlagAbsentPreservesBehavior(t *testing.T) {
 	e := newCEnv(t)
 	e.startInCollaboration()
@@ -164,8 +164,8 @@ func TestRecoveryFlagAbsentPreservesBehavior(t *testing.T) {
 	for i := 0; i < 4; i++ {
 		e.tick()
 	}
-	if st, code := e.runState(); st != "paused" || code != workflow.PauseCheckFailed {
-		t.Fatalf("run %s/%s: a failed check pauses and waits for a person", st, code)
+	if st, code := e.runState(); st != "running" {
+		t.Fatalf("run %s/%s: a failed check takes the default repair path", st, code)
 	}
 	for _, q := range []string{`SELECT count(*) FROM repair_admissions`, `SELECT count(*) FROM recovery_incidents`,
 		`SELECT count(*) FROM effects WHERE kind='recovery_decision'`, `SELECT count(*) FROM manual_interventions`} {
@@ -173,8 +173,8 @@ func TestRecoveryFlagAbsentPreservesBehavior(t *testing.T) {
 			t.Errorf("%s = %d for a run with no recovery policy", q, n)
 		}
 	}
-	if e.attemptsOf("task-1") != 1 {
-		t.Fatal("a repair was started for a failed check")
+	if e.attemptsOf("task-1") != 2 {
+		t.Fatalf("%d attempts: a failed check starts one default repair", e.attemptsOf("task-1"))
 	}
 }
 

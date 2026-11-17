@@ -1,6 +1,6 @@
 # Bounded recovery
 
-Status: opt-in, off by default. It is a second treatment, separate from [direct review handback](review-handback.md). A run that does not pass `--recovery-policy` behaves exactly as it did before: a failed check pauses the run and waits for a person, and a reviewer's request for changes takes the existing repair path.
+Status: opt-in, off by default. It is a second treatment, separate from [direct review handback](review-handback.md). A run that does not pass `--recovery-policy` takes the default repair path: a failed check and a reviewer's request for changes each go back to the builder as a new attempt of the same task, up to 3 attempts per task. With a policy, the same failures reach the same decision point, and the policy decides instead of the default.
 
 ## What it does
 

@@ -100,7 +100,7 @@ _pn_read_log() {
 # _pn_what CODE: why the run stopped, or nothing for an unknown code.
 _pn_what() {
   case "$1" in
-    check_failed)       echo "the check for the task failed." ;;
+    check_failed)       echo "the check for the task failed on every attempt the task had." ;;
     review_failed)      echo "the reviewer reported that the task failed review." ;;
     review_unknown)     echo "no valid review result was recorded in time. A pane review waits 10 minutes, and a mailbox review waits 5." ;;
     stuck)              echo "the builder said it could not finish the task." ;;

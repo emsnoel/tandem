@@ -352,9 +352,11 @@ paths, and the planner-turn counters.
 
 ### Bounded recovery (opt-in)
 
-A collaboration run can also start with `--recovery-policy`. A failed declared check or a
-review that asks for a concrete change is then repaired automatically once per piece of
-work, across replacement runs, and any other failure becomes one decision request for the
+Without a policy, a failed check or a review that asks for changes goes back to the builder
+as a repair, up to 3 attempts per task. A collaboration run can also start with
+`--recovery-policy`. The policy then decides each of those repairs instead. A failed declared
+check or a review that asks for a concrete change is repaired automatically once per piece
+of work, across replacement runs, and any other failure becomes one decision request for the
 planner. `tandem build reconcile` hands back a fix made by hand. See
 `guide/architecture/bounded-recovery.md`.
 
@@ -392,8 +394,9 @@ Record the OS, the Herdr version, each CLI's version, the models and the token u
    table (read with `sqlite3 'file:PATH?immutable=1'`), and the planner pane shows the final
    notice.
 2. **A failed check, on any kind.** Use a check that fails once the task's file exists, and keep
-   it outside the repo so the builder cannot edit it. Pass means a `check_failed` pause and a
-   note with the task's name.
+   it outside the repo so the builder cannot edit it. Pass means the builder gets two repair
+   prompts that say the check failed, then a `check_failed` pause and a note with the task's
+   name.
 3. **A crash during a send, on one kind.** Put a wrapper around `herdr` first on `PATH` for
    `tandem-pair`, so the bridge inherits it. Stall `agent prompt` for a later task before typing,
    during, and right after. At each point `kill -9` the bridge, its `tandem` child and the

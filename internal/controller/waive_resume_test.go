@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/emsnoel/tandem/internal/state"
 	"github.com/emsnoel/tandem/internal/workflow"
 )
 
@@ -105,13 +106,20 @@ func TestACheckWaiverLeavesARunOutOfRepairsPaused(t *testing.T) {
 	}
 }
 
-// A failed check pauses the run with no review asked for. Waiving the check
-// alone leaves the review owed. Waiving both lets the run go on.
+// A check that fails on every attempt the task has pauses the run with no
+// review asked for. Waiving the check alone leaves the review owed. Waiving
+// both lets the run go on.
 func TestWaivingAFailedCheckAndItsReviewResumesTheRun(t *testing.T) {
 	e := newCEnv(t)
 	e.start()
 	e.chk.exit = 1
-	att := e.toReview("task-1", 1)
+	var att workflow.Attempt
+	for n := 1; n <= state.MaxAttempts; n++ {
+		e.tick()
+		att = e.current("task-1")
+		e.submit("task-1", 1)
+	}
+	e.tick()
 	if st, code := e.runState(); st != "paused" || code != workflow.PauseCheckFailed {
 		t.Fatalf("run %s/%s; want paused/%s", st, code, workflow.PauseCheckFailed)
 	}
