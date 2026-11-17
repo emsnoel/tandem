@@ -42,11 +42,13 @@ sandboxed() {
   as_pane "$dir" "$(pane_of "$who")" env PATH="$TMP/sbx:$ROOT_DIR/bin:/usr/bin:/bin" \
     TANDEM_STATE_HOME="$TMP/state-ro" HERDR_SOCKET_PATH="$TMP/no.sock" HERDR_ROLE="$who" "$@"
 }
-# delivered_to NAME BEFORE: within 5 s the prompt count passes BEFORE and the
-# latest prompt went to NAME.
+# delivered_to NAME BEFORE: within 30 s the prompt count passes BEFORE and the
+# latest prompt went to NAME. It returns as soon as the prompt lands. The bound
+# is wide because a loaded machine slows the bridge's wake and its send, and 5 s
+# failed while other suites ran.
 delivered_to() {
   local _
-  for _ in $(seq 1 50); do
+  for _ in $(seq 1 300); do
     [ "$(prompts)" -gt "$2" ] && break; sleep 0.1
   done
   [ "$(prompts)" -eq $(($2 + 1)) ] && [ "$(last_to)" = "$1" ]
