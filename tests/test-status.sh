@@ -28,7 +28,7 @@ export REAL_TANDEM; REAL_TANDEM=$(command -v tandem) || { echo "need an installe
 cat > "$TMP/bin/tandem" <<'STUB'
 #!/usr/bin/env bash
 case "$1 $2" in
-  "reviewer show"|"config builder") exec "$REAL_TANDEM" "$@" ;;
+  "reviewer show"|"config builder"|"relay read") exec "$REAL_TANDEM" "$@" ;;
   # The plain names, or HERDR_*_NAME, as for a main checkout with no pair.json.
   "paths names") printf '%s\t%s\t%s\n' "${HERDR_PLANNER_NAME:-planner}" "${HERDR_BUILDER_NAME:-builder}" "${HERDR_REVIEWER_NAME:-reviewer}"; exit 0 ;;
   "config project")
@@ -107,7 +107,7 @@ chk "it shows the builder identity" "codex/auto"
 chk "it shows the pane status"      "status: idle"
 chk "it shows a clean review"       "clean (id 20260918-000001-1-1)"
 chk "it names the plan"             "docs/plans/p.md"
-chk "it shows zero mailbox activity" "0 handback report(s), 0 question(s)"
+chk "it shows zero mailbox activity" "0 handback report(s), nothing queued for the planner"
 chk "it shows the bridge not running" "bridge   not running"
 nchk "it calls no jq" "jq was called"
 nchk "it does not claim a subdirectory pairing at the repo root" "paired from a subdirectory"
@@ -158,8 +158,18 @@ echo '{}' > "$REPO/.tandem-relay/q/2.json"
 echo 'report' > "$REPO/.tandem-relay/reports/r1.md"
 SNAP_MODE=ok GATE_MODE=clean run
 chk "it counts handback reports" "1 handback report(s)"
-chk "it counts queued questions" "2 question(s) queued unanswered"
+chk "it counts queued questions" "queued for the planner: 2 question(s)"
+nchk "it calls nothing a verdict when none is queued" "verdict"
+# A verdict is named as one, not counted among questions (issue #67).
+printf '{"id":"v1","kind":"verdict","from":"reviewer","message":"clean"}\n' > "$REPO/.tandem-relay/q/v1.json"
+mkdir -p "$REPO/.tandem-relay/pending"
+printf 'handback\nbuilder\n7\n0\n\n' > "$REPO/.tandem-relay/pending/h1"
+SNAP_MODE=ok GATE_MODE=clean run
+chk "it names a queued verdict" "queued for the planner: 1 verdict(s), 2 question(s)"
+chk "it names a prompt typed but not started" "typed into the planner, which has not started on it yet: 1 handback(s)"
+chk "it says a stopped bridge leaves them waiting" "bridge   not running, so the 4 message(s) above wait until it runs again. tandem-pair restarts it and is safe to re-run."
 rm -f "$REPO/.tandem-relay/q"/*.json "$REPO/.tandem-relay/reports"/*.md
+rm -rf "$REPO/.tandem-relay/pending"
 
 # --- bridge liveness: a real running process named tandem-bridge -------------
 cat > "$TMP/tandem-bridge" <<'BRIDGESTUB'
@@ -189,7 +199,7 @@ SNAP_MODE=ok GATE_MODE=clean SNAP_CWD="$SUB" run
 chk "it reads identity from the subdirectory's own mailbox" "claude/ask"
 chk "it names the divergent identity mailbox" "paired from a subdirectory, so its identity is in $SUB/.tandem-relay"
 chk "it says an adopted builder's settings are not enforced" "(adopted, so tandem cannot enforce its launch settings)"
-chk "it still counts mailbox activity from the walked repo-root relay" "1 handback report(s), 1 question(s)"
+chk "it still counts mailbox activity from the walked repo-root relay" "1 handback report(s), queued for the planner: 1 question(s)"
 nchk "it does not show the wrong builder identity" "codex/auto"
 rm -rf "$SUB"
 rm -f "$REPO/.tandem-relay/q"/*.json "$REPO/.tandem-relay/reports"/*.md

@@ -223,6 +223,33 @@ else
   nope "the review is still stored when the planner never wakes"
 fi
 
+# --- planner busy, a bridge watches: the verdict is held, not failed (#67) ------
+rm -rf "$TMP/mailbox/reviews" "$TMP/mailbox/pending"
+mkdir -p "$TMP/mailbox"
+printf '#!/usr/bin/env bash\nsleep 60\n' > "$TMP/tandem-bridge"; chmod +x "$TMP/tandem-bridge"
+"$TMP/tandem-bridge" & FAKE_BRIDGE=$!
+echo "$FAKE_BRIDGE" > "$TMP/mailbox/bridge.pid"
+OUT=$(PATH="$TMP/bin:$PATH" MAILBOX="$TMP/mailbox" REPO="$TMP/repo" MARKER="$MARKER" \
+        SNAPSHOT_STATUS=idle CONFIRM_RC=25 CONFIRM_SEQ=41 \
+        "$VERDICT_BIN" --plan "$PLAN" --review "$REVIEW" --verdict clean 2>&1); RC=$?
+[[ "$RC" == 0 ]] && ok "a held verdict exits 0" || nope "a held verdict exits 0 (got $RC)"
+chk "it says the planner has not started on it yet" "has not started on it yet"
+case "$OUT" in *"never woke up"*) nope "it says the planner never woke" ;; *) ok "it does not say the planner never woke" ;; esac
+_held=( "$TMP"/mailbox/pending/* )
+[[ -f "${_held[0]}" && "$(sed -n 1p "${_held[0]}")" == verdict && "$(sed -n 3p "${_held[0]}")" == 41 ]] \
+  && ok "the verdict is held for the bridge with the pane's counter" \
+  || nope "no pending verdict for the bridge: $(cat "${_held[0]}" 2>/dev/null)"
+kill "$FAKE_BRIDGE" 2>/dev/null; wait "$FAKE_BRIDGE" 2>/dev/null
+rm -f "$TMP/mailbox/bridge.pid"
+
+# --- planner busy, no bridge runs: nobody would watch, so it warns as before ----
+rm -rf "$TMP/mailbox/reviews" "$TMP/mailbox/pending"
+OUT=$(PATH="$TMP/bin:$PATH" MAILBOX="$TMP/mailbox" REPO="$TMP/repo" MARKER="$MARKER" \
+        SNAPSHOT_STATUS=idle CONFIRM_RC=25 CONFIRM_SEQ=41 \
+        "$VERDICT_BIN" --plan "$PLAN" --review "$REVIEW" --verdict clean 2>&1); RC=$?
+[[ "$RC" == 7 ]] && ok "with no bridge, a verdict the planner did not start on exits 7" || nope "with no bridge, exits 7 (got $RC)"
+[[ ! -d "$TMP/mailbox/pending" ]] && ok "with no bridge, nothing is held" || nope "a verdict was held with no bridge to watch it"
+
 # --- planner idle, wakes on the first poll: success -----------------------------
 rm -rf "$TMP/mailbox/reviews"
 run env SNAPSHOT_STATUS=idle AGENT_STATUS_SEQ=working "$VERDICT_BIN" --plan "$PLAN" --review "$REVIEW" --verdict clean

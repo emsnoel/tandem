@@ -31,12 +31,15 @@ done
 . "${_self%/*}/lib/bridge-lock.sh"
 # shellcheck source=lib/pair-identity.sh
 . "${_self%/*}/lib/pair-identity.sh"
+# shellcheck source=lib/pending.sh
+. "${_self%/*}/lib/pending.sh"
 
 MAILBOX=""
 PLANNER_OVERRIDE=""
 POLL_SECONDS="${HERDR_BRIDGE_POLL_SECONDS:-1}"
 BACKSTOP_SECONDS="${HERDR_BRIDGE_BACKSTOP_SECONDS:-30}"
 PROMPT_TIMEOUT_MS="${HERDR_BRIDGE_PROMPT_TIMEOUT_MS:-120000}"
+PENDING_SECONDS=$(pending_seconds)
 ONESHOT=0
 
 usage() {
@@ -107,7 +110,9 @@ for _f in "$MAILBOX"/.fields.*; do
   [[ -e "$_f" ]] || continue
   kill -0 "${_f##*.}" 2>/dev/null || rm -f "$_f"
 done
-trap 'rm -f "$FIELDS"; release_mailbox' EXIT
+# The log says when the bridge stops, so a bridge killed with the planner's
+# shell is not mistaken for one that is still delivering.
+trap 'log "stopped"; rm -f "$FIELDS"; release_mailbox' EXIT
 # read_field VAR: the next field into VAR, empty at the end of the input.
 read_field() { IFS= read -r -d '' "$1" || true; }
 # read_message FILE: run `tandem relay read`. A failure, as for a file that is
@@ -158,6 +163,7 @@ while :; do
     shopt -u nullglob
     drive_durable tick
   fi
+  check_pending
   shopt -s nullglob
   for qfile in "$MAILBOX"/q/*.json; do
     # Claim atomically so a second bridge cannot deliver twice.

@@ -205,12 +205,44 @@ else
 fi
 
 # --- mailbox activity ----------------------------------------------------------
+# kind_counts KIND...: "1 verdict(s), 2 question(s)" in a fixed order.
+kind_counts() {
+  local k n out=""
+  for k in handback verdict notice question; do
+    n=$(printf '%s\n' "$@" | grep -cx "$k" || true)
+    (( n > 0 )) && out+="${out:+, }$n $k(s)"
+  done
+  printf '%s\n' "$out"
+}
+_waiting=0
 if [[ -n "$MAILBOX" && -d "$MAILBOX" ]]; then
   shopt -s nullglob
   _q=( "$MAILBOX"/q/*.json )
   _r=( "$MAILBOX"/reports/*.md )
+  _p=( "$MAILBOX"/pending/* )
   shopt -u nullglob
-  info "mailbox  ${#_r[@]} handback report(s), ${#_q[@]} question(s) queued unanswered"
+  # A queued file names its kind; one with none is a question, as the bridge reads it.
+  _qk=()
+  for _f in ${_q[@]+"${_q[@]}"}; do
+    _k=$(tandem relay read --file "$_f" 2>/dev/null | tr '\0' '\n' | sed -n '2p' || true)
+    _qk+=( "${_k:-question}" )
+  done
+  _pk=()
+  for _f in ${_p[@]+"${_p[@]}"}; do
+    _k=$(head -1 "$_f" 2>/dev/null || true)
+    _pk+=( "${_k:-question}" )
+  done
+  _line="${#_r[@]} handback report(s)"
+  if (( ${#_qk[@]} > 0 )); then
+    _line+=", queued for the planner: $(kind_counts "${_qk[@]}")"
+  else
+    _line+=", nothing queued for the planner"
+  fi
+  info "mailbox  $_line"
+  if (( ${#_pk[@]} > 0 )); then
+    info "mailbox  typed into the planner, which has not started on it yet: $(kind_counts "${_pk[@]}")"
+  fi
+  _waiting=$(( ${#_qk[@]} + ${#_pk[@]} ))
 else
   info "mailbox  none. Nobody has paired here yet, or the pair was closed."
 fi
@@ -224,13 +256,22 @@ bridge_is_ours() {
   [[ "$cmd" == *tandem-bridge* ]]
 }
 
+# _bridge_down [NOTE]: report a bridge that is not running, and what that holds up.
+_bridge_down() {
+  if (( _waiting > 0 )); then
+    info "bridge   not running, so the $_waiting message(s) above wait until it runs again. tandem-pair restarts it and is safe to re-run.${1:+ $1}"
+  else
+    info "bridge   not running.${1:+ $1}"
+  fi
+}
+
 if [[ -n "$MAILBOX" && -f "$MAILBOX/bridge.pid" ]]; then
   _bpid=$(cat "$MAILBOX/bridge.pid" 2>/dev/null || true)
   if [[ "$_bpid" =~ ^[0-9]+$ ]] && kill -0 "$_bpid" 2>/dev/null && bridge_is_ours "$_bpid"; then
     info "bridge   running (pid $_bpid)"
   else
-    info "bridge   not running. Its pid file is left from an earlier run."
+    _bridge_down "Its pid file is left from an earlier run."
   fi
 else
-  info "bridge   not running"
+  _bridge_down
 fi

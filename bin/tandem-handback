@@ -21,6 +21,10 @@ HANDBACK_LIB="${_self%/*}/lib"
 . "$HANDBACK_LIB/handback-deliver.sh"
 # shellcheck source=lib/pair-identity.sh
 . "$HANDBACK_LIB/pair-identity.sh"
+# shellcheck source=lib/bridge-lock.sh
+. "$HANDBACK_LIB/bridge-lock.sh"
+# shellcheck source=lib/pending.sh
+. "$HANDBACK_LIB/pending.sh"
 
 # Bounded wait for a planner at a permission dialog.
 BLOCKED_WAIT_SECONDS="${HERDR_HANDBACK_BLOCKED_WAIT_SECONDS:-90}"

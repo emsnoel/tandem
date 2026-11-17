@@ -113,8 +113,10 @@ MSG
 
 
   rc=0
-  _perr=$(tandem agent prompt "$PLANNER_NAME" "$MESSAGE" --as handback \
-            --wait-unblocked "$(( BLOCKED_WAIT_SECONDS * 1000 ))" 2>&1 >/dev/null) || rc=$?
+  _perrf=$(mktemp)
+  _pout=$(tandem agent prompt "$PLANNER_NAME" "$MESSAGE" --as handback \
+            --wait-unblocked "$(( BLOCKED_WAIT_SECONDS * 1000 ))" 2>"$_perrf") || rc=$?
+  _perr=$(cat "$_perrf"); rm -f "$_perrf"
   IFS=$'\t' read -r _code _msg <<<"$(printf '%s' "$_perr" | head -1)"
   if (( rc == 10 )) && [[ "$_code" == agent_blocked || "$_code" == agent_input_elsewhere ]]; then
     _why="was still blocked"
@@ -133,7 +135,17 @@ MSG
   fi
   case "$rc" in
     0) ;;
-    25) undelivered ;;
+    25)
+      # The planner took the prompt but has not started on it, as when it is busy
+      # in a way Herdr does not show. A running bridge watches for the start
+      # (lib/pending.sh), so this is a delivery in progress.
+      if pending_watched "$MAILBOX" && _seq=$(pending_seq "$_pout") \
+         && pending_hold "$MAILBOX" "$ID" handback "$SELF" "$_seq"; then
+        info "the handback was typed into '$PLANNER_NAME', which has not started on it yet, most likely because it is busy."
+        info "the bridge marks it delivered once '$PLANNER_NAME' starts, or UNDELIVERED after $(pending_seconds)s. Do not send it again."
+        return 0
+      fi
+      undelivered ;;
     26) undelivered "$(printf '%s' "$_perr" | tail -n +2)" ;;
     *)
       cat >&2 <<MSG

@@ -64,10 +64,21 @@ esac
 case "$1 $2" in
   "agent prompt")
     printf '%s' "$4" > "${HERDR_PROMPT_LOG:-/dev/null}"
+    # As a planner that took the prompt but did not start within the window.
+    if [ "${HERDR_PROMPT_NEVER:-0}" = 1 ]; then
+      printf 'never_started\t41\n'
+      printf 'agent_never_started\tno turn began\n' >&2
+      exit 25
+    fi
     if [ "${HERDR_PROMPT_FAIL:-0}" = 1 ]; then
       printf '%s\t%s\n' "${HERDR_PROMPT_ERROR_CODE:-unknown}" "${HERDR_PROMPT_ERROR_MSG:-simulated failure}" >&2
       exit 10
     fi
+    exit 0 ;;
+  # status --since: STATUS_SINCE says whether the planner started a turn.
+  "agent status")
+    [ -n "${STATUS_SINCE_LOG:-}" ] && printf '%s\n' "$*" >> "$STATUS_SINCE_LOG"
+    printf '%s\tidle\n' "${STATUS_SINCE:-waiting}"
     exit 0 ;;
 esac
 exit 0
@@ -236,6 +247,62 @@ chk "the log says what the pane shows" 'subagent "Fix it"; nothing was typed'
 grep -qF 'subagent "Fix it"; nothing was typed' "$MB/reviews/v4.UNDELIVERED" 2>/dev/null \
   && ok "the marker says what the pane shows" \
   || nope "the marker does not say what the pane shows"
+
+echo "--- a verdict typed into a busy planner is held, then delivered once it starts (issue #67) ---"
+reset_mb; mkdir -p "$MB/q"
+jq -n --arg id v5 --arg from reviewer \
+  '{id:$id, kind:"verdict", from:$from, question:"verdict", message:"clean"}' > "$MB/q/v5.json"
+HERDR_PROMPT_NEVER=1 run_bridge
+chk "the log says the planner has not started on it yet" "v5 typed, but planner has not started on it yet"
+[ -f "$MB/pending/v5" ] && ok "the verdict is held as pending" || nope "no pending file for a verdict the planner has not started on"
+[ ! -e "$MB/reviews/v5.UNDELIVERED" ] && ok "no UNDELIVERED marker while the planner may still start" \
+                                      || nope "an UNDELIVERED marker was written at once for a busy planner"
+[ "$(sed -n 3p "$MB/pending/v5" 2>/dev/null)" = 41 ] && ok "the pending file keeps the pane's counter at typing" \
+                                                     || nope "the pending file lost the counter: $(cat "$MB/pending/v5" 2>/dev/null)"
+# The planner is still busy on the next pass.
+STATUS_SINCE_LOG="$TMP/since.log"; : > "$STATUS_SINCE_LOG"
+STATUS_SINCE=waiting STATUS_SINCE_LOG="$STATUS_SINCE_LOG" run_bridge
+[ -f "$MB/pending/v5" ] && ok "a planner that has not started keeps the verdict pending" || nope "the pending verdict was dropped too early"
+grep -q -- "agent status planner --since 41" "$STATUS_SINCE_LOG" && ok "the bridge asks about the counter it recorded" \
+                                                                  || nope "the bridge asked: $(cat "$STATUS_SINCE_LOG")"
+nchk "nothing is retyped while it waits" "v5 delivered"
+[ ! -s "$PROMPT_LOG" ] && ok "the verdict is not typed a second time" || nope "the pending verdict was typed again"
+# The planner goes idle and starts on it.
+STATUS_SINCE=started run_bridge
+chk "the log says it was delivered once the planner started" "v5 delivered: planner started a turn after it was typed"
+[ ! -e "$MB/pending/v5" ] && ok "the pending file is gone" || nope "the pending file outlived the delivery"
+[ ! -e "$MB/reviews/v5.UNDELIVERED" ] && ok "a verdict delivered late leaves no UNDELIVERED marker" \
+                                      || nope "a late delivery left an UNDELIVERED marker"
+
+echo "--- a held verdict the planner never starts on is UNDELIVERED at its deadline ---"
+reset_mb; mkdir -p "$MB/q"
+jq -n --arg id v6 --arg from reviewer \
+  '{id:$id, kind:"verdict", from:$from, question:"verdict", message:"clean"}' > "$MB/q/v6.json"
+HERDR_PROMPT_NEVER=1 HERDR_BRIDGE_PENDING_SECONDS=0 run_bridge
+HERDR_BRIDGE_PENDING_SECONDS=0 STATUS_SINCE=waiting run_bridge
+chk "the log names the failure" "v6 delivery FAILED (agent_never_started)"
+grep -q "agent_never_started" "$MB/reviews/v6.UNDELIVERED" 2>/dev/null && ok "the UNDELIVERED marker is written at the deadline" \
+                                                                       || nope "no UNDELIVERED marker at the deadline"
+[ ! -e "$MB/pending/v6" ] && ok "the pending file is gone after the deadline" || nope "the pending file outlived its deadline"
+
+echo "--- a held question the planner never starts on is answered with an error ---"
+reset_mb; mkdir -p "$MB/q"
+jq -n --arg id q7 --arg from builder --arg q "what now?" '{id:$id, from:$from, question:$q}' > "$MB/q/q7.json"
+HERDR_PROMPT_NEVER=1 HERDR_BRIDGE_PENDING_SECONDS=0 run_bridge
+[ ! -e "$MB/a/q7.md" ] && ok "a held question is not answered at once" || nope "a held question was answered at once"
+HERDR_BRIDGE_PENDING_SECONDS=0 STATUS_SINCE=waiting run_bridge
+grep -q "agent_never_started" "$MB/a/q7.md" 2>/dev/null && ok "the asker gets the error at the deadline" \
+                                                         || nope "the asker got no error at the deadline"
+
+echo "--- a held pause notice that is given up is sent again on a later pass ---"
+reset_mb; mkdir -p "$MB/pending" "$MB/durable/r1"
+printf 'r1 check_failed\n' > "$MB/durable/r1/pause-reported"
+printf 'notice\ntandem\n41\n0\n%s\n' "$MB/durable/r1/pause-reported" > "$MB/pending/pause-r1-check_failed"
+STATUS_SINCE=waiting run_bridge
+chk "the log names the lost notice" "pause-r1-check_failed delivery FAILED (agent_never_started)"
+[ ! -e "$MB/durable/r1/pause-reported" ] && ok "the pause mark is removed, so the note is sent again" \
+                                         || nope "the pause mark stayed, so the note would never be sent again"
+[ ! -e "$MB/a/pause-r1-check_failed.md" ] && ok "a lost notice writes no answer file" || nope "a lost notice wrote an answer file"
 
 echo "--- a malformed question file (no question field) is skipped, not crashed on ---"
 reset_mb; mkdir -p "$MB/q"

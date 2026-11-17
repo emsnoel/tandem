@@ -141,9 +141,15 @@ start_bridge() {
       info "relay bridge already running (pid $_bpid)."
     else
       rm -f "$MAILBOX/bridge.ready"
+      # set -m starts the bridge in a process group of its own. Without it, the
+      # bridge shares the group of the shell that ran tandem-pair, often an
+      # agent's tool shell, and a signal to that group as the agent exits kills
+      # it. nohup only covers SIGHUP.
+      set -m
       nohup tandem-bridge --mailbox "$MAILBOX" --planner "$PLANNER_NAME" \
         >>"$MAILBOX/bridge.log" 2>&1 &
       _launched=$!
+      set +m
       for _ in $(seq 1 50); do [[ -f "$MAILBOX/bridge.ready" ]] && break; kill -0 "$_launched" 2>/dev/null || break; sleep 0.1; done
       _bpid=$(cat "$BRIDGE_PID_FILE" 2>/dev/null || true)
       if [[ "$_bpid" == "$_launched" ]] && kill -0 "$_launched" 2>/dev/null; then

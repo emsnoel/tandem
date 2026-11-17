@@ -219,6 +219,7 @@ func cmdAgent(args []string) int {
 	fs.Var(&until, "until", "state to match after --wait; repeat for more than one")
 	source := fs.String("source", "", "visible|recent|recent-unwrapped|detection")
 	byPane := fs.Bool("pane", false, "snapshot: the target is a pane id, not an agent name")
+	since := fs.Int("since", 0, "status: print started or waiting first, for a prompt typed when the pane's lifecycle counter read this (never_started from prompt --as)")
 	if err := fs.Parse(flagArgs); err != nil {
 		return exitcode.Usage
 	}
@@ -252,6 +253,20 @@ func cmdAgent(args []string) int {
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err.Error())
 			return herdr.ExitCodeFor(err)
+		}
+		sinceSet := false
+		fs.Visit(func(f *flag.Flag) { sinceSet = sinceSet || f.Name == "since" })
+		if sinceSet {
+			if a.Status == nil {
+				fmt.Println("waiting\tunknown")
+				return exitcode.OK
+			}
+			word := "waiting"
+			if startedSince(a, *since) {
+				word = "started"
+			}
+			fmt.Printf("%s\t%s\n", word, *a.Status)
+			return exitcode.OK
 		}
 		if a.Status == nil {
 			fmt.Println("unknown")
