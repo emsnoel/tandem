@@ -24,6 +24,8 @@ done
 . "${_self%/*}/lib/bridge-lock.sh"
 # shellcheck source=lib/pending.sh
 . "${_self%/*}/lib/pending.sh"
+# shellcheck source=lib/pane-activity.sh
+. "${_self%/*}/lib/pane-activity.sh"
 
 PLAN=""; REVIEW=""; VERDICT=""; ROLE=""; ROLE_SET=0
 
@@ -147,6 +149,9 @@ if ! tandem gate record --relay "$MAILBOX" --id "$ID" --plan "$PLAN_ABS" --verdi
 fi
 
 info "review stored as $ID ($VERDICT)."
+# The review is over, so the reviewer's sidebar label goes back to plain. From a
+# sandbox the socket is unreachable, and the bridge clears it with the verdict.
+activity_sync "$ROLE" ""
 
 # The sidecar records the builder's identity too, so class-4 findings are
 # voided when the builder changes.

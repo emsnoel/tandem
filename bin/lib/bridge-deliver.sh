@@ -44,6 +44,8 @@ deliver() {
 
   answer_path="$MAILBOX/a/$id.md"
   log "delivering $id from $from (kind: $kind)"
+  # A verdict ends the review, so the reviewer's label goes back to plain.
+  [[ "$kind" != verdict ]] || activity_sync "$from" ""
 
   if [[ "$kind" != handback && "$kind" != verdict ]]; then
     msg="[from $from] $question

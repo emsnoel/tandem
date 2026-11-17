@@ -33,6 +33,8 @@ done
 . "${_self%/*}/lib/pair-identity.sh"
 # shellcheck source=lib/pending.sh
 . "${_self%/*}/lib/pending.sh"
+# shellcheck source=lib/pane-activity.sh
+. "${_self%/*}/lib/pane-activity.sh"
 
 MAILBOX=""
 PLANNER_OVERRIDE=""
@@ -163,6 +165,8 @@ while :; do
     shopt -u nullglob
     drive_durable tick
   fi
+  # Each pane's sidebar label names the run's task and plan (lib/pane-activity.sh).
+  show_run_activity "$run"
   check_pending
   shopt -s nullglob
   for qfile in "$MAILBOX"/q/*.json; do

@@ -41,6 +41,7 @@ case "$1 $2" in
     fi
     [[ -n "${DEAD:-}" ]] && exit 10; printf '%%2\t%s\tidle\n' "$BCWD"; exit 0 ;;
   "pane close") printf '%s\n' "$3" >> "$PANE_LOG"; exit 0 ;;
+  "pane report-metadata") printf '%s\n' "$*" >> "$PANE_LOG.meta"; exit 0 ;;
   # CHECK_SILENT models a tandem that exits 0 and prints nothing.
   "config check-command") [[ -n "${CHECK_SILENT:-}" ]] && exit 0; printf 'true\0'; exit 0 ;;
 esac
@@ -110,6 +111,14 @@ if [ -d "$REPO/sub/.tandem-relay" ]; then
 else
   ok "the identity mailbox was removed"
 fi
+
+# --- the planner's sidebar label goes back to plain ---
+fixture "$REPO"
+mkdir -p "$REPO/.tandem-relay/activity"; printf 'waiting for handback\n' > "$REPO/.tandem-relay/activity/planner"
+rm -f "$TMP/panes.log.meta"
+run "$REPO/sub"
+grep -qxF "pane report-metadata %2 --source tandem --clear-token activity" "$TMP/panes.log.meta" 2>/dev/null \
+  && ok "unpair clears the planner's activity label" || nope "the planner's label was not cleared: $(cat "$TMP/panes.log.meta" 2>/dev/null)"
 
 # --- --keep-relay keeps both ---
 fixture "$REPO"

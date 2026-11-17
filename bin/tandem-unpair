@@ -26,6 +26,8 @@ done
 . "${_self%/*}/lib/unpair-close.sh"
 # shellcheck source=lib/pair-identity.sh
 . "${_self%/*}/lib/pair-identity.sh"
+# shellcheck source=lib/pane-activity.sh
+. "${_self%/*}/lib/pane-activity.sh"
 
 DRY_RUN=0
 FORCE=0
@@ -137,6 +139,8 @@ record_signoff
 settle_durable_run
 close_panes
 stop_bridge
+# The planner's pane stays, so its sidebar label goes back to plain.
+activity_sync "$PLANNER_NAME" ""
 remove_mailboxes
 
 printf '\n'

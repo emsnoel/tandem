@@ -266,6 +266,7 @@ else
 ^[[:space:]]*show_agent_labels_on_pane_borders[[:space:]]*=|[ui] show_agent_labels_on_pane_borders
 ^[[:space:]]*delivery[[:space:]]*=|[ui.toast] delivery
 rows_by_agent|[ui.sidebar.agents.rows_by_agent] role rows
+"\$activity"|[ui.sidebar.agents.rows_by_agent] $activity row
 ^[[:space:]]*next_agent[[:space:]]*=|[keys] next_agent
 command[[:space:]]*=[[:space:]]*"tandem-pair"|[[keys.command]] tandem-pair binding
 command[[:space:]]*=[[:space:]]*"tandem-handoff"|[[keys.command]] tandem-handoff binding
