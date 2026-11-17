@@ -2,8 +2,9 @@ package controller
 
 // Budgets: what model work a run may still start.
 //
-// A run has two persisted limits on total logical input: per task (across its
-// attempts and reviews) and for the whole run. Before starting model work the
+// A run has two persisted limits on input, as workflow.BudgetInput counts it
+// with a cache read at a tenth. One is per task, across its attempts and
+// reviews, and one is for the whole run. Before starting model work the
 // controller asks workflow.EvaluateBudget. Blocked work pauses the run as
 // scheduling_blocked with its effect untouched, and raising a limit resumes it.
 //
@@ -129,8 +130,9 @@ func (c *Controller) budgetAttempt(ctx context.Context, run state.Run, taskID st
 	return workflow.Attempt{}, false, nil
 }
 
-// SetBudget persists a new limit for the run in total logical input tokens:
-// scope "task" or "run", 0 for none. The change is recorded as an event. A run
+// SetBudget persists a new limit for the run in input tokens as
+// workflow.BudgetInput counts them. The scope is "task" or "run", and 0 is
+// none. The change is recorded as an event. A run
 // paused as scheduling_blocked is resumed, and the next tick starts only the
 // work now allowed. It returns what the budget now says.
 func (c *Controller) SetBudget(ctx context.Context, runID, scope string, limit int64) (workflow.BudgetDecision, error) {

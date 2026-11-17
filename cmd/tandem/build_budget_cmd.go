@@ -4,8 +4,9 @@ package main
 //
 //	tandem build budget [--run ID] [--scope task|run] --limit N [--root DIR] [--state-home DIR]
 //
-// Limits are in total logical input tokens and are kept on the run, so a restart
-// or another shell uses them, not whatever its environment says. 0 removes a
+// Limits are in input tokens as workflow.BudgetInput counts them, with a cache
+// read at a tenth. They are kept on the run, so a restart or another shell uses
+// them, not whatever its environment says. 0 removes a
 // limit. The scope defaults to run. Raising a limit resumes a run that was paused
 // for scheduling, and only the work that is now allowed starts; checks and
 // acceptance were never held by a budget.

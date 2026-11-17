@@ -371,7 +371,8 @@ func (s *Store) setRunState(ctx context.Context, runID, state, pauseCode, jobID,
 }
 
 // SetRunLimit persists one of a run's budget limits: scope "task" or "run", in
-// total logical input tokens, 0 for none. It changes nothing else.
+// input tokens as workflow.BudgetInput counts them, 0 for none. It changes
+// nothing else.
 func (s *Store) SetRunLimit(ctx context.Context, runID, scope string, limit int64) error {
 	if limit < 0 {
 		return fmt.Errorf("%w: a budget limit cannot be negative", workflow.ErrInvalidTransition)

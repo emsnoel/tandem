@@ -210,7 +210,9 @@ dialog before a restart too.
 
 ## Raising a budget
 
-Limits count total input tokens and are stored in the run. Zero is off. A task limit
+Limits count input tokens and are stored in the run. A cached input token counts as a tenth
+of a token when the session log says which tokens came from cache. Otherwise every token
+counts in full. Zero is off. A task limit
 applies to every task, and a run limit to the whole run.
 
     tandem build budget --scope task --limit 4000000 --root DIR

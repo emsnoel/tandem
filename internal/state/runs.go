@@ -44,8 +44,8 @@ type Run struct {
 	PlanHash, ConfigHash                        string
 	Version                                     int64
 	// TaskInputLimit and RunInputLimit are the run's persisted budget limits, in
-	// total logical input tokens; 0 is no limit. They belong to the run, not to
-	// the process or environment that reads them.
+	// input tokens as workflow.BudgetInput counts them; 0 is no limit. They
+	// belong to the run, not to the process or environment that reads them.
 	TaskInputLimit, RunInputLimit int64
 	// PauseGeneration counts pauses and StopGeneration counts stops. PauseJobID
 	// and PauseEffectID name what a review_unknown pause waits on.
