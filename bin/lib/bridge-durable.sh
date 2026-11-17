@@ -103,7 +103,7 @@ report_pause() {
   fi
   msg=$(pause_note "$code" "$run" "$root" "$task" "$builder" "$reviewer" "$reason" "$plan" "$collab" "$MAILBOX")
   log "run $run paused ($code); telling $PLANNER_NAME"
-  if send_planner "pause-$run-${code:-paused}" notice tandem "$msg"; then
+  if send_planner "pause-$run-${code:-paused}" notice tandem "$msg" "$mark"; then
     printf '%s\n' "$key" > "$mark"
     rm -f "$dir/pause-retry-at" "$dir/pause-retry-delay"
     return 0

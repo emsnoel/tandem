@@ -77,6 +77,7 @@ n=0; for _ in 1 2 3 4 5; do [ "$(bridges)" = 1 ] && n=$((n+1)); sleep 0.3; done
 printf '\n== a pid file left by a bridge that is gone ==\n'
 pkill -P "$FIRST" 2>/dev/null; kill "$FIRST" 2>/dev/null; wait "$FIRST" 2>/dev/null
 [ ! -e "$MB/bridge.pid" ] && ok "a stopped bridge removes its pid file" || nope "bridge.pid: $(cat "$MB/bridge.pid" 2>/dev/null)"
+has "and logs that it stopped" "$(cat "$TMP/bridge.first.log")" "tandem-bridge: stopped"
 # A bridge killed with no chance to clean up, as by SIGKILL, leaves its pid.
 printf '%s\n' "$FIRST" > "$MB/bridge.pid"
 rm -f "$MB/bridge.ready"
@@ -102,6 +103,11 @@ OUT=$(pair_start)
 PAIRED=$(cat "$MB/bridge.pid" 2>/dev/null)
 has "it starts a bridge when none runs" "$OUT" "relay bridge started (pid $PAIRED)"
 kill -0 "$PAIRED" 2>/dev/null && ok "and that bridge runs" || nope "no bridge at pid $PAIRED: $OUT"
+# A bridge in the group of the shell that ran tandem-pair dies with it when that
+# group is signalled, as when the planner's agent exits (issue #67).
+_bpg=$(ps -p "$PAIRED" -o pgid= 2>/dev/null | tr -d ' ')
+[ "$_bpg" = "$PAIRED" ] && ok "the bridge leads a process group of its own" \
+                        || nope "the bridge is in process group $_bpg, not its own ($PAIRED)"
 [ "$(cat "$MB/pair.json" 2>/dev/null)" = '{"planner":"planner-3","builder":"builder-3","reviewer":"reviewer-3"}' ] \
   && ok "it records the pair's names for the other panes" || nope "pair.json: $(cat "$MB/pair.json" 2>/dev/null)"
 [ ! -e "$MB/pair.json.tmp" ] && ok "through a rename, leaving no temp file" || nope "pair.json.tmp left behind"

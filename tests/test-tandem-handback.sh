@@ -55,7 +55,8 @@ case "$1 $2" in
     case "${CONFIRM_RC:-0}" in
       10) printf 'agent_blocked\tstill blocked\n' >&2; exit 10 ;;
       11) printf 'agent_input_elsewhere\tplanner'"'"'s pane shows the screen of subagent "Fix it", whose input goes to that subagent; nothing was typed\n' >&2; exit 10 ;;
-      25) printf 'agent_never_started\tno turn began\n' >&2; exit 25 ;;
+      25) [[ -n "${CONFIRM_SEQ:-}" ]] && printf 'never_started\t%s\n' "$CONFIRM_SEQ"
+          printf 'agent_never_started\tno turn began\n' >&2; exit 25 ;;
       26) printf 'agent_turn_failed\tturn ended at once\n%s\n' "${PANE_TEXT:-}" >&2; exit 26 ;;
     esac
     exit 0 ;;
@@ -269,6 +270,21 @@ run "$HANDBACK_BIN" --report "$REPORT"
 [[ "$RC" == 7 ]] && ok "planner never wakes exits 7" || nope "planner never wakes exits 7 (got $RC)"
 chk "planner never wakes warns" "never woke up"
 chk "planner never wakes says do not resend" "Do NOT redo the work and do NOT send it again"
+
+# --- planner busy, a bridge watches: the handback is held, not failed (#67) ---
+rm -rf "$TMP/mailbox"; mkdir -p "$TMP/mailbox"
+printf '#!/usr/bin/env bash\nsleep 60\n' > "$TMP/tandem-bridge"; chmod +x "$TMP/tandem-bridge"
+"$TMP/tandem-bridge" & FAKE_BRIDGE=$!
+echo "$FAKE_BRIDGE" > "$TMP/mailbox/bridge.pid"
+ENV=(HERDR_ROLE=builder SNAPSHOT_STATUS=idle CONFIRM_RC=25 CONFIRM_SEQ=41)
+run "$HANDBACK_BIN" --report "$REPORT"
+[[ "$RC" == 0 ]] && ok "a held handback exits 0" || nope "a held handback exits 0 (got $RC)"
+chk "a held handback says the planner has not started on it yet" "has not started on it yet"
+case "$OUT" in *"never woke up"*) nope "a held handback says the planner never woke" ;; *) ok "a held handback does not say the planner never woke" ;; esac
+_held=( "$TMP"/mailbox/pending/* )
+[[ -f "${_held[0]}" && "$(sed -n 1p "${_held[0]}")" == handback && "$(sed -n 2p "${_held[0]}")" == builder ]] \
+  && ok "the handback is held for the bridge" || nope "no pending handback: $(cat "${_held[0]}" 2>/dev/null)"
+kill "$FAKE_BRIDGE" 2>/dev/null; wait "$FAKE_BRIDGE" 2>/dev/null
 
 # --- planner whose turn ends at once: the handback says so and shows the pane
 rm -rf "$TMP/mailbox"; mkdir -p "$TMP/mailbox"

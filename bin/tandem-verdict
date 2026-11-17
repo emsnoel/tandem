@@ -20,6 +20,10 @@ done
 . "${_self%/*}/lib/reviewer.sh"
 # shellcheck source=lib/pair-identity.sh
 . "${_self%/*}/lib/pair-identity.sh"
+# shellcheck source=lib/bridge-lock.sh
+. "${_self%/*}/lib/bridge-lock.sh"
+# shellcheck source=lib/pending.sh
+. "${_self%/*}/lib/pending.sh"
 
 PLAN=""; REVIEW=""; VERDICT=""; ROLE=""; ROLE_SET=0
 
@@ -198,8 +202,18 @@ WARN
   exit 7
 fi
 rc=0
-_perr=$(tandem agent prompt "$PLANNER_NAME" "$MSG" --as verdict 2>&1 >/dev/null) || rc=$?
+_perrf=$(mktemp)
+_pout=$(tandem agent prompt "$PLANNER_NAME" "$MSG" --as verdict 2>"$_perrf") || rc=$?
+_perr=$(cat "$_perrf"); rm -f "$_perrf"
 IFS=$'\t' read -r _code _msg <<<"$(printf '%s' "$_perr" | head -1)"
+# held: the planner took the prompt but has not started on it, as when it is
+# busy in a way Herdr does not show. The bridge watches for the start
+# (lib/pending.sh), so this is a delivery in progress, not a failure.
+held() {
+  info "the verdict was typed into '$PLANNER_NAME', which has not started on it yet, most likely because it is busy."
+  info "The bridge marks it delivered once '$PLANNER_NAME' starts, or UNDELIVERED after $(pending_seconds)s. You are done, so do not wait or resend."
+  exit 0
+}
 unwoken() {
   cat >&2 <<WARN
 tandem-verdict: WARNING the prompt was accepted but $PLANNER_NAME never woke up.
@@ -222,7 +236,12 @@ WARN
 }
 case "$rc" in
   0) ;;
-  25) unwoken ;;
+  25)
+    if pending_watched "$MAILBOX" && _seq=$(pending_seq "$_pout") \
+       && pending_hold "$MAILBOX" "$ID" verdict "$ROLE" "$_seq"; then
+      held
+    fi
+    unwoken ;;
   26) unwoken "$(printf '%s' "$_perr" | tail -n +2)" ;;
   *)
     cat >&2 <<WARN

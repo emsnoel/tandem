@@ -178,9 +178,36 @@ func TestPromptAsReportsATurnThatIsWorking(t *testing.T) {
 func TestPromptAsReportsAPromptThatNeverStarted(t *testing.T) {
 	p := newPane("done")
 	p.swallow = true
+	p.seq = 41
 	out, errs, rc := promptAsRC(t, p)
-	if rc != exitcode.NeverStarted || out != "" || !strings.HasPrefix(errs, "agent_never_started\t") {
+	// stdout carries the pane's lifecycle counter at typing, which the bridge
+	// checks on later passes (startedSince).
+	if rc != exitcode.NeverStarted || out != "never_started\t41\n" || !strings.HasPrefix(errs, "agent_never_started\t") {
 		t.Fatalf("rc %d stdout %q stderr %q", rc, out, errs)
+	}
+}
+
+// A prompt typed into a planner that Herdr shows idle but that is busy starts
+// late. The bridge keeps it pending and asks startedSince on each pass.
+func TestStartedSince(t *testing.T) {
+	at := func(st string, seq int) *herdr.Agent { return &herdr.Agent{Status: &st, StateChangeSeq: seq} }
+	for _, c := range []struct {
+		name string
+		a    *herdr.Agent
+		seq  int
+		want bool
+	}{
+		{"nothing moved and the pane is idle", at("idle", 41), 41, false},
+		{"nothing moved and the pane is done", at("done", 41), 41, false},
+		{"the counter moved: a turn ran, however short", at("idle", 43), 41, true},
+		{"the pane is working now", at("working", 41), 41, true},
+		{"the pane is at a dialog now", at("blocked", 41), 41, true},
+		{"Herdr restarted, so the counter went back", at("idle", 2), 41, true},
+		{"Herdr reports no counter and the pane is idle", at("idle", 0), 0, false},
+	} {
+		if got := startedSince(c.a, c.seq); got != c.want {
+			t.Errorf("%s: startedSince = %v, want %v", c.name, got, c.want)
+		}
 	}
 }
 

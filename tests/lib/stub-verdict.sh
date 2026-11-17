@@ -66,7 +66,8 @@ case "$1 $2" in
       exit "${AGENT_PROMPT_RC}"
     fi
     case "${CONFIRM_RC:-0}" in
-      25) printf 'agent_never_started\tno turn began\n' >&2; exit 25 ;;
+      25) [[ -n "${CONFIRM_SEQ:-}" ]] && printf 'never_started\t%s\n' "$CONFIRM_SEQ"
+          printf 'agent_never_started\tno turn began\n' >&2; exit 25 ;;
       26) printf 'agent_turn_failed\tturn ended at once\n%s\n' "${PANE_TEXT:-}" >&2; exit 26 ;;
     esac
     exit 0 ;;

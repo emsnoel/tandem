@@ -31,6 +31,22 @@ wrote, and leaves an `.UNDELIVERED` marker beside the report if it can't. Only
 `tandem-handback` holds the message text, so the sandboxed and direct paths can't drift
 into saying different things.
 
+**A planner busy in a way Herdr doesn't show takes a message late.** It reads `idle`, queues
+the prompt and starts on it once its current work ends, often minutes later. So when a
+message to the planner is typed but no turn starts within 8 seconds, it is held in
+`pending/<id>`, not failed. The file keeps the planner pane's Herdr change counter from when
+the message was typed. On each pass the bridge runs `tandem agent status planner --since
+COUNTER`. Once the counter moves or the pane is busy, the message counts as delivered. One
+still waiting after `HERDR_BRIDGE_PENDING_SECONDS` (default 1800) is failed the usual way:
+an `.UNDELIVERED` marker, an error answer for a question, or a pause note sent again.
+`tandem-handback` and `tandem-verdict` hold a message the same way when they type it
+directly, but only while a bridge runs to watch it. `tandem-status` lists held messages and
+what is queued, by kind. When the bridge is down it also says those messages are waiting.
+
+`tandem-pair` starts the bridge in a process group of its own. When the planner's agent
+exits, a signal to its shell's group would otherwise stop the bridge too, and `nohup` only
+blocks SIGHUP. The bridge logs `stopped` when it ends.
+
 **The author of an answer or report writes it to a file.** tandem never scrapes it from a
 pane. The terminal collapses long output (`… +N lines`), and a scraped answer would lose the
 collapsed part.
