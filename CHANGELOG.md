@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.14.3](https://github.com/emsnoel/tandem/compare/v0.14.2...v0.14.3) (2026-11-17)
+
+
+### Bug Fixes
+
+* build the review verdict from text and reject a broken reply at once ([7959d86](https://github.com/emsnoel/tandem/commit/7959d86e3de4a8e96be58a8d3b9ea4d59ed91c40))
+* pass Copilot's documented --reasoning-effort flag ([bbc4b05](https://github.com/emsnoel/tandem/commit/bbc4b05fcf78aacf3def83f4840eb3c7c0b3c12c))
+* send a failed check back to the builder as a repair ([259e8a8](https://github.com/emsnoel/tandem/commit/259e8a876241df03f39bdf6e15dcc7f1c40c532a))
+* start Claude builders and reviewers without the user's Claude setup ([4ef3832](https://github.com/emsnoel/tandem/commit/4ef3832e85f2bf43a47c126f34c7769081125640))
+
 ## [0.14.2](https://github.com/emsnoel/tandem/compare/v0.14.1...v0.14.2) (2026-11-17)
 
 
