@@ -27,16 +27,19 @@ const exportDocLimit = 64 << 20
 // ExportManifest describes an export. Together with the artifacts beside it, it
 // is enough to read the run's history with the source store gone.
 type ExportManifest struct {
-	Version    int              `json:"version"`
-	RunID      string           `json:"run_id"`
-	CheckoutID string           `json:"checkout_id"`
-	State      string           `json:"state"`
-	PauseCode  string           `json:"pause_code,omitempty"`
-	Tasks      []ExportTask     `json:"tasks"`
-	Attempts   []ExportAttempt  `json:"attempts"`
-	Effects    []ExportEffect   `json:"effects"`
-	Events     int              `json:"events"`
-	Artifacts  []ExportArtifact `json:"artifacts"`
+	Version    int    `json:"version"`
+	RunID      string `json:"run_id"`
+	CheckoutID string `json:"checkout_id"`
+	State      string `json:"state"`
+	PauseCode  string `json:"pause_code,omitempty"`
+	// ResumedFrom is the run this one resumed. Its carried tasks name that
+	// run's accepted attempts, whose evidence is in that run's export.
+	ResumedFrom string           `json:"resumed_from,omitempty"`
+	Tasks       []ExportTask     `json:"tasks"`
+	Attempts    []ExportAttempt  `json:"attempts"`
+	Effects     []ExportEffect   `json:"effects"`
+	Events      int              `json:"events"`
+	Artifacts   []ExportArtifact `json:"artifacts"`
 	// Unresolved lists what was still uncertain when the run was exported, so
 	// an operator reading only the export does not take silence for success.
 	Unresolved []string `json:"unresolved"`
@@ -114,6 +117,11 @@ func (c *Controller) Export(ctx context.Context, runID, output string) (ExportMa
 	defer unlock()
 
 	m := ExportManifest{Version: 1, RunID: runID, CheckoutID: run.CheckoutID, State: run.State, PauseCode: run.PauseCode, Unresolved: []string{}}
+	cfg, err := c.config(ctx, run)
+	if err != nil {
+		return m, err
+	}
+	m.ResumedFrom = cfg.ResumedFrom
 	tasks, err := c.d.State.RunTasks(ctx, runID)
 	if err != nil {
 		return m, err

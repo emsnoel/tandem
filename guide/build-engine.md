@@ -86,6 +86,10 @@ Tandem tells the planner once, with a note that says what stopped, why, and what
 To print the note again, run `tandem-pause-note`. A failed check, for example, names the task,
 the exit code and the end of the check's log.
 
+Once a stopped run is archived, `tandem-handoff --resume` starts a new run of the same plan at
+the task it stopped on. The tasks it accepted stay accepted, on their own evidence. See
+[Resuming a stopped run](durable-runner-operations.md#resuming-a-stopped-run).
+
 A failed check does not stop the run at once. Tandem sends it back to the builder as a repair,
 the same way it handles a review that asks for changes. The repair is a new attempt of the same
 task, and its prompt holds the end of the check's log. It counts against the same limit of 3
@@ -103,6 +107,7 @@ The commands the notes point at:
 | See usage | `tandem build usage --json` |
 | Give up on a prompt no agent acknowledged | `tandem state settle-delivery` |
 | Archive a settled run | `tandem state archive --run ID` |
+| Start again where an archived run stopped | `tandem-handoff --resume` |
 
 ## What the task prompt carries
 

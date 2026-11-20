@@ -121,7 +121,10 @@ has "the restart says a gone builder pane holds the stop" "$OUT" "If the builder
 has "and brings the agent back" "$OUT" "bring the agent back with tandem-pair"
 has "the restart names settle-delivery for an archive refusal" "$OUT" "settle-delivery"
 has "and says when to give up on a prompt" "$OUT" "idle and handed nothing back"
-has "and that its files are not accepted work" "$OUT" "aren't counted as accepted work"
+has "and that a fresh start counts none of its files as accepted work" "$OUT" "A fresh start counts none of them as accepted work"
+has "and that a resume needs them as the run left them" "$OUT" "A resume needs them exactly as the run left them"
+has "the restart offers a resume first" "$OUT" "tandem-handoff --resume"
+has "and still offers a fresh start at task 1" "$OUT" "The run starts again at task 1."
 has "and to check them first" "$OUT" "git status"
 has "a pair with a name from pair.json says how to bring it back" "$OUT" "pair.json"
 lack "the archive step no longer carries the git status advice" "$(_pn_n=0; _pn_end_run "$RUN" /r)" "git status"
@@ -153,10 +156,12 @@ has "review_unknown keeps the waive, which clears it" "$OUT" "tandem build accep
 has "review_unknown says a mailbox review waits 5 minutes" "$OUT" "waits 5"
 OUT=$(pause_note check_failed "$RUN" /r task-7 b r "" "/plans/my plan.md" "" /m)
 has "the hand-off names the real plan, quoted" "$OUT" 'tandem-handoff /plans/my\ plan.md'
+has "and so does the resume" "$OUT" 'tandem-handoff --resume /plans/my\ plan.md'
 OUT=$(pause_note check_failed "$RUN" /r task-7 b r "" "" "" /m)
 case "$OUT" in *$'\n    tandem-handoff') ok "a run with no plan path hands off with tandem-handoff alone" ;; *) nope "no-plan hand-off: $OUT" ;; esac
 OUT=$(pause_note context_too_large "$RUN" /r task-7 b r "" /p.md "" /m)
 has "context_too_large puts the limit before the plan" "$OUT" "tandem-handoff --context-limit N /p.md"
+has "and resumes with the limit too" "$OUT" "tandem-handoff --context-limit N --resume /p.md"
 OUT=$(pause_note scheduling_blocked "$RUN" /r task-7 b r "" /p.md COLL1 /m)
 has "scheduling_blocked names the collaboration" "$OUT" "tandem collaboration resume --collaboration COLL1 "
 has "a ceiling needs an amendment, which a resume does not give" "$OUT" "tandem collaboration amend --collaboration COLL1 --provider PROVIDER --input-ceiling N --actor you --reason WHY --root /r"
@@ -192,7 +197,8 @@ has "writer_unknown: a working builder is waited for" "$OUT" "If the builder is 
 has "writer_unknown: it names the prompt in doubt" "$OUT" "the prompt for task-7"
 has "writer_unknown: an earlier task's work does not count" "$OUT" "Work on an earlier task doesn't count"
 has "writer_unknown: an idle one that handed nothing back is given up on" "$OUT" "If it's idle and handed nothing back, abandon the prompt"
-has "writer_unknown: its files stay" "$OUT" "Any files the run changed stay in your tree and aren't counted as accepted work"
+has "writer_unknown: its files stay" "$OUT" "Any files the run changed stay in your tree"
+has "writer_unknown: it offers a resume" "$OUT" "tandem-handoff --resume"
 has "writer_unknown: check them before the hand-off" "$OUT" "check git status before you hand off"
 has "writer_unknown: a late acknowledgement can close it" "$OUT" "Skip this step if the export lists nothing open"
 lack "writer_unknown no longer claims to know it was not read" "$OUT" "never read the prompt"

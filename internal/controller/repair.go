@@ -36,24 +36,32 @@ type repairContext struct {
 
 // repairFor builds the context for the attempt that repairs parent.
 func (c *Controller) repairFor(ctx context.Context, parent workflow.Attempt) (repairContext, error) {
+	lead := fmt.Sprintf("This is attempt %d. The reviewer asked for changes to attempt %d; its work is still in the tree. This is a fresh conversation: fix what the reviewer found, starting from what follows.",
+		parent.Ordinal+1, parent.Ordinal)
+	if parent.Check == workflow.CheckFailed {
+		lead = fmt.Sprintf("This is attempt %d. The check failed on attempt %d; its work is still in the tree. This is a fresh conversation: make the check pass, starting from what follows.",
+			parent.Ordinal+1, parent.Ordinal)
+	}
+	return c.repairNote(ctx, parent, lead)
+}
+
+// repairNote is lead, then what parent left open: the end of its failed
+// check's log, the reviewer's open findings and the files it changed.
+func (c *Controller) repairNote(ctx context.Context, parent workflow.Attempt, lead string) (repairContext, error) {
 	var b strings.Builder
 	var rc repairContext
+	b.WriteString(lead)
 	if parent.Check == workflow.CheckFailed {
 		ev, err := c.checkFailure(ctx, parent)
 		if err != nil {
 			return rc, err
 		}
-		fmt.Fprintf(&b, "This is attempt %d. The check failed on attempt %d; its work is still in the tree. This is a fresh conversation: make the check pass, starting from what follows.",
-			parent.Ordinal+1, parent.Ordinal)
 		if ev.Excerpt == "" {
 			b.WriteString("\n\nThe check printed nothing. Run the project's check command to see why it fails.\n")
 		} else {
 			fmt.Fprintf(&b, "\n\nThe end of the check's log (the whole log is `tandem artifact read %s --attempt ATTEMPT`, where ATTEMPT is in the Context line):\n%s\n", ev.Hash, ev.Excerpt)
 		}
 		rc.Refs = append(rc.Refs, [2]string{"parent_check_log", ev.Hash})
-	} else {
-		fmt.Fprintf(&b, "This is attempt %d. The reviewer asked for changes to attempt %d; its work is still in the tree. This is a fresh conversation: fix what the reviewer found, starting from what follows.",
-			parent.Ordinal+1, parent.Ordinal)
 	}
 
 	if hash, found, err := c.d.State.LatestReviewResult(ctx, parent.ID); err != nil {

@@ -60,6 +60,7 @@ start_build() {
   BARGS=( --plan "$PLAN_ABS" --root "$ROOT" --builder "$BUILDER_NAME" --planner "$PLANNER_NAME"
           --check "$CHECK_COMMAND" --budget "${TASK_BUDGET:-0}" )
   (( CONTINUE )) && BARGS+=( --resume-only )
+  [[ -n "$RESUME_FROM" ]] && BARGS+=( --resume-from "$RESUME_FROM" )
   (( DRY_RUN )) && BARGS+=( --dry-run )
   # The run chooses its transport from the builder's kind.
   BARGS+=( --builder-kind "$BUILDER_KIND" )
@@ -82,7 +83,7 @@ start_build() {
   rc=0
   tandem build start "${BARGS[@]}" --fields >"$FIELDS" || rc=$?
   # The fields are printed on a refusal too, so read them whatever the exit code.
-  { read_field B_ENGINE; read_field RUN_ID; read_field B_DRY_RUN; read_field LEGACY_BUILD; } <"$FIELDS"
+  { read_field B_ENGINE; read_field RUN_ID; read_field B_DRY_RUN; read_field LEGACY_BUILD; read_field RESUMED_FROM; } <"$FIELDS"
   if (( rc != 0 )); then
     if (( rc == 23 )) && [[ -n "$LEGACY_BUILD" ]]; then
       legacy_leftover_note
@@ -90,6 +91,10 @@ start_build() {
     fi
     if (( CONTINUE && rc == 23 )); then
       printf 'tandem-handoff: the run is paused and needs a person (for example the plan file changed); nothing was sent. See `tandem build status --root %s`.\n' "$ROOT" >&2
+      exit "$rc"
+    fi
+    if (( rc == 23 )) && [[ -z "$RUN_ID" && -n "$RESUME_FROM" ]]; then
+      printf 'tandem-handoff: no run was started; the reason is above. Nothing was sent.\n' >&2
       exit "$rc"
     fi
     if (( rc == 23 )) && [[ -z "$RUN_ID" ]]; then
@@ -145,6 +150,9 @@ MSG
   # Printed at the timeout too: the state, its pause code, the first unfinished
   # task's dispatch, the pause reason, the task, the builder and reviewer panes, the plan and the collaboration.
   { read_field _state; read_field _code; read_field _disp; read_field _reason; read_field _task; read_field _builder; read_field _reviewer; read_field _plan; read_field _collab; } <"$FIELDS"
+  if [[ -n "$RESUMED_FROM" ]]; then
+    printf 'tandem-handoff: run %s resumes run %s at %s. The tasks that run accepted stay accepted.\n' "$RUN_ID" "$RESUMED_FROM" "${_task:-its next task}"
+  fi
   if [[ "$_disp" == sent ]]; then
     printf 'tandem-handoff: run %s %s for %s.\n' "$RUN_ID" "$verb" "$BUILDER_NAME"
     exit 0

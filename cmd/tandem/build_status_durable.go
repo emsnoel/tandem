@@ -23,10 +23,13 @@ type attemptOut struct {
 }
 
 type taskOut struct {
-	ID       string       `json:"id"`
-	Ordinal  int          `json:"ordinal"`
-	Accepted bool         `json:"accepted"`
-	Attempts []attemptOut `json:"attempts"`
+	ID       string `json:"id"`
+	Ordinal  int    `json:"ordinal"`
+	Accepted bool   `json:"accepted"`
+	// CarriedFrom is the run whose accepted attempt this task carries, when
+	// the run resumed one.
+	CarriedFrom string       `json:"carried_from,omitempty"`
+	Attempts    []attemptOut `json:"attempts"`
 }
 
 type statusDurableOut struct {
@@ -40,6 +43,7 @@ type statusDurableOut struct {
 	Reviewer       string    `json:"reviewer,omitempty"`
 	Plan           string    `json:"plan,omitempty"`
 	Collaboration  string    `json:"collaboration,omitempty"`
+	ResumedFrom    string    `json:"resumed_from,omitempty"`
 	TaskNumber     int       `json:"task_number,omitempty"`
 	TaskCount      int       `json:"task_count"`
 	TaskInputLimit int64     `json:"task_input_limit"`
@@ -69,6 +73,9 @@ func durableStatus(d *openRun) (statusDurableOut, error) {
 	if plan, collab, err := controller.RunPlan(ctx, d.st, d.art, run.ID); err == nil {
 		out.Plan, out.Collaboration = plan, collab
 	}
+	if from, err := controller.RunResumedFrom(ctx, d.st, d.art, run.ID); err == nil {
+		out.ResumedFrom = from
+	}
 	effects, err := d.st.RunEffects(ctx, run.ID)
 	if err != nil {
 		return statusDurableOut{}, err
@@ -92,6 +99,15 @@ func durableStatus(d *openRun) (statusDurableOut, error) {
 	out.TaskCount = len(tasks)
 	for i, t := range tasks {
 		to := taskOut{ID: t.ID, Ordinal: t.Ordinal, Accepted: t.AcceptedAttemptID != "", Attempts: []attemptOut{}}
+		if to.Accepted {
+			acc, err := d.st.GetAttempt(ctx, t.AcceptedAttemptID)
+			if err != nil {
+				return statusDurableOut{}, err
+			}
+			if acc.RunID != run.ID {
+				to.CarriedFrom = acc.RunID
+			}
+		}
 		attempts, err := d.st.TaskAttempts(ctx, run.ID, t.ID)
 		if err != nil {
 			return statusDurableOut{}, err
@@ -157,6 +173,9 @@ func cmdBuildStatusDurable(args []string) int {
 		return printJSON(out)
 	}
 	fmt.Printf("engine: durable\nrun:    %s\nstate:  %s", out.RunID, out.State)
+	if out.ResumedFrom != "" {
+		fmt.Printf("\nresumes: %s", out.ResumedFrom)
+	}
 	if out.PauseCode != "" {
 		fmt.Printf(" (%s)", out.PauseCode)
 	}
@@ -165,7 +184,9 @@ func cmdBuildStatusDurable(args []string) int {
 	}
 	fmt.Printf("\n\n| Task | Accepted | Attempt | Implementation | Check | Review |\n| --- | --- | --- | --- | --- | --- |\n")
 	for _, t := range out.Tasks {
-		if len(t.Attempts) == 0 {
+		if t.CarriedFrom != "" {
+			fmt.Printf("| %s | %v | carried from run %s | - | - | - |\n", t.ID, t.Accepted, t.CarriedFrom)
+		} else if len(t.Attempts) == 0 {
 			fmt.Printf("| %s | %v | - | - | - | - |\n", t.ID, t.Accepted)
 		}
 		for _, a := range t.Attempts {

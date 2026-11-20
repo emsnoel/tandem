@@ -195,7 +195,9 @@ The run continues in one of two ways:
       tandem build recover --root DIR
 
 Otherwise stop, recover and archive the run, then hand the plan off again. The note prints each
-step. The new run starts again at task 1.
+step. `tandem-handoff --resume` starts the new run at the task the old one stopped on (see
+[Resuming a stopped run](#resuming-a-stopped-run)). A plain `tandem-handoff` starts again at
+task 1.
 
 ## A builder waiting on a dialog
 
@@ -318,6 +320,39 @@ is publishing. It deletes only artifacts that no row, reference or snapshot name
 run, and never by age. Missing or corrupt referenced artifacts are listed and left alone.
 Stop every run first.
 
+## Resuming a stopped run
+
+A run that stopped part way can go on from where it stopped. Stop it, end its open jobs and
+archive it, as above. Then hand the same plan off with `--resume`:
+
+    tandem-handoff --resume PLAN
+    tandem-handoff --resume-from RUN PLAN    # a named archived run instead of the latest
+
+`--resume` picks the most recently archived run of the plan in this checkout. The new run
+carries every task that run accepted, so no prompt is typed for them. Its task rows name the
+attempts that were accepted, and their check, review and waivers are the same rows, read in
+place. `tandem-unpair` signs those tasks off on that evidence. `tandem build status` shows
+the run it resumed as `resumed_from`, and each carried task with `carried_from`.
+
+A task the run was repairing starts with the open findings. The new attempt's prompt holds
+the reviewer's open findings, or the end of the failed check's log, and the files the earlier
+attempt changed, as a repair's prompt would. It is attempt 1 of the new run, so the task has
+its full 3 attempts again.
+
+The resume refuses, exit 23, and creates nothing, unless all of these hold:
+
+- the run is archived, and built a plan with exactly the same text;
+- the check command is the one the run used;
+- each carried task's check and review (or waivers) still satisfy acceptance for the tree
+  it was accepted on, and the patch and tree it was accepted on are intact;
+- the files in the checkout are exactly what the run left. That is the tree its last task
+  was accepted on, or, for a task under repair, the tree the attempt with open findings
+  handed back. Committing those files does not count as a change, since a snapshot reads
+  files, not commits.
+
+The plan still passes the review gate first, as for any hand-off. `--dry-run` does not
+check whether a resume would be accepted.
+
 ## Rollback and downgrade
 
 To end a run and keep its history, stop it, let it settle, export it and archive it:
@@ -430,7 +465,8 @@ is refused while the run is active, so stop it, end its open jobs and archive it
     tandem state recover --run ID --root DIR
     tandem state archive --run ID --root DIR
 
-Then re-pair with a reviewer if the pair has none, and hand off again.
+Then re-pair with a reviewer if the pair has none, and hand off again. `tandem-handoff --resume`
+keeps the tasks the run accepted and starts at the one it stopped on.
 
 A builder's usage is read from the log of the conversation it ran in. Herdr names a pane's
 conversation only for Claude. Its Codex hook runs in Codex's shared app-server daemon and

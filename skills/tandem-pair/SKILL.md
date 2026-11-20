@@ -20,6 +20,15 @@ You are the planner. tandem runs a builder and a reviewer in other panes.
 End your turn. tandem wakes you with the verdict, the handback or a question. Do not
 poll `tandem-status`. tandem types each message into your pane once you are idle.
 
+## A run that stopped
+
+tandem's note says what stopped the run and the steps to take. `tandem-pause-note --root DIR`
+prints it again. To go on after a stop, follow the note to stop, recover and archive the run,
+then run `tandem-handoff --resume FILE`. It starts at the task the run stopped on and keeps the
+tasks it accepted. A task under repair gets its open findings. It refuses, and starts
+nothing, if the files changed since the run stopped. Tell the user what changed rather than
+discarding it yourself. A plain `tandem-handoff FILE` starts again at task 1.
+
 ## A relayed question
 
 Write your answer to the exact path the message names, within 5 minutes. The asker
