@@ -65,9 +65,10 @@ Progress lives in `state.sqlite` and an artifact store in the state home. The re
   with an open job cannot be archived.
 - **Waiver.** `tandem build accept --task N --waive check|review|implementation --because
   "why"` lets a person overrule one requirement. It is recorded with a reason. `--task`
-  also takes the id as status prints it (`task-3`). A review waiver clears a run paused as
-  `review_unknown` on that review. A run paused as `repairs_exhausted`, `review_failed` or
-  `check_failed` goes on once its waivers cover every requirement the attempt failed. The
+  also takes the task's id as status prints it: its `Task-ID` from the plan, or `task-3`
+  when the plan gives none. An id that names no task, or two, is refused with the list of
+  tasks. A review waiver clears a run paused as `review_unknown` on that review. A run
+  paused as `repairs_exhausted`, `review_failed` or `check_failed` goes on once its waivers cover every requirement the attempt failed. The
   next tick accepts the task and starts the next one. A failed check needs `--waive check`
   and `--waive review`, since its review never ran. If a run kept such a pause after a
   waiver, `tandem build recover` lifts it.

@@ -504,12 +504,12 @@ func TestActiveRunMarkerAndManifest(t *testing.T) {
 			t.Errorf("%s: %v", sub, err)
 		}
 	}
-	if id, err := ResolveTask(dir, 2); err != nil || id != "next-one" {
+	if id, err := ResolveTask(dir, "2"); err != nil || id != "next-one" {
 		t.Fatalf("task 2 -> %q %v", id, err)
 	}
-	for _, n := range []int{0, 3, -1} {
+	for _, n := range []string{"0", "3", "-1"} {
 		if _, err := ResolveTask(dir, n); err == nil {
-			t.Errorf("task %d resolved", n)
+			t.Errorf("task %s resolved", n)
 		}
 	}
 	// A run has no legacy build record: nothing may fake one.

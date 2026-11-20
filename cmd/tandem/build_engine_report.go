@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/emsnoel/tandem/internal/artifact"
@@ -26,19 +25,6 @@ type scopeList []string
 func (s *scopeList) String() string     { return strings.Join(*s, ",") }
 func (s *scopeList) Set(v string) error { *s = append(*s, v); return nil }
 
-// taskNumber is --task, given as "task-3" or "3".
-type taskNumber int
-
-func (n *taskNumber) String() string { return strconv.Itoa(int(*n)) }
-func (n *taskNumber) Set(v string) error {
-	i, err := strconv.Atoi(strings.TrimPrefix(v, "task-"))
-	if err != nil || i < 1 {
-		return fmt.Errorf("%q is not a task: give its number or its id, as 3 or task-3", v)
-	}
-	*n = taskNumber(i)
-	return nil
-}
-
 // cmdBuildAcceptDurable records the planner's waivers. A run has no
 // "accept everything": each requirement being overruled is named, with a
 // reason, and bound to the tree the planner examined. Acceptance itself still
@@ -48,8 +34,7 @@ func cmdBuildAcceptDurable(args []string) int {
 	fs.SetOutput(os.Stderr)
 	var f durableFlags
 	f.register(fs)
-	var task taskNumber
-	fs.Var(&task, "task", "the task whose requirement is waived, as 3 or task-3")
+	task := fs.String("task", "", "the task whose requirement is waived: its number, as 3 or task-3, or its id")
 	because := fs.String("because", "", "why the planner overrules it")
 	var scopes scopeList
 	fs.Var(&scopes, "waive", "check, review or implementation; repeat for each requirement overruled")
@@ -57,10 +42,10 @@ func cmdBuildAcceptDurable(args []string) int {
 		if msg != "" {
 			fmt.Fprintln(os.Stderr, "tandem build accept:", msg)
 		}
-		fmt.Fprintln(os.Stderr, `usage: tandem build accept [--root DIR] --task N|task-N --waive check|review|implementation [--waive ...] --because "why"`)
+		fmt.Fprintln(os.Stderr, `usage: tandem build accept [--root DIR] --task N|task-N|ID --waive check|review|implementation [--waive ...] --because "why"`)
 		return exitcode.Usage
 	}
-	if err := fs.Parse(args); err != nil || task < 1 {
+	if err := fs.Parse(args); err != nil || *task == "" {
 		return usage("")
 	}
 	if len(scopes) == 0 {
@@ -87,7 +72,10 @@ func cmdBuildAcceptDurable(args []string) int {
 		return fail(err)
 	}
 	defer d.close()
-	taskID, err := controller.ResolveTask(controller.RunDir(paths.Relay(f.root), d.run.RunID), int(task))
+	taskID, err := controller.ResolveTask(controller.RunDir(paths.Relay(f.root), d.run.RunID), *task)
+	if errors.Is(err, controller.ErrNoSuchTask) {
+		return usage(err.Error())
+	}
 	if err != nil {
 		return fail(err)
 	}
