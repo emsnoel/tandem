@@ -110,13 +110,9 @@ func (codexAdapter) Sandboxed(s Spec) bool { return s.Autonomy != Full }
 
 // ResetCommand: not /clear, which also wipes the pane's scrollback. The session
 // id moves only when the next turn starts, so the reset is confirmed after the
-// build prompt is delivered.
+// build prompt is delivered. In a Git checkout, /new first asks where the new
+// conversation should run; ResetDialogKey answers it.
 func (codexAdapter) ResetCommand() string { return "/new" }
-
-// ResetConfirmKey: /new opens a "Where should the new conversation run?"
-// picker with "Current checkout" highlighted, while Herdr reports idle. Enter
-// picks it.
-func (codexAdapter) ResetConfirmKey() string { return "enter" }
 
 // InstructionFiles: every Codex conversation, including after /new, opens with
 // "# AGENTS.md instructions for <root>" and the file's text.

@@ -76,6 +76,28 @@ has "says the reviewer's own sandbox proves nothing about the builder" "$P" "pro
 has "and asks for 'could not verify', not an objection" "$P" 'report it as "could not verify", not as an objection'
 hasno "no longer asks about authority the reader does not have" "$P" "authority you do not have"
 
+printf '\n== Codex asks where the new conversation should run (issue 88) ==\n'
+# Codex 0.169 answers /new with a checkout picker that Herdr reports as idle.
+# tandem picks its first row, the current checkout, since the reviewer reads
+# the repo in place.
+SCREENS="$ROOT_DIR/internal/agent/testdata/screens"
+keys() { cat "$FAKE/keys" 2>/dev/null | tr '\t\n' ': '; }
+cp "$SCREENS/codex-new-conversation-picker.txt" "$FAKE/picker"; rm -f "$FAKE/keys" "$FAKE/pane"
+review
+[ "$RC" -eq 0 ] && ok "the review is sent" || nope "the review is sent (rc $RC: $OUT)"
+[ "$(keys)" = "reviewer:enter " ] && ok "Enter answers the picker once, in the reviewer's pane" || nope "keys: $(keys)"
+[ "$(sent_to)" = "reviewer " ] && ok "the prompt reaches the reviewer" || nope "prompted: $(sent_to)"
+[ ! -e "$FAKE/pane" ] && ok "the picker is gone" || nope "the pane still shows: $(cat "$FAKE/pane")"
+
+# With "Create new Git worktree" highlighted, Enter would make a new checkout.
+# tandem presses nothing and sends nothing.
+cp "$SCREENS/codex-new-conversation-picker-moved.txt" "$FAKE/picker"; rm -f "$FAKE/keys" "$FAKE/pane"
+review
+[ "$RC" -ne 0 ] && ok "a picker on its second row stops the review" || nope "a picker on its second row stops the review (rc $RC)"
+[ ! -s "$FAKE/keys" ] && ok "no key is pressed into it" || nope "keys: $(keys)"
+[ ! -s "$FAKE/prompts" ] && ok "nothing is typed" || nope "prompted: $(sent_to)"
+rm -f "$FAKE/picker" "$FAKE/keys" "$FAKE/pane"
+
 printf '\n== no builder recorded: nothing is sent ==\n'
 mv "$MB/builder.json" "$MB/builder.json.bak"
 review

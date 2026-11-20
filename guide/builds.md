@@ -106,13 +106,18 @@ log for the task's usage, and to judge a turn that ended at once. So for any oth
 adds a last line to the prompt, `(tandem delivery <id>)`, and finds the turn's
 conversation by that line.
 
-**Codex 0.157 asks where the new conversation should run.** Its `/new` opens a native
-picker ("Current checkout" or "New worktree") that Herdr can't see. The pane stays `idle`
-and nothing changes. So when a reset command changes nothing for two seconds,
-`tandem agent reset` presses the builder kind's confirm key once and waits again. For Codex
-that is Enter, which picks the highlighted "Current checkout". If still nothing changes,
-the reset is `unconfirmed`. tandem then sends nothing and names the pane. Typing into that screen lost a build prompt on 2026-09-28 (F21 in
-`guide/design.md`).
+**Codex asks where the new conversation should run.** In a Git checkout, its `/new` opens
+a native picker, "Where should the new conversation run?", that Herdr can't see. Codex
+0.157 to 0.161 offer "Current checkout" or "New worktree"; 0.162 and later offer "Use
+current Git worktree" or "Create new Git worktree". No Codex flag or setting skips it.
+While the picker is open, Herdr may report the pane `idle`, or even a brief status
+change. So after the reset command, `tandem agent reset` reads the pane's screen. When
+it shows this picker with its first row (the current checkout) highlighted, it presses
+Enter once and waits for the new conversation. It answers no other dialog, and leaves
+the picker alone when another row is highlighted. If nothing changes, the reset is
+`unconfirmed`. tandem then sends nothing and names the pane. Typing into that screen lost
+a build prompt on 2026-09-28 (F21 in `guide/design.md`), and the picker stopped plan
+reviews with Codex 0.169 (F33).
 
 **tandem resets a Copilot builder with `/new`, and confirms it from Copilot's own log.**
 After `/new`, Herdr keeps reporting the `--session-id` the pane started with, and its

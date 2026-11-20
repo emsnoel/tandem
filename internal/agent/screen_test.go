@@ -55,6 +55,11 @@ func TestOffMainInputReadsRealScreens(t *testing.T) {
 		{"codex-hooks-list-unreviewed.txt", "codex", true, "hooks screen"},
 		{"codex-hooks-list.txt", "codex", true, "hooks screen"},
 		{"codex-hooks-event.txt", "codex", true, "hook list"},
+		// Codex 0.169.0 after /new in a Git checkout, as issue 88 reported it.
+		// The -old screen is 0.160.0's wording, built from its source.
+		{"codex-new-conversation-picker.txt", "codex", true, "Where should the new conversation run?"},
+		{"codex-new-conversation-picker-moved.txt", "codex", true, "Where should the new conversation run?"},
+		{"codex-new-conversation-picker-old.txt", "codex", true, "Where should the new conversation run?"},
 		{"copilot-main.txt", "copilot", false, ""},
 		{"copilot-main-tabbar.txt", "copilot", false, ""},
 		// The sidebar open, with the input still holding the keys: a prompt

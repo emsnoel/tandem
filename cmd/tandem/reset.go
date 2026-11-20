@@ -23,7 +23,6 @@ import (
 
 type resetDeps struct {
 	command func(kind string) string
-	confirm func(kind string) string
 	get     func(name string) (*herdr.Agent, error)
 	watch   func(names ...string) (eventWatch, error)
 	submit  func(name, text string) error
@@ -42,13 +41,6 @@ var liveResetDeps = resetDeps{
 			return ""
 		}
 		return a.ResetCommand()
-	},
-	confirm: func(kind string) string {
-		a, err := agent.Get(kind)
-		if err != nil {
-			return ""
-		}
-		return a.ResetConfirmKey()
 	},
 	get:   herdr.Get,
 	watch: liveWatch,
@@ -76,15 +68,9 @@ func resetSubmitArgs(name, text string) []string {
 	return []string{"agent", "prompt", name, text}
 }
 
-const (
-	// resetPoll is how often a kind's own record is read. The record is a
-	// file, so Herdr sends no event when it appears.
-	resetPoll = 500 * time.Millisecond
-	// resetConfirmAfter is how long a reset may show no change before the
-	// kind's confirm key is pressed once. Codex's /new opens a picker that
-	// Herdr cannot see, so idle alone does not prove a reset.
-	resetConfirmAfter = 2 * time.Second
-)
+// resetPoll is how often the pane's screen and the kind's own record are
+// read. Herdr sends no event when either changes.
+const resetPoll = 500 * time.Millisecond
 
 // resetKind is the recorded kind of the pane named name: reviewer.json's when
 // it names that pane, builder.json's otherwise. An unreadable reviewer.json
@@ -134,32 +120,16 @@ func runReset(d resetDeps, name, root string, timeout time.Duration, dry bool) (
 		return "", "", err
 	}
 	// A reset is proven by change, not time: a moved conversation id ("reset")
-	// or a status event since the command ("sent"). With neither, a dialog may
-	// be open, so the confirm key is pressed once before giving up. A kind
-	// with its own record (Copilot's process log) is judged by that alone.
-	key := d.confirm(kind)
-	moved, pressed, measured, read := false, false, false, false
+	// or a status event since the command ("sent"). A kind with its own record
+	// (Copilot's process log) is judged by that alone. A dialog the command
+	// opened holds the new conversation until it is answered, while Herdr may
+	// report idle or a status change, so the screen is read before any of
+	// that counts. Only the kind's own reset dialog is answered, once.
+	moved, answered, measured := false, false, false
 	lastStatus := a.StatusString()
-	start := d.now()
-	deadline := start.Add(timeout)
-	pressConfirm := func() error {
-		if moved || pressed || key == "" || d.now().Sub(start) < resetConfirmAfter {
-			return nil
-		}
-		pressed = true
-		return d.press(name, key)
-	}
+	deadline := d.now().Add(timeout)
 	for d.now().Before(deadline) {
-		wait := deadline.Sub(d.now())
-		if !moved && !pressed && key != "" {
-			if until := start.Add(resetConfirmAfter).Sub(d.now()); until < wait {
-				wait = until
-			}
-		}
-		if (measured || !read) && wait > resetPoll {
-			wait = resetPoll
-		}
-		ev, ok, err := w.Next(wait)
+		ev, ok, err := w.Next(min(deadline.Sub(d.now()), resetPoll))
 		if err != nil {
 			break
 		}
@@ -171,12 +141,19 @@ func runReset(d resetDeps, name, root string, timeout time.Duration, dry bool) (
 		if ok && ev.Name == name && ev.Status != "" {
 			lastStatus = ev.Status
 		}
-		read = true
+		if !answered {
+			if key := resetDialogKey(d.screen, kind, name); key != "" {
+				answered = true
+				if err := d.press(name, key); err != nil {
+					return "", "", err
+				}
+				// Whatever moved before the answer was not the new conversation.
+				moved = false
+				continue
+			}
+		}
 		b, gerr := d.get(name)
 		if gerr != nil {
-			if err := pressConfirm(); err != nil {
-				return "", "", err
-			}
 			continue
 		}
 		var s string
@@ -194,11 +171,22 @@ func runReset(d resetDeps, name, root string, timeout time.Duration, dry bool) (
 				return "sent", "", nil
 			}
 		}
-		if err := pressConfirm(); err != nil {
-			return "", "", err
-		}
 	}
 	return "unconfirmed", "", nil
+}
+
+// resetDialogKey reads name's screen once and returns the key that answers
+// kind's reset dialog there, or "" (agent.ResetDialogKey). A screen that
+// cannot be read gets no key.
+func resetDialogKey(screen func(string) (string, error), kind, name string) string {
+	if screen == nil {
+		return ""
+	}
+	text, err := screen(name)
+	if err != nil {
+		return ""
+	}
+	return agent.ResetDialogKey(kind, text)
 }
 
 // runSession returns the conversation Herdr reports for name. With not set, it

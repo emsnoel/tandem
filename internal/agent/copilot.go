@@ -118,9 +118,6 @@ func (copilotAdapter) Sandboxed(Spec) bool { return false }
 // (cmd/tandem/reset_copilot.go).
 func (copilotAdapter) ResetCommand() string { return "/new" }
 
-// ResetConfirmKey: /new opens no dialog.
-func (copilotAdapter) ResetConfirmKey() string { return "" }
-
 // InstructionFiles: unmeasured, so the launch prompt keeps asking for the
 // conventions file.
 func (copilotAdapter) InstructionFiles() []string { return nil }

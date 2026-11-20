@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -25,21 +27,43 @@ func TestResetCommandsAreMeasured(t *testing.T) {
 	}
 }
 
-// The key pressed once when a reset command changed nothing Herdr can see.
-func TestResetConfirmKeysAreMeasured(t *testing.T) {
-	for kind, want := range map[string]string{
-		// /new opens a picker with "Current checkout" highlighted.
-		"codex":   "enter",
-		"claude":  "",
-		"copilot": "",
+// Codex's /new asks where the new conversation should run (issue 88). Enter
+// answers only that picker, and only with its first row, the current
+// checkout, highlighted. Any other screen, and any other kind, gets no key.
+func TestResetDialogKeyAnswersOnlyTheCheckoutPicker(t *testing.T) {
+	for _, c := range []struct{ file, kind, want string }{
+		{"codex-new-conversation-picker.txt", "codex", "enter"},
+		{"codex-new-conversation-picker-old.txt", "codex", "enter"},
+		// Enter here would create a new checkout.
+		{"codex-new-conversation-picker-moved.txt", "codex", ""},
+		{"codex-new-conversation-picker.txt", "claude", ""},
+		{"codex-new-conversation-picker.txt", "copilot", ""},
+		{"codex-main.txt", "codex", ""},
+		{"codex-main-fresh.txt", "codex", ""},
+		{"codex-update-prompt.txt", "codex", ""},
+		{"codex-hooks-review.txt", "codex", ""},
+		{"codex-command-center.txt", "codex", ""},
 	} {
-		a, err := Get(kind)
+		b, err := os.ReadFile(filepath.Join("testdata", "screens", c.file))
 		if err != nil {
-			t.Fatalf("Get(%q): %v", kind, err)
+			t.Fatal(err)
 		}
-		if got := a.ResetConfirmKey(); got != want {
-			t.Errorf("%s ResetConfirmKey() = %q, want %q", kind, got, want)
+		if got := ResetDialogKey(c.kind, string(b)); got != c.want {
+			t.Errorf("ResetDialogKey(%s, %s) = %q, want %q", c.kind, c.file, got, c.want)
 		}
+	}
+}
+
+// The transcript can quote the picker. Only a dialog, which names its keys on
+// the last line, is answered.
+func TestResetDialogKeyIgnoresAQuotedPicker(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("testdata", "screens", "codex-new-conversation-picker.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	quoted := strings.Replace(string(b), "  enter select · esc back\n", "", 1) + "\n› Ask Codex to do anything\n\n  ? for shortcuts\n"
+	if got := ResetDialogKey("codex", quoted); got != "" {
+		t.Errorf("a quoted picker got %q, want no key", got)
 	}
 }
 
