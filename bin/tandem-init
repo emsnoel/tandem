@@ -2,8 +2,17 @@
 # tandem-init: make a repo ready for the Herdr planner/builder harness.
 #
 # Writes <repo>/.tandem.json from the settings tandem detects, and ignores the
-# relay mailbox. Safe to run in any repo; it changes nothing else.
+# relay mailbox and the Q&A history through git's exclude file. Safe to run in
+# any repo; it changes nothing else.
 set -euo pipefail
+
+# install.sh symlinks the commands, so resolve the link to find lib/.
+_self="${BASH_SOURCE[0]}"
+while [[ -L "$_self" ]]; do
+  _link=$(readlink "$_self"); [[ "$_link" == /* ]] && _self="$_link" || _self="${_self%/*}/$_link"
+done
+# shellcheck source=lib/git-exclude.sh
+. "${_self%/*}/lib/git-exclude.sh"
 
 ROOT=""
 FORCE=0
@@ -11,8 +20,9 @@ FORCE=0
 usage() { cat <<'USAGE'
 usage: tandem-init [--root DIR] [--force]
 
-Creates <repo>/.tandem.json from detected settings and adds .tandem-relay/ to
-.gitignore. Review the file afterwards. Detection is only a starting point.
+Creates <repo>/.tandem.json from detected settings and adds .tandem-relay/ and
+.tandem-log/ to git's exclude file (.git/info/exclude), never to .gitignore.
+Review the file afterwards. Detection is only a starting point.
 
   --root DIR   repo to initialise (default: the current git repo, else $PWD)
   --force      overwrite an existing .tandem.json
@@ -80,36 +90,21 @@ else
   info "wrote $MANIFEST"
 fi
 
-# The mailbox holds in-flight relay traffic and must never be committed.
-GI="$ROOT/.gitignore"
+# The mailbox holds in-flight relay traffic and tandem-ask's Q&A history is
+# local. Neither is ever committed. git_exclude writes git's exclude file, never
+# the tracked .gitignore.
 RELAY_BASE=$(tandem paths relay --root "$ROOT") \
   || die "the installed tandem is behind these commands (no 'tandem paths'); re-run install.sh."
 RELAY_BASE=$(basename "$RELAY_BASE")
-RELAY_RE="^/?${RELAY_BASE//./\\.}/?$"
-if git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
-  if [[ -f "$GI" ]] && grep -qE "$RELAY_RE" "$GI"; then
-    info ".gitignore already ignores $RELAY_BASE/"
+for _base in "$RELAY_BASE" .tandem-log; do
+  if ! git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+    info "not a git repo, so git ignores nothing. tandem will use $ROOT/$_base."
+  elif _file=$(git_exclude "$ROOT" "$_base"); then
+    if [[ -n "$_file" ]]; then info "added $_base/ to $_file"; else info "git already ignores $_base/"; fi
   else
-    printf '\n# tandem agent relay mailbox (local IPC, never committed)\n%s/\n' "$RELAY_BASE" >> "$GI"
-    info "added $RELAY_BASE/ to .gitignore"
+    info "WARNING could not write git's exclude file; $_base will show up as untracked."
   fi
-else
-  info "not a git repo, so .gitignore was left alone. The relay will use $ROOT/$RELAY_BASE."
-fi
-
-# tandem-ask's Q&A history is local and never committed.
-LOG_BASE=".tandem-log"
-LOG_RE="^/?${LOG_BASE//./\\.}/?$"
-if git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
-  if [[ -f "$GI" ]] && grep -qE "$LOG_RE" "$GI"; then
-    info ".gitignore already ignores $LOG_BASE/"
-  else
-    printf '\n# tandem-ask durable Q&A history (local, never committed)\n%s/\n' "$LOG_BASE" >> "$GI"
-    info "added $LOG_BASE/ to .gitignore"
-  fi
-else
-  info "not a git repo, so .gitignore was left alone. The log will use $ROOT/$LOG_BASE."
-fi
+done
 
 # The listing keeps tandem-project's key order, with check_paths after
 # prompt_extra.

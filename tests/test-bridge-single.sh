@@ -96,7 +96,7 @@ pair_start() {
   # shellcheck disable=SC2016 # the inner script expands its own arguments
   "${BENV[@]}" bash -c '
     info() { printf "tandem-pair: %s\n" "$*"; }; die() { info "$*"; exit 1; }
-    . "$1/bin/lib/relay.sh"; . "$1/bin/lib/pair-records.sh"; . "$1/bin/lib/bridge-lock.sh"; . "$1/bin/lib/pair-identity.sh"
+    . "$1/bin/lib/git-exclude.sh"; . "$1/bin/lib/pair-records.sh"; . "$1/bin/lib/bridge-lock.sh"; . "$1/bin/lib/pair-identity.sh"
     DRY_RUN=0 MB_ROOT="$2" BCWD="$2" PLANNER_NAME=planner-3 BUILDER_NAME=builder-3 REVIEWER_NAME=reviewer-3; start_bridge' _ "$ROOT_DIR" "$R" 2>&1
 }
 OUT=$(pair_start)

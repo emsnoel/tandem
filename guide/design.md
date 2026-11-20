@@ -296,7 +296,7 @@ bridge and the asking agent ever computed that fallback separately and differed,
 watch a directory the other never wrote to: no error, no log, questions simply unanswered
 until someone noticed the session had gone quiet. So `internal/paths` holds the rule once
 and the scripts ask it through `tandem paths` rather than restating it. The same applies to
-what gets gitignored — ignoring the new name in a repo still using the old one leaves live
+what git ignores. Ignoring the new name in a repo still using the old one leaves live
 relay traffic in `git status`.
 
 **Lifecycle state is a hint, not a gate.** `idle` can mean a hidden modal; `blocked` is
@@ -447,7 +447,7 @@ stdout stays exactly the reply.
 - `--dry-run` is on every command that touches another agent: `tandem-pair`,
   `tandem-handoff`, `tandem-ask`, `tandem-handback`, `tandem-unpair`. `tandem-bridge` has
   `--once` instead, `tandem-project` only prints, and `tandem-init` has no preview at all — it writes `.tandem.json` and appends to
-  `.gitignore`, so read what it wrote.
+  `.git/info/exclude`, so read what it wrote.
 - `herdr api schema` returns the socket API's JSON shapes — but see F1: the CLI does not
   always return the envelope the schema describes. Confirm against the actual command.
   The event stream does match the schema's shapes, apart from the two spellings of event
@@ -620,7 +620,7 @@ written:
 | what | anchored on | who |
 |---|---|---|
 | `builder.json`, `reviewer.json`, `reviews/` | the builder pane's own cwd, **unwalked** | written by `tandem-pair`, read by `tandem-handoff`, `tandem-review` and `tandem-verdict` |
-| `q/`, `a/`, `bridge.pid`, the gitignore entry | the **git toplevel** (walked) | the relay bridge, and `tandem-ask` / `tandem-handback` |
+| `q/`, `a/`, `bridge.pid`, the git exclude entry | the **git toplevel** (walked) | the relay bridge, and `tandem-ask` / `tandem-handback` |
 
 The identity path must not walk, because its readers do not: `tandem-project`
 calls `rev-parse --show-toplevel` only when its `--root` is empty, and both

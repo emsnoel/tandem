@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tandem-init writes .tandem.json from detected settings and adds the relay
-# mailbox and Q&A log to .gitignore.
+# mailbox and Q&A log to git's exclude file, never to .gitignore.
 #
 # Hermetic: tandem is stubbed, apart from `config write-manifest`, which is the
 # real command. jq fails: tandem-init asks tandem, so any jq call is a bug. The
@@ -100,8 +100,8 @@ MANIFEST=$(cat "$REPO/.tandem.json" 2>/dev/null)
 [[ "$(jq -r '.check_command' <<<"$MANIFEST")" == "true" ]] && ok "it recorded the detected check_command" || nope "it recorded the detected check_command"
 [[ "$(jq -r '.builder_kind' <<<"$MANIFEST")" == "codex" ]] && ok "it recorded the detected builder_kind" || nope "it recorded the detected builder_kind"
 [[ "$(jq -r '.prompt_extra' <<<"$MANIFEST")" == "" ]] && ok "it left prompt_extra blank for the user to fill in" || nope "it left prompt_extra blank for the user to fill in"
-chk "non-git repo skips .gitignore (relay)" "not a git repo, so .gitignore was left alone. The relay will use $REPO/.tandem-relay."
-chk "non-git repo skips .gitignore (log)" "not a git repo, so .gitignore was left alone. The log will use $REPO/.tandem-log."
+chk "non-git repo ignores nothing (relay)" "not a git repo, so git ignores nothing. tandem will use $REPO/.tandem-relay."
+chk "non-git repo ignores nothing (log)" "not a git repo, so git ignores nothing. tandem will use $REPO/.tandem-log."
 case "$OUT" in *"jq was called"*) nope "it calls no jq: $OUT" ;; *) ok "it calls no jq" ;; esac
 chk "the listing shows check_paths as a list" "    check_paths: a, b"
 chk "the listing shows an empty value as (none)" "    prompt_extra: (none)"
@@ -143,27 +143,41 @@ chk "an unwritable manifest says so" "could not write $REPO/.tandem.json."
 chk "an unwritable manifest gives the reason" "permission denied"
 chmod 755 "$REPO"
 
-# --- git repo: adds both .gitignore entries, once each ------------------------
+# --- git repo: excludes both folders, once each, and leaves .gitignore alone --
+# A tracked .gitignore that tandem edits stops a run as source-mutated (#91).
 REPO="$TMP/gitrepo"; mkdir -p "$REPO"
 git -C "$REPO" init -q
+EXCL="$REPO/.git/info/exclude"
+counts() { # counts <name>: lines in the exclude file that ignore <name>/
+  grep -cE "^/?${1//./\\.}/?\$" "$EXCL" 2>/dev/null || true
+}
 run "$INIT_BIN" --root "$REPO"
 [[ "$RC" == 0 ]] && ok "git repo: exits 0" || nope "git repo: exits 0 (got $RC)"
-[[ -f "$REPO/.gitignore" ]] && ok "git repo: .gitignore was created" || nope "git repo: .gitignore was created"
-chk "git repo: says it added the relay entry" "added .tandem-relay/ to .gitignore"
-chk "git repo: says it added the log entry" "added .tandem-log/ to .gitignore"
-RELAY_COUNT=$(grep -cE '^/?\.tandem-relay/?$' "$REPO/.gitignore" 2>/dev/null || true)
-[[ "${RELAY_COUNT:-0}" -eq 1 ]] && ok "the relay entry appears exactly once" || nope "the relay entry appears exactly once (got ${RELAY_COUNT:-0})"
-LOG_COUNT=$(grep -cE '^/?\.tandem-log/?$' "$REPO/.gitignore" 2>/dev/null || true)
-[[ "${LOG_COUNT:-0}" -eq 1 ]] && ok "the log entry appears exactly once" || nope "the log entry appears exactly once (got ${LOG_COUNT:-0})"
+[[ ! -e "$REPO/.gitignore" ]] && ok "git repo: no .gitignore was created" || nope "git repo: a .gitignore was created"
+chk "git repo: says it added the relay entry" "added .tandem-relay/ to "
+chk "git repo: says it added the log entry" "added .tandem-log/ to "
+[[ "$(counts .tandem-relay)" -eq 1 ]] && ok "the relay entry appears exactly once" || nope "the relay entry appears exactly once (got $(counts .tandem-relay))"
+[[ "$(counts .tandem-log)" -eq 1 ]] && ok "the log entry appears exactly once" || nope "the log entry appears exactly once (got $(counts .tandem-log))"
+mkdir -p "$REPO/.tandem-relay/q" "$REPO/.tandem-log"; : > "$REPO/.tandem-relay/q/x.json"; : > "$REPO/.tandem-log/y.json"
+[[ -z "$(git -C "$REPO" status --porcelain -- .tandem-relay .tandem-log)" ]] && ok "git ignores both folders" || nope "git sees: $(git -C "$REPO" status --porcelain)"
 
 # --- re-running it in the same git repo does not duplicate either entry -------
 run "$INIT_BIN" --root "$REPO" --force
-chk "second run: recognises the existing relay entry" "already ignores .tandem-relay/"
-chk "second run: recognises the existing log entry" "already ignores .tandem-log/"
-RELAY_COUNT=$(grep -cE '^/?\.tandem-relay/?$' "$REPO/.gitignore" 2>/dev/null || true)
-[[ "${RELAY_COUNT:-0}" -eq 1 ]] && ok "second run: the relay entry is still exactly one line" || nope "second run: the relay entry is still exactly one line (got ${RELAY_COUNT:-0})"
-LOG_COUNT=$(grep -cE '^/?\.tandem-log/?$' "$REPO/.gitignore" 2>/dev/null || true)
-[[ "${LOG_COUNT:-0}" -eq 1 ]] && ok "second run: the log entry is still exactly one line" || nope "second run: the log entry is still exactly one line (got ${LOG_COUNT:-0})"
+chk "second run: recognises the existing relay entry" "git already ignores .tandem-relay/"
+chk "second run: recognises the existing log entry" "git already ignores .tandem-log/"
+[[ "$(counts .tandem-relay)" -eq 1 ]] && ok "second run: the relay entry is still exactly one line" || nope "second run: the relay entry is still exactly one line (got $(counts .tandem-relay))"
+[[ "$(counts .tandem-log)" -eq 1 ]] && ok "second run: the log entry is still exactly one line" || nope "second run: the log entry is still exactly one line (got $(counts .tandem-log))"
+
+# --- a repo whose .gitignore already ignores both gets no exclude entry -------
+REPO="$TMP/gitignored"; mkdir -p "$REPO"
+git -C "$REPO" init -q
+printf '.tandem-relay/\n.tandem-log/\n' > "$REPO/.gitignore"
+EXCL="$REPO/.git/info/exclude"
+run "$INIT_BIN" --root "$REPO"
+chk "existing .gitignore: recognises the relay entry" "git already ignores .tandem-relay/"
+[[ "$(counts .tandem-relay)" -eq 0 && "$(counts .tandem-log)" -eq 0 ]] && ok "existing .gitignore: nothing added to the exclude file" \
+  || nope "existing .gitignore: the exclude file gained an entry"
+[[ "$(cat "$REPO/.gitignore")" == $'.tandem-relay/\n.tandem-log/' ]] && ok "existing .gitignore: left untouched" || nope "existing .gitignore: changed"
 
 # --- detection gaps produce NOTE lines -----------------------------------------
 REPO="$TMP/gaps"; mkdir -p "$REPO"

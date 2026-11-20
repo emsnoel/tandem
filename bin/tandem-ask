@@ -12,6 +12,8 @@ _self="${BASH_SOURCE[0]}"
 while [[ -L "$_self" ]]; do
   _link=$(readlink "$_self"); [[ "$_link" == /* ]] && _self="$_link" || _self="${_self%/*}/$_link"
 done
+# shellcheck source=lib/git-exclude.sh
+. "${_self%/*}/lib/git-exclude.sh"
 # shellcheck source=lib/ask-mailbox.sh
 . "${_self%/*}/lib/ask-mailbox.sh"
 # shellcheck source=lib/pair-identity.sh

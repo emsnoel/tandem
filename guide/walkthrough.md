@@ -156,7 +156,9 @@ already paired.
 transport, in `.tandem-log/<id>.json` with the fields `id`, `ts`, `from`, `to`, `question`
 and `answer`. Read it back with `tandem-relaylog`. Without it, a builder in direct mode
 would leave no trace of its questions. The record stays after `tandem-unpair`, which never
-touches this folder. A timeout or a failed delivery leaves no record.
+touches this folder. A timeout or a failed delivery leaves no record. git ignores the folder
+through `.git/info/exclude`, never through `.gitignore`. A run stops when a tracked file
+changes, so a tool that edited `.gitignore` mid-run would stop it.
 
 **The default timeout depends on the direction.** Asking the builder waits 90 seconds. The
 caller is usually Claude Code, whose Bash tool kills a command at 120 seconds. A longer wait
@@ -278,5 +280,5 @@ displayed. See `guide/design.md`.
 `tandem-handoff`, `tandem-ask`, `tandem-handback` and `tandem-unpair`. `tandem-project`
 doesn't need it, because it only prints JSON, and `tandem-bridge` has `--once` instead.
 `tandem-init` has no dry run, and it does write: it creates `.tandem.json` and adds lines to
-`.gitignore`. It won't overwrite an existing manifest without `--force`, but read what it
+`.git/info/exclude`. It won't overwrite an existing manifest without `--force`, but read what it
 wrote afterwards.

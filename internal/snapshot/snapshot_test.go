@@ -113,6 +113,7 @@ func TestSnapshotIncludesCleanTrackedAndUntrackedButNotIgnoredFiles(t *testing.T
 	write(t, root, "untracked.txt", "new\n")
 	write(t, root, "ignored.log", "noise\n")
 	write(t, root, ".tandem-relay/q/1.json", "{}")
+	write(t, root, ".tandem-log/1.json", "{}") // tandem's Q&A log, not ignored here
 	m := complete(t, capture(t, root, st))
 
 	var got []string
@@ -121,7 +122,7 @@ func TestSnapshotIncludesCleanTrackedAndUntrackedButNotIgnoredFiles(t *testing.T
 	}
 	want := []string{".gitignore", "plan.md", "src/a.txt", "src/b.txt", "untracked.txt"}
 	if strings.Join(got, ",") != strings.Join(want, ",") {
-		t.Fatalf("entries %v, want %v (clean tracked files count; ignored files and the relay do not)", got, want)
+		t.Fatalf("entries %v, want %v (clean tracked files count; ignored files, the relay and the Q&A log do not)", got, want)
 	}
 	if e, _ := entryOf(m, "src/a.txt"); e.ContentHash != sum("base-a\n") || e.Kind != KindFile || e.Size != 7 || e.Executable {
 		t.Fatalf("entry %+v", e)

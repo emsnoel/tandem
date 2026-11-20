@@ -18,14 +18,9 @@ log_exchange() {
   local log_dir="$LOG_ROOT/.tandem-log"
   mkdir -p "$log_dir" 2>/dev/null || return 0
 
-  # Local history, never committed.
-  if git -C "$LOG_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
-    local gi="$LOG_ROOT/.gitignore"
-    if [[ ! -f "$gi" ]] || ! grep -qE '^/?\.tandem-log/?$' "$gi" 2>/dev/null; then
-      # Grouped so 2>/dev/null also catches a failed redirection.
-      { printf '\n# tandem-ask durable Q&A history (local, never committed)\n.tandem-log/\n' >> "$gi"; } 2>/dev/null
-    fi
-  fi
+  # Local history, never committed. git_exclude (lib/git-exclude.sh) never
+  # touches .gitignore, which a run would see as a change to the task.
+  git_exclude "$LOG_ROOT" .tandem-log >/dev/null || true
 
   # Best effort: a failed write never fails the question.
   tandem relay log --dir "$log_dir" --id "$ID" --from "$from" --to "$to" \

@@ -192,9 +192,11 @@ func list(ctx context.Context, root string) ([]listed, error) {
 }
 
 // skip drops transport and history directories: they are never part of a task.
+// tandem-ask writes the Q&A log while a run waits, so the log is skipped even
+// in a repo that does not ignore it.
 func skip(path []byte) bool {
 	for _, part := range strings.Split(string(path), "/") {
-		if paths.IsRelayName(part) || part == ".tandem-history" {
+		if paths.IsRelayName(part) || part == paths.LogName || part == ".tandem-history" {
 			return true
 		}
 	}

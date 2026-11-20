@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Every completed tandem-ask exchange leaves a .tandem-log/<id>.json record; a
 # failed or timed-out one leaves none. tandem-relaylog reads them back, and
-# tandem-init ignores the directory.
+# tandem-ask and tandem-init ignore the directory without editing a tracked file.
 #
 # Hermetic: tandem and herdr are stubs (SNAP_MODE picks the transport), and a
 # real temp git repo supplies the toplevel. jq fails: the scripts ask tandem,
@@ -141,23 +141,56 @@ SNAP_MODE=mailbox run_ask --timeout 1 planner "nobody will answer this"
 [ "$(log_count)" = 0 ] && ok "no log record was written for a timeout" \
                         || nope "a timed-out exchange should not be logged (found $(log_count))"
 
-echo "--- direct mode also ignores .tandem-log in .gitignore ---"
+echo "--- the log never edits a tracked file (issue #91) ---"
+# A run measures the tree, so a tracked .gitignore that tandem-ask edits stops
+# it as source-mutated. The log is ignored through git's exclude file instead.
 newrepo
+printf 'node_modules/\n' > "$REPO/.gitignore"; printf 'x\n' > "$REPO/README"
+git -C "$REPO" add . && git -C "$REPO" -c user.name=t -c user.email=t@t commit -qm init
 SNAP_MODE=direct run_ask planner "does this get ignored?"
-grep -qE '^/?\.tandem-log/?$' "$REPO/.gitignore" 2>/dev/null && ok "tandem-ask adds .tandem-log/ to .gitignore" \
-                                                               || nope ".gitignore missing .tandem-log/ entry"
-git -C "$REPO" status --porcelain | grep -q '\.tandem-log' \
-  && nope "git genuinely ignores the log directory" || ok "git genuinely ignores the log directory"
+[ "$(log_count)" = 1 ] && ok "the record was written" || nope "expected 1 record, got $(log_count)"
+STATUS=$(git -C "$REPO" status --porcelain)
+[ -z "$STATUS" ] && ok "git status is clean: no tracked file changed and the log is ignored" \
+                 || nope "tandem-ask changed the checkout: $STATUS"
+grep -qx '/\.tandem-log/' "$REPO/.git/info/exclude" 2>/dev/null && ok "the exclude file names /.tandem-log/" \
+                                                              || nope ".git/info/exclude lacks /.tandem-log/"
+SNAP_MODE=direct run_ask planner "and again?"
+[ "$(grep -cx '/\.tandem-log/' "$REPO/.git/info/exclude")" = 1 ] && ok "a second exchange adds no second entry" \
+                                                                  || nope "the exclude entry was added twice"
+
+echo "--- a repo that already ignores the log is left alone ---"
+newrepo
+printf '.tandem-log/\n' > "$REPO/.gitignore"
+EXCL_BEFORE=$(cat "$REPO/.git/info/exclude" 2>/dev/null || true)
+SNAP_MODE=direct run_ask planner "already ignored?"
+[ "$(cat "$REPO/.git/info/exclude" 2>/dev/null || true)" = "$EXCL_BEFORE" ] && ok "the exclude file is unchanged" \
+                                                                             || nope "the exclude file changed"
+[ "$(cat "$REPO/.gitignore")" = ".tandem-log/" ] && ok ".gitignore is unchanged" || nope ".gitignore changed"
+
+echo "--- a linked worktree uses the shared exclude file ---"
+newrepo
+git -C "$REPO" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
+WT="$TMP/wt"; rm -rf "$WT"; git -C "$REPO" worktree add -q "$WT" 2>/dev/null
+OUT=$(cd "$WT" && PATH="$TMP/bin:$PATH" HERDR_ENV=1 HERDR_PANE_ID=pX HERDR_ROLE=builder SNAP_MODE=direct \
+  "$ASK" planner "from a worktree?" 2>&1); RC=$?
+[ "$RC" -eq 0 ] && ok "the exchange succeeds in a worktree" || nope "the worktree exchange failed ($RC): $OUT"
+[ -z "$(git -C "$WT" status --porcelain)" ] && ok "the worktree's status is clean" \
+                                            || nope "the worktree shows changes: $(git -C "$WT" status --porcelain)"
+grep -qx '/\.tandem-log/' "$REPO/.git/info/exclude" 2>/dev/null && ok "the entry is in the common git dir" \
+                                                              || nope "the common exclude file lacks the entry"
+[ ! -e "$WT/.gitignore" ] && ok "no .gitignore was created in the worktree" || nope "a .gitignore appeared in the worktree"
+git -C "$REPO" worktree remove --force "$WT" 2>/dev/null
 
 echo "--- a write failure while logging must not fail the exchange itself ---"
-# A .gitignore that is a directory makes the append fail. Under set -e that
+# An exclude file that is a directory makes the append fail. Under set -e that
 # would abort tandem-ask unless the call is guarded.
 newrepo
-mkdir -p "$REPO/.gitignore"
-SNAP_MODE=direct run_ask planner "does a bad .gitignore still let this succeed?"
-[ "$RC" -eq 0 ] && ok "the exchange still succeeds despite an unwritable .gitignore" \
+rm -rf "$REPO/.git/info/exclude"; mkdir -p "$REPO/.git/info/exclude"
+SNAP_MODE=direct run_ask planner "does a bad exclude file still let this succeed?"
+[ "$RC" -eq 0 ] && ok "the exchange still succeeds despite an unwritable exclude file" \
                  || nope "a logging failure must never fail the exchange (got exit $RC)"
 chk "the reply still printed" "the answer is 42"
+[ ! -e "$REPO/.gitignore" ] && ok "and it falls back to no .gitignore edit" || nope "it edited .gitignore instead"
 
 echo "--- tandem-relaylog: no history yet ---"
 newrepo
@@ -243,10 +276,11 @@ newrepo
 OUT=$(cd "$REPO" && PATH="$BINDIR:$TMP/bin:$PATH" "$INIT" 2>&1); RC=$?
 [ "$RC" -eq 0 ] && ok "tandem-init exits 0" || nope "tandem-init exits 0 (got $RC): $OUT"
 case "$OUT" in *"jq was called"*) nope "tandem-init calls no jq: $OUT" ;; *) ok "tandem-init calls no jq" ;; esac
-grep -qE '^/?\.tandem-log/?$' "$REPO/.gitignore" 2>/dev/null && ok "tandem-init adds .tandem-log/ to .gitignore" \
-                                                               || nope "tandem-init did not add .tandem-log/"
+grep -qx '/\.tandem-log/' "$REPO/.git/info/exclude" 2>/dev/null && ok "tandem-init adds /.tandem-log/ to the exclude file" \
+                                                              || nope "tandem-init did not exclude .tandem-log/"
+[ ! -e "$REPO/.gitignore" ] && ok "tandem-init leaves .gitignore alone" || nope "tandem-init wrote .gitignore"
 OUT=$(cd "$REPO" && PATH="$BINDIR:$TMP/bin:$PATH" "$INIT" --force 2>&1)
-chk "re-running tandem-init is idempotent" "already ignores .tandem-log/"
+chk "re-running tandem-init is idempotent" "git already ignores .tandem-log/"
 
 printf '\nrelaylog: passed %d, failed %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

@@ -22,6 +22,9 @@ const (
 	RelayName       = ".tandem-relay"
 	legacyRelayName = ".herdr-relay"
 
+	// LogName is the directory tandem-ask writes its Q&A history to.
+	LogName = ".tandem-log"
+
 	// CopilotTrustLedgerName records the folders tandem added to Copilot's
 	// trustedFolders, so a teardown removes only those.
 	CopilotTrustLedgerName = ".tandem-trusted"
