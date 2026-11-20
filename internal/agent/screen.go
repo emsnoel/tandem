@@ -23,6 +23,8 @@ import (
 //   - codex, the agent command center: Enter opens another session.
 //   - codex, the "Hooks need review" prompt at startup and the hooks screens
 //     behind it: Enter picks a row, t trusts every hook.
+//   - codex, the "Where should the new conversation run?" picker that /new
+//     opens in a Git checkout (ResetDialogKey).
 //   - copilot, any dialog: its footer offers "esc to cancel".
 //   - copilot, a subagent's screen: input goes to that subagent.
 //   - copilot, its task list, focused sidebar and Sessions tab: single keys
@@ -69,6 +71,8 @@ func codexOffMain(lines []string) (string, bool) {
 		return "", false
 	}
 	switch {
+	case codexCheckoutPicker(lines) != "":
+		return "Codex's \"Where should the new conversation run?\" picker, which waits for an answer", true
 	case has("Hooks need review"):
 		return "Codex's \"Hooks need review\" prompt, which waits for an answer", true
 	case has("Update available"):
@@ -79,6 +83,35 @@ func codexOffMain(lines []string) (string, bool) {
 		return "its hooks screen, where single keys act (t trusts every hook)", true
 	}
 	return fmt.Sprintf("a dialog that has the keys (%q)", keys), true
+}
+
+// ResetDialogKey is the Herdr key that answers the dialog a reset command
+// opened, when screen shows exactly that dialog with its safe choice
+// highlighted. It is "" for every other screen, so no other dialog is ever
+// answered. Only Codex has one: in a Git checkout, /new asks "Where should
+// the new conversation run?", and its first row keeps the pane's own checkout.
+func ResetDialogKey(kind, screen string) string {
+	if kind == "codex" && codexCheckoutPicker(strings.Split(screen, "\n")) == "first" {
+		return "enter"
+	}
+	return ""
+}
+
+// codexCheckoutPicker reads Codex's "Where should the new conversation run?"
+// picker. It is "" when the screen does not show it, "first" when its first
+// row (the current checkout) is highlighted, and "other" otherwise. Codex
+// 0.160 named that row "Current checkout"; 0.162 and later name it "Use
+// current Git worktree". Like any Codex dialog, it names its keys on the last
+// line.
+func codexCheckoutPicker(lines []string) string {
+	bottom := bottomLines(lines, 1)
+	if len(bottom) == 0 || !strings.Contains(bottom[0], "· esc ") || !hasLine(lines, "Where should the new conversation run?") {
+		return ""
+	}
+	if hasLine(lines, "› 1. Use current Git worktree") || hasLine(lines, "› 1. Current checkout") {
+		return "first"
+	}
+	return "other"
 }
 
 // copilotOffMain reads Copilot's footer, which names the keys of whatever

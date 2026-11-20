@@ -155,10 +155,6 @@ type Adapter interface {
 	// means there is no MEASURED way to; callers then leave the conversation
 	// alone. internal/agent/reset_test.go pins each value to its evidence.
 	ResetCommand() string
-	// ResetConfirmKey is the Herdr key pressed once when ResetCommand changed
-	// nothing Herdr can see, because the CLI opened a dialog first. "" means none.
-	// Pinned in internal/agent/reset_test.go.
-	ResetConfirmKey() string
 	// InstructionFiles names the repo-root files this CLI loads into every new
 	// conversation, so the launch prompt does not ask for them again. nil means
 	// unmeasured, and the prompt keeps asking. Pinned in

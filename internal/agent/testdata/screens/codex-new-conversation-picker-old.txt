@@ -1,0 +1,7 @@
+
+  Where should the new conversation run?
+
+› 1. Current checkout  Keep using the current working directory
+  2. New worktree      Create an isolated managed checkout
+
+  enter select · esc back

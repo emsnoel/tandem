@@ -35,10 +35,12 @@ func kindAgent(kind, status, session string, seq int) *herdr.Agent {
 // fakeHerdr serves a scripted sequence of agent states, one per get, repeating
 // the last; it records what was submitted and advances a fake clock on sleep.
 // Once a key is pressed it serves afterKeys instead, when that is set: the
-// pane's answer to the key.
+// pane's answer to the key. screen is what the pane shows from the reset
+// command until a key is pressed, and "" otherwise.
 type fakeHerdr struct {
 	states    []*herdr.Agent
 	afterKeys []*herdr.Agent
+	screen    string
 	gets      int
 	keyGets   int
 	submitted []string
@@ -52,20 +54,16 @@ type fakeHerdr struct {
 }
 
 func (f *fakeHerdr) deps(cmd string) resetDeps {
-	return f.depsWith(cmd, "")
+	return f.depsFrom(func(string) string { return cmd })
 }
 
-func (f *fakeHerdr) depsWith(cmd, confirm string) resetDeps {
-	return f.depsFrom(func(string) string { return cmd }, func(string) string { return confirm })
-}
-
-// registryDeps answers the reset command and confirm key from the real agent
-// registry, so a test sees what would actually be typed for a kind.
+// registryDeps answers the reset command from the real agent registry, so a
+// test sees what would actually be typed for a kind.
 func (f *fakeHerdr) registryDeps() resetDeps {
-	return f.depsFrom(liveResetDeps.command, liveResetDeps.confirm)
+	return f.depsFrom(liveResetDeps.command)
 }
 
-func (f *fakeHerdr) depsFrom(command, confirm func(kind string) string) resetDeps {
+func (f *fakeHerdr) depsFrom(command func(kind string) string) resetDeps {
 	// read is what Herdr shows next. The watch takes one entry per step, and
 	// get (the loop's closing read after an event or wake) shows what the
 	// watch last saw, so a state list is Herdr over time and a step reads it
@@ -87,7 +85,6 @@ func (f *fakeHerdr) depsFrom(command, confirm func(kind string) string) resetDep
 	get := func(string) (*herdr.Agent, error) { return seen, nil }
 	return resetDeps{
 		command: func(kind string) string { f.kinds = append(f.kinds, kind); return command(kind) },
-		confirm: confirm,
 		get:     get,
 		watch: func(names ...string) (eventWatch, error) {
 			return newStepWatch(names[0], read, func(d time.Duration) { f.clock = f.clock.Add(d) })
@@ -99,6 +96,12 @@ func (f *fakeHerdr) depsFrom(command, confirm func(kind string) string) resetDep
 		press: func(_ string, key string) error {
 			f.keys = append(f.keys, key)
 			return nil
+		},
+		screen: func(string) (string, error) {
+			if len(f.submitted) == 0 || len(f.keys) > 0 {
+				return "", nil
+			}
+			return f.screen, nil
 		},
 		fresh: func(string, *herdr.Agent, time.Time) (string, bool) {
 			if f.fresh == nil {
@@ -152,6 +155,7 @@ func withReviewer(t *testing.T, root, reviewerJSON string) string {
 func TestResetUsesTheReviewersRecordedKind(t *testing.T) {
 	root := withReviewer(t, rootWith(t, `{"kind":"claude","autonomy":"auto"}`, ""), `{"kind":"codex","name":"reviewer"}`)
 	f := &fakeHerdr{
+		screen:    checkoutPicker(t, ""),
 		states:    []*herdr.Agent{mkAgentAt("idle", "s1", 5)},
 		afterKeys: []*herdr.Agent{mkAgentAt("working", "s1", 6), mkAgentAt("idle", "s1", 7)},
 	}
@@ -259,7 +263,7 @@ func TestResetSentWhenTheSessionMovesOnlyOnTheNextTurn(t *testing.T) {
 		mkAgentAt("idle", "s1", 1), mkAgentAt("working", "s1", 2), mkAgentAt("idle", "s1", 3),
 	}}
 	start := f.clock
-	tok, _, _ := runReset(f.depsWith("/new", "enter"), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
+	tok, _, _ := runReset(f.deps("/new"), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
 	if tok != "sent" {
 		t.Fatalf("got %q, want sent", tok)
 	}
@@ -272,14 +276,15 @@ func TestResetSentWhenTheSessionMovesOnlyOnTheNextTurn(t *testing.T) {
 }
 
 // Codex's /new opens a picker Herdr cannot see, and Herdr keeps reporting idle.
-// Nothing moving is not a reset: press the confirm key once (Enter picks
-// "Current checkout"), then wait for the new conversation.
+// The screen shows it: Enter picks its first row, the current checkout, and
+// the reset then waits for the new conversation.
 func TestResetAnswersTheNewConversationPicker(t *testing.T) {
 	f := &fakeHerdr{
+		screen:    checkoutPicker(t, ""),
 		states:    []*herdr.Agent{mkAgentAt("idle", "s1", 5)},
 		afterKeys: []*herdr.Agent{mkAgentAt("working", "s1", 6), mkAgentAt("idle", "s1", 7)},
 	}
-	tok, _, _ := runReset(f.depsWith("/new", "enter"), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
+	tok, _, _ := runReset(f.deps("/new"), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
 	if tok != "sent" {
 		t.Fatalf("got %q, want sent", tok)
 	}
@@ -291,24 +296,23 @@ func TestResetAnswersTheNewConversationPicker(t *testing.T) {
 	}
 }
 
-// Nothing ever moves, even after the confirm key: whatever the pane is
-// showing, it is not a new conversation. The key is pressed once, not
-// repeated into an unknown screen.
+// Nothing ever moves and the screen shows no dialog the reset knows: whatever
+// the pane is showing, it is not a new conversation, and no key goes into it.
 func TestResetUnconfirmedWhenNothingEverMoves(t *testing.T) {
 	f := &fakeHerdr{states: []*herdr.Agent{mkAgentAt("idle", "s1", 5)}}
-	tok, _, _ := runReset(f.depsWith("/new", "enter"), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
+	tok, _, _ := runReset(f.deps("/new"), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
 	if tok != "unconfirmed" {
 		t.Fatalf("got %q, want unconfirmed", tok)
 	}
-	if len(f.keys) != 1 {
-		t.Errorf("pressed %v; want exactly one confirm key", f.keys)
+	if len(f.keys) != 0 {
+		t.Errorf("pressed %v into a screen the reset does not know", f.keys)
 	}
 }
 
-// A kind with no measured confirm key never gets a key pressed.
-func TestResetPressesNothingWithoutAConfirmKey(t *testing.T) {
-	f := &fakeHerdr{states: []*herdr.Agent{mkAgentAt("idle", "s1", 5)}}
-	tok, _, _ := runReset(f.deps("/clear"), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
+// Codex's picker is answered for a Codex pane only.
+func TestResetPressesNothingIntoAnotherKindsPane(t *testing.T) {
+	f := &fakeHerdr{screen: checkoutPicker(t, ""), states: []*herdr.Agent{kindAgent("claude", "idle", "s1", 5)}}
+	tok, _, _ := runReset(f.deps("/clear"), "builder", rootWith(t, claudeBuilder, ""), 15*time.Second, false)
 	if tok != "unconfirmed" || len(f.keys) != 0 {
 		t.Fatalf("got %q, pressed %v; want unconfirmed and no key", tok, f.keys)
 	}
@@ -319,7 +323,7 @@ func TestResetFromAFinishedUnseenBuilder(t *testing.T) {
 	f := &fakeHerdr{states: []*herdr.Agent{
 		mkAgentAt("done", "s1", 5), mkAgentAt("working", "s1", 6), mkAgentAt("done", "s1", 7),
 	}}
-	tok, _, _ := runReset(f.depsWith("/new", "enter"), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
+	tok, _, _ := runReset(f.deps("/new"), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
 	if tok != "sent" {
 		t.Fatalf("got %q, want sent", tok)
 	}
@@ -332,7 +336,7 @@ func TestResetFromAFinishedUnseenBuilder(t *testing.T) {
 // moving, so it is not the picker, and no key is pressed.
 func TestResetUnconfirmedWhenTheBuilderNeverSettles(t *testing.T) {
 	f := &fakeHerdr{states: []*herdr.Agent{mkAgentAt("idle", "s1", 1), mkAgentAt("working", "s1", 2)}}
-	tok, _, _ := runReset(f.depsWith("/new", "enter"), "builder", rootWith(t, codexBuilder, ""), 5*time.Second, false)
+	tok, _, _ := runReset(f.deps("/new"), "builder", rootWith(t, codexBuilder, ""), 5*time.Second, false)
 	if tok != "unconfirmed" {
 		t.Fatalf("got %q, want unconfirmed", tok)
 	}
@@ -478,6 +482,7 @@ func TestSessionNeverReportsCopilotsLaunchID(t *testing.T) {
 // other: /new, Enter at the picker, and the pane's own counter proves it.
 func TestACodexPaneWithNoSessionIsReset(t *testing.T) {
 	f := &fakeHerdr{
+		screen:    checkoutPicker(t, ""),
 		states:    []*herdr.Agent{kindAgent("codex", "idle", "", 18)},
 		afterKeys: []*herdr.Agent{kindAgent("codex", "working", "", 37), kindAgent("codex", "idle", "", 38)},
 	}
@@ -494,6 +499,7 @@ func TestACodexPaneWithNoSessionIsReset(t *testing.T) {
 // proves nothing.
 func TestACodexResetIsNotProvenByAHerdrIDChange(t *testing.T) {
 	f := &fakeHerdr{
+		screen:    checkoutPicker(t, ""),
 		states:    []*herdr.Agent{kindAgent("codex", "idle", "s1", 5), kindAgent("codex", "idle", "another-panes", 5)},
 		afterKeys: []*herdr.Agent{kindAgent("codex", "working", "another-panes", 6), kindAgent("codex", "idle", "another-panes", 7)},
 	}
@@ -502,7 +508,7 @@ func TestACodexResetIsNotProvenByAHerdrIDChange(t *testing.T) {
 		t.Fatalf("got %q, %q; want sent, after the picker, naming no conversation", tok, session)
 	}
 	if len(f.keys) != 1 || f.keys[0] != "enter" {
-		t.Errorf("pressed %v; a session-only change is no proof, so the confirm key goes once", f.keys)
+		t.Errorf("pressed %v; a session-only change is no proof, so Enter answers the picker once", f.keys)
 	}
 }
 
@@ -511,7 +517,7 @@ func TestResetCountsAStatusEventAsSent(t *testing.T) {
 	f := &fakeHerdr{states: []*herdr.Agent{
 		kindAgent("codex", "idle", "s1", 5), kindAgent("codex", "working", "s1", 5), kindAgent("codex", "idle", "s1", 5),
 	}}
-	tok, _, err := runReset(f.depsWith("/new", "enter"), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
+	tok, _, err := runReset(f.deps("/new"), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
 	if err != nil || tok != "sent" {
 		t.Fatalf("tok %q err %v, want sent", tok, err)
 	}
@@ -520,12 +526,49 @@ func TestResetCountsAStatusEventAsSent(t *testing.T) {
 	}
 }
 
-// No event comes after /new opens the picker, so the confirm key is pressed
-// once at resetConfirmAfter and the result is unconfirmed.
-func TestResetPressesTheConfirmKeyOnceWhenNoEventCame(t *testing.T) {
-	f := &fakeHerdr{states: []*herdr.Agent{kindAgent("codex", "idle", "s1", 5)}}
-	tok, _, _ := runReset(f.depsWith("/new", "enter"), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
-	if tok != "unconfirmed" || len(f.keys) != 1 || f.keys[0] != "enter" {
-		t.Fatalf("tok %q keys %v, want unconfirmed after one enter", tok, f.keys)
+// Issue 88: Codex 0.169 shows the picker after /new while Herdr reports a
+// status change. That change is not the new conversation, so the picker is
+// still answered, and the reset waits for the change that follows Enter.
+func TestResetAnswersThePickerEvenAfterAStatusEvent(t *testing.T) {
+	f := &fakeHerdr{
+		screen:    checkoutPicker(t, ""),
+		states:    []*herdr.Agent{kindAgent("codex", "idle", "s1", 5), kindAgent("codex", "working", "s1", 6), kindAgent("codex", "idle", "s1", 7)},
+		afterKeys: []*herdr.Agent{kindAgent("codex", "working", "s1", 8), kindAgent("codex", "idle", "s1", 9)},
 	}
+	tok, _, err := runReset(f.registryDeps(), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
+	if err != nil || tok != "sent" {
+		t.Fatalf("got %q, %v; want sent", tok, err)
+	}
+	if len(f.keys) != 1 || f.keys[0] != "enter" {
+		t.Errorf("pressed %v, want [enter]", f.keys)
+	}
+	if f.keyGets == 0 {
+		t.Errorf("returned before the pane answered Enter")
+	}
+}
+
+// The picker with its second row highlighted would create a new checkout on
+// Enter, so it is left for a person, as is any other dialog.
+func TestResetLeavesThePickerOnItsSecondRow(t *testing.T) {
+	f := &fakeHerdr{
+		screen: checkoutPicker(t, "-moved"),
+		states: []*herdr.Agent{kindAgent("codex", "idle", "s1", 5)},
+	}
+	if _, _, err := runReset(f.registryDeps(), "builder", rootWith(t, codexBuilder, ""), 5*time.Second, false); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.keys) != 0 {
+		t.Errorf("pressed %v into a picker on its second row", f.keys)
+	}
+}
+
+// checkoutPicker is Codex's "Where should the new conversation run?" screen
+// from internal/agent/testdata. variant "" has its first row highlighted.
+func checkoutPicker(t *testing.T, variant string) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("..", "..", "internal", "agent", "testdata", "screens", "codex-new-conversation-picker"+variant+".txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
 }

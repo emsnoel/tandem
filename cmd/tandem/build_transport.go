@@ -3,8 +3,8 @@ package main
 // The Herdr transport of the durable engine: how the controller's prompts reach
 // a pane and how pane state is read back.
 //
-// One transport serves every builder kind; the reset command and confirm key
-// come from the agent registry. Herdr shows status, a lifecycle counter and a
+// One transport serves every builder kind; the reset command and the key that
+// answers its dialog come from the agent registry. Herdr shows status, a lifecycle counter and a
 // session id, never a nonce, so an effect in doubt is resolved only by the
 // builder returning the nonce through the mailbox.
 

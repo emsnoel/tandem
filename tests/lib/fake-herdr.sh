@@ -37,7 +37,12 @@ fake_status() { local s _; read -r s _ < "$FAKE/state"; printf '%s\n' "$s"; }
 # FAKE/end_after N: the Nth read after a prompt finds the agent idle again, as
 # for a rejected model. `agent read` prints FAKE/pane.
 #
-# `pane report-metadata` is logged to FAKE/metadata, one call per line.
+# `pane report-metadata` is logged to FAKE/metadata, one call per line, and
+# `agent send-keys` to FAKE/keys (pane and key).
+#
+# FAKE/picker: a codex /new shows this file as the pane (FAKE/pane) until
+# Enter is pressed, as Codex's "Where should the new conversation run?"
+# picker does.
 #
 # FAKE/kind is the agent kind (codex by default). For copilot, /new moves
 # neither Herdr's session nor its counter, and the process log under
@@ -132,7 +137,9 @@ case "$1 $2" in
     fi
     if [ "$4" = "/new" ] || [ "$4" = "/clear" ]; then
       # A reset starts a new conversation with a brief turn: the counter moves while
-      # the status does not.
+      # the status does not. FAKE/picker is the dialog Codex opens on /new
+      # first, which the pane shows until a key answers it.
+      [ "$4" = "/new" ] && [ "$kind" = codex ] && [ -f "$FAKE/picker" ] && cp "$FAKE/picker" "$FAKE/pane"
       put "$FAKE/session" "sess-$(( ${sess#sess-} + 1 ))"; put_state "$st" "$((seq+2))"
       printf '%s\t%s\n' "$3" "$4" >> "$FAKE/resets"
       exit 0
@@ -150,6 +157,14 @@ case "$1 $2" in
     exit 0 ;;
   "agent read")
     cat "$FAKE/pane" 2>/dev/null
+    exit 0 ;;
+  "agent send-keys")
+    # Logged to FAKE/keys. Enter at FAKE/picker picks its highlighted row,
+    # closes it and starts the new conversation, a brief turn as for a reset.
+    printf '%s\t%s\n' "$3" "$4" >> "$FAKE/keys"
+    if [ "$4" = enter ] && [ -f "$FAKE/picker" ] && cmp -s "$FAKE/picker" "$FAKE/pane"; then
+      rm -f "$FAKE/pane"; put_state "$st" "$((seq+2))"
+    fi
     exit 0 ;;
   "pane report-metadata")
     printf '%s\n' "$*" >> "$FAKE/metadata"

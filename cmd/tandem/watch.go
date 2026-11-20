@@ -18,10 +18,10 @@ package main
 //	               the closing read; a watch                                                      pane_not_found): not alive;
 //	               that cannot open does the                                                      any other error: alive
 //	               same unless it failed as gone
-//	runReset       stop waiting: "unconfirmed",    not checked: every      a read each            press the confirm key once
-//	               no closing read                 event and poll slice    resetPoll;             and keep waiting
-//	                                               is followed by a read   "unconfirmed" at the
-//	                                                                       deadline
+//	runReset       stop waiting: "unconfirmed",    not checked: every      a read each            keep waiting; the screen is
+//	               no closing read                 event and poll slice    resetPoll;             read each slice and the
+//	                                               is followed by a read   "unconfirmed" at the   kind's reset dialog answered
+//	                                                                       deadline               once (ResetDialogKey)
 //	build_advance  as awaitStatus, per slice; a    as awaitStatus          next slice, until      not settled this slice; the
 //	               watch that cannot open sleeps                           settleTimeout stops    next slice tries again
 //	               the slice and tries again                               the task "unsettled"

@@ -171,9 +171,6 @@ func (claudeAdapter) Sandboxed(Spec) bool { return false }
 // ResetCommand: verified with Claude Code in a Herdr pane.
 func (claudeAdapter) ResetCommand() string { return "/clear" }
 
-// ResetConfirmKey: /clear opens no dialog.
-func (claudeAdapter) ResetConfirmKey() string { return "" }
-
 // InstructionFiles: Claude Code loads the project's CLAUDE.md into every
 // conversation, including one started with /clear. It does not load AGENTS.md.
 func (claudeAdapter) InstructionFiles() []string { return []string{"CLAUDE.md"} }
