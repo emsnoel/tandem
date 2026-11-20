@@ -52,13 +52,13 @@ func cmdEventNew(args []string) int {
 	fs.SetOutput(os.Stderr)
 	root := fs.String("root", "", "repository root")
 	kind := fs.String("kind", "", "event kind")
-	task := fs.Int("task", 0, "task number, resolved through the run manifest")
+	task := fs.String("task", "", "task number or id, resolved through the run manifest")
 	attempt := fs.String("attempt", "", "attempt id")
 	job := fs.String("job", "", "job id")
 	effect := fs.String("effect", "", "effect id of the prompt being answered")
 	nonce := fs.String("nonce", "", "nonce the prompt carried")
 	payload := fs.String("payload", "", "file whose bytes travel with the event")
-	if err := fs.Parse(args); err != nil || fs.NArg() != 0 || *root == "" || *kind == "" || *task < 1 {
+	if err := fs.Parse(args); err != nil || fs.NArg() != 0 || *root == "" || *kind == "" || *task == "" {
 		fmt.Fprintln(os.Stderr, eventUse)
 		return exitcode.Usage
 	}

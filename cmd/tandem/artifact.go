@@ -79,7 +79,7 @@ func cmdArtifactRead(args []string) int {
 	via := fs.String("via", "auto", "auto, direct or mailbox")
 	wait := fs.Int("wait", 30, "seconds to wait for the controller, at most 30, mailbox only")
 	request := fs.String("request", "", "inspect an earlier mailbox request by id")
-	task := fs.Int("task", 0, "task number (mailbox)")
+	task := fs.String("task", "", "task number or id (mailbox)")
 	job := fs.String("job", "", "builder job id (mailbox)")
 	effect := fs.String("effect", "", "builder dispatch effect id (mailbox)")
 	nonce := fs.String("nonce", "", "the nonce the prompt carried (mailbox)")
@@ -133,7 +133,7 @@ func cmdArtifactRead(args []string) int {
 		}
 		// The state cannot be reached from here: use the relay.
 	}
-	if !idRE.MatchString(*job) || !idRE.MatchString(*effect) || !idRE.MatchString(*nonce) || *task < 1 {
+	if !idRE.MatchString(*job) || !idRE.MatchString(*effect) || !idRE.MatchString(*nonce) || *task == "" {
 		return usage("through the mailbox a read must carry the builder's identity from its prompt: --task N --job ID --effect ID --nonce ID")
 	}
 	return readThroughMailbox(f.root, *attempt, *task, *job, *effect, *nonce, req, waitFor)
@@ -183,7 +183,7 @@ func requestID(run, attempt string, req controller.ArtifactRequest) (string, []b
 	return hex.EncodeToString(sum[:16]), body
 }
 
-func readThroughMailbox(root, attempt string, task int, job, effect, nonce string, req controller.ArtifactRequest, wait time.Duration) int {
+func readThroughMailbox(root, attempt, task, job, effect, nonce string, req controller.ArtifactRequest, wait time.Duration) int {
 	relay := paths.Relay(root)
 	run, err := controller.ReadActiveRun(relay)
 	if err != nil || run == nil {

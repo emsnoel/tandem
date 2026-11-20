@@ -164,7 +164,8 @@ reviewed a different tree), the prompt becomes `delivery_unknown` and the run pa
 
       tandem build accept --task task-3 --waive review --because "why" --root DIR
 
-`--task` takes the id as `tandem build status` prints it, or the number alone.
+`--task` takes the id as `tandem build status` prints it (the plan's `Task-ID`, or
+`task-3` when the plan gives none), or the number alone.
 
 ## A builder that went silent
 

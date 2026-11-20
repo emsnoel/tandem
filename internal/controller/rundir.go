@@ -132,20 +132,6 @@ func ReadManifest(runDir string) (RunManifest, error) {
 	return m, nil
 }
 
-// ResolveTask maps a task number to its stable id through the run manifest.
-func ResolveTask(runDir string, n int) (string, error) {
-	m, err := ReadManifest(runDir)
-	if err != nil {
-		return "", err
-	}
-	for _, t := range m.Tasks {
-		if t.Ordinal == n {
-			return t.ID, nil
-		}
-	}
-	return "", fmt.Errorf("the run has no task %d", n)
-}
-
 // NewEventID returns a random 32 character hex event id.
 func NewEventID() (string, error) {
 	var b [16]byte
