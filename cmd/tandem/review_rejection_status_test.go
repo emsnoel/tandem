@@ -29,16 +29,22 @@ func TestDurableStatusExplainsReviewRejection(t *testing.T) {
 	if err := open.st.SetRunPausedFor(ctx, d.run, "review_unknown", d.job, d.effect); err != nil {
 		t.Fatal(err)
 	}
+	// With no rejection, the reason is what a reply recorded by hand must name.
 	before, err := durableStatus(open)
-	if err != nil || before.PauseReason != "" {
+	if err != nil || !strings.HasPrefix(before.PauseReason, "The reply must name these") {
 		t.Fatalf("fallback: %+v %v", before, err)
+	}
+	for _, want := range []string{"job_id: " + d.job, "attempt_id: " + d.attempt, "patch_hash: " + hash, "tree_hash: " + hash} {
+		if !strings.Contains(before.PauseReason, want) {
+			t.Errorf("the reason %q does not give %q", before.PauseReason, want)
+		}
 	}
 	reason := "review result: job_id and attempt_id must be 32 lowercase hex characters"
 	if err := open.st.RecordReviewRejection(ctx, state.ReviewRejection{RunID: d.run, AttemptID: d.attempt, JobID: d.job, EffectID: d.effect, PayloadHash: hash, Reason: reason}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := durableStatus(open)
-	if err != nil || got.PauseReason != reason {
+	if err != nil || !strings.HasPrefix(got.PauseReason, reason+"\n") || !strings.Contains(got.PauseReason, "job_id: "+d.job) {
 		t.Fatalf("pause: %+v %v", got, err)
 	}
 	if len(got.Tasks) != 1 || len(got.Tasks[0].Attempts) != 1 || got.Tasks[0].Attempts[0].ReviewRejection != reason {
@@ -70,7 +76,7 @@ func TestDurableStatusExplainsReviewRejection(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err = durableStatus(open)
-	if err != nil || got.Tasks[0].Attempts[0].ReviewRejection != "" || got.PauseReason != "" {
+	if err != nil || got.Tasks[0].Attempts[0].ReviewRejection != "" || strings.Contains(got.PauseReason, reason) {
 		t.Fatalf("cleared: %+v %v", got, err)
 	}
 }
@@ -101,7 +107,7 @@ func TestDurableStatusCleansReviewRejection(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := durableStatus(open)
-	if err != nil || got.PauseReason != "bad red result" {
+	if err != nil || !strings.HasPrefix(got.PauseReason, "bad red result\n") {
 		t.Fatalf("pause reason %q, want it cleaned: %v", got.PauseReason, err)
 	}
 }

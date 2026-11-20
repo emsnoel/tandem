@@ -3,7 +3,8 @@ package controller
 // Reading a pane review's reply.
 //
 // In manual review delivery the reviewer answers in its pane. Once the pane has
-// settled, the controller reads the reply and records it through
+// settled, the controller reads the reply, from the CLI's own log when it can
+// (review_reply_log.go) and from the pane otherwise, and records it through
 // RecordReviewRaw, with the same validation and bindings as a manual record. A
 // reply that is missing, malformed or for another job is read again later.
 
@@ -14,6 +15,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/emsnoel/tandem/internal/runner"
 	"github.com/emsnoel/tandem/internal/state"
@@ -67,25 +69,26 @@ func (c *Controller) readPaneReview(ctx context.Context, pr runner.PaneReader, r
 	}
 	// A prompt not yet delivered, or a reviewer still working, has no finished
 	// reply. RecordReviewRaw repeats the check; reading a working pane is waste.
-	if _, err := c.settledPrompt(ctx, cfg, prompt.ID); err != nil {
+	obs, err := c.settledPrompt(ctx, cfg, prompt.ID)
+	if err != nil {
 		return nil
 	}
 	jobs, err := c.d.State.AttemptJobs(ctx, att.ID, "reviewer")
 	if err != nil {
 		return err
 	}
-	_, name := cfg.agentFor(*prompt)
-	var text string
+	kind, name := cfg.agentFor(*prompt)
+	texts := replyTexts{
+		// The CLI's own log holds the reply whole; the pane may show only its end.
+		func(jobID string) string { return c.loggedReplies(ctx, run, kind, obs.Session, jobID) },
+		// A pane that cannot be read now is read on the next pass.
+		func(string) string { text, _ := pr.ReadAgent(ctx, name, paneReviewLines); return text },
+	}
 	for _, job := range jobs {
 		if job.State != "running" {
 			continue
 		}
-		if text == "" {
-			if text, err = pr.ReadAgent(ctx, name, paneReviewLines); err != nil {
-				return nil // a pane that cannot be read now is read on the next pass
-			}
-		}
-		raw, broken := lastReviewObject(text, job.ID)
+		raw, broken := texts.reply(job.ID)
 		if broken != nil {
 			// A reply that is not JSON is told to the reviewer now, rather
 			// than left to the review timeout.
@@ -109,6 +112,37 @@ func (c *Controller) readPaneReview(ctx context.Context, pr runner.PaneReader, r
 		}
 	}
 	return nil
+}
+
+// replyTexts are where a reviewer's reply is looked for, in order. Each is
+// given the job the reply must name.
+type replyTexts []func(jobID string) string
+
+// reply is the job's reply from the first place that holds one, whole or
+// broken, as lastReviewObject finds it.
+func (r replyTexts) reply(jobID string) ([]byte, error) {
+	for _, text := range r {
+		if raw, broken := lastReviewObject(text(jobID), jobID); raw != nil || broken != nil {
+			return raw, broken
+		}
+	}
+	return nil, nil
+}
+
+// loggedReplies is what the reviewer replied, from its CLI's own log, or ""
+// when the log cannot be found or read. The review prompt carries the job id,
+// so that finds a conversation Herdr does not name.
+func (c *Controller) loggedReplies(ctx context.Context, run state.Run, kind, session, jobID string) string {
+	rr, ok := c.d.UsageSource.(ReplyReader)
+	if !ok {
+		return ""
+	}
+	created, err := c.d.State.RunCreatedMS(ctx, run.ID)
+	if err != nil {
+		return ""
+	}
+	text, _ := rr.AgentReplies(ctx, kind, session, jobID, time.UnixMilli(created), c.d.Now())
+	return text
 }
 
 // lastReviewObject is the reviewer's last reply in text: the last JSON object

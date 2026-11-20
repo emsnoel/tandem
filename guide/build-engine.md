@@ -46,9 +46,10 @@ Progress lives in `state.sqlite` and an artifact store in the state home. The re
   tree that changed after the check cannot be accepted on the old result.
 - **Fresh conversation.** Codex, Claude and Copilot have a verified reset command; Copilot's
   is confirmed from its process log. `tandem build start` refuses any other kind.
-- **Pane review.** The review prompt goes to the reviewer pane. Each tick reads the settled
-  pane, takes the last JSON object that names the open review job, and records it as `tandem
-  build review-record` would. The result is bound to the job, patch and tree. With no valid
+- **Pane review.** The review prompt goes to the reviewer pane. Once the pane settles, each
+  tick reads the reviewer's replies from its CLI's conversation log, or from the pane when the
+  log has none, takes the last JSON object that names the open review job, and records it as
+  `tandem build review-record` would. The result is bound to the job, patch and tree. With no valid
   reply after 10 minutes the run pauses as `review_unknown`.
 - **Reviewer pane.** Required, because the builder never reviews. `tandem-pair` starts it on
   its own model from the `reviewer` block in `.tandem.json` or `--reviewer KIND`, and records
@@ -143,7 +144,7 @@ until the next run. The prompt doesn't carry staffing advice.
 | Area | Package or file |
 |---|---|
 | Controller (start, tick, recover, stop) | `internal/controller/` |
-| Pane review reader, reviewer pane | `internal/controller/review_pane.go`, `reviewer_pane.go` |
+| Pane review reader, reviewer pane | `internal/controller/review_pane.go`, `review_reply_log.go`, `reviewer_pane.go` |
 | Prompt delivery under a fenced lease | `internal/runner/` |
 | Bridge wake-ups (mailbox and Herdr events) | `internal/mailwatch/`, `internal/herdr/`, `tandem agent watch` |
 | Storage, leases, GC, rebind, archive | `internal/state/` |

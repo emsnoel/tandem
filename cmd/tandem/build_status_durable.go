@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/emsnoel/tandem/internal/controller"
 	"github.com/emsnoel/tandem/internal/exitcode"
@@ -63,8 +64,9 @@ func durableStatus(d *openRun) (statusDurableOut, error) {
 	if run.State == "paused" && run.PauseCode == "dispatch_failed" {
 		out.PauseReason = dispatchFailure(ctx, d.st, d.art, run.ID)
 	}
+	reviewerKind := ""
 	if ag, err := controller.RunAgents(ctx, d.st, d.art, run.ID); err == nil {
-		out.Builder, out.Reviewer = ag.BuilderSession, ag.ReviewerSession
+		out.Builder, out.Reviewer, reviewerKind = ag.BuilderSession, ag.ReviewerSession, ag.ReviewerKind
 	}
 	if plan, collab, err := controller.RunPlan(ctx, d.st, d.art, run.ID); err == nil {
 		out.Plan, out.Collaboration = plan, collab
@@ -116,8 +118,14 @@ func durableStatus(d *openRun) (statusDurableOut, error) {
 		}
 		out.Tasks = append(out.Tasks, to)
 	}
-	if run.State == "paused" && run.PauseCode == "review_unknown" && pauseRejection != "" {
-		out.PauseReason = clean(pauseRejection)
+	if run.State == "paused" && run.PauseCode == "review_unknown" {
+		facts := []string{}
+		for _, f := range []string{pauseRejection, reviewIdentity(ctx, d, run, reviewerKind, out.Task)} {
+			if f != "" {
+				facts = append(facts, f)
+			}
+		}
+		out.PauseReason = clean(strings.Join(facts, "\n"))
 	}
 	if run.State == "paused" && out.PauseReason == "" {
 		out.PauseReason = pauseFacts(ctx, d, run.PauseCode, out.Task)

@@ -42,7 +42,8 @@ fake_status() { local s _; read -r s _ < "$FAKE/state"; printf '%s\n' "$s"; }
 # FAKE/kind is the agent kind (codex by default). For copilot, /new moves
 # neither Herdr's session nor its counter, and the process log under
 # $COPILOT_HOME/logs records the new conversation. A codex agent writes each
-# prompt to today's rollout under $CODEX_HOME/sessions when CODEX_HOME is set.
+# prompt to today's rollout under $CODEX_HOME/sessions when CODEX_HOME is set,
+# in the log of its pinned session (FAKE/session.NAME) when it has one.
 #
 # Read at run time: FAKE, REPO (the agent's cwd), COPILOT_HOME, CODEX_HOME.
 fake_herdr_install() {
@@ -138,6 +139,7 @@ case "$1 $2" in
       exit 0
     fi
     if [ "$kind" = codex ] && [ -n "${CODEX_HOME:-}" ]; then
+      [ -f "$FAKE/session.$3" ] && sess=$(cat "$FAKE/session.$3")
       day="$CODEX_HOME/sessions/$(date +%Y/%m/%d)"; mkdir -p "$day"
       log="$day/rollout-fake-$sess.jsonl"
       [ -f "$log" ] || printf '{"type":"session_meta","payload":{"id":"%s"}}\n' "$sess" > "$log"
