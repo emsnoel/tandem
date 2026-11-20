@@ -76,7 +76,7 @@ goes through the same steps in detail.
 
 | Command | Does |
 | ------- | ---- |
-| `tandem-init` | Writes `.tandem.json` and adds tandem's local folders to `.gitignore` |
+| `tandem-init` | Writes `.tandem.json` and adds tandem's local folders to git's exclude file |
 | `tandem-pair` | Starts the builder, the reviewer and the relay bridge, or reuses running ones. Safe to run again |
 | `tandem-status` | Prints the pair's state. Changes nothing |
 | `tandem-pause-note` | Says what stopped a paused build run and what to do. Changes nothing |

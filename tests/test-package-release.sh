@@ -36,7 +36,7 @@ FILES=$(ls "$OUT" | sort | tr '\n' ' ')
 
 LIST=$(tar -tzf "$OUT/$ASSET")
 for want in tandem/tandem tandem/bin/tandem-pair tandem/bin/lib/reviewer.sh \
-            tandem/bin/lib/relay.sh tandem/bin/lib/pair-launch.sh \
+            tandem/bin/lib/git-exclude.sh tandem/bin/lib/pair-launch.sh \
             tandem/bin/lib/pair-panes.sh tandem/bin/lib/pair-records.sh \
             tandem/bin/tandem-unpair tandem/bin/lib/unpair-find.sh \
             tandem/bin/lib/unpair-gates.sh tandem/bin/lib/unpair-refusals.sh \

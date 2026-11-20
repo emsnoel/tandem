@@ -32,7 +32,7 @@ those paths, so they skip the extra hop.
 | `tandem-unpair`          | Closes the builder pane and the reviewer pane that `tandem-pair` recorded in `reviewer.json`, and refuses while the reviewer is mid-review. Stops the bridge and removes the mailbox, or both mailboxes when a pair made from a subdirectory has two. Refuses until every handback is signed off and the check passes. `--keep-relay` keeps the mailbox. `--clean-trust` removes the trust entries tandem added for the builder's kind and the reviewer's |
 | `tandem-bridge`          | Delivers questions, handbacks and review verdicts from a sandboxed agent. `tandem-pair` starts it. One bridge watches a mailbox: it writes its pid to `bridge.pid`, and a second start on the same mailbox exits 1 while the first runs |
 | `tandem-project`         | Prints the project's resolved settings as JSON |
-| `tandem-init`            | Writes `.tandem.json` and adds the relay mailbox and the question history folder to `.gitignore` |
+| `tandem-init`            | Writes `.tandem.json` and adds the relay mailbox and the question history folder to git's exclude file (`.git/info/exclude`) |
 
 `tandem-pair` also takes these flags for a single pairing:
 

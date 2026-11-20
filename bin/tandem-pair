@@ -12,8 +12,8 @@ while [[ -L "$_self" ]]; do
 done
 # shellcheck source=lib/reviewer.sh
 . "${_self%/*}/lib/reviewer.sh"
-# shellcheck source=lib/relay.sh
-. "${_self%/*}/lib/relay.sh"
+# shellcheck source=lib/git-exclude.sh
+. "${_self%/*}/lib/git-exclude.sh"
 # shellcheck source=lib/pair-launch.sh
 . "${_self%/*}/lib/pair-launch.sh"
 # shellcheck source=lib/pair-panes.sh
