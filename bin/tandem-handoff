@@ -24,6 +24,7 @@ HANDOFF_LIB="${_self%/*}/lib"
 
 DRY_RUN=0
 CONTINUE=0
+RESUME_FROM=""
 CONTEXT_LIMIT_ARG=""
 PLAN_ARG=""
 OVERRIDE_ID=""
@@ -35,18 +36,26 @@ DRY_OVERRIDE_OK=0
 usage() {
   cat <<'USAGE'
 usage: tandem-handoff [plan-path] [--dry-run] [--continue]
-                      [--context-limit N]
+                      [--resume | --resume-from RUN] [--context-limit N]
 
 Sends the builder one task of an implementation plan, in a fresh
 conversation. Tandem splits the plan into one brief per task and sends the
 next task itself each time the builder hands one back. With no plan-path,
 picks the most recently reviewed plan, else the most recently modified file
 in the project's plans directory (see tandem-project; configure with .tandem.json / tandem-init). A new run
-starts at task 1.
+starts at task 1, unless it resumes a stopped run.
 
-  --dry-run   decide and print what would start, sending nothing
+  --dry-run   decide and print what would start, sending nothing. It does
+              not check whether a resume would be accepted
   --continue  move on the run already active for this plan; refuses
               rather than start a new one
+  --resume    start at the task the most recently archived run of this
+              plan stopped on. The tasks it accepted stay accepted, on
+              their own evidence, and a task it was repairing gets the
+              open findings. Refuses unless the files are exactly as that
+              run left them and its evidence still holds
+  --resume-from RUN
+              the same, from the archived run with this id
   --context-limit N
               most bytes of prompt a run gives the builder for one
               task. Overrides context_limit in .tandem.json; with neither,
@@ -88,6 +97,9 @@ while (( $# )); do
   case "$1" in
     --dry-run) DRY_RUN=1; shift ;;
     --continue) CONTINUE=1; shift ;;
+    --resume) RESUME_FROM=latest; shift ;;
+    --resume-from) [[ -n "${2:-}" ]] || die "--resume-from needs a run id."
+                   RESUME_FROM="$2"; shift 2 ;;
     --context-limit) [[ -n "${2:-}" ]] || die "--context-limit needs a number of bytes."
                      CONTEXT_LIMIT_ARG="$2"; shift 2 ;;
     --override-review) OVERRIDE_ID="${2:-}";     shift 2 ;;
@@ -97,6 +109,11 @@ while (( $# )); do
     *)         [[ -z "$PLAN_ARG" ]] || die "more than one plan path given."; PLAN_ARG="$1"; shift ;;
   esac
 done
+
+if (( CONTINUE )) && [[ -n "$RESUME_FROM" ]]; then
+  usage >&2
+  die "--continue moves on the active run and --resume starts a new one, so they do not go together."
+fi
 
 [[ -z "$CONTEXT_LIMIT_ARG" || "$CONTEXT_LIMIT_ARG" =~ ^[0-9]+$ ]] \
   || { usage >&2; die "--context-limit takes a number of bytes, not '$CONTEXT_LIMIT_ARG'."; }

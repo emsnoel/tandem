@@ -16,7 +16,9 @@ import (
 
 // CreateRun records a run, its project and checkout rows when new, its tasks
 // and their dependencies in one transaction. Dependencies must name tasks of
-// the run and form no cycle. A run id used twice is ErrConflict.
+// the run and form no cycle. A run id used twice is ErrConflict. A task that
+// names an accepted attempt carries it from an archived run of the same plan
+// (see resume.go).
 func (s *Store) CreateRun(ctx context.Context, spec RunSpec) error {
 	_, err := s.createRun(ctx, spec, "", 0)
 	return err
@@ -84,9 +86,12 @@ func (s *Store) createRun(ctx context.Context, spec RunSpec, owner string, ttl t
 	}
 	refs := [][3]string{{"run", spec.RunID, "plan"}, {"run", spec.RunID, "config"}}
 	hashes := []string{spec.PlanHash, spec.ConfigHash}
+	if err := checkCarried(ctx, tx, spec); err != nil {
+		return 0, err
+	}
 	for _, t := range spec.Tasks {
-		if _, err := tx.conn.ExecContext(ctx, `INSERT INTO tasks(run_id,id,ordinal,brief_hash,constraints_hash,spec_hash) VALUES(?,?,?,?,?,?)`,
-			spec.RunID, t.ID, t.Ordinal, t.BriefHash, t.ConstraintsHash, t.SpecHash); err != nil {
+		if _, err := tx.conn.ExecContext(ctx, `INSERT INTO tasks(run_id,id,ordinal,brief_hash,constraints_hash,spec_hash,accepted_attempt_id) VALUES(?,?,?,?,?,?,?)`,
+			spec.RunID, t.ID, t.Ordinal, t.BriefHash, t.ConstraintsHash, t.SpecHash, nullable(t.AcceptedAttemptID)); err != nil {
 			return 0, fmt.Errorf("task %s: %w", t.ID, err)
 		}
 		for _, r := range []struct{ role, h string }{{"brief", t.BriefHash}, {"constraints", t.ConstraintsHash}, {"spec", t.SpecHash}} {

@@ -37,6 +37,16 @@ func RunPlan(ctx context.Context, st *state.Store, art *artifact.Store, runID st
 	return cfg.PlanPath, cfg.Collaboration, nil
 }
 
+// RunResumedFrom is the run this one resumed, or "" for a run that started at
+// the beginning of its plan.
+func RunResumedFrom(ctx context.Context, st *state.Store, art *artifact.Store, runID string) (string, error) {
+	cfg, err := storedConfig(ctx, st, art, runID)
+	if err != nil {
+		return "", err
+	}
+	return cfg.ResumedFrom, nil
+}
+
 func storedConfig(ctx context.Context, st *state.Store, art *artifact.Store, runID string) (runConfig, error) {
 	run, err := st.GetRun(ctx, runID)
 	if err != nil {

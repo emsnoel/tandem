@@ -115,6 +115,9 @@ type StartRequest struct {
 	PromptExtra     string
 	Ruling          string
 	RulingObjection string
+	// ResumeFrom, when set, resumes an archived run of the same plan:
+	// ResumeLatest for the most recent one, or a run id. See resume.go.
+	ResumeFrom string
 }
 
 // runConfig is the run's immutable configuration, stored as an artifact named
@@ -152,6 +155,9 @@ type runConfig struct {
 	// Settings is what the task prompts carry from the project and the
 	// handoff, omitted when there is none so the hash is what it was before.
 	Settings *promptSettings `json:"settings,omitempty"`
+	// ResumedFrom is the run this one resumed, omitted for a run that started
+	// at the beginning so its hash is what it was before.
+	ResumedFrom string `json:"resumed_from,omitempty"`
 }
 
 // relay is the run's relay directory, derived from its checkout root.
@@ -351,15 +357,6 @@ func (c *Controller) Start(ctx context.Context, req StartRequest) (string, error
 			return "", err
 		}
 	}
-	cfgHash, err := c.putJSON(ctx, runConfig{Version: 1, Root: root, PlanPath: req.PlanPath, BuilderKind: req.BuilderKind,
-		BuilderSession: req.BuilderSession, PlannerKind: "planner", PlannerSession: req.PlannerSession, CheckCommand: req.CheckCommand,
-		TaskInputLimit: req.TaskInputLimit, RunInputLimit: req.RunInputLimit, ContextLimit: req.ContextLimit,
-		Collaboration: req.Collaboration, ReviewProtocol: req.ReviewProtocol, ReviewDelivery: req.ReviewDelivery,
-		AcceptancePolicy: policyHash, RecoveryPolicy: recoveryHash, ReviewerKind: req.ReviewerKind, ReviewerSession: req.ReviewerSession,
-		Settings: settingsFor(req)})
-	if err != nil {
-		return "", err
-	}
 	var tasks []state.TaskRow
 	for i, spec := range imp.Specs {
 		brief, err := c.put(ctx, imp.Briefs[i])
@@ -384,13 +381,26 @@ func (c *Controller) Start(ctx context.Context, req StartRequest) (string, error
 			DependsOn: spec.DependsOn})
 	}
 
+	resume, rc, err := c.applyResume(ctx, req, planHash, start.Hash, policyHash, tasks)
+	if err != nil {
+		return "", err
+	}
+	cfgHash, err := c.putJSON(ctx, runConfig{Version: 1, Root: root, PlanPath: req.PlanPath, BuilderKind: req.BuilderKind,
+		BuilderSession: req.BuilderSession, PlannerKind: "planner", PlannerSession: req.PlannerSession, CheckCommand: req.CheckCommand,
+		TaskInputLimit: req.TaskInputLimit, RunInputLimit: req.RunInputLimit, ContextLimit: req.ContextLimit,
+		Collaboration: req.Collaboration, ReviewProtocol: req.ReviewProtocol, ReviewDelivery: req.ReviewDelivery,
+		AcceptancePolicy: policyHash, RecoveryPolicy: recoveryHash, ReviewerKind: req.ReviewerKind, ReviewerSession: req.ReviewerSession,
+		Settings: settingsFor(req), ResumedFrom: resume.From})
+	if err != nil {
+		return "", err
+	}
 	runID, err := c.d.NewID()
 	if err != nil {
 		return "", err
 	}
 	spec := state.RunSpec{RunID: runID, CheckoutID: c.d.State.CheckoutID(), CanonicalRoot: root, GitCommonDir: common,
 		ManifestRoot: ".", PlanHash: planHash, ConfigHash: cfgHash, TaskInputLimit: req.TaskInputLimit, RunInputLimit: req.RunInputLimit, Tasks: tasks}
-	first := firstToStart(tasks)
+	first := firstToStart(tasks, resume.Repair)
 	if first < 0 {
 		return "", fmt.Errorf("%w: no task of the plan can start: each one waits on another", workflow.ErrInvalidTransition)
 	}
@@ -424,13 +434,22 @@ func (c *Controller) Start(ctx context.Context, req StartRequest) (string, error
 	if err != nil {
 		return runID, err
 	}
-	return runID, c.startAttempt(ctx, run, cfg, tasks[first], 1, "", start.Hash, repairContext{})
+	return runID, c.startAttempt(ctx, run, cfg, tasks[first], 1, "", start.Hash, rc)
 }
 
-// firstToStart is the first task in plan order that waits on nothing, or -1.
-func firstToStart(tasks []state.TaskRow) int {
+// firstToStart is the task a new run starts with, or -1: the task under repair
+// when a resumed run carries one, else the first task in plan order that is
+// not accepted and whose dependencies all are.
+func firstToStart(tasks []state.TaskRow, repair *workflow.Attempt) int {
+	accepted := map[string]bool{}
+	for _, t := range tasks {
+		accepted[t.ID] = t.AcceptedAttemptID != ""
+	}
 	for i, t := range tasks {
-		if len(t.DependsOn) == 0 {
+		if repair != nil && t.ID != repair.TaskID {
+			continue
+		}
+		if !accepted[t.ID] && ready(t, accepted) {
 			return i
 		}
 	}

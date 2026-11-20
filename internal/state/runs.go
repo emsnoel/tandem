@@ -19,7 +19,8 @@ func (s *Store) Root() string { return filepath.Dir(s.path) }
 func GitIdentity(cwd string) (root, common string, err error) { return gitIdentity(cwd) }
 
 // TaskRow is one task of a run as stored: its brief, constraints and spec are
-// artifacts, and DependsOn names tasks that must be accepted first.
+// artifacts, and DependsOn names tasks that must be accepted first. A resumed
+// run's carried task names an attempt of the run it resumed.
 type TaskRow struct {
 	ID                                   string
 	Ordinal                              int

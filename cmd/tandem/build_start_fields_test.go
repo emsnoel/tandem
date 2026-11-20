@@ -10,14 +10,16 @@ import (
 	"github.com/emsnoel/tandem/internal/paths"
 )
 
-// startFields splits build start's --fields output and checks there are 14.
+// startFields splits build start's --fields output and checks there is one
+// field for each of startFieldKeys.
 func startFields(t *testing.T, out string) []string {
 	t.Helper()
+	n := len(startFieldKeys)
 	f := strings.Split(out, "\x00")
-	if len(f) != 5 || f[4] != "" {
-		t.Fatalf("want 4 NUL-terminated fields, got %q", f)
+	if len(f) != n+1 || f[n] != "" {
+		t.Fatalf("want %d NUL-terminated fields, got %q", n, f)
 	}
-	return f[:4]
+	return f[:n]
 }
 
 func TestBuildStartFieldsDurableDryRun(t *testing.T) {

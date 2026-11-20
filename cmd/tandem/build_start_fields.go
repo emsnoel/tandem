@@ -13,7 +13,7 @@ var jsonOut io.Writer
 
 // startFieldKeys is the order of build start --fields, the keys
 // bin/tandem-handoff reads from the start's answer.
-var startFieldKeys = []string{"engine", "run_id", "dry_run", "legacy_build"}
+var startFieldKeys = []string{"engine", "run_id", "dry_run", "legacy_build", "resumed_from"}
 
 // cmdBuildStartFields runs build start with args, then prints the last JSON
 // object it wrote as NUL fields in startFieldKeys order, whatever the exit

@@ -42,9 +42,10 @@ func cmdBuildStartDurable(args []string) int {
 	rulingReview := fs.String("ruling-review", "", "the review whose objections --ruling overrules (needs --ruling)")
 	ruling := fs.String("ruling", "", "the planner's ruling on that review, sent with every task (needs --ruling-review)")
 	resumeOnly := fs.Bool("resume-only", false, "refuse unless a run exists to continue")
+	resumeFrom := fs.String("resume-from", "", "start at the task an archived run of this plan stopped on, carrying the tasks it accepted: latest, or a run id")
 	dry := fs.Bool("dry-run", false, "decide and print, write nothing")
-	if err := fs.Parse(args); err != nil || *planPath == "" || f.root == "" || *ctxLimit < 0 {
-		fmt.Fprintln(os.Stderr, "usage: tandem build start --plan FILE --root DIR --builder-kind KIND [--builder N] [--planner N] [--reviewer N --reviewer-kind KIND] [--check CMD] [--budget N] [--run-budget N] [--context-limit N] [--collaboration ID] [--review-delivery manual|mailbox] [--acceptance-policy FILE] [--recovery-policy FILE] [--state-home DIR] [--resume-only] [--dry-run]\n"+
+	if err := fs.Parse(args); err != nil || *planPath == "" || f.root == "" || *ctxLimit < 0 || (*resumeOnly && *resumeFrom != "") {
+		fmt.Fprintln(os.Stderr, "usage: tandem build start --plan FILE --root DIR --builder-kind KIND [--builder N] [--planner N] [--reviewer N --reviewer-kind KIND] [--check CMD] [--budget N] [--run-budget N] [--context-limit N] [--collaboration ID] [--review-delivery manual|mailbox] [--acceptance-policy FILE] [--recovery-policy FILE] [--state-home DIR] [--resume-only | --resume-from latest|RUN] [--dry-run]\n"+
 			"A run needs a reviewer pane: the one tandem-pair recorded in reviewer.json, or --reviewer with --reviewer-kind.")
 		return exitcode.Usage
 	}
@@ -101,7 +102,8 @@ func cmdBuildStartDurable(args []string) int {
 		PlannerSession: *planner, CheckCommand: *check, TaskInputLimit: *budget, RunInputLimit: *runBudget, ContextLimit: *ctxLimit,
 		Collaboration: *collab, ReviewDelivery: *delivery, ReviewProtocol: reviewProtocolFor(*delivery), AcceptancePolicyPath: *policyPath, RecoveryPolicyPath: *recoveryPath,
 		ReviewerKind: *reviewerKind, ReviewerSession: *reviewer,
-		ConventionsFile: *conventions, PromptExtra: *extra, Ruling: *ruling, RulingObjection: rulingObjection(relay, *rulingReview)}
+		ConventionsFile: *conventions, PromptExtra: *extra, Ruling: *ruling, RulingObjection: rulingObjection(relay, *rulingReview),
+		ResumeFrom: *resumeFrom}
 	// The flags override the recorded pane. Without them the record decides,
 	// and a missing or bad record needs a person to re-pair, not a new command.
 	var err error
@@ -155,6 +157,10 @@ func cmdBuildStartDurable(args []string) int {
 		return fail(err)
 	}
 	runID, err := c.Start(ctx, req)
+	if errors.Is(err, controller.ErrCannotResume) {
+		fmt.Fprintln(os.Stderr, "tandem build:", err)
+		return exitcode.ManualGate
+	}
 	if err != nil {
 		if runID != "" {
 			if code, ok := gatedRun(ctx, st, runID); ok {
@@ -167,7 +173,13 @@ func cmdBuildStartDurable(args []string) int {
 		}
 		return fail(err)
 	}
-	return printJSON(map[string]any{"engine": "durable", "run_id": runID})
+	out := map[string]any{"engine": "durable", "run_id": runID}
+	if *resumeFrom != "" {
+		if from, err := controller.RunResumedFrom(ctx, st, art, runID); err == nil && from != "" {
+			out["resumed_from"] = from
+		}
+	}
+	return printJSON(out)
 }
 
 func cmdBuildStopDurable(args []string) int {

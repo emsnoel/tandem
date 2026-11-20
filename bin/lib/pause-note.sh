@@ -56,15 +56,18 @@ _pn_teardown() {
   _pn_end_run "$1" "$2"
 }
 
-# _pn_handoff FLAGS: hand the plan off again, which starts at task 1. A run
-# with no stored plan path prints tandem-handoff alone, which picks a plan.
-# The files the old run left are the new run's start, so a step warns first.
+# _pn_handoff FLAGS: hand the plan off again. A resume starts at the task the
+# archived run stopped on and keeps the tasks it accepted; a fresh hand-off
+# starts at task 1. A run with no stored plan path prints tandem-handoff
+# alone, which picks a plan. The files the old run left decide which one
+# works, so a step says so first.
 _pn_handoff() {
-  local cmd="tandem-handoff"
-  _pn_step "Any files the run changed stay in your tree and aren't counted as accepted work, so check git status before you hand off. Keep or discard them."
+  local cmd="tandem-handoff" plan=""
+  _pn_step "Any files the run changed stay in your tree, so check git status before you hand off. A resume needs them exactly as the run left them. A fresh start counts none of them as accepted work, so keep or discard them."
   [[ -z "${1:-}" ]] || cmd="$cmd $1"
-  [[ -z "$_pn_plan" ]] || cmd="$cmd $(printf %q "$_pn_plan")"
-  _pn_step "Hand the plan off again. The run starts again at task 1." "$cmd"
+  [[ -z "$_pn_plan" ]] || plan=" $(printf %q "$_pn_plan")"
+  _pn_step "Resume the plan at the task the run stopped on. The tasks it accepted stay accepted, and a task it was repairing gets the open findings. It refuses if the files changed." "$cmd --resume$plan"
+  _pn_step "Or hand the plan off fresh. The run starts again at task 1." "$cmd$plan"
 }
 
 # restart_steps RUN ROOT [alt]: the shared restart route. With alt it opens
