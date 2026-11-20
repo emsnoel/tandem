@@ -225,8 +225,8 @@ pause_note() {
       _pn_step "If the findings are wrong, overrule the review. The next tick accepts the task and starts the next one." "tandem build accept --task ${task:-N} --waive review --because WHY --root $q"
       restart_steps "$run" "$root" alt ;;
     review_unknown)
-      _pn_read_pane "$reviewer" "Read the reviewer pane for its reply."
-      _pn_step "Save the whole JSON object of the reply to a file, then record it." "tandem build review-record --result FILE --root $q"
+      _pn_read_pane "$reviewer" "Read the reviewer pane for its reply. A pane can show only the end of a reply. The reviewer's log, named above, holds it whole."
+      _pn_step "Save the whole JSON object of the reply to a file, then record it. The reply must carry the job_id, attempt_id, patch_hash and tree_hash listed above." "tandem build review-record --result FILE --root $q"
       _pn_step "Or overrule the review instead." "tandem build accept --task ${task:-N} --waive review --because WHY --root $q"
       restart_steps "$run" "$root" alt ;;
     stuck)

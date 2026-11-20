@@ -137,11 +137,16 @@ it, re-pair with a reviewer, and hand off again. `state recover` ends any builde
 
 ## A review not recorded in time
 
-A review prompt waits 10 minutes for its answer. Each tick reads the end of the reviewer's
-pane once the pane has settled, takes the last JSON object in it that names the open review
-job, and records it as `tandem build review-record` would: same validator, same job, patch
-and tree binding. A reply wrapped by the CLI's own screen (Codex indents the rest of a long
-line) is joined first. The example object in the review prompt carries the job's real ids,
+A review prompt waits 10 minutes for its answer. Once the reviewer's pane has settled, each
+tick reads the reviewer's replies, takes the last JSON object in them that names the open
+review job, and records it as `tandem build review-record` would: same validator, same job,
+patch and tree binding. The replies come from the CLI's own conversation log: a Codex
+rollout under `$CODEX_HOME/sessions`, a Claude Code log under `~/.claude/projects`, or a
+Copilot `events.jsonl` under `~/.copilot/session-state`. The log holds each reply whole. A
+pane does not: Codex redraws its screen, so Herdr can read a pane from the middle of a reply
+on, past `job_id` and the hashes. When the log holds no reply for the job, the tick reads the
+end of the pane instead. A reply wrapped by the CLI's own screen (Codex indents the rest of a
+long line) is joined first. The example object in the review prompt carries the job's real ids,
 but its status lists the choices (`passed|changes_requested|failed`), so it is never taken for
 the reply. Nothing needs to be done for a reply that is there.
 
@@ -153,7 +158,9 @@ that is not valid JSON.
 
 If no valid reply is found by then (the reviewer answered in prose, named another job, or
 reviewed a different tree), the prompt becomes `delivery_unknown` and the run pauses as
-`review_unknown`. `tandem build status` gives this as the pause's reason. Nothing is lost:
+`review_unknown`. `tandem build status` gives this as the pause's reason, with the
+`job_id`, `attempt_id`, `patch_hash` and `tree_hash` the reply must carry and where the
+reviewer's CLI logs its replies. Nothing is lost:
 
 - Record the result. However late it comes, it answers the prompt, clears the pause, and
   the next tick accepts the task if the review passed.
@@ -447,7 +454,8 @@ Record the OS, the Herdr version, each CLI's version, the models and the token u
 
 Reading a pane review by hand: each tick already reads the reply itself (see
 [A review not recorded in time](#a-review-not-recorded-in-time)). To record one yourself,
-remember the reply is one JSON object and can be longer than the terminal is wide, so read
+remember the reply is one JSON object and can be longer than the terminal is wide. The
+reviewer's conversation log, named in the pause reason, holds it whole. From the pane, read
 it unwrapped (`herdr agent read NAME --source recent-unwrapped --lines 120`) before saving
 it for `tandem build review-record`. Copilot truncates it otherwise. Some CLIs
 print the object over several lines (a Codex reviewer did on 2026-10-11), so save the whole
