@@ -65,6 +65,8 @@ It checks these things:
 - Each agent's trust dialog for this folder is already accepted.
 - A reviewer is declared.
 - Each role's model, effort and autonomy map to its CLI's flags.
+- A sandboxed builder or reviewer can run a Gradle check. See
+  [Letting a check run in the sandbox](launching.md#letting-a-check-run-in-the-sandbox).
 
 Each line reads `ok`, `warn` or `FAIL`. A warning doesn't stop a pairing. With
 `HERDR_SKIP_HOOK_CHECK=1` set, `tandem-pair` launches past a trust dialog, so doctor reports

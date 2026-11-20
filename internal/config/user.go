@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
+
+	"github.com/emsnoel/tandem/internal/agent"
 )
 
 // UserAdapter holds per-adapter settings. Every field here is capability-
@@ -20,6 +23,9 @@ type UserAdapter struct {
 	// Isolation is "lean" (the default) or "none". It decides whether a
 	// builder or reviewer of this kind loads the user's own CLI setup.
 	Isolation string `json:"isolation"`
+	// Sandbox widens the sandbox of a builder or reviewer of this kind, so a
+	// check that writes outside the checkout or opens sockets can run.
+	Sandbox agent.SandboxGrant `json:"sandbox"`
 }
 
 type UserDefaults struct {
@@ -73,4 +79,20 @@ func LoadUser(path string) (*User, error) {
 		u.Adapters = map[string]UserAdapter{}
 	}
 	return u, nil
+}
+
+// sandboxFor returns the adapter's sandbox grant with each directory made
+// absolute: "~/" becomes home, and an entry that is still relative is dropped,
+// since it could only name a place inside the checkout, which is writable already.
+func (ua UserAdapter) sandboxFor(home string) agent.SandboxGrant {
+	g := agent.SandboxGrant{Network: ua.Sandbox.Network}
+	for _, d := range ua.Sandbox.WritableDirs {
+		if rest, ok := strings.CutPrefix(d, "~/"); ok && home != "" {
+			d = filepath.Join(home, rest)
+		}
+		if filepath.IsAbs(d) {
+			g.WritableDirs = append(g.WritableDirs, filepath.Clean(d))
+		}
+	}
+	return g
 }

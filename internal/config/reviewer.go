@@ -82,6 +82,7 @@ func ResolveReviewer(repo *Repo, user *User, getenv func(string) string, flags O
 	r.AllowWiden = ua.AllowWiden
 	r.ExtraArgs = ua.Args
 	r.Isolation = agent.Isolation(ua.Isolation)
+	r.Sandbox = ua.sandboxFor(getenv("HOME"))
 	r.Path = ua.Path
 	return ReviewerResolution{Status: ReviewerResolved, Resolved: &r}
 }

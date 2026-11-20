@@ -123,7 +123,9 @@ type Spec struct {
 	// The caller generates it so Resolve stays deterministic.
 	SessionID string
 	// Isolation is empty for the default, IsolationLean.
-	Isolation    Isolation
+	Isolation Isolation
+	// Sandbox widens the sandbox of an agent that has one. See SandboxGrant.
+	Sandbox      SandboxGrant
 	ExtraArgs    []string
 	AllowDegrade []string
 	AllowWiden   []string
@@ -135,6 +137,9 @@ type Launch struct {
 	Args      []string  `json:"args"`
 	Warnings  []Warning `json:"warnings"`
 	Sandboxed bool      `json:"sandboxed"`
+	// Granted is the part of Spec.Sandbox the launch applies: none when the
+	// agent has no sandbox, or when its sandbox writes nothing at all.
+	Granted SandboxGrant `json:"granted,omitzero"`
 }
 
 type Adapter interface {
