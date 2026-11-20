@@ -4,7 +4,7 @@
 // Two orthogonal rules govern it. PRECEDENCE decides which source wins when
 // several supply a value. TRUST CLASS decides which sources may supply a value
 // at all: a repository may declare intent, but only the user may grant
-// capability, so allow_widen, args and path are user-config only.
+// capability, so allow_widen, args, sandbox and path are user-config only.
 package config
 
 import (
@@ -63,7 +63,7 @@ var repoRoleAllowed = map[string]bool{
 
 // repoRoleCapability lists keys that select authority or an executable. A
 // repository is cloned from elsewhere, so these are user-config only.
-var repoRoleCapability = []string{"allow_widen", "args", "path"}
+var repoRoleCapability = []string{"allow_widen", "args", "path", "sandbox"}
 
 // LoadRepo reads the per-repo manifest at path, which internal/paths resolves
 // (it may still be the pre-rename .herdr.json). A missing file is not an error. Ignored keys

@@ -41,8 +41,8 @@ refuse without one. Declare it here, or pass `tandem-pair --reviewer KIND` every
   for that session only.
 - A block with no `kind` stops the pairing and names the missing key, unless
   `--reviewer` or `HERDR_REVIEWER_KIND` supplies one.
-- tandem ignores `args`, `path` and `allow_widen` in the block and prints a warning, as it
-  does for the `builder` block.
+- tandem ignores `args`, `path`, `sandbox` and `allow_widen` in the block and prints a
+  warning, as it does for the `builder` block.
 
 Kind approval covers the reviewer too. If the repository declares a kind you haven't
 approved on this machine, pairing refuses with exit 22 until you run
@@ -208,8 +208,8 @@ nothing.
 
 The reviewer never reads the builder's choices: the `builder` block, `HERDR_BUILDER_*`,
 `defaults.builder_kind`, or the `model`, `effort` and `autonomy` in your user config's
-`adapters.<kind>` entry. The `args`, `path`, `isolation`, `allow_widen` and `allow_degrade` in
-that entry do apply to the reviewer of that kind, because they describe the CLI on this machine.
+`adapters.<kind>` entry. The `args`, `path`, `isolation`, `sandbox`, `allow_widen` and
+`allow_degrade` in that entry do apply to the reviewer of that kind, because they describe the CLI on this machine.
 
 ```bash
 tandem-pair --reviewer claude --reviewer-model opus --reviewer-effort high
@@ -233,8 +233,12 @@ Your own adapter settings live in `~/.config/herdr/tandem.json`:
 ```
 
 A repository can ask for settings, but it can't grant extra authority. tandem accepts
-`allow_widen`, raw `args` and an executable `path` only from your user config. It ignores
-the same keys in `.tandem.json` and prints a warning.
+`allow_widen`, raw `args`, `sandbox` and an executable `path` only from your user config. It
+ignores the same keys in `.tandem.json` and prints a warning.
+
+`sandbox` widens a sandboxed builder's or reviewer's sandbox so the project's check can
+run, for example a Gradle check that writes `~/.gradle`. See
+[Letting a check run in the sandbox](launching.md#letting-a-check-run-in-the-sandbox).
 
 ### A lean Claude builder and reviewer
 

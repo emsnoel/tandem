@@ -24,7 +24,7 @@ probe() { # probe <cli> <help-args> <flag>...
   done
 }
 
-probe codex    --help -s --sandbox -a --ask-for-approval -m -C --dangerously-bypass-approvals-and-sandbox --dangerously-bypass-hook-trust
+probe codex    --help -s --sandbox -a --ask-for-approval -m -C --add-dir --dangerously-bypass-approvals-and-sandbox --dangerously-bypass-hook-trust
 probe claude   --help --permission-mode --model --effort --setting-sources --settings --strict-mcp-config
 probe copilot  --help --model --reasoning-effort --mode --allow-all-tools --allow-all-urls --allow-all --no-ask-user -C
 

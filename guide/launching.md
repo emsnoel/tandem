@@ -110,6 +110,41 @@ to `danger-full-access` would let Codex reach the Herdr socket directly and make
 unnecessary. `guide/design.md` explains why that is a bad trade for an agent running plans
 on its own.
 
+### Letting a check run in the sandbox
+
+Some build tools can't run their check in that sandbox. Gradle is one. Its wrapper locks a
+file under `~/.gradle`, and Gradle binds a loopback socket to coordinate file locks. Both
+fail with `Operation not permitted`, so a Codex builder or reviewer can't run
+`./gradlew check`. A reviewer then reports its check probe as "could not verify".
+
+You can widen the sandbox for one agent kind in your user config,
+`~/.config/herdr/tandem.json`:
+
+```json
+{ "adapters": { "codex": { "sandbox": { "writable_dirs": ["~/.gradle"], "network": true } } } }
+```
+
+- `writable_dirs` lists directories the agent may write besides its checkout. A leading
+  `~/` means your home directory. tandem drops a relative entry.
+- `network` lets the agent's commands open sockets. Codex has no setting for loopback
+  only, so this opens the network too.
+
+The grant applies to the builder and the reviewer of that kind. A Codex agent gets one
+`--add-dir DIR` per directory, and `-c sandbox_workspace_write.network_access=true` for the
+network. A `readonly` agent gets neither, because its sandbox writes nothing. A Claude or
+Copilot agent runs without tandem's sandbox and needs no grant. On codex-cli 0.169.0 a
+Gradle check needs both grants. With either one alone, it still fails.
+
+A repository can't set `sandbox`, because it grants authority. tandem ignores it in
+`.tandem.json` and prints a warning. A running agent keeps the flags it started with, so
+restart its pane after you change the grant.
+
+`tandem doctor` warns before a pairing when the repository uses Gradle and a sandboxed
+builder or reviewer lacks the grant. It also warns when the granted Gradle home doesn't
+exist yet, since the sandbox can't create it. It looks for a `gradlew` or `*.gradle` file at
+the root, or `gradle` in `check_command`, and never runs the check. `GRADLE_USER_HOME` moves
+the directory it expects.
+
 You can override autonomy for a single session, but the defaults are the supported setup:
 
 ```bash

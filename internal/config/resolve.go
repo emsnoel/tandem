@@ -39,17 +39,18 @@ type Overrides struct {
 }
 
 type Resolved struct {
-	Role         agent.Role      `json:"role"`
-	Kind         Value           `json:"kind"`
-	Model        Value           `json:"model"`
-	Effort       Value           `json:"effort"`
-	Autonomy     Value           `json:"autonomy"`
-	AllowDegrade []string        `json:"allow_degrade"`
-	AllowWiden   []string        `json:"allow_widen"`
-	ExtraArgs    []string        `json:"args"`
-	Isolation    agent.Isolation `json:"isolation,omitempty"`
-	Path         string          `json:"path"`
-	Warnings     []string        `json:"warnings"`
+	Role         agent.Role         `json:"role"`
+	Kind         Value              `json:"kind"`
+	Model        Value              `json:"model"`
+	Effort       Value              `json:"effort"`
+	Autonomy     Value              `json:"autonomy"`
+	AllowDegrade []string           `json:"allow_degrade"`
+	AllowWiden   []string           `json:"allow_widen"`
+	ExtraArgs    []string           `json:"args"`
+	Isolation    agent.Isolation    `json:"isolation,omitempty"`
+	Sandbox      agent.SandboxGrant `json:"sandbox,omitzero"`
+	Path         string             `json:"path"`
+	Warnings     []string           `json:"warnings"`
 	// Unenforced names axes that were configured but cannot apply, because the
 	// agent was adopted rather than launched.
 	Unenforced []string `json:"unenforced,omitempty"`
@@ -149,12 +150,17 @@ func ResolveRole(role agent.Role, repo *Repo, user *User, getenv func(string) st
 		candidate{defAutonomy, FromDefault},
 	)
 
-	// allow_degrade may come from either tier; allow_widen, args, isolation and
-	// path are user-only, which LoadRepo has already enforced by dropping them.
+	// allow_degrade may come from either tier; allow_widen, args, isolation,
+	// sandbox and path are user-only, which LoadRepo has already enforced by
+	// dropping them.
 	r.AllowDegrade = union(rr.AllowDegrade, ua.AllowDegrade)
 	r.AllowWiden = ua.AllowWiden
 	r.ExtraArgs = ua.Args
 	r.Isolation = agent.Isolation(ua.Isolation)
+	// The planner is the person's own pane, which tandem never launches.
+	if role.Unattended() {
+		r.Sandbox = ua.sandboxFor(getenv("HOME"))
+	}
 	r.Path = ua.Path
 
 	if role == agent.RoleBuilder && r.Kind.Value == "codex" {
@@ -223,6 +229,7 @@ func (r Resolved) Spec(cwd string) agent.Spec {
 		Cwd:          cwd,
 		ExtraArgs:    r.ExtraArgs,
 		Isolation:    r.Isolation,
+		Sandbox:      r.Sandbox,
 		AllowDegrade: r.AllowDegrade,
 		AllowWiden:   r.AllowWiden,
 	}

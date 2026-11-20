@@ -26,6 +26,8 @@ type Roles struct {
 	Manifest string
 	// Warnings come from reading the manifest, such as unknown keys.
 	Warnings []string
+	// CheckCommand is the manifest's check_command, "" when it sets none.
+	CheckCommand string
 	// Running maps a builder or reviewer that already runs to its pane, as
 	// RunningRoles finds them. tandem-pair skips some checks for those.
 	Running map[agent.Role]string
@@ -49,12 +51,13 @@ func ResolveRoles(root string, flags RoleFlags, getenv func(string) string) (Rol
 		manifest = ""
 	}
 	return Roles{
-		Planner:  config.ResolveRole(agent.RolePlanner, repo, user, getenv, flags.Planner),
-		Builder:  config.ResolveRole(agent.RoleBuilder, repo, user, getenv, flags.Builder),
-		Reviewer: config.ResolveReviewer(repo, user, getenv, flags.Reviewer),
-		Manifest: manifest,
-		Warnings: warns,
-		user:     user,
+		Planner:      config.ResolveRole(agent.RolePlanner, repo, user, getenv, flags.Planner),
+		Builder:      config.ResolveRole(agent.RoleBuilder, repo, user, getenv, flags.Builder),
+		Reviewer:     config.ResolveReviewer(repo, user, getenv, flags.Reviewer),
+		Manifest:     manifest,
+		Warnings:     warns,
+		CheckCommand: repo.CheckCommand,
+		user:         user,
 	}, nil
 }
 

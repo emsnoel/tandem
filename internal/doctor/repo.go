@@ -37,6 +37,7 @@ func Repo(root, cwd string, r Roles, getenv func(string) string) []Result {
 	for _, res := range r.launched() {
 		if res.Role != agent.RoleReviewer || r.starts(res.Role) {
 			rs = append(rs, launch(res, cwd))
+			rs = append(rs, sandbox(root, cwd, res, r.CheckCommand, getenv)...)
 		}
 	}
 	for i := range rs {

@@ -50,8 +50,10 @@ func (c codexAdapter) Resolve(s Spec) (Launch, error) {
 		l.Args = append(l.Args, "--sandbox", "read-only", "--ask-for-approval", "on-request")
 	case Ask:
 		l.Args = append(append(l.Args, workspace...), "--ask-for-approval", "on-request")
+		l.Args, l.Granted = codexGrant(l.Args, s.Sandbox)
 	case Auto:
 		l.Args = append(append(l.Args, workspace...), "--ask-for-approval", "never")
+		l.Args, l.Granted = codexGrant(l.Args, s.Sandbox)
 	case Full:
 		l.Args = append(l.Args, "--dangerously-bypass-approvals-and-sandbox")
 	}
@@ -85,6 +87,21 @@ func (c codexAdapter) Resolve(s Spec) (Launch, error) {
 	l.Args = append(l.Args, s.ExtraArgs...)
 	l.Sandboxed = c.Sandboxed(s)
 	return l, nil
+}
+
+// codexGrant widens a workspace-write sandbox. --add-dir makes a directory
+// writable beside the checkout, and network_access opens sockets, loopback
+// included. On codex-cli 0.169.0 both together let `./gradlew help` run, and
+// either alone fails: on the ~/.gradle wrapper lock, or on the loopback socket
+// Gradle's FileLockContentionHandler binds. A read-only sandbox takes neither.
+func codexGrant(args []string, g SandboxGrant) ([]string, SandboxGrant) {
+	for _, d := range g.WritableDirs {
+		args = append(args, "--add-dir", d)
+	}
+	if g.Network {
+		args = append(args, "-c", "sandbox_workspace_write.network_access=true")
+	}
+	return args, g
 }
 
 // Sandboxed reports whether Codex's seatbelt will deny the Herdr socket.

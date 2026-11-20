@@ -149,6 +149,20 @@ run_pair env HERDR_REVIEWER_NAME=builder -- --reviewer claude
 chk  "the builder cannot be the reviewer"     "review its own work"
 nchk "and nothing is started"                 "agent start"
 
+echo "--- a sandbox grant reaches codex (#85) ---"
+# A Gradle check needs ~/.gradle and loopback sockets. The user grants both in
+# their own config, and the builder and the reviewer of that kind get them.
+printf '{"adapters":{"codex":{"sandbox":{"writable_dirs":["~/.gradle"],"network":true}}}}\n' > "$TMP/grant.json"
+run_pair env HERDR_TANDEM_CONFIG="$TMP/grant.json" -- --reviewer codex
+for role in builder reviewer; do
+  line=$(printf '%s\n' "$OUT" | grep "agent start $role" || true)
+  case "$line" in *"--add-dir $TMP/home/.gradle"*) ok "the $role may write ~/.gradle" ;; *) nope "no ~/.gradle grant for the $role: $line" ;; esac
+  case "$line" in *"sandbox_workspace_write.network_access=true"*) ok "the $role may open sockets" ;; *) nope "no network grant for the $role: $line" ;; esac
+done
+run_pair env -- --reviewer codex
+nchk "no grant unless the user gives one"     "--add-dir"
+nchk "and no network either"                  "network_access"
+
 echo "--- a reviewer declared in the manifest ---"
 # A repository's own reviewer kind needs the operator's approval, like its builder's.
 manifest '{"reviewer":{"kind":"codex","model":"gpt-6-astra"}}'
