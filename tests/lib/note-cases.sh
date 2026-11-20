@@ -34,7 +34,7 @@ git -C "$BASE" add . && git -C "$BASE" commit -qm plan
 
 TAB=$(printf '\t'); DRIVER=""
 stop_driver() { [ -z "$DRIVER" ] || { pkill -P "$DRIVER" 2>/dev/null; kill "$DRIVER" 2>/dev/null; wait "$DRIVER" 2>/dev/null; DRIVER=""; }; }
-td() { env PATH="$TMP/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$R" TANDEM_STATE_HOME="$TMP/state-$C" TANDEM_ACK_WINDOW_MS="${ACK_MS:-}" TANDEM_SILENCE_WINDOW_MS="${SILENCE_MS:-}" tandem "$@"; }
+td() { env PATH="$TMP/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$R" TANDEM_STATE_HOME="$TMP/state-$C" TANDEM_ACK_WINDOW_MS="${ACK_MS:-}" TANDEM_SILENCE_WINDOW_MS="${SILENCE_MS:-}" TANDEM_REMIND_WINDOW_MS="${REMIND_MS:-}" tandem "$@"; }
 # pass [N]: N bridge passes. Each one ticks the run and tells the planner of a new pause.
 pass() {
   local i
@@ -64,7 +64,7 @@ field() { printf '%s' "$1" | grep -o -- "--$2 [0-9a-f]*" | head -1 | cut -d' ' -
 # bridge_up: one bridge that stays up in the background, as a real pair has.
 bridge_up() {
   env PATH="$TMP/bin:$ROOT_DIR/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$R" HERDR_ENV=1 TANDEM_STATE_HOME="$TMP/state-$C" \
-    TANDEM_SILENCE_WINDOW_MS="$SILENCE_MS" HERDR_BRIDGE_BACKSTOP_SECONDS=1 HERDR_BRIDGE_PROMPT_TIMEOUT_MS=3000 \
+    TANDEM_SILENCE_WINDOW_MS="$SILENCE_MS" TANDEM_REMIND_WINDOW_MS="${REMIND_MS:-}" HERDR_BRIDGE_BACKSTOP_SECONDS=1 HERDR_BRIDGE_PROMPT_TIMEOUT_MS=3000 \
     "$ROOT_DIR/bin/tandem-bridge" --mailbox "$R/.tandem-relay" --planner planner >>"$TMP/bridge.log" 2>&1 &
   DRIVER=$!
 }

@@ -54,6 +54,14 @@ func silenceWindowFromEnv() time.Duration {
 	return controller.SilenceWindow
 }
 
+// remindWindowFromEnv does the same for controller.RemindWindow.
+func remindWindowFromEnv() time.Duration {
+	if ms, err := strconv.Atoi(os.Getenv("TANDEM_REMIND_WINDOW_MS")); err == nil && ms > 0 {
+		return time.Duration(ms) * time.Millisecond
+	}
+	return controller.RemindWindow
+}
+
 // builderAckGraceFromEnv does the same for state.BuilderAckGrace.
 func builderAckGraceFromEnv() time.Duration {
 	if ms, err := strconv.Atoi(os.Getenv("TANDEM_BUILDER_ACK_GRACE_MS")); err == nil && ms > 0 {
@@ -66,6 +74,7 @@ func init() {
 	state.BuilderAckGrace = builderAckGraceFromEnv()
 	state.AckWindow = ackWindowFromEnv()
 	controller.SilenceWindow = silenceWindowFromEnv()
+	controller.RemindWindow = remindWindowFromEnv()
 }
 
 // paneLines is how much of the pane a turn that ended at once reports.

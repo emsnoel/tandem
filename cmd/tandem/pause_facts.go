@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/emsnoel/tandem/internal/controller"
+	"github.com/emsnoel/tandem/internal/paths"
 	"github.com/emsnoel/tandem/internal/workflow"
 )
 
@@ -59,7 +60,7 @@ func pauseFacts(ctx context.Context, d *openRun, code, taskID string) string {
 	case "recovery_blocked":
 		return clean(incidentWhy(ctx, d))
 	case "builder_silent", "builder_blocked":
-		return quietFact(code)
+		return quietFact(ctx, d, code, taskID)
 	case "check_failed", "review_failed", "repairs_exhausted", "verification_identity", "verification_stale":
 	default:
 		return ""
@@ -89,13 +90,17 @@ func pauseFacts(ctx context.Context, d *openRun, code, taskID string) string {
 }
 
 // quietFact is how long the builder's pane stayed quiet before the run paused,
-// in the window this process was given (TANDEM_SILENCE_WINDOW_MS can shorten it).
-func quietFact(code string) string {
-	how := "idle in the same turn"
+// in the window this process was given (TANDEM_SILENCE_WINDOW_MS and
+// TANDEM_REMIND_WINDOW_MS can shorten them). A builder tandem reminded paused
+// a remind window after the reminder.
+func quietFact(ctx context.Context, d *openRun, code, taskID string) string {
 	if code == "builder_blocked" {
-		how = "blocked at a dialog"
+		return "The builder's pane stayed blocked at a dialog for " + windowText(controller.SilenceWindow) + "."
 	}
-	return "The builder's pane stayed " + how + " for " + windowText(controller.SilenceWindow) + "."
+	if att, err := currentAttempt(ctx, d, taskID); err == nil && controller.Reminded(paths.Relay(d.root), d.run.RunID, att.ID) {
+		return "Tandem reminded the builder to hand back, and its pane then stayed idle for " + windowText(controller.RemindWindow) + "."
+	}
+	return "The builder's pane stayed idle in the same turn for " + windowText(controller.SilenceWindow) + "."
 }
 
 // windowText is a duration as a person says it: whole minutes, else seconds.

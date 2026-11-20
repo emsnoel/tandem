@@ -1,10 +1,13 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/emsnoel/tandem/internal/controller"
+	"github.com/emsnoel/tandem/internal/paths"
 )
 
 // withWindow sets the silence window for one test, as TANDEM_SILENCE_WINDOW_MS
@@ -49,5 +52,25 @@ func TestWindowText(t *testing.T) {
 		if got := windowText(d); got != want {
 			t.Errorf("%s: %q, want %q", d, got, want)
 		}
+	}
+}
+
+// A builder tandem reminded paused a remind window after the reminder, and the
+// reason says so (#90).
+func TestRemindedSilenceGivesTheRemindWindow(t *testing.T) {
+	old := controller.RemindWindow
+	controller.RemindWindow = 2 * time.Minute
+	t.Cleanup(func() { controller.RemindWindow = old })
+	d, open := openPaused(t, "builder_silent")
+	dir := controller.RunDir(paths.Relay(d.root), open.run.RunID)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "builder-reminded"), []byte(d.attempt+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	want := "Tandem reminded the builder to hand back, and its pane then stayed idle for 2 minutes."
+	if got := reasonOf(t, open); got != want {
+		t.Fatalf("reason = %q, want %q", got, want)
 	}
 }

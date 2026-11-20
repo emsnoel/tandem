@@ -4,8 +4,9 @@ package controller
 //
 // Acknowledging clears the prompt's lease and nothing else waits on a started
 // attempt, so a builder whose turn ended early would leave the run looking alive
-// forever. Each tick therefore watches the current attempt's pane and pauses the
-// run once the pane has stayed settled, in one unchanged turn, for SilenceWindow.
+// forever. Each tick therefore watches the current attempt's pane. Once the pane
+// has stayed settled, in one unchanged turn, tandem reminds the builder to hand
+// back, and pauses the run if it stays settled (silence_remind.go).
 // A pane that stays blocked at an approval or question dialog for the same
 // window pauses it too, as builder_blocked. Tandem never answers the dialog.
 //
@@ -165,10 +166,13 @@ func quietCode(code string) bool {
 
 // watchSilence is the end of a running run's pass. It keeps the clock while the
 // current builder has started, not submitted and sits settled or blocked with
-// its queue unchanged, and pauses the run once that has lasted SilenceWindow. A
+// its queue unchanged. A settled pane is reminded once (silence_remind.go), and
+// the run pauses once a reminded pane has stayed settled for RemindWindow, or
+// any quiet pane for SilenceWindow. A
 // handback the tree keeps from applying stays queued, so it counts as silence
 // after the clock restarts once for it: the note says where the bridge logs why.
-// Nothing is typed and nothing is ended, so a late handback still applies.
+// Nothing but the reminder is typed and nothing is ended, so a late handback
+// still applies.
 func (c *Controller) watchSilence(ctx context.Context, runID string, cfg runConfig) error {
 	run, err := c.d.State.GetRun(ctx, runID)
 	if err != nil || run.State != "running" {
@@ -203,10 +207,20 @@ func (c *Controller) watchSilence(ctx context.Context, runID string, cfg runConf
 	if err := atomicWrite(filepath.Dir(path), silenceClockFile, append(body, '\n')); err != nil {
 		return err
 	}
-	if now-seen.SinceMS < SilenceWindow.Milliseconds() {
-		return nil
+	remind, pause := quietDue(code, seen, Reminded(cfg.relay(), run.ID, att.ID), now)
+	switch {
+	case pause:
+		return c.d.State.SetRunState(ctx, run.ID, "paused", code)
+	case remind:
+		// The reminder's own turn moves the pane on. Until it does, the pane
+		// gets a whole remind window from now.
+		seen.SinceMS, seen.SeenMS = now, now
+		if body, err = json.Marshal(seen); err == nil {
+			err = atomicWrite(filepath.Dir(path), silenceClockFile, append(body, '\n'))
+		}
+		return errors.Join(err, c.remindBuilder(ctx, run, cfg, att))
 	}
-	return c.d.State.SetRunState(ctx, run.ID, "paused", code)
+	return nil
 }
 
 // continueAfterHandback clears a silent or blocked pause once the builder's handback has

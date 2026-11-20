@@ -129,9 +129,10 @@ until the next run. The prompt doesn't carry staffing advice.
 - A provider failure before the builder acknowledges its task is silent until the ten-minute
   acknowledgement timeout, unless the turn ends within 8 seconds with no model work: that send
   is recorded as not sent and retried, and after 3 the run pauses as `dispatch_failed`.
-- A provider failure after the builder acknowledges its task pauses the run as
-  `builder_silent` once the pane has been idle for 10 minutes. A failure that leaves the turn
-  running, so the pane still shows it working, stays silent with no timeout.
+- A builder that acknowledges its task and then goes idle without handing back gets one
+  reminder to hand back once its pane has been idle for 2 minutes. If it stays idle for 2 more
+  minutes, the run pauses as `builder_silent`. A failure that leaves the turn running, so the
+  pane still shows it working, stays silent with no timeout.
 - A builder held at an approval or question dialog pauses the run as `builder_blocked` once
   Herdr has reported its pane blocked for 10 minutes. Tandem never answers the dialog. Answer
   it in the pane, then `tandem state recover --run ID --root DIR` continues the run. A dialog
