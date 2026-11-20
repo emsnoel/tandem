@@ -46,6 +46,7 @@ func TestBlockedBuilderPausesTheRun(t *testing.T) {
 // Going from the dialog to idle is a status change, so the idle window starts
 // from then, even when the host's counter did not move.
 func TestBlockedThenIdleRestartsTheClock(t *testing.T) {
+	remindersOff(t)
 	e := newCEnv(t)
 	eff := e.blockedBuilder()
 	e.watch(SilenceWindow - 2*time.Minute)
@@ -80,6 +81,7 @@ func TestRecoverKeepsTheBlockedPauseWhileTheDialogIsUp(t *testing.T) {
 // Once the dialog is answered, one recover clears the pause, and the run gets
 // a whole window again.
 func TestRecoverClearsTheBlockedPauseOnceAnswered(t *testing.T) {
+	remindersOff(t)
 	for name, obs := range map[string]runner.Observation{
 		"working":      {State: runner.ObsRunning, StateSeq: 6},
 		"idle":         {State: runner.ObsCompleted, StateSeq: 7},

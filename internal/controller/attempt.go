@@ -165,13 +165,19 @@ func (c *Controller) ensureStarted(ctx context.Context, run state.Run, cfg runCo
 // the memory it may be shown, and the controller's header and footer, which
 // name the attempt's identity.
 func packetRequest(cfg runConfig, runID, planHash, startSnapshot, attemptID string, ordinal, total int, spec workflow.TaskSpec, entries []memory.Entry, note string) taskcontext.Request {
-	eventID := derive(attemptID, "created")
-	p := promptData{Task: ordinal, Total: total, Slug: spec.ID, Plan: cfg.PlanPath, Root: cfg.Root, Note: note,
-		Run: runID, Attempt: attemptID, Job: derive(attemptID, "builder-job"),
-		Effect: state.EffectID(eventID, 0), Nonce: state.EffectNonce(eventID, 0), CheckCommand: cfg.CheckCommand}
+	p := attemptIdentity(cfg.Root, runID, attemptID, ordinal)
+	p.Total, p.Slug, p.Plan, p.Note, p.CheckCommand = total, spec.ID, cfg.PlanPath, note, cfg.CheckCommand
 	return taskcontext.Request{RunID: runID, AttemptID: attemptID, PlanHash: planHash, StartSnapshotHash: startSnapshot,
 		Task: spec, Entries: entries, MaxEstimatedTokens: cfg.ContextLimit,
 		Header: promptHeader(p) + cfg.Settings.prelude(cfg.Root), Footer: cfg.Settings.closing() + promptFooter(p)}
+}
+
+// attemptIdentity is the part of an attempt's prompt data its handback names:
+// the run, the attempt, its builder job and its task prompt's effect and nonce.
+func attemptIdentity(root, runID, attemptID string, task int) promptData {
+	eventID := derive(attemptID, "created")
+	return promptData{Task: task, Root: root, Run: runID, Attempt: attemptID, Job: derive(attemptID, "builder-job"),
+		Effect: state.EffectID(eventID, 0), Nonce: state.EffectNonce(eventID, 0)}
 }
 
 type promptData struct {
@@ -205,14 +211,10 @@ const stopConditions = "\n\nStop and hand back with --stuck, changing nothing fu
 
 // promptFooter names the identity the builder echoes back, says to acknowledge
 // before touching anything, and says how to wait and when to stop. A builder
-// that polls pays for its whole conversation on every look (F19). The command
-// names the run's root, so it finds the run from any directory (#61).
+// that polls pays for its whole conversation on every look (F19).
 func promptFooter(p promptData) string {
 	var b strings.Builder
-	id := fmt.Sprintf("--task %d --run %s --attempt %s --job %s --effect %s --nonce %s", p.Task, p.Run, p.Attempt, p.Job, p.Effect, p.Nonce)
-	if p.Root != "" {
-		id = "--root " + shellQuote(p.Root) + " " + id
-	}
+	id := p.handbackID()
 	fmt.Fprintf(&b, "BEFORE YOU EDIT ANYTHING, acknowledge this prompt. It is your first action:\n\n    tandem-handback %s --started\n\n", id)
 	b.WriteString("Do the task. Do not commit unless the brief says to.")
 	if p.CheckCommand != "" {
@@ -220,8 +222,24 @@ func promptFooter(p promptData) string {
 	}
 	b.WriteString(" If a command or a subagent takes long, run it in ONE blocking call with the longest timeout your tool accepts. Do not poll it.")
 	b.WriteString(stopConditions)
-	fmt.Fprintf(&b, "\n\nWhen you finish, write a report (under 20 lines: whether the task is complete, anything you changed that the brief did not ask for, anything you could not verify) to a file and hand it back:\n\n    tandem-handback %s --report <file>\n\nAdd --stuck if you could not finish. That call returns immediately. Then stop.", id)
+	fmt.Fprintf(&b, "\n\nWhen you finish, write a report (under 20 lines: whether the task is complete, anything you changed that the brief did not ask for, anything you could not verify) and hand it back. %s\n\n    tandem-handback %s --report <file>\n\nAdd --stuck if you could not finish. That call returns immediately. Then stop.", handbackRule, id)
 	return b.String()
+}
+
+// handbackRule is how a builder hands back so the handback cannot hang. A
+// report piped through cat with no input, in a call the agent moved to the
+// background, waited forever and the handback after it never ran (#90).
+const handbackRule = "Write the report to a file with your file-write tool, never through cat or a heredoc. " +
+	"Then run this in the foreground, never in the background, and wait for it to return:"
+
+// handbackID is the identity a builder's tandem-handback names. It names the
+// run's root, so it finds the run from any directory (#61).
+func (p promptData) handbackID() string {
+	id := fmt.Sprintf("--task %d --run %s --attempt %s --job %s --effect %s --nonce %s", p.Task, p.Run, p.Attempt, p.Job, p.Effect, p.Nonce)
+	if p.Root != "" {
+		id = "--root " + shellQuote(p.Root) + " " + id
+	}
+	return id
 }
 
 type reviewPromptData struct {

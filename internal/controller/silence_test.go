@@ -55,6 +55,7 @@ func (e *cenv) silent() workflow.Effect {
 }
 
 func TestSilentBuilderPausesTheRun(t *testing.T) {
+	remindersOff(t)
 	e := newCEnv(t)
 	e.startedBuilder(runner.ObsCompleted)
 	sends := len(e.tr.sends)
@@ -75,6 +76,7 @@ func TestWorkingBuilderIsNotSilent(t *testing.T) {
 }
 
 func TestBriefIdleDoesNotCount(t *testing.T) {
+	remindersOff(t)
 	e := newCEnv(t)
 	eff := e.startedBuilder(runner.ObsCompleted)
 	e.watch(SilenceWindow - time.Minute)
@@ -89,6 +91,7 @@ func TestBriefIdleDoesNotCount(t *testing.T) {
 
 // A turn that started and ended between two ticks shows only in the counter.
 func TestTurnBetweenTicksRestartsTheClock(t *testing.T) {
+	remindersOff(t)
 	e := newCEnv(t)
 	eff := e.startedBuilder(runner.ObsCompleted)
 	e.watch(SilenceWindow - time.Minute)
@@ -98,6 +101,7 @@ func TestTurnBetweenTicksRestartsTheClock(t *testing.T) {
 }
 
 func TestNewConversationRestartsTheClock(t *testing.T) {
+	remindersOff(t)
 	e := newCEnv(t)
 	eff := e.startedBuilder(runner.ObsCompleted)
 	e.watch(SilenceWindow - time.Minute)
@@ -123,6 +127,7 @@ func TestQueuedHandbackBeatsSilence(t *testing.T) {
 // A message that arrives in the queue restarts the clock once. One that stays
 // there, because it cannot be applied yet, does not hold the clock off for good.
 func TestNewQueuedMessageRestartsTheClockOnce(t *testing.T) {
+	remindersOff(t)
 	e := newCEnv(t)
 	e.startedBuilder(runner.ObsCompleted)
 	e.watch(SilenceWindow - time.Minute)
@@ -147,6 +152,7 @@ func TestNewQueuedMessageRestartsTheClockOnce(t *testing.T) {
 }
 
 func TestUnreadableClockRestarts(t *testing.T) {
+	remindersOff(t)
 	for name, body := range map[string]string{"corrupt": "{not json", "empty object": "{}"} {
 		t.Run(name, func(t *testing.T) {
 			e := newCEnv(t)
@@ -164,6 +170,7 @@ func TestUnreadableClockRestarts(t *testing.T) {
 }
 
 func TestMissingClockRestarts(t *testing.T) {
+	remindersOff(t)
 	e := newCEnv(t)
 	e.startedBuilder(runner.ObsCompleted)
 	e.watch(SilenceWindow - time.Minute)
@@ -197,6 +204,7 @@ func TestUnknownPaneIsNotIdle(t *testing.T) {
 
 // A host that does not answer says nothing about the pane, and restarts the clock.
 func TestUnansweredObservationIsNotIdle(t *testing.T) {
+	remindersOff(t)
 	e := newCEnv(t)
 	e.startedBuilder(runner.ObsCompleted)
 	e.watch(SilenceWindow - time.Minute)
@@ -210,6 +218,7 @@ func TestUnansweredObservationIsNotIdle(t *testing.T) {
 // Nobody watched the pane through a gap as long as the window, as when the
 // machine slept, so the gap does not count as silence.
 func TestAGapInTheWatchRestartsTheClock(t *testing.T) {
+	remindersOff(t)
 	e := newCEnv(t)
 	e.startedBuilder(runner.ObsCompleted)
 	e.clk.advance(SilenceWindow + time.Hour)
@@ -221,6 +230,7 @@ func TestAGapInTheWatchRestartsTheClock(t *testing.T) {
 
 // The bridge recovers when it starts, so its restart restarts the clock.
 func TestRecoverRestartsTheClock(t *testing.T) {
+	remindersOff(t)
 	e := newCEnv(t)
 	e.startedBuilder(runner.ObsCompleted)
 	e.watch(SilenceWindow - time.Minute)

@@ -318,6 +318,10 @@ func (e *cenv) delivered() map[string]int {
 	defer e.tr.mu.Unlock()
 	out := map[string]int{}
 	for _, d := range e.tr.sends {
+		if d.Kind == effectBuilderReminder {
+			out[d.Kind]++ // typed by the silence watch, with no effect row
+			continue
+		}
 		eff, err := e.st.GetEffect(ctx, d.EffectID)
 		if err != nil {
 			e.t.Fatal(err)

@@ -42,6 +42,9 @@ type deliverPolicy struct {
 var effectPolicies = map[string]deliverPolicy{
 	"builder_dispatch": {settled: true, reset: true, confirm: true},
 	"review_prompt":    {settled: true, confirm: true},
+	// A reminder to hand back goes into the builder's same conversation, and
+	// only once its pane has settled.
+	"builder_reminder": {settled: true, confirm: true},
 	// A notice's receipt finishes the run (controller/effects.go), so it is typed
 	// and not watched. The planner's verification and recovery requests are sent
 	// the same way.

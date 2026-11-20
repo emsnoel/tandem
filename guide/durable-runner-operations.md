@@ -169,16 +169,23 @@ reviewed a different tree), the prompt becomes `delivery_unknown` and the run pa
 ## A builder that went silent
 
 A builder can acknowledge its task and then stop, for example after a provider failure, an
-expired login or used-up quota. If its pane stays idle or done in the same turn for 10
+expired login or used-up quota, or a handback call that never ran. If its pane stays idle or
+done in the same turn for 2 minutes with nothing handed back or queued, tandem types one
+reminder into it. The reminder repeats the handback command and says to write the report with
+a file-write tool and run the handback in the foreground. Tandem types it at most once per
+attempt, and never into a working pane. If the pane then stays idle in one turn for another 2
 minutes without an applied handback, the run pauses as `builder_silent` and the planner gets
-one note. A handback that stays queued because it cannot apply counts as no handback. Nothing
-is typed into the pane. A repair's builder turn follows the same rule. The note states the
-window the run used.
+one note. The note says the builder was reminded.
 
-These restart the 10 minutes: the pane working or blocked, a new turn or conversation in it,
+A handback that stays queued because it cannot apply gets no reminder. If the pane stays idle
+for 10 minutes with it queued, the run pauses the same way. A repair's builder turn follows
+the same rules. The note states the window the run used. The file
+`durable/RUN/builder-reminded` in the relay names the attempt that was reminded.
+
+These restart both windows: the pane working or blocked, a new turn or conversation in it,
 a status tandem cannot read, a new event on the attempt, a new message in the run's queue, a
 gap of more than 10 minutes between ticks, and `tandem build recover`, which the bridge runs
-when it starts. A message that stays queued restarts it only once. A handback the tree keeps
+when it starts. A message that stays queued restarts them only once. A handback the tree keeps
 from applying, such as one with an untracked nested repository in the checkout, logs that the
 tree `cannot be captured exactly` in the bridge log on each pass, and the run still pauses.
 Each of those ticks exits non-zero, and the bridge still sends the note. The clock is

@@ -5,7 +5,8 @@
 # (controller.SilenceWindow); TANDEM_SILENCE_WINDOW_MS shortens it to 3 seconds.
 #   - a builder that starts and goes idle gets one note, and a late handback goes on;
 #   - a handback the tree keeps from applying still pauses with one note;
-#   - a builder held at a dialog gets one note, and a recover after the dialog goes on.
+#   - a builder held at a dialog gets one note, and a recover after the dialog goes on;
+#   - a builder idle with no handback is reminded once, then the planner gets one note.
 set -uo pipefail
 . "$(cd "$(dirname "$0")" && pwd)/lib/note-cases.sh"
 
@@ -100,6 +101,39 @@ td state recover --run "$RUN" --root "$R" >/dev/null 2>"$TMP/err"
 [ "$(state)" = running/ ] && ok "the note's recover continues the run once the dialog is answered" || nope "state $(state): $(cat "$TMP/err")"
 stop_driver
 SILENCE_MS=""
+
+printf '\n== a builder that goes idle without handing back: reminded, then builder_silent ==\n'
+# Its handback never ran (#90). TANDEM_REMIND_WINDOW_MS shortens the 2 minute
+# remind window to 2 seconds, inside a silence window the case never reaches.
+SILENCE_MS=600000; REMIND_MS=2000; new_case remind true
+start_turn
+fake_set_state idle
+bridge_up
+sleep 1
+[ "$(sent_to builder)" = 1 ] && ok "nothing is typed inside the window" || nope "builder prompts: $(sent_to builder)"
+for _ in $(seq 1 60); do [ "$(sent_to builder)" = 1 ] || break; sleep 0.5; done
+[ "$(sent_to builder)" = 2 ] && ok "the idle builder is reminded" || nope "builder prompts: $(sent_to builder)"
+N=$(grep -n "^builder$TAB" "$FAKE/prompts" | tail -1 | cut -d: -f1)
+REMINDER=$(cat "$FAKE/prompt.$N.txt" 2>/dev/null)
+has "the reminder says no handback came" "$REMINDER" "Tandem has no handback from you for task 1"
+has "it repeats the handback command" "$REMINDER" "tandem-handback --root "
+has "for the task prompt's attempt" "$REMINDER" "--attempt ${IDENT[3]} --job ${IDENT[5]} --effect ${IDENT[7]} --nonce ${IDENT[9]} --report <file>"
+has "it says to run it in the foreground" "$REMINDER" "in the foreground"
+has "and to write the report with a file-write tool" "$REMINDER" "with your file-write tool, never through cat or a heredoc"
+[ "$(sent_to planner)" = 0 ] && ok "the planner hears nothing yet" || nope "early note"
+[ "$(state)" = running/ ] && ok "the run keeps running" || nope "state $(state)"
+# The builder answers the reminder and ends its turn with nothing handed back.
+sleep 1.5; fake_set_state idle
+for _ in $(seq 1 60); do [ "$(sent_to planner)" = 0 ] || break; sleep 0.5; done
+[ "$(state)" = paused/builder_silent ] && ok "the run pauses builder_silent a window later" || nope "state $(state)"
+NOTE=$(last_note)
+has "the note says the builder was reminded" "$NOTE" "Tandem reminded the builder to hand back, and its pane then stayed idle for 2 seconds."
+has "and names the builder pane" "$NOTE" "Builder pane: builder"
+sleep 3
+[ "$(sent_to builder)" = 2 ] && ok "the builder is reminded once, never again" || nope "builder prompts: $(sent_to builder)"
+[ "$(sent_to planner)" = 1 ] && ok "the planner got one note" || nope "notes: $(sent_to planner)"
+stop_driver
+SILENCE_MS=""; REMIND_MS=""
 
 printf '\ntests/test-pause-note-quiet: passed %d, failed %d\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

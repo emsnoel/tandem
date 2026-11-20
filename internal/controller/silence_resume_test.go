@@ -25,6 +25,7 @@ func TestRecoverKeepsTheSilentPauseWhileNothingMoved(t *testing.T) {
 }
 
 func TestRecoverClearsTheSilentPauseOnceTheTurnMovedOn(t *testing.T) {
+	remindersOff(t)
 	for name, obs := range map[string]runner.Observation{
 		"working again":        {State: runner.ObsRunning, StateSeq: 6},
 		"a whole turn since":   {State: runner.ObsCompleted, StateSeq: 7},
@@ -154,6 +155,7 @@ func (e *cenv) cfg() runConfig {
 
 // A step of the pass that keeps failing does not keep the watch from running.
 func TestFailingStepsStillPause(t *testing.T) {
+	remindersOff(t)
 	e := newCEnv(t)
 	e.startedBuilder(runner.ObsCompleted)
 	failed := errors.New("the delivery failed")
