@@ -5,12 +5,21 @@
 ```bash
 ./tests/run.sh
 ./tests/run.sh --with-clis   # also checks the flags of installed agent CLIs
+./tests/run.sh --only test-kind-drift --only ./internal/agent/...   # just these
+./tests/run.sh --jobs 4      # how many shell suites run at once
 ```
 
-`tests/run.sh` checks the shell syntax of `bin/`, runs `go build ./...` and
-`go test ./...`, then runs every `tests/test-*.sh`. Exit 0 means all of it passed. It is
-also the `check_command` in tandem's own `.tandem.json`, so `tandem-unpair` runs it before
-it closes a builder pane.
+`tests/run.sh` checks the shell syntax of `bin/`, then runs `go build ./...` and
+`go test ./...` in the background while it runs every `tests/test-*.sh`. Exit 0 means all
+of it passed. It is also the `check_command` in tandem's own `.tandem.json`, so
+`tandem-unpair` runs it before it closes a builder pane.
+
+The shell suites run in parallel, by default half as many at once as the machine has
+cores. Each suite's output still prints whole and in name order, as soon as it and every
+suite before it have finished (`tests/lib/run-suites.sh`). `--only` takes a suite name or a
+Go package pattern, and runs only those, after the same setup and syntax check. Use it for
+a quick check while you work. Run the whole check before you open a pull request. During a
+tandem build, tandem runs it after each task, so a builder doesn't need to.
 
 That limits what a test may do. **`tandem-unpair` runs the check while the builder is
 still running.** A test that needed a free pane, a running Herdr server, or sole use of

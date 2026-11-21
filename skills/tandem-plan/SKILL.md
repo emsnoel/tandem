@@ -32,6 +32,10 @@ whole plan first, and a review round costs far more than writing the plan right.
   say exactly what to change.
 - Each task must fit the project's `context_limit` together with the opening, so
   split a task that carries long code listings.
+- Name the tests each task runs: the test names, packages or suites that prove
+  that task. tandem runs the project's check after every task, so don't end a
+  task with "run the full check". The builder would run a slow check twice, and
+  inside a sandbox the full check can fail for reasons the task didn't cause.
 
 ## What review rejects
 
