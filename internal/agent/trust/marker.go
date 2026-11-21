@@ -62,6 +62,9 @@ func Clean(kind, cwd string) (bool, error) {
 	if kind == "copilot" {
 		return cleanCopilot(cwd)
 	}
+	if kind == "agy" {
+		return cleanAgy(cwd)
+	}
 	if kind != "codex" {
 		return false, nil // no other kind has an Apply gate
 	}
