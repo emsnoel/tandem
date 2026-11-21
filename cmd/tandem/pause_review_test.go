@@ -5,9 +5,9 @@ import (
 	"testing"
 )
 
-func TestReplyLogAgyNamesFolderAndLimit(t *testing.T) {
+func TestReplyLogAgyNamesFolder(t *testing.T) {
 	got := replyLog("agy")
-	for _, want := range []string{"~/.gemini/antigravity-cli/conversations", "can't read those files yet"} {
+	for _, want := range []string{"antigravity-cli", "conversations", ".db"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("replyLog(agy) = %q, missing %q", got, want)
 		}

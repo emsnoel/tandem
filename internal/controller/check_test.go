@@ -87,6 +87,7 @@ func repo(t *testing.T) (root string, art *artifact.Store, run func(req CheckReq
 func hex32(n int) string { return strings.Repeat("0", 32-len(strconv.Itoa(n))) + strconv.Itoa(n) }
 
 func TestCheckSamePorcelainDifferentBytesInvalidates(t *testing.T) {
+	t.Parallel()
 	root, _, run := repo(t)
 	a := run(CheckRequest{Command: "true"})
 	b := run(CheckRequest{Command: "true"})
@@ -114,6 +115,7 @@ func TestCheckSamePorcelainDifferentBytesInvalidates(t *testing.T) {
 }
 
 func TestCheckIdenticalCommandsInDifferentDirectoriesDiffer(t *testing.T) {
+	t.Parallel()
 	_, _, run := repo(t)
 	a := run(CheckRequest{Command: "true", Cwd: "pkgA"})
 	b := run(CheckRequest{Command: "true", Cwd: "pkgB"})
@@ -185,6 +187,7 @@ func TestCheckDeclaredInputsBindEnvironmentFilesAndTools(t *testing.T) {
 }
 
 func TestCheckSummaryBoundsSingleHugeLine(t *testing.T) {
+	t.Parallel()
 	_, art, run := repo(t)
 	res := run(CheckRequest{Command: `head -c 20971520 /dev/zero | tr '\0' x; echo; echo "FAIL: boom"; exit 1`})
 	if res.Exit != 1 || res.Valid() {
@@ -203,6 +206,7 @@ func TestCheckSummaryBoundsSingleHugeLine(t *testing.T) {
 }
 
 func TestCheckRetainsTheFullLogOfAFailure(t *testing.T) {
+	t.Parallel()
 	_, art, run := repo(t)
 	res := run(CheckRequest{Command: `echo out; echo err >&2; exit 3`})
 	if res.Exit != 3 || res.Valid() || !res.Complete {
@@ -218,6 +222,7 @@ func TestCheckRetainsTheFullLogOfAFailure(t *testing.T) {
 }
 
 func TestCheckCancellationStopsChildProcess(t *testing.T) {
+	t.Parallel()
 	root, art, _ := repo(t)
 	pidFile := filepath.Join(t.TempDir(), "child.pid")
 	exec := NewCheckExecutor(art)
@@ -261,6 +266,7 @@ func TestCheckCancellationStopsChildProcess(t *testing.T) {
 }
 
 func TestCheckTimeoutIsAFailureWithItsLog(t *testing.T) {
+	t.Parallel()
 	root, art, _ := repo(t)
 	tctx, cancel := context.WithTimeout(ctx, 300*time.Millisecond)
 	defer cancel()
@@ -274,6 +280,7 @@ func TestCheckTimeoutIsAFailureWithItsLog(t *testing.T) {
 }
 
 func TestCheckMutationDoesNotCertifyNewTree(t *testing.T) {
+	t.Parallel()
 	_, _, run := repo(t)
 	res := run(CheckRequest{Command: `echo "edited by the check" >> src/a.txt`})
 	if res.Exit != 0 || !res.Complete {
@@ -293,6 +300,7 @@ func TestCheckMutationDoesNotCertifyNewTree(t *testing.T) {
 }
 
 func TestCheckRefusesMalformedRequests(t *testing.T) {
+	t.Parallel()
 	root, art, _ := repo(t)
 	exec := NewCheckExecutor(art)
 	outside := t.TempDir()
@@ -371,6 +379,7 @@ func openState(t *testing.T) (*state.Store, string) {
 }
 
 func TestStartAndRecordCheckPersistThroughTheTrustedPath(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name, command string
 		wantCheck     string

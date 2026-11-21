@@ -35,6 +35,7 @@ func (e *cenv) sendAttempts() int {
 }
 
 func TestUnconfirmedBuilderSendDoesNotPauseWhileAnAcknowledgementCanArrive(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.unconfirmedSend()
 	e.wantRun("running", "")
@@ -45,6 +46,7 @@ func TestUnconfirmedBuilderSendDoesNotPauseWhileAnAcknowledgementCanArrive(t *te
 }
 
 func TestLateAcknowledgementContinuesTheRunWithoutAPause(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.unconfirmedSend()
 
@@ -62,6 +64,7 @@ func TestLateAcknowledgementContinuesTheRunWithoutAPause(t *testing.T) {
 }
 
 func TestUnconfirmedBuilderSendPausesOnceNoAcknowledgementCame(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.unconfirmedSend()
 

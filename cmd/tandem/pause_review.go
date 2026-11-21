@@ -56,7 +56,7 @@ func replyLog(kind string) string {
 	case "copilot":
 		return fmt.Sprintf("Copilot conversation log, an events.jsonl file under %s", filepath.Join(controller.DefaultCopilotHome(), "session-state"))
 	case "agy":
-		return "conversation files under ~/.gemini/antigravity-cli/conversations; tandem can't read those files yet"
+		return fmt.Sprintf("agy conversation log, a .db file under %s", filepath.Join(controller.DefaultAgyHome(), "conversations"))
 	}
 	return ""
 }

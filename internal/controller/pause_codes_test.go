@@ -61,6 +61,7 @@ func declaredPauseCodes(t *testing.T) []string {
 }
 
 func TestPauseCodesListsEveryConstant(t *testing.T) {
+	t.Parallel()
 	want := declaredPauseCodes(t)
 	got := PauseCodes()
 	if len(want) == 0 {

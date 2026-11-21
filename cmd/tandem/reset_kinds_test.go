@@ -261,9 +261,78 @@ func TestResetLeavesThePickerOnItsSecondRow(t *testing.T) {
 // from internal/agent/testdata. variant "" has its first row highlighted.
 func checkoutPicker(t *testing.T, variant string) string {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "internal", "agent", "testdata", "screens", "codex-new-conversation-picker"+variant+".txt"))
+	return screenFixture(t, "codex-new-conversation-picker"+variant+".txt")
+}
+
+func screenFixture(t *testing.T, name string) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("..", "..", "internal", "agent", "testdata", "screens", name))
 	if err != nil {
 		t.Fatal(err)
 	}
 	return string(b)
+}
+
+const agyBuilder = `{"kind":"agy","autonomy":"auto"}`
+
+// Issue #116: agy's process log may not flush before the reset timeout, or
+// /new may run on an already-fresh prompt (e.g. tandem-handoff --resume) where
+// no new conversation is logged. A visibly fresh agy screen confirms the reset,
+// while a pane still showing the previous turn or the slash menu stays unconfirmed.
+func TestAgyResetConfirmedByLogOrFreshScreen(t *testing.T) {
+	t.Run("process log confirms with session id", func(t *testing.T) {
+		f := &fakeHerdr{
+			states: []*herdr.Agent{kindAgent("agy", "idle", "s1", 5)},
+			fresh:  []string{"", "c2"},
+		}
+		tok, session, err := runReset(f.registryDeps(), "builder", rootWith(t, agyBuilder, ""), 15*time.Second, false)
+		if err != nil || tok != "reset" || session != "c2" {
+			t.Fatalf("got %q, %q, %v; want reset into c2", tok, session, err)
+		}
+	})
+	for _, fixture := range []string{"agy-main-after-new.txt", "agy-main-fresh.txt"} {
+		t.Run("fresh screen confirms when log has no entry ("+fixture+")", func(t *testing.T) {
+			f := &fakeHerdr{
+				screen: screenFixture(t, fixture),
+				states: []*herdr.Agent{kindAgent("agy", "idle", "s1", 5)},
+				fresh:  []string{""},
+			}
+			tok, session, err := runReset(f.registryDeps(), "builder", rootWith(t, agyBuilder, ""), 15*time.Second, false)
+			if err != nil || tok != "sent" || session != "" {
+				t.Fatalf("got %q, %q, %v; want sent", tok, session, err)
+			}
+			if len(f.submitted) != 1 || f.submitted[0] != "/new" {
+				t.Errorf("submitted %v, want [/new]", f.submitted)
+			}
+		})
+	}
+	for _, fixture := range []string{"agy-main-after-turn.txt", "agy-slash-menu.txt"} {
+		t.Run("non-fresh screen stays unconfirmed ("+fixture+")", func(t *testing.T) {
+			f := &fakeHerdr{
+				screen: screenFixture(t, fixture),
+				states: []*herdr.Agent{kindAgent("agy", "idle", "s1", 5)},
+				fresh:  []string{""},
+			}
+			tok, _, err := runReset(f.registryDeps(), "builder", rootWith(t, agyBuilder, ""), 5*time.Second, false)
+			if err != nil || tok != "unconfirmed" {
+				t.Fatalf("got %q, %v; want unconfirmed", tok, err)
+			}
+		})
+	}
+}
+
+// Issue #102: a Claude pane whose turn ended with a background shell still
+// running reads idle to Herdr, so reset must skip it as not-idle without
+// typing /clear into unfinished work.
+func TestResetSkipsClaudePaneWithBackgroundTask(t *testing.T) {
+	f := &fakeHerdr{states: []*herdr.Agent{kindAgent("claude", "idle", "s1", 5)}}
+	d := f.registryDeps()
+	d.screen = func(string) (string, error) { return screenFixture(t, "claude-background-shell.txt"), nil }
+	tok, _, err := runReset(d, "builder", rootWith(t, claudeBuilder, ""), 5*time.Second, false)
+	if err != nil || tok != "skip:not-idle" {
+		t.Fatalf("got %q, %v; want skip:not-idle", tok, err)
+	}
+	if len(f.submitted) != 0 {
+		t.Errorf("submitted %v; a pane with a background task must not be reset", f.submitted)
+	}
 }

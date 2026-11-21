@@ -14,6 +14,7 @@ import (
 // Exercise the exact command reviewers receive, including the installed shell
 // helper and real event CLI. Only the external Herdr process is replaced.
 func TestGeneratedReviewHandbackEndToEnd(t *testing.T) {
+	t.Parallel()
 	repo, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)

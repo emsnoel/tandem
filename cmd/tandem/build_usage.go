@@ -32,6 +32,7 @@ func usageSourceFlags(fs *flag.FlagSet) func() controller.AgentUsageSource {
 	fs.StringVar(&src.CodexSessions, "sessions-dir", src.CodexSessions, "where Codex files its session logs")
 	fs.StringVar(&src.ClaudeProjects, "claude-projects", src.ClaudeProjects, "where Claude Code files its conversation logs")
 	fs.StringVar(&src.CopilotHome, "copilot-home", src.CopilotHome, "where Copilot CLI keeps its logs and conversations")
+	fs.StringVar(&src.AgyHome, "agy-home", src.AgyHome, "where agy keeps its logs and conversations")
 	return func() controller.AgentUsageSource { return src }
 }
 
@@ -44,7 +45,7 @@ func cmdBuildUsage(args []string) int {
 	asJSON := fs.Bool("json", false, "print one JSON object")
 	records := fs.Bool("records", false, "include every usage record, with its source, provider, model and configuration")
 	if err := fs.Parse(args); err != nil || fs.NArg() != 0 {
-		fmt.Fprintln(os.Stderr, "usage: tandem build usage [--root DIR] [--state-home DIR] [--sessions-dir DIR] [--claude-projects DIR] [--copilot-home DIR] [--json] [--records]")
+		fmt.Fprintln(os.Stderr, "usage: tandem build usage [--root DIR] [--state-home DIR] [--sessions-dir DIR] [--claude-projects DIR] [--copilot-home DIR] [--agy-home DIR] [--json] [--records]")
 		return exitcode.Usage
 	}
 	if f.root == "" {

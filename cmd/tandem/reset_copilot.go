@@ -118,3 +118,14 @@ func (p processInfo) pidOf(name string) int {
 	}
 	return 0
 }
+
+// pids returns every non-zero pid in the pane's foreground processes.
+func (p processInfo) pids() map[int]bool {
+	out := make(map[int]bool, len(p.Processes))
+	for _, proc := range p.Processes {
+		if proc.Pid > 0 {
+			out[proc.Pid] = true
+		}
+	}
+	return out
+}

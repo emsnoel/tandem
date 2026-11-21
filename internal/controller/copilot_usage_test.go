@@ -43,6 +43,7 @@ func copilotStart(session string) string {
 // A Copilot builder's usage is the session.usage_record events in its
 // conversation's events.jsonl, one per model call. Input includes the cache.
 func TestCopilotStreamReadsEachModelCall(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	writeLog(t, filepath.Join(home, "session-state", copilotSession, "events.jsonl"),
 		copilotStart(copilotSession),
@@ -74,6 +75,7 @@ func TestCopilotStreamReadsEachModelCall(t *testing.T) {
 
 // What cannot be read is said, never counted as zero.
 func TestCopilotStreamGaps(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	// Copilot writes a conversation to disk only at its first turn, so one that
 	// has not taken one has no log.
@@ -115,6 +117,7 @@ func TestCopilotStreamGaps(t *testing.T) {
 // Copilot id is the one the pane was launched with, so this is how a task's
 // conversation is found when its receipt names none.
 func TestCopilotSessionContainingFindsTheTasksConversation(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	nonce := "4f9c2b7e1d0a4c3b8e6f5a2d1c0b9e8f"
 	other := "61550360-3c57-4eb4-97ad-ef47d8a5afd1"
@@ -154,6 +157,7 @@ func TestCopilotSessionContainingFindsTheTasksConversation(t *testing.T) {
 // The usage source reads Copilot through the same two calls as Codex: its
 // streams, and a search for the conversation that holds a nonce.
 func TestAgentUsageSourceReadsCopilot(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	nonce := "4f9c2b7e1d0a4c3b8e6f5a2d1c0b9e8f"
 	writeLog(t, filepath.Join(home, "session-state", copilotSession, "events.jsonl"),

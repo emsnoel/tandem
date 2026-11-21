@@ -37,18 +37,24 @@ type UsageSource interface {
 
 // AgentUsageSource reads each builder kind's own logs: Codex rollouts under
 // CodexSessions, Claude Code conversations under ClaudeProjects, Copilot
-// conversations under CopilotHome. Reading only: it changes nothing
-// there. A kind with no log reader is workflow.ErrUnsupported, which
-// the run records as unavailable usage.
+// conversations under CopilotHome, and agy conversations under AgyHome.
+// Reading only: it changes nothing there. A kind with no log reader is
+// workflow.ErrUnsupported, which the run records as unavailable usage.
 type AgentUsageSource struct {
 	CodexSessions  string
 	ClaudeProjects string
 	CopilotHome    string
+	AgyHome        string
 }
 
 // DefaultAgentUsageSource reads each CLI's logs where it files them.
 func DefaultAgentUsageSource() AgentUsageSource {
-	return AgentUsageSource{CodexSessions: DefaultCodexSessions(), ClaudeProjects: DefaultClaudeProjects(), CopilotHome: DefaultCopilotHome()}
+	return AgentUsageSource{
+		CodexSessions:  DefaultCodexSessions(),
+		ClaudeProjects: DefaultClaudeProjects(),
+		CopilotHome:    DefaultCopilotHome(),
+		AgyHome:        DefaultAgyHome(),
+	}
 }
 
 // DefaultCopilotHome is where Copilot CLI keeps its state, logs and
@@ -72,7 +78,7 @@ func DefaultCodexSessions() string {
 }
 
 // usageReadable names the kinds whose logs Collect reads.
-var usageReadable = map[string]bool{"codex": true, "claude": true, "copilot": true}
+var usageReadable = map[string]bool{"codex": true, "claude": true, "copilot": true, "agy": true}
 
 // UnmeasuredKind returns the first non-empty kind whose token usage tandem
 // cannot read, or "" when it can read them all.
@@ -87,7 +93,7 @@ func UnmeasuredKind(kinds ...string) string {
 
 func (a AgentUsageSource) Collect(_ context.Context, kind, session string, from, to time.Time) ([]rollout.Stream, error) {
 	if !usageReadable[kind] {
-		return nil, fmt.Errorf("%w: usage is read from Codex, Claude and Copilot logs only; there is no source for %s", workflow.ErrUnsupported, kind)
+		return nil, fmt.Errorf("%w: usage is read from Codex, Claude, Copilot and agy logs only; there is no source for %s", workflow.ErrUnsupported, kind)
 	}
 	switch kind {
 	case "codex":
@@ -96,8 +102,10 @@ func (a AgentUsageSource) Collect(_ context.Context, kind, session string, from,
 		return claudeStreams(a.ClaudeProjects, session), nil
 	case "copilot":
 		return copilotStreams(a.CopilotHome, session), nil
+	case "agy":
+		return agyStreams(a.AgyHome, session)
 	}
-	return nil, fmt.Errorf("%w: usage is read from Codex, Claude and Copilot logs only; there is no source for %s", workflow.ErrUnsupported, kind)
+	return nil, fmt.Errorf("%w: usage is read from Codex, Claude, Copilot and agy logs only; there is no source for %s", workflow.ErrUnsupported, kind)
 }
 
 // SessionFinder is a UsageSource that can also find a conversation by text in
@@ -108,17 +116,19 @@ type SessionFinder interface {
 	SessionWith(ctx context.Context, kind, marker string, from, to time.Time) (string, error)
 }
 
-// SessionWith searches Codex and Copilot logs. Claude needs no search because
-// Herdr names Claude conversations. Herdr's Copilot id is the launch id, so a
-// Copilot task's conversation is found by its nonce.
+// SessionWith searches Codex, Copilot and agy logs. Claude needs no search
+// because Herdr names Claude conversations. Herdr's Copilot id is the launch
+// id, so a Copilot task's conversation is found by its nonce.
 func (a AgentUsageSource) SessionWith(_ context.Context, kind, marker string, from, to time.Time) (string, error) {
 	switch kind {
 	case "codex":
 		return rollout.SessionContaining(a.CodexSessions, marker, from, to)
 	case "copilot":
 		return copilotSessionContaining(a.CopilotHome, marker, from, to)
+	case "agy":
+		return agySessionContaining(a.AgyHome, marker, from, to)
 	}
-	return "", fmt.Errorf("%w: conversations are searched in Codex and Copilot logs only, not %s", workflow.ErrUnsupported, kind)
+	return "", fmt.Errorf("%w: conversations are searched in Codex, Copilot and agy logs only, not %s", workflow.ErrUnsupported, kind)
 }
 
 // UsageExport is one stored record with the identity an evaluation needs: where

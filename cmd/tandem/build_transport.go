@@ -285,7 +285,11 @@ func (t *herdrTransport) ObserveAgent(_ context.Context, name string) (runner.Ob
 	case st == "working" || st == "blocked":
 		obs.State, obs.Blocked = runner.ObsRunning, st == "blocked"
 	case agent.Settled(st):
-		obs.State = runner.ObsCompleted
+		if _, busy := busyInBackground(t.d.screen, a.Kind, name); busy {
+			obs.State = runner.ObsRunning
+		} else {
+			obs.State = runner.ObsCompleted
+		}
 	}
 	return obs, nil
 }

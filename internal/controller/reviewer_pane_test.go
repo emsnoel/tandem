@@ -101,6 +101,7 @@ func (e *cenv) builderPaneLooksDone(att workflow.Attempt) {
 }
 
 func TestReviewerPaneTakesTheReviewPrompt(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startWith(e.reviewerStart())
 	att := e.toReview("task-1", 1)
@@ -133,6 +134,7 @@ func TestReviewerPaneTakesTheReviewPrompt(t *testing.T) {
 // Every other prompt keeps its agent: a task goes to the builder, a notice to
 // the planner.
 func TestReviewerPaneChangesNoOtherTarget(t *testing.T) {
+	t.Parallel()
 	cfg := runConfig{BuilderKind: "codex", BuilderSession: "b", PlannerKind: "planner", PlannerSession: "p", ReviewerKind: "claude", ReviewerSession: "r"}
 	for kind, want := range map[string]string{workflow.EffectBuilderDispatch: "b", workflow.EffectCancel: "b", effectNotify: "p",
 		effectVerifyPrompt: "p", effectRecoveryDecision: "p", effectReviewPrompt: "r"} {
@@ -145,6 +147,7 @@ func TestReviewerPaneChangesNoOtherTarget(t *testing.T) {
 // No run reviews in the builder's pane: a review prompt goes to the reviewer's
 // kind and session, whatever the builder is.
 func TestReviewPromptNeverGoesToTheBuilder(t *testing.T) {
+	t.Parallel()
 	cfg := runConfig{BuilderKind: "codex", BuilderSession: "b", PlannerKind: "planner", PlannerSession: "p", ReviewerKind: "claude", ReviewerSession: "r"}
 	if kind, session := cfg.agentFor(workflow.Effect{Kind: effectReviewPrompt}); kind != "claude" || session != "r" {
 		t.Errorf("the review prompt goes to %s (%s), want the reviewer claude (r)", session, kind)
@@ -152,6 +155,7 @@ func TestReviewPromptNeverGoesToTheBuilder(t *testing.T) {
 }
 
 func TestStartRefusesWithoutAReviewerPane(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	req := e.reviewerStart()
 	req.ReviewerKind, req.ReviewerSession = "", ""
@@ -168,6 +172,7 @@ func TestStartRefusesWithoutAReviewerPane(t *testing.T) {
 }
 
 func TestStartRefusesAReviewerThatIsTheBuilderOrThePlanner(t *testing.T) {
+	t.Parallel()
 	for name, edit := range map[string]func(*StartRequest){
 		"the builder's pane":                func(r *StartRequest) { r.ReviewerSession = r.BuilderSession },
 		"the planner's pane":                func(r *StartRequest) { r.ReviewerSession = r.PlannerSession },
@@ -192,6 +197,7 @@ func TestStartRefusesAReviewerThatIsTheBuilderOrThePlanner(t *testing.T) {
 // The configuration of a run records its reviewer pane after the fields every
 // run has.
 func TestRunConfigRecordsTheReviewerPane(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	run, err := e.st.GetRun(ctx, e.runID)
@@ -229,6 +235,7 @@ func TestRunConfigRecordsTheReviewerPane(t *testing.T) {
 // With a reviewer pane, its passing review is the independent check: the
 // planner is not asked to verify, and the task is accepted.
 func TestReviewerPassAcceptsWithoutPlannerVerification(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startReviewerHandback()
 	att := e.toReview("task-1", 1)
@@ -256,6 +263,7 @@ func TestReviewerPassAcceptsWithoutPlannerVerification(t *testing.T) {
 // A start whose session disagrees with the reviewer pane is refused: the
 // mailbox observes the reviewer pane, not the builder's.
 func TestReviewerStartIsCheckedAgainstTheReviewerPane(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startReviewerHandback()
 	att := e.toReview("task-1", 1)
@@ -271,6 +279,7 @@ func TestReviewerStartIsCheckedAgainstTheReviewerPane(t *testing.T) {
 
 // A reviewer that turns out to sit in the writer's conversation does not count.
 func TestReviewerInTheWritersConversationDoesNotCount(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startReviewerHandback()
 	att := e.toReview("task-1", 1)
@@ -294,6 +303,7 @@ func TestReviewerInTheWritersConversationDoesNotCount(t *testing.T) {
 // provider and conversation, so the review's tokens are reported apart from
 // the builder's.
 func TestReviewerTokensAreTheirOwnSource(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	logs := newFakeLogs(t)
 	e.logs = logs
@@ -347,6 +357,7 @@ func TestReviewerTokensAreTheirOwnSource(t *testing.T) {
 // A warm pane keeps earlier tasks in its context. Its packet says to judge it
 // on its own.
 func TestReviewerPacketSaysToJudgeItAlone(t *testing.T) {
+	t.Parallel()
 	for _, protocol := range []int{2, 3} {
 		e := newCEnv(t)
 		if protocol == 3 {
@@ -365,6 +376,7 @@ func TestReviewerPacketSaysToJudgeItAlone(t *testing.T) {
 // that names the way on, and sends nothing, instead of addressing a review
 // prompt to no agent.
 func TestARunWithNoPinnedReviewerPausesAtTickAndRecover(t *testing.T) {
+	t.Parallel()
 	for _, drive := range []string{"tick", "recover"} {
 		t.Run(drive, func(t *testing.T) {
 			e := newCEnv(t)

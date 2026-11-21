@@ -19,6 +19,7 @@ func (e *cenv) entry(id string) memory.Entry {
 }
 
 func TestBuilderReportClaimsAreStoredAsClaimsOnly(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	// Prose that tries to promote itself by saying what it is.
@@ -55,6 +56,7 @@ func TestBuilderReportClaimsAreStoredAsClaimsOnly(t *testing.T) {
 }
 
 func TestClaimRequestsAreChecked(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	for name, req := range map[string]ClaimRequest{
@@ -77,6 +79,7 @@ func TestClaimRequestsAreChecked(t *testing.T) {
 }
 
 func TestApprovedDecisionsAreNotDisplacedByClaimsAndConflictsNameSources(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	e.accept("task-1", 1)
@@ -137,6 +140,7 @@ func TestApprovedDecisionsAreNotDisplacedByClaimsAndConflictsNameSources(t *test
 }
 
 func TestDecisionsAreBoundToAcceptedDependencies(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	req := DecisionRequest{TaskID: "task-2", Kind: memory.KindInterfaceContract, Text: "Persist(ctx) error", Scope: []string{"internal/state"}, Required: true}
@@ -168,6 +172,7 @@ func TestDecisionsAreBoundToAcceptedDependencies(t *testing.T) {
 }
 
 func TestStaleBindingsAreExcludedAndInvalidatedWithHistoryKept(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	e.accept("task-1", 1)

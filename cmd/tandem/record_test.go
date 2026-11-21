@@ -17,7 +17,23 @@ func TestRecordBuilderWritesAndPrints(t *testing.T) {
 	})
 	got := fields(out)
 	want := `{"kind":"codex","autonomy":"auto","adopted":true}`
-	if len(got) != 3 || got[0] != "codex" || got[1] != "auto" || got[2] != want {
+	if len(got) != 4 || got[0] != "codex" || got[1] != "auto" || got[2] != "" || got[3] != want {
+		t.Fatalf("got %q", got)
+	}
+	if b, err := os.ReadFile(filepath.Join(relay, config.BuilderFile)); err != nil || string(b) != want+"\n" {
+		t.Fatalf("file %q, %v", b, err)
+	}
+}
+
+func TestRecordBuilderRecordsModel(t *testing.T) {
+	dir := withFixture(t, `{}`, "")
+	relay := filepath.Join(t.TempDir(), "relay")
+	out := captureStdout(t, func() int {
+		return cmdConfig([]string{"record-builder", "--relay", relay, "--root", dir, "--kind", "copilot", "--model", "claude-sonnet-5.5"})
+	})
+	got := fields(out)
+	want := `{"kind":"copilot","autonomy":"auto","model":"claude-sonnet-5.5","adopted":false}`
+	if len(got) != 4 || got[0] != "copilot" || got[1] != "auto" || got[2] != "claude-sonnet-5.5" || got[3] != want {
 		t.Fatalf("got %q", got)
 	}
 	if b, err := os.ReadFile(filepath.Join(relay, config.BuilderFile)); err != nil || string(b) != want+"\n" {
@@ -31,7 +47,7 @@ func TestRecordBuilderDryRunWritesNothing(t *testing.T) {
 	out := captureStdout(t, func() int {
 		return cmdConfig([]string{"record-builder", "--relay", relay, "--root", dir, "--dry-run"})
 	})
-	if got := fields(out); len(got) != 3 || got[2] != `{"kind":"codex","autonomy":"auto","adopted":false}` {
+	if got := fields(out); len(got) != 4 || got[3] != `{"kind":"codex","autonomy":"auto","adopted":false}` {
 		t.Fatalf("got %q", got)
 	}
 	if _, err := os.Stat(relay); !os.IsNotExist(err) {

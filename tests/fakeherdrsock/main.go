@@ -96,8 +96,44 @@ func subscribe(subs []subscription) (*client, string, string) {
 	return c, "", ""
 }
 
+// probeUnixSocket checks that both listen and connect work on a Unix socket in
+// path's directory before creating path itself, so callers waiting on path never
+// observe a socket that a sandbox allows binding but denies connecting to.
+func probeUnixSocket(path string) error {
+	probePath := path + ".p"
+	_ = os.Remove(probePath)
+	ln, err := net.Listen("unix", probePath)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		ln.Close()
+		os.Remove(probePath)
+	}()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if c, err := ln.Accept(); err == nil {
+			c.Close()
+		}
+	}()
+	c, err := net.DialTimeout("unix", probePath, time.Second)
+	if err != nil {
+		ln.Close()
+		<-done
+		return err
+	}
+	c.Close()
+	<-done
+	return nil
+}
+
 func main() {
 	path := os.Args[1]
+	if err := probeUnixSocket(path); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	ln, err := net.Listen("unix", path)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

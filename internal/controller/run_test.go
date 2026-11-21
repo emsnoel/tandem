@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -204,29 +205,95 @@ type cenv struct {
 	lines map[string]int
 }
 
+var (
+	templateRepoOnce sync.Once
+	templateRepoDir  string
+	templateRepoErr  error
+)
+
+func TestMain(m *testing.M) {
+	code := m.Run()
+	if templateRepoDir != "" {
+		_ = os.RemoveAll(templateRepoDir)
+	}
+	os.Exit(code)
+}
+
+func getTemplateRepo(t *testing.T) string {
+	t.Helper()
+	templateRepoOnce.Do(func() {
+		dir, err := os.MkdirTemp("", "tandem-controller-tpl-*")
+		if err != nil {
+			templateRepoErr = err
+			return
+		}
+		runGit := func(args ...string) error {
+			cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+			cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null",
+				"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@example.com", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@example.com")
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("git %v: %w\n%s", args, err, out)
+			}
+			return nil
+		}
+		if err := runGit("init", "-q"); err != nil {
+			templateRepoErr = err
+			return
+		}
+		for rel, body := range map[string]string{
+			".gitignore": ".tandem-relay/\n",
+			"README":     "readme\n",
+		} {
+			if err := os.WriteFile(filepath.Join(dir, rel), []byte(body), 0o644); err != nil {
+				templateRepoErr = err
+				return
+			}
+		}
+		if err := runGit("add", "."); err != nil {
+			templateRepoErr = err
+			return
+		}
+		if err := runGit("commit", "-qm", "init"); err != nil {
+			templateRepoErr = err
+			return
+		}
+		if err := os.WriteFile(filepath.Join(dir, "plan.md"), []byte(twoTaskPlan), 0o644); err != nil {
+			templateRepoErr = err
+			return
+		}
+		// The plan sits in the tree, untracked; commit it so it is not task work.
+		if err := runGit("add", "."); err != nil {
+			templateRepoErr = err
+			return
+		}
+		if err := runGit("commit", "-qm", "plan"); err != nil {
+			templateRepoErr = err
+			return
+		}
+		templateRepoDir = dir
+	})
+	if templateRepoErr != nil {
+		t.Fatal(templateRepoErr)
+	}
+	return templateRepoDir
+}
+
 func newCEnv(t *testing.T) *cenv {
 	t.Helper()
 	root := filepath.Join(t.TempDir(), "repo")
-	os.MkdirAll(root, 0o755)
-	git(t, root, "init", "-q")
-	write(t, root, ".gitignore", ".tandem-relay/\n")
-	write(t, root, "README", "readme\n")
-	git(t, root, "add", ".")
-	git(t, root, "commit", "-qm", "init")
+	if err := os.CopyFS(root, os.DirFS(getTemplateRepo(t))); err != nil {
+		t.Fatal(err)
+	}
 	plan := filepath.Join(root, "plan.md")
-	os.WriteFile(plan, []byte(twoTaskPlan), 0o644)
-	// The plan sits in the tree, untracked; commit it so it is not task work.
-	git(t, root, "add", ".")
-	git(t, root, "commit", "-qm", "plan")
 
 	// A state root is named by its checkout id, which is 32 hex characters.
 	stRoot := filepath.Join(t.TempDir(), strings.Repeat("c", 32))
-	st, err := state.Open(ctx, stRoot)
+	st, err := state.OpenForTest(ctx, stRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { st.Close() })
-	art, err := artifact.Open(stRoot)
+	art, err := artifact.OpenForTest(stRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -438,6 +505,7 @@ func (e *cenv) leaseOwned() bool {
 }
 
 func TestDurableTwoTaskLifecycle(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	run := e.start()
 	if ar, err := ReadActiveRun(e.relay); err != nil || ar == nil || ar.RunID != run {
@@ -523,6 +591,7 @@ func TestDurableTwoTaskLifecycle(t *testing.T) {
 }
 
 func TestRecoverPendingNextDispatch(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	first := e.tasks()[0]
@@ -586,6 +655,7 @@ func TestRecoverPendingNextDispatch(t *testing.T) {
 }
 
 func TestStopWaitsForOwnedWriter(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	task := e.tasks()[0]
@@ -631,6 +701,7 @@ func TestStopWaitsForOwnedWriter(t *testing.T) {
 }
 
 func TestStopEndsTheReviewerJobOfAPromptThatWasNeverSent(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	e.tick()
@@ -657,6 +728,7 @@ func TestStopEndsTheReviewerJobOfAPromptThatWasNeverSent(t *testing.T) {
 }
 
 func TestStopCancelsWorkThatNeverStarted(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	if err := e.c.Stop(ctx, e.runID); err != nil {
@@ -681,6 +753,7 @@ func TestStopCancelsWorkThatNeverStarted(t *testing.T) {
 }
 
 func TestUnknownWriterBlocksNewTask(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	e.tick() // the builder prompt is sent and never acknowledged
@@ -726,6 +799,7 @@ func TestUnknownWriterBlocksNewTask(t *testing.T) {
 }
 
 func TestTickRequiresTheWriterLease(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	other := e.newController()
@@ -739,6 +813,7 @@ func TestTickRequiresTheWriterLease(t *testing.T) {
 
 // A failed check is repaired instead (check_repair_test.go).
 func TestCheckMutationPausesTheRun(t *testing.T) {
+	t.Parallel()
 	for name, tc := range map[string]struct {
 		exit    int
 		mutated bool
@@ -777,6 +852,7 @@ func TestCheckMutationPausesTheRun(t *testing.T) {
 }
 
 func TestAcceptanceNeedsAReviewOrAWaiverForThisTree(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	task := e.tasks()[0]
@@ -807,6 +883,7 @@ func TestAcceptanceNeedsAReviewOrAWaiverForThisTree(t *testing.T) {
 }
 
 func TestRepairCreatesALinkedAttemptAndStopsAfterThree(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	task := e.tasks()[0]
@@ -843,6 +920,7 @@ func TestRepairCreatesALinkedAttemptAndStopsAfterThree(t *testing.T) {
 }
 
 func TestBuilderStuckPausesTheRun(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	task := e.tasks()[0]
@@ -854,6 +932,7 @@ func TestBuilderStuckPausesTheRun(t *testing.T) {
 }
 
 func TestStartRefusesAnIncompleteSnapshotAndCreatesNothing(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	nested := filepath.Join(e.root, "nested")
 	os.MkdirAll(nested, 0o755)
@@ -872,6 +951,7 @@ func TestStartRefusesAnIncompleteSnapshotAndCreatesNothing(t *testing.T) {
 }
 
 func TestStartTwiceOnOneCheckoutIsBusy(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	_, err := e.newController().Start(ctx, e.startRequest(func(r *StartRequest) { r.BuilderSession, r.PlannerSession = "b", "p" }))
@@ -886,6 +966,7 @@ func TestStartTwiceOnOneCheckoutIsBusy(t *testing.T) {
 }
 
 func TestTickIngestsQueuedMailboxMessages(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	task := e.tasks()[0]
@@ -919,6 +1000,7 @@ func TestTickIngestsQueuedMailboxMessages(t *testing.T) {
 }
 
 func TestPackageDoesNotUseGlobalMutableDependencies(t *testing.T) {
+	t.Parallel()
 	// Two controllers over separate stores must not share anything.
 	a, b := newCEnv(t), newCEnv(t)
 	ra, rb := a.start(), b.start()
@@ -933,6 +1015,7 @@ func TestPackageDoesNotUseGlobalMutableDependencies(t *testing.T) {
 }
 
 func TestRecoverWithAnUnknownWriterPausesAndTakesNothingOver(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	e.tick() // the prompt is sent; the old process then dies before any acknowledgement
@@ -1001,6 +1084,7 @@ func (e *cenv) queueClaimed(taskID, kind, payload string) string {
 // A submission ingested outside a tick, as the relay bridge does, is applied
 // as a tick applies it: the end snapshot and patch are captured first.
 func TestAQueuedSubmissionIngestedOutsideATickCapturesItsEvidence(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	e.tick()
@@ -1024,6 +1108,7 @@ func TestAQueuedSubmissionIngestedOutsideATickCapturesItsEvidence(t *testing.T) 
 // submission from a builder still working waits in the queue, untouched, and is
 // applied once the turn ends.
 func TestASubmissionSentMidTurnWaitsForTheTurnToEnd(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	e.tick()

@@ -43,6 +43,32 @@ func offMain(screen func(string) (string, error), kind, name string) (string, bo
 	return agent.OffMainInput(kind, text)
 }
 
+// busyInBackground reads name's screen once as kind's. A screen that cannot
+// be read is not busy, matching offMain.
+func busyInBackground(screen func(string) (string, error), kind, name string) (string, bool) {
+	if screen == nil {
+		return "", false
+	}
+	text, err := screen(name)
+	if err != nil {
+		return "", false
+	}
+	return agent.BusyInBackground(kind, text)
+}
+
+// freshScreen reads name's screen once as kind's and reports whether it shows
+// an empty, freshly reset conversation waiting at its main prompt.
+func freshScreen(screen func(string) (string, error), kind, name string) bool {
+	if screen == nil {
+		return false
+	}
+	text, err := screen(name)
+	if err != nil {
+		return false
+	}
+	return agent.FreshScreen(kind, text)
+}
+
 // awaitMainInput waits up to within for name's pane to show its main
 // conversation's input. why is what it still shows at the deadline, "" once it
 // shows the input; waited says the screen was off at first, so whatever was

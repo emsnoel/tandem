@@ -76,3 +76,44 @@ I1121 16:17:37.338638    1179 server.go:3575] GetConversationDetail: found conve
 		t.Errorf("a line that does not create a conversation confirmed a reset: %q", got)
 	}
 }
+
+func TestAgyLogFindsPidAfterLeadingHeaderLines(t *testing.T) {
+	body := "Log file created at: 2026/11/21 16:17:18\n" +
+		"W1121 16:17:18.100000      26 flags.go:12] --model conflicts with --effort\n" +
+		agyLog
+	home := writeAgyLog(t, map[string]string{"cli-20261121_161718.log": body})
+	if got := agyLogSession(home, 33768, local(t, "2026-11-21 16:17:30")); got != "e76daff4-0bf2-45c9-9d1b-41b458ddc8cf" {
+		t.Errorf("got %q, want e76daff4-0bf2-45c9-9d1b-41b458ddc8cf", got)
+	}
+}
+
+func TestAgyLogPrefersNewestLogOnPidReuse(t *testing.T) {
+	oldLog := `I1120 10:00:00.000000      26 server.go:2652] Starting language server process with pid 33768
+I1120 10:01:00.000000    1179 server.go:1269] Created conversation 00000000-1111-2222-3333-444444444444 (backend=BACKEND_TYPE_UNSPECIFIED)
+`
+	home := writeAgyLog(t, map[string]string{
+		"cli-20261120_100000.log": oldLog,
+		"cli-20261121_161718.log": agyLog,
+	})
+	oldTime := time.Now().Add(-24 * time.Hour)
+	if err := os.Chtimes(filepath.Join(home, "log", "cli-20261120_100000.log"), oldTime, oldTime); err != nil {
+		t.Fatal(err)
+	}
+	if got := agyLogSession(home, 33768, local(t, "2026-11-21 16:17:30")); got != "e76daff4-0bf2-45c9-9d1b-41b458ddc8cf" {
+		t.Errorf("pid reuse picked stale log: got %q", got)
+	}
+}
+
+func TestAgyLogMatchesAnyForegroundProcessPid(t *testing.T) {
+	raw := []byte(`{"id":"x","result":{"process_info":{"foreground_process_group_id":33760,"shell_pid":33000,"pane_id":"w8:p3D","foreground_processes":[
+	  {"argv0":"agy","name":"agy","pid":33760},
+	  {"argv0":"language_server","name":"language_server","pid":33768}]},"type":"pane_process_info"}}`)
+	info, err := decodeProcessInfo(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	home := writeAgyLog(t, map[string]string{"cli-20261121_161718.log": agyLog})
+	if got := agyLogSessionForPids(home, info.pids(), local(t, "2026-11-21 16:17:30")); got != "e76daff4-0bf2-45c9-9d1b-41b458ddc8cf" {
+		t.Errorf("got %q, want e76daff4-0bf2-45c9-9d1b-41b458ddc8cf", got)
+	}
+}

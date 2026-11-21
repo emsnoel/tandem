@@ -57,6 +57,18 @@ find_builder() {
   BUILDER_ADOPT=1
 }
 
+# close_created_pane PANE: close a pane tandem-pair just split when starting
+# the agent in it failed, so retries never leave stray empty panes behind.
+close_created_pane() {
+  local pane="$1"
+  [[ -n "$pane" ]] || return 0
+  if tandem pane close "$pane" >/dev/null 2>&1; then
+    info "closed pane $pane after start failed."
+  else
+    info "WARNING: could not close pane $pane after start failed."
+  fi
+}
+
 # ensure_builder: keep, adopt or start the builder that find_builder found.
 ensure_builder() {
   if [[ -n "$BUILDER_PANE" ]] && (( ! BUILDER_ADOPT )); then
@@ -111,6 +123,7 @@ ensure_builder() {
             info "WARNING: $BUILDER_KIND started but is not ready yet (likely an approval prompt)."
             info "         Check pane $BUILDER_PANE before sending it work."
           else
+            close_created_pane "$BUILDER_PANE"
             die "could not start $BUILDER_KIND: ${START_MSG:-unknown error}"
           fi
         else
@@ -161,6 +174,7 @@ ensure_reviewer() {
             info "WARNING: $REVIEWER_KIND started but is not ready yet (likely an approval prompt)."
             info "         Check pane $REVIEWER_PANE before a review is sent to it."
           else
+            close_created_pane "$REVIEWER_PANE"
             die "could not start the $REVIEWER_KIND reviewer: ${START_MSG:-unknown error}"
           fi
         else

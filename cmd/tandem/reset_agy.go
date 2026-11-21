@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"time"
 
@@ -25,8 +26,12 @@ import (
 
 var (
 	agyLogPid     = regexp.MustCompile(`\] Starting language server process with pid (\d+)$`)
-	agyLogCreated = regexp.MustCompile(`^I(\d{4} \d{2}:\d{2}:\d{2}\.\d+) .*\] Created conversation ([0-9A-Za-z][0-9A-Za-z-]*) `)
+	agyLogCreated = regexp.MustCompile(`^I(\d{4} \d{2}:\d{2}:\d{2}\.\d+) .*\] Created conversation ([0-9A-Za-z][0-9A-Za-z-]*)(?: |$)`)
 )
+
+// agyLogHeaderLines bounds how many leading lines agyLogOwner scans for the
+// pid line, so startup warnings or a glog header ahead of it do not hide it.
+const agyLogHeaderLines = 64
 
 // agyFreshSession is the conversation the agy in pane created at or after
 // since, "" when its log shows none.
@@ -39,26 +44,37 @@ func agyFreshSession(home, pane string, since time.Time) string {
 	if err != nil {
 		return ""
 	}
-	pid := info.pidOf("agy")
-	if pid == 0 {
+	pids := info.pids()
+	if len(pids) == 0 {
 		return ""
 	}
-	return agyLogSession(home, pid, since)
+	return agyLogSessionForPids(home, pids, since)
 }
 
 // agyLogSession finds the log of agy process pid under home and returns the
 // last conversation it created at or after since.
 func agyLogSession(home string, pid int, since time.Time) string {
+	if pid <= 0 {
+		return ""
+	}
+	return agyLogSessionForPids(home, map[int]bool{pid: true}, since)
+}
+
+// agyLogSessionForPids finds the newest log owned by any pid in pids under
+// home and returns the last conversation it created at or after since.
+func agyLogSessionForPids(home string, pids map[int]bool, since time.Time) string {
 	logs, _ := filepath.Glob(filepath.Join(home, "log", "cli-*.log"))
+	// A pid can be reused; check the newest log first.
+	sort.Slice(logs, func(i, j int) bool { return modTime(logs[i]).After(modTime(logs[j])) })
 	for _, path := range logs {
-		if agyLogOwner(path) == pid {
+		if pids[agyLogOwner(path)] {
 			return agyLogCreatedSince(path, since)
 		}
 	}
 	return ""
 }
 
-// agyLogOwner is the pid the log's first line names, 0 when it names none.
+// agyLogOwner is the pid named in the log's header lines, 0 when none.
 func agyLogOwner(path string) int {
 	f, err := os.Open(path)
 	if err != nil {
@@ -66,15 +82,13 @@ func agyLogOwner(path string) int {
 	}
 	defer f.Close()
 	sc := bufio.NewScanner(f)
-	if !sc.Scan() {
-		return 0
+	for i := 0; i < agyLogHeaderLines && sc.Scan(); i++ {
+		if m := agyLogPid.FindStringSubmatch(sc.Text()); m != nil {
+			pid, _ := strconv.Atoi(m[1])
+			return pid
+		}
 	}
-	m := agyLogPid.FindStringSubmatch(sc.Text())
-	if m == nil {
-		return 0
-	}
-	pid, _ := strconv.Atoi(m[1])
-	return pid
+	return 0
 }
 
 func agyLogCreatedSince(path string, since time.Time) string {
@@ -83,6 +97,9 @@ func agyLogCreatedSince(path string, since time.Time) string {
 		return ""
 	}
 	defer f.Close()
+	// agy logs microsecond timestamps; truncating since avoids rejecting a
+	// conversation created in the same microsecond.
+	since = since.Truncate(time.Microsecond)
 	found := ""
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 64<<10), 4<<20)

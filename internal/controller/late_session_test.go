@@ -28,6 +28,7 @@ func (e *cenv) submitObserved(obs runner.Observation) workflow.Attempt {
 // pane has no session id when the task is sent. By submission it has worked,
 // so the session is read then and the usage found by it.
 func TestASessionLearnedAtSubmissionMakesTheTasksUsageKnown(t *testing.T) {
+	t.Parallel()
 	e, src := usageEnv(t)
 	e.tr.noSession = true
 	e.startLimited(1_000_000, 0)
@@ -46,6 +47,7 @@ func TestASessionLearnedAtSubmissionMakesTheTasksUsageKnown(t *testing.T) {
 // A pane id is what Herdr reports for an agent with no session. It names no
 // conversation and no log, so it is never taken for the builder's session.
 func TestAPaneIDIsNeverTakenForTheBuildersSession(t *testing.T) {
+	t.Parallel()
 	e, src := usageEnv(t)
 	e.tr.noSession = true
 	e.startLimited(1_000_000, 0)
@@ -66,6 +68,7 @@ func TestAPaneIDIsNeverTakenForTheBuildersSession(t *testing.T) {
 // session is known the gap is history, not a missing log: it must not keep the
 // task's usage unknown.
 func TestAGapRecordedBeforeTheSessionWasKnownClearsOnceItIs(t *testing.T) {
+	t.Parallel()
 	e, src := usageEnv(t)
 	e.tr.noSession = true
 	e.startLimited(1_000_000, 0)
@@ -88,6 +91,7 @@ func TestAGapRecordedBeforeTheSessionWasKnownClearsOnceItIs(t *testing.T) {
 // Herdr learns a Codex session only from a hook Codex runs. When it does not
 // run, the task's conversation is found by the nonce its prompt carried.
 func TestASessionHerdrNeverLearnsIsFoundByTheTasksNonce(t *testing.T) {
+	t.Parallel()
 	e, src := usageEnv(t)
 	e.tr.noSession = true
 	e.startLimited(1_000_000, 0)

@@ -13,6 +13,7 @@ import (
 )
 
 func TestVerdictOnlyMailboxBindsTheStoredJob(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startReviewHandback()
 	att := e.toReview("task-1", 1)
@@ -34,6 +35,7 @@ func TestVerdictOnlyMailboxBindsTheStoredJob(t *testing.T) {
 }
 
 func TestVerdictOnlyRefusesChangedTree(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startReviewHandback()
 	att := e.toReview("task-1", 1)
@@ -50,6 +52,7 @@ func TestVerdictOnlyRefusesChangedTree(t *testing.T) {
 }
 
 func TestGeneratedReviewHandbackBindsArgumentsAndPreservesVerdict(t *testing.T) {
+	t.Parallel()
 	root := filepath.Join(t.TempDir(), "repo with ' quotes")
 	if err := os.MkdirAll(root, 0755); err != nil {
 		t.Fatal(err)
@@ -97,6 +100,7 @@ func TestGeneratedReviewHandbackBindsArgumentsAndPreservesVerdict(t *testing.T) 
 }
 
 func TestMalformedPaneReviewReportsReasonAndAcceptsCorrection(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	att := e.toDeliveredReview()
 	e.reviewerFinished(att, "reviewer-session")
@@ -127,6 +131,7 @@ func TestMalformedPaneReviewReportsReasonAndAcceptsCorrection(t *testing.T) {
 }
 
 func TestReviewRejectionNotificationRespectsEnforcedBudget(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.reviewerKind = "codex"
 	e.startEnforced(10000)
@@ -148,6 +153,7 @@ func TestReviewRejectionNotificationRespectsEnforcedBudget(t *testing.T) {
 }
 
 func TestReviewRejectionClaimsNotificationBeforeSending(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	att := e.toDeliveredReview()
 	e.reviewerFinished(att, "reviewer-session")
@@ -173,6 +179,7 @@ func TestReviewRejectionClaimsNotificationBeforeSending(t *testing.T) {
 }
 
 func TestMalformedMailboxReviewCanBeCorrectedWithoutReservingCandidate(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startReviewHandback()
 	att := e.toReview("task-1", 1)
@@ -200,6 +207,7 @@ func TestMalformedMailboxReviewCanBeCorrectedWithoutReservingCandidate(t *testin
 // Stop tells the reviewer not to hand anything back, so a verdict that still
 // arrives is staged as before and never answered with correction feedback.
 func TestReviewHandbackAfterStopQueuesNoFeedback(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startReviewHandback()
 	att := e.toReview("task-1", 1)

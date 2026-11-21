@@ -46,6 +46,7 @@ func (e *cenv) reviewerJobs(att workflow.Attempt) int {
 func (e *cenv) pause() string { st, code := e.runState(); return st + "/" + code }
 
 func TestBudgetBlocksNewModelWorkButNotChecks(t *testing.T) {
+	t.Parallel()
 	e, src := usageEnv(t)
 	e.startLimited(0, 1000)
 	e.tick()
@@ -72,6 +73,7 @@ func TestBudgetBlocksNewModelWorkButNotChecks(t *testing.T) {
 }
 
 func TestBudgetIncreaseResumesPendingReview(t *testing.T) {
+	t.Parallel()
 	e, src := usageEnv(t)
 	e.startLimited(0, 1000)
 	e.tick()
@@ -107,6 +109,7 @@ func TestBudgetIncreaseResumesPendingReview(t *testing.T) {
 }
 
 func TestBudgetAcceptanceIndependent(t *testing.T) {
+	t.Parallel()
 	e, src := usageEnv(t)
 	e.startLimited(0, 1000)
 	e.tick()
@@ -146,6 +149,7 @@ func TestBudgetAcceptanceIndependent(t *testing.T) {
 }
 
 func TestBudgetTaskAndRunLimitsAreIndependentInTheController(t *testing.T) {
+	t.Parallel()
 	e, src := usageEnv(t)
 	e.startLimited(300, 100000) // the task limit is the small one
 	e.tick()
@@ -177,6 +181,7 @@ func TestBudgetTaskAndRunLimitsAreIndependentInTheController(t *testing.T) {
 }
 
 func TestBudgetUnknownWithLimitPauses(t *testing.T) {
+	t.Parallel()
 	// A limit is configured and the usage cannot be read: the run does not guess.
 	e, _ := usageEnv(t)
 	e.startLimited(0, 1_000_000)
@@ -212,6 +217,7 @@ func TestBudgetUnknownWithLimitPauses(t *testing.T) {
 }
 
 func TestBudgetRepairWaitsForBudget(t *testing.T) {
+	t.Parallel()
 	e, src := usageEnv(t)
 	e.startLimited(0, 1000)
 	e.tick()
@@ -244,6 +250,7 @@ func TestBudgetRepairWaitsForBudget(t *testing.T) {
 }
 
 func TestBudgetWarningDoesNotBlock(t *testing.T) {
+	t.Parallel()
 	e, src := usageEnv(t)
 	e.startLimited(0, 1000)
 	e.tick()
@@ -260,6 +267,7 @@ func TestBudgetWarningDoesNotBlock(t *testing.T) {
 }
 
 func TestBudgetPolicyIsReadFromTheRunNotTheEnvironment(t *testing.T) {
+	t.Parallel()
 	e, src := usageEnv(t)
 	e.owner = "the-controller"
 	e.c = e.newController()
@@ -296,6 +304,7 @@ func TestBudgetPolicyIsReadFromTheRunNotTheEnvironment(t *testing.T) {
 }
 
 func TestSetBudgetRefusesBadInput(t *testing.T) {
+	t.Parallel()
 	e, _ := usageEnv(t)
 	e.startLimited(0, 1000)
 	for name, c := range map[string]struct {
@@ -322,6 +331,7 @@ func TestSetBudgetRefusesBadInput(t *testing.T) {
 }
 
 func TestBudgetChangesAreRecordedAsEventsOnTheAttempt(t *testing.T) {
+	t.Parallel()
 	e, _ := usageEnv(t)
 	e.startLimited(0, 1000)
 	e.tick()
@@ -347,6 +357,7 @@ func TestBudgetChangesAreRecordedAsEventsOnTheAttempt(t *testing.T) {
 }
 
 func TestRaisingALimitOnlyResumesARunPausedForScheduling(t *testing.T) {
+	t.Parallel()
 	e, _ := usageEnv(t)
 	e.startLimited(0, 1000)
 	e.tick()
@@ -364,6 +375,7 @@ func TestRaisingALimitOnlyResumesARunPausedForScheduling(t *testing.T) {
 }
 
 func TestSettingABudgetBeforeAnyWorkSaysAvailableNotUnknown(t *testing.T) {
+	t.Parallel()
 	e, _ := usageEnv(t)
 	e.startLimited(0, 0)
 	d, err := e.c.SetBudget(ctx, e.runID, "run", 1000)

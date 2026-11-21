@@ -1,0 +1,8 @@
+⏺ Started the test suite in the background. I'll wait for it to finish.
+
+✻ Worked for 6s · done 14:22
+
+───────────────────────────────────────────────────────────────────────────────────────────────────
+❯
+───────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · 1 shell still running (↓ to view)

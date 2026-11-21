@@ -15,6 +15,7 @@ import (
 // Every kind of open delivery can be abandoned on a stopped run, and abandoning
 // one types nothing: tandem never retypes an uncertain prompt.
 func TestAbandonOnEveryOpenKind(t *testing.T) {
+	t.Parallel()
 	check := func(t *testing.T, e *cenv, eff workflow.Effect) {
 		t.Helper()
 		e.stopToPaused()
@@ -72,6 +73,7 @@ func TestAbandonOnEveryOpenKind(t *testing.T) {
 // it: a discontinued pane that is gone can never come back. The planner's pane is not looked
 // at, because the planner is who runs this command, so it is always working.
 func TestAbandonLooksAtThePaneThePromptWentTo(t *testing.T) {
+	t.Parallel()
 	gone := fmt.Errorf("%w: pane", runner.ErrAgentGone)
 	for name, tc := range map[string]struct {
 		pane    runner.Observation
@@ -120,6 +122,7 @@ func TestAbandonLooksAtThePaneThePromptWentTo(t *testing.T) {
 // every kind a stopped run can leave: a review whose prompt was taken, or failed
 // to send, and a check that never finished.
 func TestRecoverEndsEveryOpenJobOfAStoppedRun(t *testing.T) {
+	t.Parallel()
 	for name, leave := range map[string]func(e *cenv, att workflow.Attempt, prompt workflow.Effect){
 		"a review the reviewer took": func(e *cenv, _ workflow.Attempt, prompt workflow.Effect) {
 			if err := e.st.AcknowledgeEffect(ctx, prompt.ID, prompt.Nonce); err != nil {
@@ -159,6 +162,7 @@ func TestRecoverEndsEveryOpenJobOfAStoppedRun(t *testing.T) {
 
 // The statement is an event in the run's log, and an export carries it.
 func TestAbandoningIsAnEventAnExportCarries(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	eff := e.seedPause(pauseDispatch, true)
 	e.stopToPaused()

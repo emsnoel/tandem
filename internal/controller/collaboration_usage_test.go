@@ -95,6 +95,7 @@ func (e *cenv) snapshot(t *testing.T) CollaborationReport {
 }
 
 func TestCollectionAddsNothingOnRepeat(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	logs, session := e.collabEnvWithLogs(t)
 	logs.codexSession(t, session, codexTotal(100, 60, 10), codexTotal(150, 90, 15))
@@ -117,6 +118,7 @@ func TestCollectionAddsNothingOnRepeat(t *testing.T) {
 }
 
 func TestCollectionReadsOnlyWhatIsNew(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	logs, session := e.collabEnvWithLogs(t)
 	logs.codexSession(t, session, codexTotal(100, 60, 10))
@@ -145,6 +147,7 @@ func TestCollectionReadsOnlyWhatIsNew(t *testing.T) {
 }
 
 func TestSnapshotMissingAndTruncatedLogsStayLowerBounds(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	logs, session := e.collabEnvWithLogs(t)
 	if err := e.c.CollectCollaboration(ctx, testCollab); err != nil {
@@ -177,6 +180,7 @@ func TestSnapshotMissingAndTruncatedLogsStayLowerBounds(t *testing.T) {
 }
 
 func TestArchiveIsProvisionalWhileAChildRuns(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	logs, session := e.collabEnvWithLogs(t)
 	logs.codexSession(t, session, codexTotal(100, 60, 10), codexComplete)
@@ -216,6 +220,7 @@ func TestArchiveIsProvisionalWhileAChildRuns(t *testing.T) {
 }
 
 func TestCorrectionAfterACompleteSnapshotMakesANewRevision(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	logs, session := e.collabEnvWithLogs(t)
 	logs.codexSession(t, session, codexTotal(100, 60, 10), codexComplete)
@@ -246,6 +251,7 @@ func TestCorrectionAfterACompleteSnapshotMakesANewRevision(t *testing.T) {
 }
 
 func TestCloseFreezesLaunchesBeforeAnyPaidCloseout(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.collabEnvWithLogs(t)
 	if err := e.c.CloseCollaboration(ctx, testCollab); err != nil {
@@ -270,6 +276,7 @@ func TestCloseFreezesLaunchesBeforeAnyPaidCloseout(t *testing.T) {
 }
 
 func TestSettlementFromCollectedUsageReleasesTheReservation(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	logs := newFakeLogs(t)
 	e.logs = logs

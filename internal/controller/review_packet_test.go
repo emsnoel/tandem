@@ -42,12 +42,14 @@ func golden(t *testing.T, name, got string) {
 }
 
 func TestReviewPacketGolden(t *testing.T) {
+	t.Parallel()
 	golden(t, "builder-baseline", renderReviewPacket(fixturePacket(stageReview), 2))
 	golden(t, "builder-handback", renderReviewPacket(fixturePacket(stageReview), 3))
 	golden(t, "verification-handback", renderReviewPacket(fixturePacket(stageIndependentVerification), 3))
 }
 
 func TestReviewPacketCarriesEveryMandatoryField(t *testing.T) {
+	t.Parallel()
 	for _, stage := range []string{stageReview, stageIndependentVerification} {
 		p := fixturePacket(stage)
 		text := renderReviewPacket(p, 3)
@@ -89,6 +91,7 @@ func TestReviewPacketCarriesEveryMandatoryField(t *testing.T) {
 // The body is the same under both protocols. Only the delivery block, how the
 // result gets back, is the treatment.
 func TestReviewPacketTreatmentChangesOnlyTheDeliveryBlock(t *testing.T) {
+	t.Parallel()
 	for _, stage := range []string{stageReview, stageIndependentVerification} {
 		base := renderReviewPacket(fixturePacket(stage), 2)
 		treat := renderReviewPacket(fixturePacket(stage), 3)
@@ -112,6 +115,7 @@ func TestReviewPacketTreatmentChangesOnlyTheDeliveryBlock(t *testing.T) {
 }
 
 func TestReviewPacketTruncationIsExplicit(t *testing.T) {
+	t.Parallel()
 	p := fixturePacket(stageIndependentVerification)
 	whole := renderReviewPacket(p, 3)
 	if strings.Contains(whole, "truncated") {
@@ -150,6 +154,7 @@ func (e *cenv) promptText(kind string, att workflow.Attempt) string {
 }
 
 func TestReviewPacketBuiltFromARealRun(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startReviewHandback()
 	att := e.toReview("task-1", 1)
@@ -194,6 +199,7 @@ func (e *cenv) reviewDispatchOfAttempt(att workflow.Attempt) workflow.Effect {
 }
 
 func TestReviewPacketMarksARealTruncation(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startReviewHandback()
 	write(t, e.root, "big.txt", strings.Repeat("a line that makes the patch large\n", 2000))
@@ -207,6 +213,7 @@ func TestReviewPacketMarksARealTruncation(t *testing.T) {
 
 // A run that did not opt in keeps the original prompt, byte for byte.
 func TestReviewPacketLeavesTheLegacyPromptAloneWithoutOptIn(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	att := e.toReview("task-1", 1)
@@ -220,6 +227,7 @@ func TestReviewPacketLeavesTheLegacyPromptAloneWithoutOptIn(t *testing.T) {
 // evaluation-only audit lives outside this repository and has no call into the controller, the
 // workflow reducer or the store: it can neither repair nor waive a failed stage.
 func TestAcceptanceNeverConsultsTheEvaluationAudit(t *testing.T) {
+	t.Parallel()
 	forbidden := regexp.MustCompile(`evals/|audit_result|AuditResult|runAudit|evaluation_audit`)
 	for _, dir := range []string{".", "../workflow", "../state"} {
 		files, err := filepath.Glob(filepath.Join(dir, "*.go"))
@@ -244,6 +252,7 @@ func TestAcceptanceNeverConsultsTheEvaluationAudit(t *testing.T) {
 // The review stage goes to the reviewer pane, never the builder, and the
 // planner's packet leaves the reviewer pane's review out.
 func TestPacketFramingNamesTheReviewerPane(t *testing.T) {
+	t.Parallel()
 	r := renderReviewPacket(fixturePacket(stageReview), 3)
 	if strings.Contains(r, "builder-side") || !strings.Contains(r, "You are the reviewer.") {
 		t.Errorf("review packet framing:\n%s", r)
@@ -271,6 +280,7 @@ func (e *cenv) toReviewUnchanged(taskID string) workflow.Attempt {
 // builder changed nothing and asks for the tree to be checked against the
 // brief instead (issue #66).
 func TestReviewPacketForAnEmptyPatchAsksForTheTree(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startReviewHandback()
 	att := e.toReviewUnchanged("task-1")
@@ -287,6 +297,7 @@ func TestReviewPacketForAnEmptyPatchAsksForTheTree(t *testing.T) {
 }
 
 func TestLegacyReviewPromptForAnEmptyPatchAsksForTheTree(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	att := e.toReviewUnchanged("task-1")
@@ -298,6 +309,7 @@ func TestLegacyReviewPromptForAnEmptyPatchAsksForTheTree(t *testing.T) {
 
 // The packet names the files the task lists, so the reviewer knows where to look.
 func TestEmptyPatchNoteNamesTheTaskFiles(t *testing.T) {
+	t.Parallel()
 	p := fixturePacket(stageReview)
 	p.Patch, p.TaskPaths = "", []string{"greet.go", "greet_test.go"}
 	text := renderReviewPacket(p, 3)

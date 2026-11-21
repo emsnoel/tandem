@@ -37,6 +37,7 @@ func (e *cenv) sessionFound(src *fakeUsage, att workflow.Attempt, input int64) {
 }
 
 func TestBudgetBlockFromUnknownUsageClearsOnceUsageIsKnown(t *testing.T) {
+	t.Parallel()
 	e, src := usageEnv(t)
 	att := e.partlyKnownBlock()
 
@@ -51,6 +52,7 @@ func TestBudgetBlockFromUnknownUsageClearsOnceUsageIsKnown(t *testing.T) {
 }
 
 func TestBudgetBlockStaysWhenKnownUsageReachesTheLimit(t *testing.T) {
+	t.Parallel()
 	e, src := usageEnv(t)
 	att := e.partlyKnownBlock()
 

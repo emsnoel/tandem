@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/emsnoel/tandem/internal/evalrow"
@@ -11,6 +13,7 @@ import (
 )
 
 func TestEvalLifecycleUsesController(t *testing.T) {
+	t.Parallel()
 	sc := scenario(t, "tiny-2")
 	e := newEvalEnv(t, sc)
 	if err := e.begin(); err != nil {
@@ -59,6 +62,7 @@ func TestEvalLifecycleUsesController(t *testing.T) {
 }
 
 func TestEvalFailureIncludedInReport(t *testing.T) {
+	t.Parallel()
 	row := runEval(t, scenario(t, "send-crash"), "durable", "pair-001")
 	if row.State != "paused" || row.PauseCode != "writer_unknown" {
 		t.Fatalf("the failed run is not a row: %+v", row)
@@ -78,6 +82,7 @@ func TestEvalFailureIncludedInReport(t *testing.T) {
 }
 
 func TestEvalPartialUsageNotZero(t *testing.T) {
+	t.Parallel()
 	row := runEval(t, scenario(t, "partial-usage"), "durable", "pair-001")
 	if row.UsageCompleteness != workflow.UsagePartial || row.Reason == "" {
 		t.Fatalf("a partial run must say so: %+v", row)
@@ -91,10 +96,10 @@ func TestEvalPartialUsageNotZero(t *testing.T) {
 }
 
 // failingTransport stands in for every provider: any call is a failure.
-type failingTransport struct{ calls *int }
+type failingTransport struct{ calls *atomic.Int64 }
 
 func (f failingTransport) RoundTrip(*http.Request) (*http.Response, error) {
-	*f.calls++
+	f.calls.Add(1)
 	return nil, http.ErrHandlerTimeout
 }
 
@@ -109,27 +114,36 @@ func TestEvalNoLiveCallsByDefault(t *testing.T) {
 	}
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("TYPESAFE_API_KEY", "must-not-be-used")
-	calls := 0
+	var calls atomic.Int64
 	old := http.DefaultTransport
 	http.DefaultTransport = failingTransport{&calls}
 	t.Cleanup(func() { http.DefaultTransport = old })
 
-	for _, sc := range loadScenarios(t).Scenarios {
-		row := runEval(t, sc, "durable", "pair-001")
-		exp := sc.Expect
-		if row.State != exp.State || row.PauseCode != exp.PauseCode || row.AcceptedTasks != exp.Accepted || row.FailedTasks != exp.Failed {
-			t.Errorf("%s: got %s/%s accepted %d failed %d, want %s/%s accepted %d failed %d", sc.ID,
-				row.State, row.PauseCode, row.AcceptedTasks, row.FailedTasks, exp.State, exp.PauseCode, exp.Accepted, exp.Failed)
-		}
-		if exp.Usage != "" && row.UsageCompleteness != exp.Usage {
-			t.Errorf("%s: usage %s, want %s", sc.ID, row.UsageCompleteness, exp.Usage)
-		}
-		if row.Mode != "fixture" {
-			t.Errorf("%s: mode %q", sc.ID, row.Mode)
-		}
+	// Run scenarios concurrently while this non-parallel test owns PATH and
+	// http.DefaultTransport; each scenario gets its own isolated evalEnv.
+	scenarios := loadScenarios(t).Scenarios
+	var wg sync.WaitGroup
+	for _, sc := range scenarios {
+		wg.Add(1)
+		go func(sc evalrow.Scenario) {
+			defer wg.Done()
+			row := runEval(t, sc, "durable", "pair-001")
+			exp := sc.Expect
+			if row.State != exp.State || row.PauseCode != exp.PauseCode || row.AcceptedTasks != exp.Accepted || row.FailedTasks != exp.Failed {
+				t.Errorf("%s: got %s/%s accepted %d failed %d, want %s/%s accepted %d failed %d", sc.ID,
+					row.State, row.PauseCode, row.AcceptedTasks, row.FailedTasks, exp.State, exp.PauseCode, exp.Accepted, exp.Failed)
+			}
+			if exp.Usage != "" && row.UsageCompleteness != exp.Usage {
+				t.Errorf("%s: usage %s, want %s", sc.ID, row.UsageCompleteness, exp.Usage)
+			}
+			if row.Mode != "fixture" {
+				t.Errorf("%s: mode %q", sc.ID, row.Mode)
+			}
+		}(sc)
 	}
-	if calls != 0 {
-		t.Errorf("%d network calls", calls)
+	wg.Wait()
+	if calls.Load() != 0 {
+		t.Errorf("%d network calls", calls.Load())
 	}
 	if _, err := os.Stat(marker); err == nil {
 		b, _ := os.ReadFile(marker)
@@ -141,6 +155,7 @@ func TestEvalNoLiveCallsByDefault(t *testing.T) {
 // the token eval kept outside this repository. It does nothing in an ordinary
 // test run.
 func TestEvalRows(t *testing.T) {
+	t.Parallel()
 	out := os.Getenv("TANDEM_EVAL_OUT")
 	if out == "" {
 		t.Skip("TANDEM_EVAL_OUT names the file the rows go to")

@@ -53,6 +53,7 @@ func (e *cenv) assertMovedOn(att workflow.Attempt) {
 // decision the pause waits for: it lifts the pause, and the next tick accepts
 // the task and starts the next one.
 func TestAReviewWaiverResumesARunOutOfRepairs(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	att := e.pausedWithRepairsExhausted()
 
@@ -69,6 +70,7 @@ func TestAReviewWaiverResumesARunOutOfRepairs(t *testing.T) {
 // A run whose review was waived while the pause stayed, as an older tandem
 // left it, resumes with tandem build recover.
 func TestRecoverResumesARunOutOfRepairsWhoseReviewWasWaived(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	att := e.pausedWithRepairsExhausted()
 	if err := e.c.Waive(ctx, e.runID, "task-1", "review", "the findings are out of scope", "planner"); err != nil {
@@ -88,6 +90,7 @@ func TestRecoverResumesARunOutOfRepairsWhoseReviewWasWaived(t *testing.T) {
 // A waiver that leaves the review unmet decides nothing the pause waits on.
 // Neither the waiver nor a recover lifts it.
 func TestACheckWaiverLeavesARunOutOfRepairsPaused(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.pausedWithRepairsExhausted()
 
@@ -110,6 +113,7 @@ func TestACheckWaiverLeavesARunOutOfRepairsPaused(t *testing.T) {
 // review asked for. Waiving the check alone leaves the review owed. Waiving
 // both lets the run go on.
 func TestWaivingAFailedCheckAndItsReviewResumesTheRun(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	e.chk.exit = 1
@@ -141,6 +145,7 @@ func TestWaivingAFailedCheckAndItsReviewResumesTheRun(t *testing.T) {
 // A review that failed outright pauses the run the same way. Waiving it lets
 // the run go on.
 func TestAReviewWaiverResumesARunPausedByAFailedReview(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	att := e.toReview("task-1", 1)

@@ -38,6 +38,7 @@ func cancelUndeliverable(d runner.Delivery) error {
 // The run must stay stopping until a builder is back and observed stopped, so
 // a later stop and archive still work.
 func TestStopStaysStoppingWhenTheCancelCannotBeDelivered(t *testing.T) {
+	t.Parallel()
 	e, eff := stoppingEnv(t)
 	e.tr.sendErr = cancelUndeliverable
 	for i := 0; i < 6; i++ {
@@ -65,6 +66,7 @@ func TestStopStaysStoppingWhenTheCancelCannotBeDelivered(t *testing.T) {
 // A run an older tandem left as paused/dispatch_failed after a stop must be
 // stoppable again, so the documented stop, recover, archive sequence works.
 func TestStopAgainLeavesADispatchFailedPauseThatFollowedAStop(t *testing.T) {
+	t.Parallel()
 	e, eff := stoppingEnv(t)
 	if _, err := e.raw().Exec(`UPDATE runs SET state='paused', pause_code='dispatch_failed' WHERE id=?`, e.runID); err != nil {
 		t.Fatal(err)

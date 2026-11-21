@@ -115,6 +115,10 @@ func runReset(d resetDeps, name, root string, timeout time.Duration, dry bool) (
 	if _, off := offMain(d.screen, kind, name); off {
 		return "skip:off-main", "", nil
 	}
+	// A pane whose turn ended with a background task still running is not idle.
+	if _, busy := busyInBackground(d.screen, kind, name); busy {
+		return "skip:not-idle", "", nil
+	}
 	if dry {
 		return "would-reset", "", nil
 	}
@@ -159,14 +163,26 @@ func runReset(d resetDeps, name, root string, timeout time.Duration, dry bool) (
 		if gerr != nil {
 			continue
 		}
+		settled := agent.Settled(b.StatusString())
+		if settled {
+			if _, busy := busyInBackground(d.screen, kind, name); busy {
+				settled = false
+			}
+		}
 		var s string
 		if s, measured = d.fresh(kind, b, since); measured {
-			if s != "" && agent.Settled(b.StatusString()) {
+			if s != "" && settled {
 				return "reset", s, nil
+			}
+			// agy's process log may not flush before the reset timeout, and
+			// /new on an already-fresh prompt (e.g. --resume) creates no new
+			// conversation. A visibly fresh screen confirms the reset.
+			if settled && freshScreen(d.screen, kind, name) {
+				return "sent", "", nil
 			}
 			continue
 		}
-		if agent.Settled(b.StatusString()) {
+		if settled {
 			if s := b.Conversation(); s != "" && s != before {
 				return "reset", s, nil
 			}

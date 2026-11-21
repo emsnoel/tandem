@@ -127,6 +127,7 @@ func code(t *testing.T, err error) string {
 const startPayload = "{\"message\":\"started\"}\n"
 
 func TestMailboxStartAcknowledgesThePromptAndStartsTheBuilder(t *testing.T) {
+	t.Parallel()
 	e := newMailboxEnv(t)
 	r, err := IngestMailbox(ctx, e.deps, e.envelope(t, workflow.EventBuilderStarted, startPayload, nil))
 	if err != nil {
@@ -146,6 +147,7 @@ func TestMailboxStartAcknowledgesThePromptAndStartsTheBuilder(t *testing.T) {
 }
 
 func TestMailboxReplayReturnsTheOriginalReceipt(t *testing.T) {
+	t.Parallel()
 	e := newMailboxEnv(t)
 	env := e.envelope(t, workflow.EventBuilderStarted, startPayload, nil)
 	first, err := IngestMailbox(ctx, e.deps, env)
@@ -164,6 +166,7 @@ func TestMailboxReplayReturnsTheOriginalReceipt(t *testing.T) {
 }
 
 func TestMailboxCannotForgeControllerEvent(t *testing.T) {
+	t.Parallel()
 	e := newMailboxEnv(t)
 	before := func() [2]int { ev, ef, _, _ := e.counts(t); return [2]int{ev, ef} }()
 	for _, kind := range []string{
@@ -184,6 +187,7 @@ func TestMailboxCannotForgeControllerEvent(t *testing.T) {
 }
 
 func TestMailboxWrongRunAndAttempt(t *testing.T) {
+	t.Parallel()
 	e := newMailboxEnv(t)
 	for name, tc := range map[string]struct {
 		mutate func(*Envelope)
@@ -214,6 +218,7 @@ func TestMailboxWrongRunAndAttempt(t *testing.T) {
 }
 
 func TestMailboxRejectsMalformedEnvelopes(t *testing.T) {
+	t.Parallel()
 	e := newMailboxEnv(t)
 	good := e.envelope(t, workflow.EventBuilderStarted, startPayload, nil)
 	cases := map[string]struct {
@@ -245,6 +250,7 @@ func TestMailboxRejectsMalformedEnvelopes(t *testing.T) {
 }
 
 func TestMailboxRejectsUnsafePayloadPaths(t *testing.T) {
+	t.Parallel()
 	e := newMailboxEnv(t)
 	for _, p := range []string{
 		"../../outside", "/etc/passwd", "payloads/../../x", "payloads//a.json", "payloads/", "", "other/x.json",
@@ -260,6 +266,7 @@ func TestMailboxRejectsUnsafePayloadPaths(t *testing.T) {
 // Validation and open are two steps; a path swapped for a symlink between them
 // must not be followed.
 func TestMailboxPayloadSymlinkSwap(t *testing.T) {
+	t.Parallel()
 	secret := "OUTSIDE SECRET " + hex32(4242)
 	outside := t.TempDir()
 	os.WriteFile(filepath.Join(outside, "submit.json"), []byte(secret), 0o644)
@@ -316,6 +323,7 @@ func TestMailboxPayloadSymlinkSwap(t *testing.T) {
 }
 
 func TestMailboxPayloadLimitsAndHash(t *testing.T) {
+	t.Parallel()
 	e := newMailboxEnv(t)
 	big := strings.Repeat("a", MaxPayloadBytes+1)
 	_, err := IngestMailbox(ctx, e.deps, e.envelope(t, workflow.EventBuilderStarted, big, nil))
@@ -346,6 +354,7 @@ func TestMailboxPayloadLimitsAndHash(t *testing.T) {
 }
 
 func TestMailboxOutOfOrderAndDuplicateSubmission(t *testing.T) {
+	t.Parallel()
 	e := newMailboxEnv(t)
 	e.deps.Observed = func(context.Context, Envelope) workflow.Observed {
 		return workflow.Observed{SessionSettled: true, SchedulingAllowed: true}
@@ -390,6 +399,7 @@ func TestMailboxOutOfOrderAndDuplicateSubmission(t *testing.T) {
 }
 
 func TestMailboxReviewResultIsNotAppliedYet(t *testing.T) {
+	t.Parallel()
 	e := newMailboxEnv(t)
 	_, err := IngestMailbox(ctx, e.deps, e.envelope(t, "review_result", "{}\n", nil))
 	if !errors.Is(err, workflow.ErrUnsupported) {
@@ -403,6 +413,7 @@ func TestMailboxReviewResultIsNotAppliedYet(t *testing.T) {
 // A crash after the commit but before the claimed file is removed must not
 // double-apply: reingestion finds the receipt.
 func TestMailboxReplayTakenAfterCommit(t *testing.T) {
+	t.Parallel()
 	e := newMailboxEnv(t)
 	claimed := filepath.Join(e.dir, "q", hex32(300+len(workflow.EventBuilderStarted))+".json.taken")
 	if err := os.WriteFile(claimed, e.envelope(t, workflow.EventBuilderStarted, startPayload, nil), 0o644); err != nil {
@@ -438,6 +449,7 @@ func TestMailboxReplayTakenAfterCommit(t *testing.T) {
 }
 
 func TestProcessClaimedQuarantinesPermanentRejectionsWithAReason(t *testing.T) {
+	t.Parallel()
 	e := newMailboxEnv(t)
 	claimed := filepath.Join(e.dir, "q", "forged.json.taken")
 	os.WriteFile(claimed, e.envelope(t, workflow.EventAcceptRequested, "{}\n", nil), 0o644)
@@ -469,6 +481,7 @@ func TestProcessClaimedQuarantinesPermanentRejectionsWithAReason(t *testing.T) {
 }
 
 func TestProcessClaimedLeavesTransientFailuresForRetry(t *testing.T) {
+	t.Parallel()
 	e := newMailboxEnv(t)
 	claimed := filepath.Join(e.dir, "q", "later.json.taken")
 	os.WriteFile(claimed, e.envelope(t, workflow.EventBuilderStarted, startPayload, nil), 0o644)
@@ -483,6 +496,7 @@ func TestProcessClaimedLeavesTransientFailuresForRetry(t *testing.T) {
 }
 
 func TestActiveRunMarkerAndManifest(t *testing.T) {
+	t.Parallel()
 	relay := filepath.Join(t.TempDir(), ".tandem-relay")
 	if got, err := ReadActiveRun(relay); err != nil || got != nil {
 		t.Fatalf("no marker: %+v %v", got, err)

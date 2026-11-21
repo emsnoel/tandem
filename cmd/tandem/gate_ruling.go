@@ -101,9 +101,9 @@ func ruleFail(err error) int {
 	return exitcode.Internal
 }
 
-// cmdConfigBuilder prints the kind, autonomy and adopted (true or false) in the
-// relay's builder record as NUL fields: empty, empty and false when there is
-// no readable record.
+// cmdConfigBuilder prints the kind, autonomy, adopted (true or false) and
+// model in the relay's builder record as NUL fields: empty, empty, false and
+// empty when there is no readable record.
 func cmdConfigBuilder(args []string) int {
 	fs := flag.NewFlagSet("config builder", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -116,6 +116,6 @@ func cmdConfigBuilder(args []string) int {
 	if err != nil {
 		rec = config.BuilderRecord{}
 	}
-	writeFields(os.Stdout, rec.Kind, rec.Autonomy, strconv.FormatBool(rec.Adopted))
+	writeFields(os.Stdout, rec.Kind, rec.Autonomy, strconv.FormatBool(rec.Adopted), rec.Model)
 	return exitcode.OK
 }

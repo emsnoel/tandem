@@ -32,6 +32,7 @@ func (e *cenv) preflight(limit int) error {
 var needPattern = regexp.MustCompile(`at least (\d+)`)
 
 func TestCheckTaskContextNamesEveryTaskThatDoesNotFit(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.usePlan(bigFirstTask)
 	err := e.preflight(3000)
@@ -51,6 +52,7 @@ func TestCheckTaskContextNamesEveryTaskThatDoesNotFit(t *testing.T) {
 }
 
 func TestCheckTaskContextMeasuresWhatTheRunWillSend(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.usePlan(bigFirstTask)
 	m := needPattern.FindStringSubmatch(fmtErr(e.preflight(1000)))
@@ -81,6 +83,7 @@ func TestCheckTaskContextMeasuresWhatTheRunWillSend(t *testing.T) {
 }
 
 func TestTheDefaultContextLimitFitsARealTask(t *testing.T) {
+	t.Parallel()
 	if taskcontext.DefaultMaxEstimatedTokens != 24000 {
 		t.Fatalf("default %d", taskcontext.DefaultMaxEstimatedTokens)
 	}

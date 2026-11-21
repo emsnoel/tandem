@@ -31,6 +31,7 @@ func (e *cenv) blocked() workflow.Effect {
 }
 
 func TestBlockedBuilderPausesTheRun(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.blockedBuilder()
 	sends := len(e.tr.sends)
@@ -59,6 +60,7 @@ func TestBlockedThenIdleRestartsTheClock(t *testing.T) {
 
 // A new turn at a dialog, such as the next approval, starts the window again.
 func TestANewDialogTurnRestartsTheClock(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	eff := e.blockedBuilder()
 	e.watch(SilenceWindow - 2*time.Minute)
@@ -70,6 +72,7 @@ func TestANewDialogTurnRestartsTheClock(t *testing.T) {
 }
 
 func TestRecoverKeepsTheBlockedPauseWhileTheDialogIsUp(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.blocked()
 	if err := e.c.Recover(ctx, e.runID); err != nil {
@@ -105,6 +108,7 @@ func TestRecoverClearsTheBlockedPauseOnceAnswered(t *testing.T) {
 
 // A pane the host cannot answer for is not known to be past the dialog.
 func TestRecoverKeepsTheBlockedPauseForAnUnknownPane(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	eff := e.blocked()
 	e.tr.set(eff.ID, runner.Observation{State: runner.ObsUnknown})
@@ -116,6 +120,7 @@ func TestRecoverKeepsTheBlockedPauseForAnUnknownPane(t *testing.T) {
 
 // A tick alone never clears it: the owner asks for that with a recover.
 func TestATickDoesNotClearTheBlockedPause(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	eff := e.blocked()
 	e.tr.set(eff.ID, runner.Observation{State: runner.ObsRunning, StateSeq: 6})
@@ -126,6 +131,7 @@ func TestATickDoesNotClearTheBlockedPause(t *testing.T) {
 // A handback after the dialog continues the run with no recover. The builder
 // answered, worked and settled, as a builder does once it hands back.
 func TestLateHandbackContinuesABlockedRun(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	eff := e.blocked()
 	e.tr.set(eff.ID, runner.Observation{State: runner.ObsCompleted, StateSeq: 7})

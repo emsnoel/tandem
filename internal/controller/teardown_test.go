@@ -14,6 +14,7 @@ func unmetByTask(ev RunEvidence) map[string][]string {
 }
 
 func TestTeardownEvidenceOfAFinishedRunIsComplete(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	e.passTask(1, 1)
@@ -33,6 +34,7 @@ func TestTeardownEvidenceOfAFinishedRunIsComplete(t *testing.T) {
 }
 
 func TestTeardownEvidenceNamesWhatEachTaskLacks(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	e.passTask(1, 0)

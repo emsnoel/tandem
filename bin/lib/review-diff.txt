@@ -1,7 +1,7 @@
 Re-review the plan at {{PLAN}}. Working directory: {{ROOT}}.
 
 DO NOT CHANGE ANY FILE. This is a read-and-probe pass only. Do not start
-task 1. The planner decides what happens after your review.
+task 1. The planner decides what happens after your review.{{RESUME_SCOPE}}
 
 An earlier version of this plan was reviewed. That review is:
 

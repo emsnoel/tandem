@@ -29,18 +29,63 @@ quarantine_v1() {
 # for the next pass. Renaming it back to *.json would wake the loop at once
 # into the same failure.
 ingest_durable() {
-  local taken="$1" root st rc=0 settled=() disp="" why=""
+  local taken="$1" root st rc=0 settled=() disp="" why="" err=""
   root=$(dirname "$MAILBOX")
   st=$(tandem agent status "$BUILDER_NAME" 2>/dev/null || printf unknown)
   case "$st" in idle|done) settled=(--session-settled) ;; esac
   tandem build event ingest --root "$root" --claimed "$taken" ${settled[@]+"${settled[@]}"} --fields \
     >"$FIELDS" 2>"$MAILBOX/.last_error" || rc=$?
   if (( rc != 0 )); then
-    log "$(basename "$taken"): not applied yet (rc $rc), kept for the next pass: $(tail -1 "$MAILBOX/.last_error" 2>/dev/null)"
+    err=$(tail -1 "$MAILBOX/.last_error" 2>/dev/null || true)
+    log "$(basename "$taken"): not applied yet (rc $rc), kept for the next pass: $err"
+    if [[ "$err" == *"has not settled"* ]]; then
+      report_unsettled "$taken" "$st"
+    fi
     return
   fi
+  rm -f "$taken.unsettled-since" "$taken.unsettled-notified"
   { read_field disp; read_field why; } <"$FIELDS"
   log "$(basename "$taken"): $disp${why:+ $why}"
+}
+
+# report_unsettled TAKEN STATUS: when a queued handback has repeatedly failed to
+# apply with "has not settled" for at least UNSETTLED_NOTICE_SECONDS, log once
+# and notify the planner with the builder pane, the `herdr agent explain` rule
+# holding it in working, and the Ctrl+L workaround.
+report_unsettled() {
+  local taken="$1" st="$2" since_file="$taken.unsettled-since" mark="$taken.unsettled-notified"
+  local now since elapsed threshold pane="" explain="" msg="" base id snap=""
+  [[ -f "$mark" ]] && return 0
+  now=$(date +%s)
+  since=$(cat "$since_file" 2>/dev/null || true)
+  if ! [[ "$since" =~ ^[0-9]+$ ]]; then
+    printf '%s\n' "$now" > "$since_file"
+    since="$now"
+  fi
+  threshold="${UNSETTLED_NOTICE_SECONDS:-180}"
+  [[ "$threshold" =~ ^[0-9]+$ ]] || threshold=180
+  elapsed=$(( now - 10#$since ))
+  (( elapsed >= 10#$threshold )) || return 0
+
+  if snap=$(tandem agent snapshot "$BUILDER_NAME" 2>/dev/null) && [[ -n "$snap" ]]; then
+    IFS=$'\t' read -r pane _ _ <<<"$snap"
+  fi
+  pane="${pane:-$BUILDER_NAME}"
+  explain=$(herdr agent explain "$BUILDER_NAME" 2>/dev/null || true)
+  [[ -n "$explain" ]] || explain="(herdr agent explain unavailable)"
+
+  base=$(basename "$taken")
+  id="${base%.json.taken}"
+  log "$base: queued handback waiting ${elapsed}s for $BUILDER_NAME (pane $pane, status $st) to settle; notifying $PLANNER_NAME"
+  msg="A queued handback ($base) has been waiting ${elapsed}s because $BUILDER_NAME (pane $pane) still reads as $st (has not settled).
+
+herdr agent explain $BUILDER_NAME:
+$explain
+
+If $BUILDER_NAME has already finished its turn and Herdr is misreading the pane as working, press Ctrl+L in pane $pane to redraw it. The bridge will apply the queued handback as soon as the pane reads idle."
+  if send_planner "unsettled-$id" notice tandem "$msg" "$mark"; then
+    printf '%s\n' "$now" > "$mark"
+  fi
 }
 
 # drive_durable VERB [ARGS...]: give the run's controller one step (tick

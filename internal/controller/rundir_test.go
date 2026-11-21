@@ -10,6 +10,7 @@ import (
 // The teardown gate reads these to know a person ended the relay's run. A file
 // that only looks like a set-aside marker must not count.
 func TestArchivedRunsListsOnlySetAsideMarkers(t *testing.T) {
+	t.Parallel()
 	relay := t.TempDir()
 	if ids, err := ArchivedRuns(relay); err != nil || len(ids) != 0 {
 		t.Fatalf("an empty relay: %v %v", ids, err)

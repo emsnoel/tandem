@@ -42,6 +42,7 @@ func writeLog(t *testing.T, path string, lines ...string) {
 // Input counts every input token, cache reads and writes included; cached is
 // the cache reads.
 func TestClaudeStreamsReadTheSessionAndItsSubagents(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	repo := filepath.Join(dir, "-Users-you-projects-tandem")
 	writeLog(t, filepath.Join(repo, claudeSession+".jsonl"),
@@ -88,6 +89,7 @@ func TestClaudeStreamsReadTheSessionAndItsSubagents(t *testing.T) {
 }
 
 func TestClaudeStreamsMissingLogIsAGap(t *testing.T) {
+	t.Parallel()
 	streams := claudeStreams(t.TempDir(), claudeSession)
 	if len(streams) != 1 || streams[0].Unavailable == "" || len(streams[0].Deltas) != 0 {
 		t.Fatalf("%+v", streams)
@@ -97,6 +99,7 @@ func TestClaudeStreamsMissingLogIsAGap(t *testing.T) {
 // A session id names a file, so one that is not a plain id is never used in a
 // path.
 func TestClaudeStreamsRefuseASessionThatIsNotAnID(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	writeLog(t, filepath.Join(dir, "x", "secret.jsonl"), claudeLine(t, "u", "m", "x", "end_turn", 1, 0, 0, 1))
 	for _, bad := range []string{"", "../x/secret", "*", "a/b"} {
@@ -111,6 +114,7 @@ func TestClaudeStreamsRefuseASessionThatIsNotAnID(t *testing.T) {
 // That message's figures can still change and a stored record cannot, so it is
 // left out until it is final, and the stream is a lower bound meanwhile.
 func TestClaudeStreamsUnfinishedLogIsPartial(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	writeLog(t, filepath.Join(dir, "-repo", claudeSession+".jsonl"),
 		claudeLine(t, "u1", "m0", "claude-sonnet-5-5", "tool_use", 1, 0, 0, 1),
@@ -125,6 +129,7 @@ func TestClaudeStreamsUnfinishedLogIsPartial(t *testing.T) {
 // can be on any line, and a log read again must give the same ids, so a stored
 // record is matched, never added to.
 func TestClaudeSourceIDsFollowTheMessageNotTheLine(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "-repo", claudeSession+".jsonl")
 	writeLog(t, path, claudeLine(t, "u2", "m1", "claude-sonnet-5-5", "end_turn", 2, 100, 1000, 40))

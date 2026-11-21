@@ -34,10 +34,11 @@ REVIEW_LIB="${_self%/*}/lib"
 
 DRY_RUN=0
 PLAN_ARG=""
+ACCEPTED_TASKS=""
 
 usage() {
   cat <<'USAGE'
-usage: tandem-review [plan-path] [--dry-run]
+usage: tandem-review [plan-path] [--dry-run] [--accepted-tasks IDS]
 
 Asks the reviewer pane for a review of a plan without changing anything. The
 pair needs a reviewer: declare a "reviewer" block in .tandem.json and re-run
@@ -47,7 +48,8 @@ file in the project's plans directory. tandem-handoff picks the same way. A
 plan reviewed before is reviewed again from the change alone, in a fresh
 conversation.
 
-  --dry-run   print the target pane, plan and prompt without sending anything
+  --dry-run             print the target pane, plan and prompt without sending anything
+  --accepted-tasks IDS  comma-separated task ids already accepted by a resumed run
 USAGE
 }
 
@@ -65,6 +67,8 @@ say_reset() {
 while (( $# )); do
   case "$1" in
     --dry-run) DRY_RUN=1; shift ;;
+    --accepted-tasks) [[ -n "${2:-}" ]] || die "--accepted-tasks needs a comma-separated list of task ids."
+                      ACCEPTED_TASKS="$2"; shift 2 ;;
     --builder) printf 'tandem-review: the builder never reviews. There is no --builder; the reviewer takes every plan review.\n' >&2; exit 2 ;;
     -h|--help) usage; exit 0 ;;
     -*)        usage >&2; die "unknown option: $1" ;;
@@ -219,13 +223,10 @@ else
   PROBES="$PROBES_FULL"
 fi
 
-if [[ -n "$CHECK_COMMAND" ]]; then
-  CHECKLINE="
-       - run the check command once, now, in ONE blocking call (do not poll
-         it), and record its exit: $CHECK_COMMAND"
-else
-  CHECKLINE=""
-fi
+prepare_review_extras
+
+# Bash 5.2+ expands '&' in ${var//pat/$repl} unless patsub_replacement is off.
+shopt -u patsub_replacement 2>/dev/null || true
 
 REVIEW_PROMPT="${REVIEW_PROMPT//\{\{CLASSES\}\}/$CLASSES}"
 REVIEW_PROMPT="${REVIEW_PROMPT//\{\{BKIND\}\}/$BUILDER_KIND}"
@@ -235,6 +236,7 @@ REVIEW_PROMPT="${REVIEW_PROMPT//\{\{RULES\}\}/$RULES}"
 REVIEW_PROMPT="${REVIEW_PROMPT//\{\{PREVMD\}\}/$PREV_MD}"
 REVIEW_PROMPT="${REVIEW_PROMPT//\{\{DIFF\}\}/$DIFF_FILE}"
 REVIEW_PROMPT="${REVIEW_PROMPT//\{\{PREV\}\}/$PREV_ID}"
+REVIEW_PROMPT="${REVIEW_PROMPT//\{\{RESUME_SCOPE\}\}/$RESUME_SCOPE}"
 # The reviewer's recorded name, so tandem-verdict can name the reviewer without
 # the pane's environment.
 REVIEW_PROMPT="${REVIEW_PROMPT//\{\{ROLE\}\}/$TARGET_NAME}"
@@ -242,6 +244,7 @@ REVIEW_PROMPT="${REVIEW_PROMPT//\{\{PLAN\}\}/$PLAN_ABS}"
 REVIEW_PROMPT="${REVIEW_PROMPT//\{\{ROOT\}\}/$ROOT}"
 REVIEW_PROMPT="${REVIEW_PROMPT//\{\{PLANNER\}\}/$PLANNER_NAME}"
 REVIEW_PROMPT="${REVIEW_PROMPT//\{\{CHECKLINE\}\}/$CHECKLINE}"
+REVIEW_PROMPT="${REVIEW_PROMPT//\{\{BASELINE_CHECK\}\}/$BASELINE_CHECK}"
 
 printf 'tandem-review: %s %s (pane %s, status: %s)\n' "$TARGET_ROLE" "$TARGET_NAME" "$TARGET_PANE" "$TARGET_STATUS"
 printf 'tandem-review: plan    %s\n' "$PLAN_ABS"
@@ -250,6 +253,8 @@ if [[ "$MODE" == diff ]]; then
 else
   info "review: the whole plan"
 fi
+[[ -n "$ACCEPTED_TASKS" ]] && info "accepted tasks (already done): $ACCEPTED_TASKS"
+[[ "$BC_STATUS" == fresh || "$BC_STATUS" == cached ]] && info "baseline check: exit $BC_EXIT ($BC_STATUS)"
 
 if (( DRY_RUN )); then
   say_reset "$(tandem agent reset "$TARGET_NAME" --root "$ROOT" --dry-run 2>/dev/null || true)"

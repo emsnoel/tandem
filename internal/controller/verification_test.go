@@ -97,6 +97,7 @@ var defect = workflow.Finding{Severity: workflow.SeverityHigh, Path: "work1.txt"
 // verification finds the problem. The task must not be
 // accepted, and it goes to repair.
 func TestIndependentVerificationBlocksAPlantedDefect(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startReviewHandback()
 	att := e.toReview("task-1", 1)
@@ -143,6 +144,7 @@ func TestIndependentVerificationBlocksAPlantedDefect(t *testing.T) {
 }
 
 func TestIndependentVerificationPassAcceptsOnce(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startReviewHandback()
 	att := e.toReview("task-1", 1)
@@ -170,6 +172,7 @@ func TestIndependentVerificationPassAcceptsOnce(t *testing.T) {
 }
 
 func TestIndependentVerificationFailureStopsTheRun(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startReviewHandback()
 	att := e.toReview("task-1", 1)
@@ -186,6 +189,7 @@ func TestIndependentVerificationFailureStopsTheRun(t *testing.T) {
 
 // A verification from the writer's own side is recorded and counts for nothing.
 func TestIndependentVerificationBySelfReviewDoesNotCount(t *testing.T) {
+	t.Parallel()
 	t.Run("the prompt reached the builder's conversation", func(t *testing.T) {
 		e := newCEnv(t)
 		e.startReviewHandback()
@@ -240,6 +244,7 @@ func TestIndependentVerificationBySelfReviewDoesNotCount(t *testing.T) {
 }
 
 func TestIndependentVerificationStaleEvidenceIsRefused(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startReviewHandback()
 	att := e.toReview("task-1", 1)
@@ -260,6 +265,7 @@ func TestIndependentVerificationStaleEvidenceIsRefused(t *testing.T) {
 
 // The manual path, review-record, is for recovery and takes the same gates.
 func TestIndependentVerificationManualRecordUsesTheSameGates(t *testing.T) {
+	t.Parallel()
 	record := func(e *cenv, att workflow.Attempt, status string, mutate func(*workflow.ReviewResult)) error {
 		job, _ := e.jobByStage(att, state.StageIndependentVerification)
 		cur, _ := e.st.GetAttempt(ctx, att.ID)
@@ -351,6 +357,7 @@ func TestIndependentVerificationManualRecordUsesTheSameGates(t *testing.T) {
 
 // Verification is registered, held without a counted planner, and budgeted.
 func TestIndependentVerificationIsRegisteredAndHeldWithoutAPlanner(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	policy, _ := e.c.put(ctx, `{}`)
 	e.st.CreateCollaboration(ctx, state.CollaborationRequest{ID: testCollab, PolicyHash: policy})
@@ -384,6 +391,7 @@ func TestIndependentVerificationIsRegisteredAndHeldWithoutAPlanner(t *testing.T)
 }
 
 func TestIndependentVerificationIsBudgetedAndCounted(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	logs := newFakeLogs(t)
 	e.logs = logs
@@ -453,6 +461,7 @@ func TestIndependentVerificationIsBudgetedAndCounted(t *testing.T) {
 }
 
 func TestIndependentVerificationFallsBackToObservingTheEffect(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startReviewHandback()
 	e.c.d.Transport = struct{ runner.Transport }{e.tr} // a transport that cannot observe by name
@@ -471,6 +480,7 @@ func TestIndependentVerificationFallsBackToObservingTheEffect(t *testing.T) {
 }
 
 func TestIndependentVerificationStalledPlannerPausesAtItsDeadline(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.reviewTimeout = 2 * time.Minute
 	e.c = e.newController()
@@ -487,6 +497,7 @@ func TestIndependentVerificationStalledPlannerPausesAtItsDeadline(t *testing.T) 
 }
 
 func TestIndependentVerificationEveryStageIsMandatoryInThePinnedPolicy(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startReviewHandback()
 	run := e.runRow()
@@ -513,6 +524,7 @@ func TestIndependentVerificationEveryStageIsMandatoryInThePinnedPolicy(t *testin
 // A review prompt that was never sent used nothing: waiving the review returns
 // its reservation at once, in the same write that cancels the prompt.
 func TestWaivingAReviewReleasesThePromptThatWasNeverSent(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	policy, _ := e.c.put(ctx, `{"enforce_budgets":true}`)
 	if err := e.st.CreateCollaboration(ctx, state.CollaborationRequest{ID: enforcedCollab, PolicyHash: policy, EnforceBudgets: true,

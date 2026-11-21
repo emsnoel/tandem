@@ -46,6 +46,7 @@ func (e *cenv) reviewState(att workflow.Attempt) workflow.ReviewState {
 }
 
 func TestReviewPassedEmptyFindingsAccepted(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	att := e.toReview("task-1", 1)
@@ -87,6 +88,7 @@ func mustArtifacts(t *testing.T, e *cenv, att workflow.Attempt) map[string]strin
 }
 
 func TestReviewNeedsTheReviewerToHaveFinished(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	att := e.toReview("task-1", 1)
@@ -127,6 +129,7 @@ func mustJobsResults(t *testing.T, e *cenv, att workflow.Attempt) []string {
 }
 
 func TestReviewStaleTreeRejected(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	att := e.toReview("task-1", 1)
@@ -160,6 +163,7 @@ func TestReviewStaleTreeRejected(t *testing.T) {
 }
 
 func TestAcceptanceChecksTheTreeStillMatchesWhatWasReviewed(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	att := e.toReview("task-1", 1)
@@ -178,6 +182,7 @@ func TestAcceptanceChecksTheTreeStillMatchesWhatWasReviewed(t *testing.T) {
 }
 
 func TestReviewExitWithoutResultNotSuccess(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	att := e.toReview("task-1", 1)
@@ -205,6 +210,7 @@ func TestReviewExitWithoutResultNotSuccess(t *testing.T) {
 }
 
 func TestReviewRawResultsAreStrictAndBoundToTheJob(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	att := e.toReview("task-1", 1)
@@ -246,6 +252,7 @@ func TestReviewRawResultsAreStrictAndBoundToTheJob(t *testing.T) {
 }
 
 func TestReviewerIdentityIsRecordedWithItsLimits(t *testing.T) {
+	t.Parallel()
 	for _, kind := range []string{"codex", "claude", "copilot"} {
 		for _, session := range []string{"sess-9", ""} {
 			e := newCEnv(t)
@@ -290,6 +297,7 @@ func TestReviewerIdentityIsRecordedWithItsLimits(t *testing.T) {
 }
 
 func TestReviewResultWithoutADeliveredPromptIsRefused(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	// The review prompt never reaches a reviewer: the transport refuses it.
 	e.tr.sendErr = func(d runner.Delivery) error {

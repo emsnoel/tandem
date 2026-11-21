@@ -74,6 +74,7 @@ func (e *cenv) sourceCount() int {
 }
 
 func TestSourceRegisteredBeforeTransport(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	var unregistered []string
 	e.tr.sendErr = func(d runner.Delivery) error {
@@ -101,6 +102,7 @@ func TestSourceRegisteredBeforeTransport(t *testing.T) {
 }
 
 func TestSourceRegistrationFailurePreventsSend(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startInCollaboration()
 	if _, err := e.raw().Exec(`UPDATE collaborations SET status='closing' WHERE id=?`, testCollab); err != nil {
@@ -118,6 +120,7 @@ func TestSourceRegistrationFailurePreventsSend(t *testing.T) {
 }
 
 func TestSourceRetriedSendReusesItsRegistration(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	failures := 1
 	e.tr.sendErr = func(d runner.Delivery) error {
@@ -135,6 +138,7 @@ func TestSourceRetriedSendReusesItsRegistration(t *testing.T) {
 }
 
 func TestSourceUnknownReceiptStaysUnresolvedAcrossRestart(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.tr.noSession = true
 	e.startInCollaboration()
@@ -160,6 +164,7 @@ func TestSourceUnknownReceiptStaysUnresolvedAcrossRestart(t *testing.T) {
 }
 
 func TestSourceRunWithoutCollaborationRegistersNothing(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	e.tickUntilSent(1)
@@ -177,6 +182,7 @@ func TestSourceRunWithoutCollaborationRegistersNothing(t *testing.T) {
 }
 
 func TestSourceStartNeedsAnOpenCollaboration(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	_, err := e.c.Start(ctx, e.startRequest(func(r *StartRequest) { r.BuilderSession, r.PlannerSession, r.Collaboration = "b", "p", testCollab }))
 	if !errors.Is(err, state.ErrWorkMapping) {

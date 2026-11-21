@@ -15,6 +15,7 @@ import (
 // TestEveryPauseHasAWayOut.
 
 func TestRecoverKeepsTheSilentPauseWhileNothingMoved(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.silent()
 	e.clk.advance(time.Hour)
@@ -53,6 +54,7 @@ func TestRecoverClearsTheSilentPauseOnceTheTurnMovedOn(t *testing.T) {
 // With no clock there is nothing to say the turn moved, so an idle pane stays
 // paused and only a pane seen working clears it.
 func TestRecoverWithNoClockNeedsAWorkingPane(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	eff := e.silent()
 	if err := os.Remove(e.clockPath()); err != nil {
@@ -71,6 +73,7 @@ func TestRecoverWithNoClockNeedsAWorkingPane(t *testing.T) {
 
 // A tick alone never clears the pause for a pane that merely moved.
 func TestATickDoesNotClearTheSilentPause(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	eff := e.silent()
 	e.tr.set(eff.ID, runner.Observation{State: runner.ObsRunning, StateSeq: 6})
@@ -81,6 +84,7 @@ func TestATickDoesNotClearTheSilentPause(t *testing.T) {
 // The note's other way on: a late handback is applied and the run goes on by
 // itself, with no recover.
 func TestLateHandbackContinuesASilentRun(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.silent()
 	task := e.tasks()[0]
@@ -101,6 +105,7 @@ func TestLateHandbackContinuesASilentRun(t *testing.T) {
 
 // A report that it cannot finish moves the run from one pause to the other.
 func TestLateStuckReplacesTheSilentPause(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.silent()
 	e.queueClaimed(e.tasks()[0].ID, workflow.EventBuilderStuck, "{\"message\":\"no\"}\n")
@@ -113,6 +118,7 @@ func TestLateStuckReplacesTheSilentPause(t *testing.T) {
 // counts as silence. Once the tree is fixed the handback applies and the run
 // goes on.
 func TestStuckHandbackStillPauses(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startedBuilder(runner.ObsCompleted)
 	task := e.tasks()[0]

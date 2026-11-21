@@ -94,6 +94,7 @@ func (e *cenv) pausedByAnUnknownDelivery() workflow.Attempt {
 }
 
 func TestLateReviewAfterTheAcknowledgementWindowClearsOnlyItsPause(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	att := e.pausedByAnUnknownDelivery()
 	pausedAt := e.runRow().PauseGeneration
@@ -148,6 +149,7 @@ func TestLateReviewAfterTheAcknowledgementWindowClearsOnlyItsPause(t *testing.T)
 }
 
 func TestLateReviewNeverClearsAPauseItDidNotCause(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct{ name, code string }{
 		{"a budget pause", workflow.PauseScheduling},
 		{"a source mutation", pauseSourceMutated},
@@ -173,6 +175,7 @@ func TestLateReviewNeverClearsAPauseItDidNotCause(t *testing.T) {
 }
 
 func TestStopWinsOverAStagedReviewResult(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startReviewHandback()
 	att := e.toReview("task-1", 1)
@@ -215,6 +218,7 @@ var raceBoundaries = []raceCase{
 }
 
 func TestReviewRaceStopAtEveryBoundary(t *testing.T) {
+	t.Parallel()
 	for _, rc := range raceBoundaries {
 		e := newCEnv(t)
 		att := e.pausedByAnUnknownDelivery()
@@ -257,6 +261,7 @@ func TestReviewRaceStopAtEveryBoundary(t *testing.T) {
 // Anything that moves the fence between the read and the write makes the write
 // a no-op. The next pass reads again and applies exactly once.
 func TestReviewRaceFenceMovesAreRetriedOnce(t *testing.T) {
+	t.Parallel()
 	moves := map[string]func(*cenv){
 		"a new pause": func(e *cenv) {
 			prompt := e.effects("review_prompt")[0]
@@ -300,6 +305,7 @@ func TestReviewRaceFenceMovesAreRetriedOnce(t *testing.T) {
 }
 
 func TestReviewRaceLostLeaseNeverApplies(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	att := e.pausedByAnUnknownDelivery()
 	e.stageResult(att, workflow.ReviewStatusPassed)
@@ -323,6 +329,7 @@ func TestReviewRaceLostLeaseNeverApplies(t *testing.T) {
 // A crash between recording the outcome and the guarded write converges: the
 // restarted controller records the same outcome once and then applies.
 func TestReviewRaceCrashBetweenRecordAndApplyConverges(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.owner = "the-controller"
 	e.c = e.newController()
@@ -355,6 +362,7 @@ func TestReviewRaceCrashBetweenRecordAndApplyConverges(t *testing.T) {
 // A collaboration stop that lands after the pause is cleared wins the next
 // admission. Launches admitted before it stay visible as in flight.
 func TestReviewRaceCollaborationStopWinsTheNextAdmission(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startEnforcedHandback(1000)
 	att := e.toReview("task-1", 1)
@@ -392,6 +400,7 @@ func TestReviewRaceCollaborationStopWinsTheNextAdmission(t *testing.T) {
 // A reviewer that started and then went quiet is noticed by its own deadline,
 // separately from delivery. Its late result clears that pause and no other.
 func TestLateReviewStalledReviewerPausesAtItsDeadline(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.reviewTimeout = 2 * time.Minute
 	e.c = e.newController()
@@ -418,6 +427,7 @@ func TestLateReviewStalledReviewerPausesAtItsDeadline(t *testing.T) {
 }
 
 func TestLateReviewInvalidOrChangedResultsAreRefusedNotApplied(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startReviewHandback()
 	att := e.toReview("task-1", 1)
@@ -443,6 +453,7 @@ func TestLateReviewInvalidOrChangedResultsAreRefusedNotApplied(t *testing.T) {
 }
 
 func TestLateReviewTreeChangeAfterReviewPausesAndRefuses(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startReviewHandback()
 	att := e.toReview("task-1", 1)

@@ -43,9 +43,14 @@ type Store struct {
 // the connection is replaced. journal_mode is not here: it persists in the
 // file, and changing it must wait until the schema version has been checked.
 const pragmas = "_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=synchronous(FULL)"
+const testPragmas = "_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=synchronous(OFF)"
 
 func dsn(path string, readOnly bool) string {
-	u := url.URL{Scheme: "file", Path: path, RawQuery: pragmas}
+	return dsnWithPragmas(path, readOnly, pragmas)
+}
+
+func dsnWithPragmas(path string, readOnly bool, p string) string {
+	u := url.URL{Scheme: "file", Path: path, RawQuery: p}
 	if readOnly {
 		u.RawQuery += "&mode=ro"
 	}
@@ -53,7 +58,11 @@ func dsn(path string, readOnly bool) string {
 }
 
 func newPool(path string, readOnly bool) (*sql.DB, error) {
-	db, err := sql.Open("sqlite", dsn(path, readOnly))
+	return newPoolWithPragmas(path, readOnly, pragmas)
+}
+
+func newPoolWithPragmas(path string, readOnly bool, p string) (*sql.DB, error) {
+	db, err := sql.Open("sqlite", dsnWithPragmas(path, readOnly, p))
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +77,18 @@ func Open(ctx context.Context, root string) (*Store, error) {
 	return open(ctx, root, embedded, testHooks{})
 }
 
+// OpenForTest opens a store like Open, but with PRAGMA synchronous=OFF so
+// parallel tests in temporary directories do not serialize on OS disk-sync
+// barriers. Production code must use Open.
+func OpenForTest(ctx context.Context, root string) (*Store, error) {
+	return openWithPragmas(ctx, root, embedded, testHooks{}, testPragmas)
+}
+
 func open(ctx context.Context, root string, fsys fs.FS, h testHooks) (*Store, error) {
+	return openWithPragmas(ctx, root, fsys, h, pragmas)
+}
+
+func openWithPragmas(ctx context.Context, root string, fsys fs.FS, h testHooks, p string) (*Store, error) {
 	ms, err := loadMigrations(fsys)
 	if err != nil {
 		return nil, err
@@ -84,7 +104,7 @@ func open(ctx context.Context, root string, fsys fs.FS, h testHooks) (*Store, er
 		return nil, err
 	}
 	f.Close()
-	db, err := newPool(path, false)
+	db, err := newPoolWithPragmas(path, false, p)
 	if err != nil {
 		return nil, err
 	}

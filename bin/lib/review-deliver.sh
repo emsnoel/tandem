@@ -1,7 +1,63 @@
 # shellcheck shell=bash
-# bin/lib/review-deliver.sh: sourced by bin/tandem-review. send_review resets
-# the reviewer and sends the prompt, then says what happened. It reads the
-# script's globals and always exits.
+# bin/lib/review-deliver.sh: sourced by bin/tandem-review. prepare_review_extras
+# builds the resume-scope and baseline-check prompt blocks; send_review resets
+# the reviewer and sends the prompt, then says what happened. Both read the
+# script's globals.
+
+# prepare_review_extras: populate RESUME_SCOPE, CHECKLINE, BASELINE_CHECK,
+# BC_STATUS and BC_EXIT for bin/tandem-review.
+prepare_review_extras() {
+  RESUME_SCOPE=""
+  if [[ -n "${ACCEPTED_TASKS:-}" ]]; then
+    RESUME_SCOPE="
+
+This review is for a resumed run. The archived run already accepted these
+tasks, and their work is already in the working tree:
+
+    ${ACCEPTED_TASKS//,/, }
+
+Judge ONLY the remaining (unaccepted) tasks against the current working tree.
+Do not object to the already-accepted tasks or expect the tree to look as it
+did before they ran."
+  fi
+
+  CHECKLINE=""
+  BASELINE_CHECK=""
+  BC_STATUS=""
+  BC_EXIT=""
+  if [[ "$MODE" == full && -n "$CHECK_COMMAND" ]]; then
+    local bc_args=(--root "$ROOT" --relay "$MAILBOX" --command "$CHECK_COMMAND" --fields)
+    (( DRY_RUN )) && bc_args+=(--cached-only)
+    local bc_rc=0 bc_tree="" bc_log="" bc_summary="" indented=""
+    tandem gate baseline-check "${bc_args[@]}" >"$FIELDS" 2>/dev/null || bc_rc=$?
+    if (( bc_rc == 0 )); then
+      { read_field BC_STATUS; read_field BC_EXIT; read_field bc_tree; read_field bc_log; read_field bc_summary; } <"$FIELDS"
+    fi
+    if [[ "$BC_STATUS" == fresh || "$BC_STATUS" == cached ]]; then
+      CHECKLINE="
+       - do not run the full check command ($CHECK_COMMAND): tandem already
+         ran it against this tree (exit $BC_EXIT, $BC_STATUS; see baseline
+         check below). You may still run a targeted test to probe a specific
+         claim in the plan."
+      indented=$(printf '%s\n' "$bc_summary" | sed 's/^/  /')
+      BASELINE_CHECK="
+
+Baseline check (run by tandem before this review, command: $CHECK_COMMAND):
+  exit: $BC_EXIT ($BC_STATUS)
+$indented"
+    elif [[ "$BC_STATUS" == miss ]]; then
+      CHECKLINE="
+       - do not run the full check command ($CHECK_COMMAND): tandem runs it
+         before sending this review and includes its exit code and summary
+         below. You may still run a targeted test to probe a specific claim."
+    else
+      CHECKLINE="
+       - do not run the full check command ($CHECK_COMMAND): tandem could not
+         record a baseline check before this review. You may still run a
+         targeted test to probe a specific claim."
+    fi
+  fi
+}
 
 # send_review: reset the reviewer's conversation, send REVIEW_PROMPT, and exit
 # with the outcome.
@@ -31,6 +87,11 @@ MSG
   IFS=$'\t' read -r _code _msg <<<"$_pres"
   case "$rc" in
     0)
+      # Record the requested plan so tandem-status can distinguish an in-flight
+      # review from a plan that was never sent for review.
+      { mkdir -p "$MAILBOX/reviews" \
+        && printf '%s\n' "$PLAN_ABS" > "$MAILBOX/reviews/in-flight.tmp" \
+        && mv "$MAILBOX/reviews/in-flight.tmp" "$MAILBOX/reviews/in-flight"; } 2>/dev/null || true
       # The reviewer's sidebar label names the plan until its verdict returns.
       activity_set "$TARGET_NAME" "$(with_plan "reviewing " "$PLAN_ABS")" "$TARGET_PANE"
       if [[ "$_code" == queued ]]; then

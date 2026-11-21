@@ -60,3 +60,20 @@ func TestConfigProjectJSONKeepsHTMLCharacters(t *testing.T) {
 		t.Errorf("got %s", out)
 	}
 }
+
+func TestConfigProjectReadsBuilderBlockKind(t *testing.T) {
+	dir := t.TempDir()
+	manifest := `{"builder":{"kind":"claude","model":"claude-sonnet-5-5"}}`
+	if err := os.WriteFile(filepath.Join(dir, ".tandem.json"), []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := captureStdout(t, func() int { return cmdConfig([]string{"project", "--root", dir}) })
+	if !strings.Contains(out, `"builder_kind": "claude"`) {
+		t.Errorf("JSON output missing builder_kind claude:\n%s", out)
+	}
+	fieldsOut := captureStdout(t, func() int { return cmdConfig([]string{"project", "--root", dir, "--fields"}) })
+	parts := strings.Split(fieldsOut, "\x00")
+	if len(parts) < 5 || parts[4] != "claude" {
+		t.Errorf("fields[4] = %q, want claude (all: %q)", parts[4], parts)
+	}
+}

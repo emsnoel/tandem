@@ -774,3 +774,32 @@ func TestShareContextFlagIsGone(t *testing.T) {
 		t.Errorf("exit %d, want usage %d: %s", rc, exitcode.Usage, errOut)
 	}
 }
+
+// Issue #102: a Claude pane whose turn ended with a background shell still
+// running reads idle to Herdr. ObserveAgent must report it as running (not
+// completed) so silence detection and pane review do not treat it as settled,
+// and deliver must refuse to type into it.
+func TestClaudeBackgroundTaskIsObservedAsRunningAndRefusesDeliver(t *testing.T) {
+	bgScreen := screenFixture(t, "claude-background-shell.txt")
+	p := newPane("idle")
+	p.kind = "claude"
+	d := p.deps()
+	d.screen = func(string) (string, error) { return bgScreen, nil }
+
+	tr := newHerdrTransport(transportSpec{Builder: "builder", Kind: "claude"}, d)
+	obs, err := tr.ObserveAgent(context.Background(), "builder")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if obs.State != runner.ObsRunning {
+		t.Fatalf("ObserveAgent state = %v, want ObsRunning while background shell is running", obs.State)
+	}
+
+	res := deliverPrompt(d, deliverReq{name: "builder", text: "next task"}, deliverPolicy{settled: true, reset: true, confirm: true})
+	if res.outcome != sendRefused || res.code != "agent_busy" {
+		t.Fatalf("deliver outcome = %v code = %q, want sendRefused/agent_busy", res.outcome, res.code)
+	}
+	if len(p.prompts) != 0 || p.resets != 0 {
+		t.Errorf("prompts=%v resets=%d, want neither typed into background work", p.prompts, p.resets)
+	}
+}

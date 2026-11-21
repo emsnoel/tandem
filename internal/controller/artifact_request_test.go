@@ -61,6 +61,7 @@ func (e *cenv) otherProject() (attemptID string, packet string) {
 }
 
 func TestArtifactReadRejectsOtherProject(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	att := e.current("task-1")
@@ -96,6 +97,7 @@ func TestArtifactReadRejectsOtherProject(t *testing.T) {
 }
 
 func TestArtifactReadServesWhatTheAttemptOwns(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	att := e.current("task-1")
@@ -116,6 +118,7 @@ func TestArtifactReadServesWhatTheAttemptOwns(t *testing.T) {
 }
 
 func TestArtifactReadChunksAndCaps(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	att := e.current("task-1")
@@ -162,6 +165,7 @@ func TestArtifactReadChunksAndCaps(t *testing.T) {
 }
 
 func TestArtifactReadDistinguishesTextFromBinary(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	att := e.current("task-1")
@@ -197,6 +201,7 @@ func TestArtifactReadDistinguishesTextFromBinary(t *testing.T) {
 }
 
 func TestArtifactReadAuthorizesMemoryThroughThePersistedManifest(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	scope := []string{"internal/state"}
@@ -216,6 +221,7 @@ func TestArtifactReadAuthorizesMemoryThroughThePersistedManifest(t *testing.T) {
 }
 
 func TestArtifactReadReachesAFactLeftOutForBudget(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	// A limit a whole fact cannot fit beside the task: an entry holds at most
 	// 8192 bytes, so under the default limit every single fact fits.
@@ -244,6 +250,7 @@ func TestArtifactReadReachesAFactLeftOutForBudget(t *testing.T) {
 }
 
 func TestContextExplainUsesPersistedManifest(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	scope := []string{"internal/state"}
@@ -332,6 +339,7 @@ func readResponse(t *testing.T, path string) ArtifactResponse {
 }
 
 func TestArtifactSandboxReadUsesMailbox(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	e.tick()
@@ -377,6 +385,7 @@ func TestArtifactSandboxReadUsesMailbox(t *testing.T) {
 }
 
 func TestArtifactRequestsAreHeldToTheBuilderIdentity(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	e.tick()

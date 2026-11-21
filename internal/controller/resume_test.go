@@ -80,6 +80,7 @@ func (e *cenv) resume(from string) (string, error) {
 }
 
 func TestResumeStartsAtTheTaskTheRunStoppedOn(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	first := e.acceptTask(1)
@@ -129,6 +130,7 @@ func TestResumeStartsAtTheTaskTheRunStoppedOn(t *testing.T) {
 }
 
 func TestResumeCarriesTheOpenFindingsOfATaskUnderRepair(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	att := e.buildTask(1)
@@ -157,6 +159,7 @@ func TestResumeCarriesTheOpenFindingsOfATaskUnderRepair(t *testing.T) {
 }
 
 func TestResumeRefusesWhatItCannotCarry(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	if _, err := e.resume(ResumeLatest); !errors.Is(err, ErrCannotResume) || !strings.Contains(err.Error(), "no archived run") {
 		t.Fatalf("no archived run: %v", err)
@@ -196,6 +199,7 @@ func TestResumeRefusesWhatItCannotCarry(t *testing.T) {
 }
 
 func TestResumeRefusesARunWhoseEvidenceNoLongerHolds(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	first := e.acceptTask(1)

@@ -12,6 +12,7 @@ import (
 // a large cached context many times goes on to its review. A task that adds
 // as much fresh input stops before it, and the pause note names both figures.
 func TestBudgetCountsCacheReadsAtATenth(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name           string
 		input, cached  int64

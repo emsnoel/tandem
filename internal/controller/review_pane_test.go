@@ -11,6 +11,7 @@ import (
 )
 
 func TestLastReviewObjectFindsTheReplyAmongNoise(t *testing.T) {
+	t.Parallel()
 	const job = "49f1d12fa5479d76940d891b9c6917c4"
 	other := `{"job_id":"00000000000000000000000000000000","status":"passed"}`
 	mine := `{"job_id":"` + job + `","status":"passed","findings":[]}`
@@ -27,6 +28,7 @@ func TestLastReviewObjectFindsTheReplyAmongNoise(t *testing.T) {
 }
 
 func TestLastReviewObjectJoinsALineTheCLIWrapped(t *testing.T) {
+	t.Parallel()
 	const job = "49f1d12fa5479d76940d891b9c6917c4"
 	hash := "d781c704c8d88a05719572136f455c769b360a0106d63cf6a00657202008a0d7"
 	text := "• {\"schema_version\":1,\"job_id\":\"" + job + "\",\"tree_hash\":\"" + hash[:40] + "\n  " + hash[40:] + "\",\"status\":\"passed\",\"findings\":[]}\n  Worked for 2s\n"
@@ -58,6 +60,7 @@ func wrappedReply(job string) (shown, want string) {
 }
 
 func TestLastReviewObjectSkipsTheEchoedPromptForAWrappedReply(t *testing.T) {
+	t.Parallel()
 	job := strings.Repeat("a", 32)
 	shown, want := wrappedReply(job)
 	if got := string(replyIn(t, echoedPane(job, shown), job)); got != want {
@@ -66,6 +69,7 @@ func TestLastReviewObjectSkipsTheEchoedPromptForAWrappedReply(t *testing.T) {
 }
 
 func TestLastReviewObjectSkipsTheEchoedPromptForAnUnwrappedReply(t *testing.T) {
+	t.Parallel()
 	job := strings.Repeat("a", 32)
 	reply := `{"schema_version":1,"job_id":"` + job + `","status":"passed","findings":[]}`
 	if got := string(replyIn(t, echoedPane(job, reply), job)); got != reply {
@@ -74,6 +78,7 @@ func TestLastReviewObjectSkipsTheEchoedPromptForAnUnwrappedReply(t *testing.T) {
 }
 
 func TestLastReviewObjectIgnoresAnEchoedPromptWithoutAReply(t *testing.T) {
+	t.Parallel()
 	job := strings.Repeat("a", 32)
 	if got := replyIn(t, echoedPane(job), job); got != nil {
 		t.Fatalf("the prompt's own example was returned: %q", got)
@@ -81,6 +86,7 @@ func TestLastReviewObjectIgnoresAnEchoedPromptWithoutAReply(t *testing.T) {
 }
 
 func TestLastReviewObjectTakesTheResendOverARejectedReply(t *testing.T) {
+	t.Parallel()
 	job := strings.Repeat("a", 32)
 	rejected := `{"schema_version":1,"job_id":"` + job + `","attempt_id":"` + strings.Repeat("b", 33) + `","status":"passed","findings":[]}`
 	shown, want := wrappedReply(job)
@@ -101,6 +107,7 @@ func replyIn(t *testing.T, text, job string) []byte {
 }
 
 func TestLastReviewObjectReportsABrokenReplyOnlyWhenItIsTheLast(t *testing.T) {
+	t.Parallel()
 	job := strings.Repeat("a", 32)
 	good := `{"schema_version":1,"job_id":"` + job + `","status":"passed","findings":[]}`
 	broken := `{"schema_version":1,"job_id":"` + job + `","status":"failed","findings":[{"message":"it says "no""}]}`
@@ -117,6 +124,7 @@ func TestLastReviewObjectReportsABrokenReplyOnlyWhenItIsTheLast(t *testing.T) {
 }
 
 func TestRunRecordsAWrappedPaneReviewAfterTheEchoedPrompt(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	att := e.toDeliveredReview()
 	result := e.resultFor(att, workflow.ReviewStatusPassed)
@@ -137,6 +145,7 @@ func TestRunRecordsAWrappedPaneReviewAfterTheEchoedPrompt(t *testing.T) {
 }
 
 func TestRunRecordsAPaneReviewItReadsFromTheReviewersPane(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	att := e.toDeliveredReview()
 	raw, _ := json.MarshalIndent(e.resultFor(att, workflow.ReviewStatusPassed), "", "  ")
@@ -157,6 +166,7 @@ func TestRunRecordsAPaneReviewItReadsFromTheReviewersPane(t *testing.T) {
 }
 
 func TestRunLeavesAPaneWithoutAReplyAlone(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	att := e.toDeliveredReview()
 	e.reviewerFinished(att, "reviewer-session")
@@ -188,6 +198,7 @@ func (e *cenv) toDeliveredReview() workflow.Attempt {
 // The reviewer hears why, with the byte the decoder stopped at, in the same
 // tick, and a corrected reply is recorded as written (issue #60).
 func TestRunRejectsAPaneReplyWithUnescapedQuotesAtOnce(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	att := e.toDeliveredReview()
 	e.reviewerFinished(att, "reviewer-session")

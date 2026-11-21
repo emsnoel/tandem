@@ -17,6 +17,7 @@ import (
 // This opt-in provider smoke test verifies that a real sandboxed Codex reviewer
 // can execute the generated command without copying any protocol identifiers.
 func TestLiveCodexReviewHandback(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("TANDEM_LIVE_REVIEW_HANDBACK") != "1" {
 		t.Skip("set TANDEM_LIVE_REVIEW_HANDBACK=1 to run the live Codex workspace-write smoke test")
 	}
