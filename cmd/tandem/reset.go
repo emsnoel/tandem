@@ -54,10 +54,13 @@ var liveResetDeps = resetDeps{
 	},
 	screen: liveScreen,
 	fresh: func(kind string, a *herdr.Agent, since time.Time) (string, bool) {
-		if kind != "copilot" {
-			return "", false
+		switch kind {
+		case "copilot":
+			return copilotFreshSession(controller.DefaultCopilotHome(), a.PaneID, since), true
+		case "agy":
+			return agyFreshSession(paths.AgyHome(), a.PaneID, since), true
 		}
-		return copilotFreshSession(controller.DefaultCopilotHome(), a.PaneID, since), true
+		return "", false
 	},
 	now: time.Now,
 }
@@ -121,7 +124,7 @@ func runReset(d resetDeps, name, root string, timeout time.Duration, dry bool) (
 	}
 	// A reset is proven by change, not time: a moved conversation id ("reset")
 	// or a status event since the command ("sent"). A kind with its own record
-	// (Copilot's process log) is judged by that alone. A dialog the command
+	// (Copilot's or agy's process log) is judged by that alone. A dialog the command
 	// opened holds the new conversation until it is answered, while Herdr may
 	// report idle or a status change, so the screen is read before any of
 	// that counts. Only the kind's own reset dialog is answered, once.
