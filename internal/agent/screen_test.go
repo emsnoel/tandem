@@ -180,3 +180,50 @@ func TestCodexOnlyTheLastLineMarksADialog(t *testing.T) {
 		t.Errorf("an unknown Codex dialog: off=%v why=%q", off, why)
 	}
 }
+
+func TestBusyInBackgroundReadsClaudeFooter(t *testing.T) {
+	for _, c := range []struct {
+		name, file, kind string
+		busy             bool
+		want             string
+	}{
+		{"claude background shell", "claude-background-shell.txt", "claude", true, "1 shell still running"},
+		{"claude background agent", "claude-main-background.txt", "claude", true, "1 agent"},
+		{"codex main", "codex-main.txt", "codex", false, ""},
+		{"copilot main", "copilot-main.txt", "copilot", false, ""},
+		{"agy main", "agy-main-after-turn.txt", "agy", false, ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			b, err := os.ReadFile(filepath.Join("testdata", "screens", c.file))
+			if err != nil {
+				t.Fatal(err)
+			}
+			why, busy := BusyInBackground(c.kind, string(b))
+			if busy != c.busy {
+				t.Fatalf("BusyInBackground(%s) = %v (%q), want %v", c.kind, busy, why, c.busy)
+			}
+			if c.want != "" && !strings.Contains(why, c.want) {
+				t.Errorf("why = %q, want %q", why, c.want)
+			}
+		})
+	}
+
+	// Plural shells and plain idle Claude footer.
+	plural := "────────────────────────────────────\n❯ \n────────────────────────────────────\n  ⏵⏵ bypass permissions on · 3 shells still running\n"
+	if why, busy := BusyInBackground("claude", plural); !busy || why != "3 shells still running" {
+		t.Errorf("plural shells: busy=%v why=%q", busy, why)
+	}
+	idle := "⏺ All done.\n────────────────────────────────────\n❯ \n────────────────────────────────────\n  ⏵⏵ auto mode on (shift+tab to cycle)\n"
+	if why, busy := BusyInBackground("claude", idle); busy {
+		t.Errorf("plain idle Claude read as busy: %q", why)
+	}
+	// A transcript quoting the footer above the input box must not trigger it.
+	quoted := "⏺ Footer showed: · 1 shell still running\n" + idle
+	if why, busy := BusyInBackground("claude", quoted); busy {
+		t.Errorf("quoted footer in transcript read as busy: %q", why)
+	}
+	// Kind-specific: another kind ignores Claude's footer.
+	if why, busy := BusyInBackground("codex", plural); busy {
+		t.Errorf("codex read Claude footer as busy: %q", why)
+	}
+}

@@ -16,6 +16,7 @@ const BuilderFile = "builder.json"
 type BuilderRecord struct {
 	Kind     string `json:"kind"`
 	Autonomy string `json:"autonomy"`
+	Model    string `json:"model,omitempty"`
 	Adopted  bool   `json:"adopted"`
 }
 

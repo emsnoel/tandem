@@ -124,6 +124,7 @@ func (e *cenv) startsAgain() {
 // recover, archive, start again. With a prompt nobody confirmed, the archive's
 // refusal names settle-delivery, which is the only way past it.
 func TestEveryPauseHasAWayOut(t *testing.T) {
+	t.Parallel()
 	for _, code := range PauseCodes() {
 		if code == workflow.PauseStopping {
 			continue // a run mid-stop, covered by the gone-pane tests below
@@ -133,6 +134,7 @@ func TestEveryPauseHasAWayOut(t *testing.T) {
 				continue // this pause means the prompt is open
 			}
 			t.Run(fmt.Sprintf("%s, open prompt %v", code, open), func(t *testing.T) {
+				t.Parallel()
 				e := newCEnv(t)
 				eff := e.seedPause(code, open)
 				e.stopToPaused()
@@ -165,6 +167,7 @@ func TestEveryPauseHasAWayOut(t *testing.T) {
 // writer_unknown holds its lease, so nothing can be settled until a stop has
 // seen the builder quiet and released the writer. The note prints that order.
 func TestWriterUnknownSettlesOnlyAfterTheStop(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	eff := e.seedPause(pauseWriterUnknown, true)
 	if err := e.abandonPrompt(eff.ID); !errors.Is(err, workflow.ErrBusy) || !strings.Contains(err.Error(), "tandem build stop") {
@@ -183,6 +186,7 @@ func TestWriterUnknownSettlesOnlyAfterTheStop(t *testing.T) {
 // acknowledgement waits in the mailbox. One state recover has to be enough,
 // because the note says so.
 func TestWriterUnknownClearsOnOneRecoverOnceTheBuilderAcknowledged(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.seedPause(pauseWriterUnknown, true)
 	e.queueClaimed(e.tasks()[0].ID, workflow.EventBuilderStarted, "{}\n")
@@ -198,6 +202,7 @@ func TestWriterUnknownClearsOnOneRecoverOnceTheBuilderAcknowledged(t *testing.T)
 // the old event and tickStopping never runs to cancel the prompt to the now
 // discontinued pane. settle-delivery is what ends it.
 func TestStopFinishedBeforeTheUpgradeLeavesThroughSettleDelivery(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	_, prompt := e.openReviewPrompt()
 	e.stopAndSettle()
@@ -234,8 +239,10 @@ func TestStopFinishedBeforeTheUpgradeLeavesThroughSettleDelivery(t *testing.T) {
 // so settle-delivery cannot end it. The way out is to bring the agent back. Then
 // an open prompt leaves through settle-delivery like any other.
 func TestGoneBuilderPaneLeavesAStopThroughTandemPair(t *testing.T) {
+	t.Parallel()
 	for _, open := range []bool{false, true} {
 		t.Run(fmt.Sprintf("open prompt %v", open), func(t *testing.T) {
+			t.Parallel()
 			e := newCEnv(t)
 			eff := e.seedPause(pauseAgentExited, open)
 			e.tr.sendErr = cancelUndeliverable

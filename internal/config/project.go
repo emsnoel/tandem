@@ -57,6 +57,16 @@ func ResolveProject(root, manifest string) Project {
 				*dst = v
 			}
 		}
+		if b := raw["builder"]; len(b) > 0 {
+			var blk struct {
+				Kind string `json:"kind"`
+			}
+			if json.Unmarshal(b, &blk) == nil {
+				if v := strings.TrimRight(blk.Kind, "\n"); v != "" {
+					p.BuilderKind = v
+				}
+			}
+		}
 		p.ReviewDelivery = str("review_delivery")
 		p.AcceptancePolicy, p.Collaboration = str("acceptance_policy"), str("collaboration")
 		// Only a number replaces the default, so a typo cannot turn the budget off.

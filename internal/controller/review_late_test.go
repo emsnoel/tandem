@@ -26,6 +26,7 @@ func (e *cenv) pausedByAnUnansweredReview() workflow.Attempt {
 // A recorded result answers the prompt a review_unknown pause waits on, however
 // late, so it clears that pause and the next tick accepts the task.
 func TestAReviewRecordedAfterTheWindowClearsItsPause(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	att := e.pausedByAnUnansweredReview()
 
@@ -43,6 +44,7 @@ func TestAReviewRecordedAfterTheWindowClearsItsPause(t *testing.T) {
 
 // A review waiver overrules the review the pause waits on, so it clears too.
 func TestAReviewWaiverClearsAPauseWaitingOnThatReview(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	att := e.pausedByAnUnansweredReview()
 
@@ -61,6 +63,7 @@ func TestAReviewWaiverClearsAPauseWaitingOnThatReview(t *testing.T) {
 // A waiver of anything but the review leaves a review pause alone: the review
 // it waits on is still owed.
 func TestACheckWaiverLeavesAReviewPause(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.pausedByAnUnansweredReview()
 

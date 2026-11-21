@@ -66,6 +66,7 @@ func (e *cenv) usedRepairs() int {
 // whole task: the stuck attempt's retained edit, a manual change made between
 // the attempts, and the successor's own work.
 func TestRepairWholeTaskDiff(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startInCollaboration()
 	e.bindRecoveryWork("task-1")
@@ -124,6 +125,7 @@ func TestRepairWholeTaskDiff(t *testing.T) {
 // A stuck attempt is not given a submitted snapshot, and its late results
 // cannot accept the successor.
 func TestStuckAttemptKeepsNoFabricatedEvidenceAndCannotAcceptTheSuccessor(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startInCollaboration()
 	e.bindRecoveryWork("task-1")
@@ -151,6 +153,7 @@ func TestStuckAttemptKeepsNoFabricatedEvidenceAndCannotAcceptTheSuccessor(t *tes
 // Asking again, or asking after a restart, finds the same successor and
 // consumes nothing more.
 func TestRepairIsOnceAcrossRetriesAndRestart(t *testing.T) {
+	t.Parallel()
 	e := ownedEnv(t)
 	e.startInCollaboration()
 	e.bindRecoveryWork("task-1")
@@ -190,6 +193,7 @@ func TestRepairIsOnceAcrossRetriesAndRestart(t *testing.T) {
 }
 
 func TestRepairRefusals(t *testing.T) {
+	t.Parallel()
 	t.Run("a builder that may still be writing", func(t *testing.T) {
 		e := newCEnv(t)
 		e.startInCollaboration()
@@ -257,6 +261,7 @@ func TestRepairRefusals(t *testing.T) {
 
 // A stop placed after the successor exists still prevents its dispatch.
 func TestRepairStopAfterAdmissionPreventsNewWork(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startEnforced(100000)
 	e.tickUntilSent(1)

@@ -15,8 +15,8 @@ import (
 )
 
 // cmdRecordBuilder resolves the builder as `config resolve` does and writes
-// builder.json in --relay, unless --dry-run. It prints kind, autonomy and the
-// record's JSON as NUL fields. An empty kind or autonomy exits
+// builder.json in --relay, unless --dry-run. It prints kind, autonomy, model
+// and the record's JSON as NUL fields. An empty kind or autonomy exits
 // BuilderUnresolved with nothing printed.
 func cmdRecordBuilder(args []string) int {
 	fs := flag.NewFlagSet("config record-builder", flag.ContinueOnError)
@@ -36,7 +36,7 @@ func cmdRecordBuilder(args []string) int {
 	if *adopted != "" {
 		r = r.MarkAdopted(*adopted)
 	}
-	rec := config.BuilderRecord{Kind: r.Kind.Value, Autonomy: r.Autonomy.Value, Adopted: *adopted != ""}
+	rec := config.BuilderRecord{Kind: r.Kind.Value, Autonomy: r.Autonomy.Value, Model: r.Model.Value, Adopted: *adopted != ""}
 	if strings.TrimSpace(rec.Kind) == "" || strings.TrimSpace(rec.Autonomy) == "" {
 		return exitcode.BuilderUnresolved
 	}
@@ -46,7 +46,7 @@ func cmdRecordBuilder(args []string) int {
 		fmt.Fprintf(os.Stderr, "tandem: %s\n", recordRefusal(configured, *adopted, filepath.Base(paths.Manifest(l.Root))))
 		return exitcode.NarrowingRefused
 	}
-	return printRecord(rec, *dryRun, func() error { return config.WriteBuilder(*relay, rec) }, rec.Kind, rec.Autonomy)
+	return printRecord(rec, *dryRun, func() error { return config.WriteBuilder(*relay, rec) }, rec.Kind, rec.Autonomy, rec.Model)
 }
 
 // recordRefusal says why the builder cannot be recorded: the kind tandem asked

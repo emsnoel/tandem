@@ -99,6 +99,7 @@ func (r *reviewEnv) candidate(t *testing.T) (state.ReviewCandidate, bool) {
 const resultJSON = "{\"schema_version\":1,\"status\":\"passed\",\"findings\":[]}\n"
 
 func TestReviewMailboxKindsByProtocolVersion(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		version   int
 		kind      string
@@ -126,6 +127,7 @@ func TestReviewMailboxKindsByProtocolVersion(t *testing.T) {
 }
 
 func TestReviewMailboxSubmissionStagesACandidateAndAcceptsNothing(t *testing.T) {
+	t.Parallel()
 	r := newReviewEnv(t)
 	eventsBefore, effectsBefore, implBefore, _ := r.counts(t)
 	rec, err := IngestMailbox(ctx, r.deps, r.msg(t, "review_result", resultJSON, nil))
@@ -175,6 +177,7 @@ func TestReviewMailboxSubmissionStagesACandidateAndAcceptsNothing(t *testing.T) 
 }
 
 func TestReviewMailboxBindingsAreChecked(t *testing.T) {
+	t.Parallel()
 	cases := map[string]struct {
 		mutate func(*Envelope)
 		want   string
@@ -210,6 +213,7 @@ func TestReviewMailboxBindingsAreChecked(t *testing.T) {
 // The effect must ask for the job the message names. A prompt effect that was
 // never bound, or was bound to another reviewer job, cannot carry a result.
 func TestReviewMailboxEffectMustBeBoundToTheNamedJob(t *testing.T) {
+	t.Parallel()
 	r := newReviewEnv(t)
 	db, _ := sql.Open("sqlite", "file:"+filepath.Join(r.stRoot, "state.sqlite")+"?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)")
 	defer db.Close()
@@ -247,6 +251,7 @@ func TestReviewMailboxEffectMustBeBoundToTheNamedJob(t *testing.T) {
 // an independent verification, and a verification prompt cannot carry a
 // builder review, even when the job and effect are otherwise bound together.
 func TestReviewMailboxStageMustMatchItsPromptKind(t *testing.T) {
+	t.Parallel()
 	r := newReviewEnv(t)
 	db, _ := sql.Open("sqlite", "file:"+filepath.Join(r.stRoot, "state.sqlite")+"?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)")
 	defer db.Close()
@@ -275,6 +280,7 @@ func TestReviewMailboxStageMustMatchItsPromptKind(t *testing.T) {
 }
 
 func TestReviewMailboxStaleAttemptAndUnregisteredStageAreRejected(t *testing.T) {
+	t.Parallel()
 	r := newReviewEnv(t)
 	db, _ := sql.Open("sqlite", "file:"+filepath.Join(r.stRoot, "state.sqlite")+"?_pragma=busy_timeout(5000)")
 	defer db.Close()
@@ -298,6 +304,7 @@ func TestReviewMailboxStaleAttemptAndUnregisteredStageAreRejected(t *testing.T) 
 }
 
 func TestReviewMailboxRunMustHaveOptedIn(t *testing.T) {
+	t.Parallel()
 	r := newReviewEnv(t)
 	for _, protocol := range []int{0, 2} {
 		r.deps.ReviewProtocol = protocol
@@ -311,6 +318,7 @@ func TestReviewMailboxRunMustHaveOptedIn(t *testing.T) {
 }
 
 func TestReviewMailboxStartAndResultInEitherOrder(t *testing.T) {
+	t.Parallel()
 	for _, startFirst := range []bool{true, false} {
 		r := newReviewEnv(t)
 		r.deps.ReviewDeadline = 90 * time.Second
@@ -346,6 +354,7 @@ func TestReviewMailboxStartAndResultInEitherOrder(t *testing.T) {
 }
 
 func TestReviewMailboxStartIsCheckedAgainstTheTransport(t *testing.T) {
+	t.Parallel()
 	r := newReviewEnv(t)
 	r.deps.ObserveSession = func(_ context.Context, id string) string {
 		if id == r.reff {
@@ -380,6 +389,7 @@ func TestReviewMailboxStartIsCheckedAgainstTheTransport(t *testing.T) {
 }
 
 func TestReviewMailboxMalformedAndOverlargeResultsStageNothing(t *testing.T) {
+	t.Parallel()
 	big := "{\"findings\":\"" + strings.Repeat("x", MaxPayloadBytes) + "\"}"
 	for name, tc := range map[string]struct{ payload, want string }{
 		"not json":      {"the review is fine", "malformed_result"},
@@ -401,6 +411,7 @@ func TestReviewMailboxMalformedAndOverlargeResultsStageNothing(t *testing.T) {
 }
 
 func TestReviewMailboxCrashAfterReceiptReplaysIdempotently(t *testing.T) {
+	t.Parallel()
 	r := newReviewEnv(t)
 	claimed := filepath.Join(r.dir, "q", "result.json.taken")
 	if err := os.WriteFile(claimed, r.msg(t, "review_result", resultJSON, nil), 0o644); err != nil {
@@ -431,6 +442,7 @@ func TestReviewMailboxCrashAfterReceiptReplaysIdempotently(t *testing.T) {
 }
 
 func TestReviewMailboxInvalidEnvelopeIsQuarantined(t *testing.T) {
+	t.Parallel()
 	r := newReviewEnv(t)
 	claimed := filepath.Join(r.dir, "q", "bad.json.taken")
 	if err := os.WriteFile(claimed, r.msg(t, "review_result", resultJSON, func(en *Envelope) { en.Nonce = hex32(999) }), 0o644); err != nil {
@@ -446,6 +458,7 @@ func TestReviewMailboxInvalidEnvelopeIsQuarantined(t *testing.T) {
 }
 
 func TestReviewMailboxStagedBytesSurviveGC(t *testing.T) {
+	t.Parallel()
 	r := newReviewEnv(t)
 	if _, err := IngestMailbox(ctx, r.deps, r.msg(t, "review_result", resultJSON, nil)); err != nil {
 		t.Fatal(err)
@@ -479,6 +492,7 @@ func TestReviewMailboxStagedBytesSurviveGC(t *testing.T) {
 // only for a run that opted in. A staged result accepts nothing, however many
 // ticks follow it.
 func TestReviewMailboxThroughTheController(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startReviewHandback()
 	att := e.toReview("task-1", 1)
@@ -514,6 +528,7 @@ func TestReviewMailboxThroughTheController(t *testing.T) {
 }
 
 func TestReviewMailboxRunWithoutOptInRegistersNothing(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	att := e.toReview("task-1", 1)
@@ -533,6 +548,7 @@ func TestReviewMailboxRunWithoutOptInRegistersNothing(t *testing.T) {
 }
 
 func TestReviewMailboxStartOptionsAreValidated(t *testing.T) {
+	t.Parallel()
 	for name, req := range map[string]StartRequest{
 		"mailbox without protocol 3":      {ReviewDelivery: "mailbox", Collaboration: testCollab, AcceptancePolicyPath: "p.json"},
 		"mailbox without a collaboration": {ReviewDelivery: "mailbox", ReviewProtocol: 3, AcceptancePolicyPath: "p.json"},

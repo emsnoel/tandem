@@ -189,6 +189,10 @@ func deliverPrompt(d herdrDeps, r deliverReq, p deliverPolicy) deliverResult {
 		return declined("agent_blocked", "%s is at a dialog, where a prompt would land; nothing was typed", name)
 	case p.settled && !agent.Settled(st):
 		return declined("agent_busy", "%s is %s, so a prompt typed now would land in a running turn; nothing was typed", name, st)
+	case p.settled:
+		if why, busy := busyInBackground(d.screen, a.Kind, name); busy {
+			return declined("agent_busy", "%s still has %s, so a prompt typed now would land in unfinished work; nothing was typed", name, why)
+		}
 	}
 	// A pane showing a subagent's screen, or a picker, reads idle too, and
 	// what is typed there misses the conversation. It gets what is left
@@ -222,6 +226,8 @@ func deliverPrompt(d herdrDeps, r deliverReq, p deliverPolicy) deliverResult {
 		}
 		if st := a.StatusString(); !agent.Settled(st) {
 			return declined("agent_busy", "%s is %s after its reset", name, st)
+		} else if why, busy := busyInBackground(d.screen, a.Kind, name); busy {
+			return declined("agent_busy", "%s still has %s after its reset", name, why)
 		}
 	}
 

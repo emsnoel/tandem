@@ -23,6 +23,7 @@ func (e *cenv) submit(taskID string, n int) workflow.Attempt {
 // its prompt. When that attempt passes, the task is accepted and the run never
 // pauses.
 func TestAFailedCheckGoesBackToTheBuilderAsARepair(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	e.chk.exit = 1
@@ -80,6 +81,7 @@ func TestAFailedCheckGoesBackToTheBuilderAsARepair(t *testing.T) {
 // A check that keeps failing uses the task's repairs like a reviewer's
 // requests for changes do, and then the run pauses with check_failed.
 func TestAFailedCheckPausesOnlyWhenTheRepairsAreUsedUp(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	e.chk.exit = 1

@@ -45,6 +45,7 @@ func (e *cenv) textOf(d runner.Delivery) string {
 // once within the remind window, and tells the planner when it is still idle a
 // remind window after that.
 func TestIdleBuilderIsRemindedThenThePlannerIsTold(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	eff := e.startedBuilder(runner.ObsCompleted)
 	e.watch(RemindWindow - time.Minute)
@@ -87,6 +88,7 @@ func TestIdleBuilderIsRemindedThenThePlannerIsTold(t *testing.T) {
 // A builder still working, or one that answers the reminder by working on, is
 // never paused by the reminder's window.
 func TestWorkingBuilderIsNotReminded(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startedBuilder(runner.ObsRunning)
 	e.watch(2 * SilenceWindow)
@@ -99,6 +101,7 @@ func TestWorkingBuilderIsNotReminded(t *testing.T) {
 // A pane idle for less than the window, as between two tool calls, is not
 // reminded: the clock restarts once the pane works again.
 func TestBriefIdleIsNotReminded(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	eff := e.startedBuilder(runner.ObsCompleted)
 	for i := 0; i < 5; i++ {
@@ -116,6 +119,7 @@ func TestBriefIdleIsNotReminded(t *testing.T) {
 // A handback that is queued but cannot apply yet is not a missing handback, so
 // the builder is not asked for another. The silence window still applies.
 func TestQueuedHandbackIsNotReminded(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startedBuilder(runner.ObsCompleted)
 	run, cfg, err := e.c.load(ctx, e.runID)
@@ -138,6 +142,7 @@ func TestQueuedHandbackIsNotReminded(t *testing.T) {
 // A reminder that could not be typed is not typed again: the tick that tried
 // reports it, and the planner hears of the silence a remind window later.
 func TestAReminderIsTriedOnce(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startedBuilder(runner.ObsCompleted)
 	e.tr.sendErr = func(d runner.Delivery) error {
@@ -167,6 +172,7 @@ func TestAReminderIsTriedOnce(t *testing.T) {
 
 // A repair attempt is a new attempt, so its builder can be reminded too.
 func TestRepairAttemptIsRemindedAgain(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	task := e.tasks()[0]

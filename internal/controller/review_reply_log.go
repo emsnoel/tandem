@@ -33,8 +33,9 @@ type ReplyReader interface {
 	AgentReplies(ctx context.Context, kind, session, marker string, from, to time.Time) (string, error)
 }
 
-// AgentReplies reads Codex, Claude and Copilot logs. Herdr names only Claude
-// conversations; a Codex or Copilot one is found by marker in its prompts.
+// AgentReplies reads Codex, Claude, Copilot and agy logs. Herdr names Claude
+// and agy conversations; a Codex, Copilot or unnamed agy one is found by marker
+// in its prompts.
 func (a AgentUsageSource) AgentReplies(ctx context.Context, kind, session, marker string, from, to time.Time) (string, error) {
 	switch kind {
 	case "codex":
@@ -66,8 +67,27 @@ func (a AgentUsageSource) AgentReplies(ctx context.Context, kind, session, marke
 			return "", err
 		}
 		return readReplies(copilotEvents(a.CopilotHome, s), copilotReplies)
+	case "agy":
+		if session == "" {
+			s, err := a.SessionWith(ctx, kind, marker, from, to)
+			if err != nil || s == "" {
+				return "", err
+			}
+			session = s
+		}
+		if !agySessionID.MatchString(session) || a.AgyHome == "" {
+			return "", nil
+		}
+		path := agyConversationDB(a.AgyHome, session)
+		if _, err := os.Stat(path); err != nil {
+			if os.IsNotExist(err) {
+				return "", nil
+			}
+			return "", err
+		}
+		return agyReplies(path)
 	}
-	return "", fmt.Errorf("%w: replies are read from Codex, Claude and Copilot logs only, not %s", workflow.ErrUnsupported, kind)
+	return "", fmt.Errorf("%w: replies are read from Codex, Claude, Copilot and agy logs only, not %s", workflow.ErrUnsupported, kind)
 }
 
 func readReplies(path string, parse func(io.Reader) (string, error)) (string, error) {

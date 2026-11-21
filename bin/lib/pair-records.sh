@@ -62,12 +62,12 @@ record_builder() {
     33) die "the builder resolved with no kind or no autonomy, so the review gate would refuse every review. Check the builder settings in .tandem.json." ;;
     *) die "could not record the builder identity${IDENTITY_MAILBOX:+ in $IDENTITY_MAILBOX}." ;;
   esac
-  { IFS= read -r -d '' _kind; IFS= read -r -d '' _autonomy; IFS= read -r -d '' IDENTITY; } < "$FIELDS" || true
+  { IFS= read -r -d '' _kind; IFS= read -r -d '' _autonomy; IFS= read -r -d '' _model; IFS= read -r -d '' IDENTITY; } < "$FIELDS" || true
 
   if (( DRY_RUN )); then
     printf '  [dry-run] would record builder identity: %s\n' "$IDENTITY"
   else
-    info "recorded builder identity: $_kind/$_autonomy"
+    info "recorded builder identity: $_kind/$_autonomy${_model:+ on $_model}"
   fi
 }
 

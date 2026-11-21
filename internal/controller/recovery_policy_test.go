@@ -20,6 +20,7 @@ const goodRecoveryPolicy = `{
 }`
 
 func TestRecoveryAllowlist(t *testing.T) {
+	t.Parallel()
 	for _, kind := range []string{"unknown", "infra", "missing_prerequisite", "external_service", "delivery_unknown", "stuck", "review_failed"} {
 		if automaticRepairEligible(kind, true, true) {
 			t.Fatalf("allowed %s", kind)
@@ -36,6 +37,7 @@ func TestRecoveryAllowlist(t *testing.T) {
 }
 
 func TestRecoveryPolicyRefusesEveryLoosening(t *testing.T) {
+	t.Parallel()
 	edit := func(old, new string) string {
 		if !strings.Contains(goodRecoveryPolicy, old) {
 			t.Fatalf("fixture has no %q", old)
@@ -119,6 +121,7 @@ func (e *cenv) startRecoveryWith(prepare func()) {
 }
 
 func TestRecoveryStartNeedsACollaborationAndAValidPolicy(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	req := e.startRequest(func(r *StartRequest) { r.RecoveryPolicyPath = e.recoveryPolicyPath(goodRecoveryPolicy) })
 	if _, err := e.c.Start(ctx, req); err == nil {
@@ -146,6 +149,7 @@ func TestRecoveryStartNeedsACollaborationAndAValidPolicy(t *testing.T) {
 // and a failed check takes the default repair path with no admission and no
 // incident.
 func TestRecoveryFlagAbsentPreservesBehavior(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startInCollaboration()
 	e.bindRecoveryWork("task-1")
@@ -179,6 +183,7 @@ func TestRecoveryFlagAbsentPreservesBehavior(t *testing.T) {
 }
 
 func TestRecoveryFlagAbsentKeepsTheReviewDrivenRepair(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startInCollaboration()
 	e.bindRecoveryWork("task-1")
@@ -197,6 +202,7 @@ func TestRecoveryFlagAbsentKeepsTheReviewDrivenRepair(t *testing.T) {
 // A recovery run binds each of its tasks to its own work and allowance, with no
 // help from a person. Starting it binds nothing outside the collaboration.
 func TestRecoveryStartBindsEveryTaskToItsOwnAllowance(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startRecovery(true)
 	tasks := e.tasks()
@@ -220,6 +226,7 @@ func TestRecoveryStartBindsEveryTaskToItsOwnAllowance(t *testing.T) {
 // A replacement run of the same plan binds to the work, and the spent
 // allowance, of the run before it; starting again mints nothing.
 func TestRecoveryReplacementRunInheritsTheSpentAllowance(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startRecoveryWith(func() {
 		if err := e.st.CreateLogicalWork(ctx, state.WorkRequest{CollaborationID: testCollab, ID: recoveryWork, BudgetGroupID: recoveryGroup, Alias: "task-1"}); err != nil {
@@ -245,6 +252,7 @@ func TestRecoveryReplacementRunInheritsTheSpentAllowance(t *testing.T) {
 // Work that has split into pieces is not mapped for the task: minting a fresh
 // allowance would reset a spent one.
 func TestRecoveryAmbiguousWorkIsLeftUnboundNotReallocated(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startRecoveryWith(func() {
 		if err := e.st.CreateLogicalWork(ctx, state.WorkRequest{CollaborationID: testCollab, ID: recoveryWork, BudgetGroupID: recoveryGroup, Alias: "task-1"}); err != nil {
@@ -269,6 +277,7 @@ func TestRecoveryAmbiguousWorkIsLeftUnboundNotReallocated(t *testing.T) {
 
 // Without the policy nothing is bound.
 func TestRecoveryFlagAbsentBindsNoWork(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startInCollaboration()
 	if n := e.countWhere(`SELECT count(*) FROM logical_work`) + e.countWhere(`SELECT count(*) FROM work_task_bindings`); n != 0 {

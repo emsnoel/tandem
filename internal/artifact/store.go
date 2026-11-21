@@ -67,6 +67,7 @@ type Store struct {
 	objects string // <root>/artifacts/sha256
 	tmp     string // <root>/artifacts/tmp, outside the hash namespace
 	hooks   hooks
+	noSync  bool
 
 	// MediaTypes names an artifact's media type for Read. The type belongs to
 	// the database row, so the state layer supplies it; the default for an
@@ -85,6 +86,18 @@ func Open(root string) (*Store, error) {
 			return nil, err
 		}
 	}
+	return s, nil
+}
+
+// OpenForTest prepares the artifact store like Open, but skips fsync calls so
+// parallel tests in temporary directories do not serialize on OS disk-sync
+// barriers. Production code must use Open.
+func OpenForTest(root string) (*Store, error) {
+	s, err := Open(root)
+	if err != nil {
+		return nil, err
+	}
+	s.noSync = true
 	return s, nil
 }
 
@@ -112,8 +125,10 @@ func (s *Store) Put(ctx context.Context, r io.Reader) (string, error) {
 	if _, err := io.Copy(io.MultiWriter(f, h), &ctxReader{ctx, r}); err != nil {
 		return abandon(err)
 	}
-	if err := f.Sync(); err != nil {
-		return abandon(err)
+	if !s.noSync {
+		if err := f.Sync(); err != nil {
+			return abandon(err)
+		}
 	}
 	if err := f.Close(); err != nil {
 		return abandon(err)
@@ -151,9 +166,11 @@ func (s *Store) Put(ctx context.Context, r io.Reader) (string, error) {
 	}
 	// Make the rename and any new shard directory durable before the hash is
 	// handed to a caller that will record it.
-	for _, dir := range []string{shard, s.objects} {
-		if err := syncDir(dir); err != nil {
-			return "", err
+	if !s.noSync {
+		for _, dir := range []string{shard, s.objects} {
+			if err := syncDir(dir); err != nil {
+				return "", err
+			}
 		}
 	}
 	return hash, nil

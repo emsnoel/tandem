@@ -15,6 +15,7 @@ import (
 // Each CLI's log gives back what the agent replied, whole; prompts are not
 // replies. Codex and Copilot conversations are found by the prompt's marker.
 func TestAgentRepliesReadsEachKindsLog(t *testing.T) {
+	t.Parallel()
 	const marker = "49f1d12fa5479d76940d891b9c6917c4"
 	now := time.Now()
 	from := now.Add(-time.Hour)
@@ -33,7 +34,13 @@ func TestAgentRepliesReadsEachKindsLog(t *testing.T) {
 		copilotStart(copilotSession), copilotUserLine(t, "job "+marker),
 		`{"type":"assistant.message","data":{"content":""}}`,
 		`{"type":"assistant.message","data":{"content":"copilot says"}}`)
-	src := AgentUsageSource{CodexSessions: codex, ClaudeProjects: claude, CopilotHome: copilot}
+	agy := t.TempDir()
+	writeAgyDB(t, agy, agySession, []agyStepRow{
+		{stepType: agyStepUserInput, payload: agyUserStepBlob("job " + marker)},
+		{stepType: agyStepPlannerResponse, payload: agyPlannerStepBlob("hm", "", "")},
+		{stepType: agyStepPlannerResponse, payload: agyPlannerStepBlob("", "agy says", "agy says")},
+	}, nil)
+	src := AgentUsageSource{CodexSessions: codex, ClaudeProjects: claude, CopilotHome: copilot, AgyHome: agy}
 
 	for _, c := range []struct{ kind, session, want string }{
 		{"codex", "", "codex says\n"},
@@ -41,6 +48,8 @@ func TestAgentRepliesReadsEachKindsLog(t *testing.T) {
 		{"claude", "c0ffee-1", "claude says\n"},
 		{"claude", "", ""},
 		{"copilot", "launch-id", "copilot says\n"},
+		{"agy", agySession, "agy says\n"},
+		{"agy", "", "agy says\n"},
 	} {
 		got, err := src.AgentReplies(context.Background(), c.kind, c.session, marker, from, now)
 		if err != nil || got != c.want {
@@ -56,6 +65,7 @@ func TestAgentRepliesReadsEachKindsLog(t *testing.T) {
 // and the hashes (issue #86). The reply is in the conversation's log, whole,
 // and is recorded from there.
 func TestRunRecordsAReplyFromTheReviewersLogWhenThePaneShowsOnlyItsEnd(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	claude := t.TempDir()
 	e.usage = AgentUsageSource{ClaudeProjects: claude}

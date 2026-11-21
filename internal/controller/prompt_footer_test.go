@@ -14,6 +14,7 @@ const (
 // A builder that polls a 20-second check 21 times spends 3.0M input tokens
 // (F19), so the footer says how to wait whether or not the run has a check.
 func TestTheTaskFooterSaysHowToWait(t *testing.T) {
+	t.Parallel()
 	for _, check := range []string{"", "make check"} {
 		footer := promptFooter(promptData{Task: 1, CheckCommand: check})
 		if !strings.Contains(footer, waitingRule) {
@@ -26,6 +27,7 @@ func TestTheTaskFooterSaysHowToWait(t *testing.T) {
 }
 
 func TestTheTaskFooterLeavesTheCheckToTandem(t *testing.T) {
+	t.Parallel()
 	footer := promptFooter(promptData{Task: 1, CheckCommand: "make check"})
 	for _, want := range []string{checkIsOurs, leaveTheTest} {
 		if !strings.Contains(footer, want) {
@@ -45,6 +47,7 @@ func TestTheTaskFooterLeavesTheCheckToTandem(t *testing.T) {
 // findings the plan review looks for; a builder that meets one stops instead of
 // improvising.
 func TestTheTaskFooterSaysWhenToStop(t *testing.T) {
+	t.Parallel()
 	footer := promptFooter(promptData{Task: 1})
 	order := []string{
 		"Do the task.",
@@ -73,6 +76,7 @@ func TestTheTaskFooterSaysWhenToStop(t *testing.T) {
 // A builder that hands back from outside the repo found no run (#61), so both
 // handback commands name the run's root.
 func TestTheTaskFooterNamesTheRoot(t *testing.T) {
+	t.Parallel()
 	footer := promptFooter(promptData{Task: 1, Root: "/work/my repo", Run: "r", Attempt: "a", Job: "j", Effect: "e", Nonce: "n"})
 	for _, want := range []string{
 		"tandem-handback --root '/work/my repo' --task 1 --run r --attempt a --job j --effect e --nonce n --started",

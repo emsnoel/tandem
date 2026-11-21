@@ -71,6 +71,7 @@ func (e *cenv) accept(taskID string, n int) {
 }
 
 func TestStartImportsStableIdentitiesAndDependencies(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.setPlan(dagPlan)
 	e.start()
@@ -114,6 +115,7 @@ func TestStartImportsStableIdentitiesAndDependencies(t *testing.T) {
 }
 
 func TestLegacyPlanStartsWithOrdinalIdsAndAChain(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	tasks := e.tasks()
@@ -127,6 +129,7 @@ func TestLegacyPlanStartsWithOrdinalIdsAndAChain(t *testing.T) {
 }
 
 func TestStartRefusesAnInvalidPlanBeforeCreatingAnything(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.setPlan("# P\n\n### Task 1: A\nTask-ID: a\nDepends-On: b\n\nx\n\n### Task 2: B\nTask-ID: b\nDepends-On: a\n\ny\n")
 	_, err := e.c.Start(ctx, e.startRequest(func(r *StartRequest) { r.BuilderSession, r.PlannerSession, r.CheckCommand = "b", "p", "" }))
@@ -142,6 +145,7 @@ func TestStartRefusesAnInvalidPlanBeforeCreatingAnything(t *testing.T) {
 }
 
 func TestDriveStartsTheFirstReadyTaskNotTheFirstListed(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.setPlan(dagPlan)
 	e.start()
@@ -174,6 +178,7 @@ func TestDriveStartsTheFirstReadyTaskNotTheFirstListed(t *testing.T) {
 }
 
 func TestPlanHashChangeRefusesSilentResume(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	e.tick()
@@ -215,6 +220,7 @@ func TestPlanHashChangeRefusesSilentResume(t *testing.T) {
 }
 
 func TestPlanThatCannotBeReadRefusesResume(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	e.tick()
@@ -230,6 +236,7 @@ func TestPlanThatCannotBeReadRefusesResume(t *testing.T) {
 }
 
 func TestEditingThePlanDoesNotStopARunningTick(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	e.tick()
@@ -242,6 +249,7 @@ func TestEditingThePlanDoesNotStopARunningTick(t *testing.T) {
 }
 
 func TestStopStillWorksWhenThePlanChanged(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	e.tick()

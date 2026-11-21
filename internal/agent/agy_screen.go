@@ -28,3 +28,50 @@ func agyOffMain(lines []string) (string, bool) {
 	}
 	return "an agy dialog, where Enter picks a row", true
 }
+
+// agyFreshScreen reports whether lines show agy 1.5.14 at a fresh, empty
+// conversation: the welcome banner at the top, an empty (non-command) input
+// box framed by horizontal rules at the bottom, no dialog or active turn in
+// the footer, and no conversation transcript between the banner and the input.
+func agyFreshScreen(lines []string) bool {
+	if _, off := agyOffMain(lines); off {
+		return false
+	}
+	for _, l := range bottomLines(lines, 2) {
+		if strings.Contains(l, "esc to cancel") {
+			return false
+		}
+	}
+	banner := -1
+	for i, l := range lines {
+		if strings.Contains(l, "Antigravity CLI") {
+			banner = i
+			break
+		}
+	}
+	if banner < 0 {
+		return false
+	}
+	box := -1
+	for i := len(lines) - 2; i > banner; i-- {
+		if strings.HasPrefix(strings.TrimSpace(lines[i]), ">") && isRule(lines[i-1]) && isRule(lines[i+1]) {
+			box = i
+			break
+		}
+	}
+	if box < 0 {
+		return false
+	}
+	// An unsubmitted slash command (such as "> /new") means the input has not cleared.
+	after := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(lines[box]), ">"))
+	if strings.HasPrefix(after, "/") {
+		return false
+	}
+	for i := banner + 1; i < box-1; i++ {
+		t := strings.TrimSpace(lines[i])
+		if isRule(lines[i]) || strings.HasPrefix(t, ">") || strings.HasPrefix(t, "○ ") || strings.HasPrefix(t, "● ") {
+			return false
+		}
+	}
+	return true
+}

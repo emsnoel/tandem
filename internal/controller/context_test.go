@@ -55,6 +55,7 @@ func (e *cenv) packet(att workflow.Attempt) (string, packetManifest) {
 }
 
 func TestBuilderPromptIsThePersistedPacketWithItsManifest(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	att := e.current("task-1")
@@ -79,6 +80,7 @@ func TestBuilderPromptIsThePersistedPacketWithItsManifest(t *testing.T) {
 }
 
 func TestContextTooLargePausesTheRunWithoutAnAttempt(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	run, err := e.c.Start(ctx, e.startRequest(func(r *StartRequest) {
 		r.BuilderSession, r.PlannerSession, r.ContextLimit, r.CheckCommand = "b", "p", 300, ""
@@ -107,6 +109,7 @@ func TestContextTooLargePausesTheRunWithoutAnAttempt(t *testing.T) {
 }
 
 func TestLaterPacketsCarryDecisionsAndLabelClaims(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	scope := []string{"internal/state"}
@@ -131,6 +134,7 @@ func TestLaterPacketsCarryDecisionsAndLabelClaims(t *testing.T) {
 }
 
 func TestRequiredConflictPausesTheRunNamingBothSources(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	scope := []string{"internal/state"}
@@ -160,6 +164,7 @@ func TestRequiredConflictPausesTheRunNamingBothSources(t *testing.T) {
 }
 
 func TestPacketSizeDoesNotGrowWithUnrelatedHistory(t *testing.T) {
+	t.Parallel()
 	plan := "# P\n\n**Goal:** g.\n\n### Task 1: A\nTask-ID: a\n\nDo a.\n\n### Task 2: B\nTask-ID: b\n\nDo b.\n\n### Task 3: C\nTask-ID: c\nDepends-On: a\n\nDo c.\n"
 	size := func(noise int) (int, string) {
 		e := newCEnv(t)
@@ -196,6 +201,7 @@ func TestPacketSizeDoesNotGrowWithUnrelatedHistory(t *testing.T) {
 }
 
 func TestStaleRequiredFactPausesTheRunBeforeDispatch(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	// A required decision bound to content that is not what task-1 produced.
@@ -269,6 +275,7 @@ func (e *cenv) requestChanges(taskID string, n int, findings ...workflow.Finding
 }
 
 func TestRepairCreatesNewAttemptAndRejectsOldEvent(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	start, end := 3, 5
@@ -327,6 +334,7 @@ func TestRepairCreatesNewAttemptAndRejectsOldEvent(t *testing.T) {
 }
 
 func TestRepairNoteIsBoundedWhateverTheReviewerWrote(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	var findings []workflow.Finding
@@ -357,6 +365,7 @@ func TestRepairNoteIsBoundedWhateverTheReviewerWrote(t *testing.T) {
 }
 
 func TestThirdRepairPauses(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	finding := workflow.Finding{Severity: "high", Path: "work1.txt", Disposition: "open", Message: "still wrong"}
@@ -395,6 +404,7 @@ func TestThirdRepairPauses(t *testing.T) {
 }
 
 func TestFreshSessionFailureDoesNotSendTask(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.tr.sendErr = func(d runner.Delivery) error {
 		return runner.NotSent(errors.New("the builder's conversation could not be reset, so the task was not sent"))
@@ -429,6 +439,7 @@ func TestFreshSessionFailureDoesNotSendTask(t *testing.T) {
 }
 
 func TestAllBuilderKindsReceivePacket(t *testing.T) {
+	t.Parallel()
 	type got struct{ prompt, manifest, kind string }
 	var all []got
 	for _, kind := range []string{"codex", "claude", "copilot"} {
@@ -468,6 +479,7 @@ func TestAllBuilderKindsReceivePacket(t *testing.T) {
 }
 
 func TestRestartBetweenPacketAndDeliveryDeliversOnce(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	crash := errors.New("the controller died after persisting the packet")
 	e.c.hooks.afterAttemptCreated = func() error { return crash }

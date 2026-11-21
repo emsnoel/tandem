@@ -94,6 +94,7 @@ func (e *cenv) reviewerJobStates(att workflow.Attempt) []string {
 // A discontinued reviewer can never answer, so neither its open prompt nor the
 // job waiting on it holds the archive.
 func TestStopCancelsADiscontinuedReviewersOpenPrompt(t *testing.T) {
+	t.Parallel()
 	for _, unknown := range []bool{false, true} {
 		e := newCEnv(t)
 		att, prompt := e.openReviewPrompt()
@@ -125,6 +126,7 @@ func TestStopCancelsADiscontinuedReviewersOpenPrompt(t *testing.T) {
 // Scoped by who the delivery was for: a supported reviewer can still answer,
 // even though the builder's kind is discontinued.
 func TestStopLeavesASupportedReviewersOpenPrompt(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	_, prompt := e.openReviewPrompt()
 	e.pinKinds("opencode", "claude")
@@ -175,7 +177,9 @@ func (e *cenv) openPlannerDelivery(kind string, unknown bool) workflow.Effect {
 // A delivery to the planner keeps the nonce rule on every run: the planner's
 // pane is never discontinued.
 func TestStopLeavesEveryDeliveryOfASupportedRun(t *testing.T) {
+	t.Parallel()
 	t.Run("a builder dispatch", func(t *testing.T) {
+		t.Parallel()
 		e := newCEnv(t)
 		e.start()
 		e.tick()
@@ -193,6 +197,7 @@ func TestStopLeavesEveryDeliveryOfASupportedRun(t *testing.T) {
 		for _, kind := range plannerEffects {
 			for _, unknown := range []bool{false, true} {
 				t.Run(fmt.Sprintf("%s, unknown %v, builder %q reviewer %q", kind, unknown, kinds[0], kinds[1]), func(t *testing.T) {
+					t.Parallel()
 					e := newCEnv(t)
 					eff := e.openPlannerDelivery(kind, unknown)
 					want := "delivering"
@@ -219,8 +224,10 @@ func TestStopLeavesEveryDeliveryOfASupportedRun(t *testing.T) {
 // A discontinued run waits for a person. An idle pane must not let a tick spend
 // a repair allowance on it, because tandem could never type the repair.
 func TestDiscontinuedRunSpendsNoRepairAllowance(t *testing.T) {
+	t.Parallel()
 	for _, kinds := range [][2]string{{"opencode", "claude"}, {"codex", "opencode"}} {
 		t.Run(kinds[0]+"/"+kinds[1], func(t *testing.T) {
+			t.Parallel()
 			e := newCEnv(t)
 			// The check failed while the builder's pane was still busy, so an older
 			// tandem left the repair for a later tick and the run paused.

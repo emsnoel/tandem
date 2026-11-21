@@ -88,5 +88,31 @@ OUT=$(TANDEM_FAKE_SOCK_BIN=/usr/bin/true bash -c '. "$1"; fake_socket_start "$2"
 [ "$OUT" = "$(printf '  FAIL fake socket did not start\nrc=1')" ] \
   && ok "a fake socket that never starts is a FAIL line" || nope "fake socket start failure printed: $OUT"
 
+# When a sandbox blocks Unix socket binding (operation not permitted),
+# TANDEM_BUILD_CHECK=1 skips the suite cleanly with exit 0; without it, the
+# check fails and includes the error.
+cat > "$SCRATCH/deny-sock.sh" <<'EOF'
+#!/usr/bin/env bash
+echo "listen unix $1: bind: operation not permitted" >&2
+exit 1
+EOF
+chmod +x "$SCRATCH/deny-sock.sh"
+OUT=$(env -u TANDEM_BUILD_CHECK TANDEM_FAKE_SOCK_BIN="$SCRATCH/deny-sock.sh" bash -c '. "$1"; fake_socket_start "$2" || exit 1; echo ran' _ "$ROOT_DIR/tests/lib/fake-socket.sh" "$SCRATCH" 2>&1); RC=$?
+case "$OUT" in
+  *"  FAIL fake socket did not start (listen unix "*"operation not permitted)"*)
+    [ "$RC" -ne 0 ] && ok "bind permission failure fails outside TANDEM_BUILD_CHECK" || nope "bind permission failure exited 0" ;;
+  *) nope "bind permission failure outside build check printed: $OUT (rc=$RC)" ;;
+esac
+
+OUT=$(TANDEM_BUILD_CHECK=1 TANDEM_FAKE_SOCK_BIN="$SCRATCH/deny-sock.sh" bash -c '. "$1"; fake_socket_start "$2" || exit 1; echo ran' _ "$ROOT_DIR/tests/lib/fake-socket.sh" "$SCRATCH" 2>&1); RC=$?
+case "$OUT" in
+  *"  skip fake Herdr socket blocked by sandbox ("*"operation not permitted)"*)
+    case "$OUT" in
+      *ran*) nope "sandbox skip still ran the suite body: $OUT" ;;
+      *) [ "$RC" -eq 0 ] && ok "bind permission failure skips cleanly under TANDEM_BUILD_CHECK=1" || nope "sandbox skip exited $RC" ;;
+    esac ;;
+  *) nope "bind permission failure under build check printed: $OUT (rc=$RC)" ;;
+esac
+
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

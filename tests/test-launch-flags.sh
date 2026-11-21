@@ -38,6 +38,11 @@ chk  "passes the effort"              "--reasoning-effort high"
 nchk "never passes a codex sandbox"   "--sandbox"
 chk  "auto-approves paths"            "--allow-all-paths"
 
+echo "--- launch flags: copilot with --builder-model (#92) ---"
+run_pair env -- --builder copilot --builder-model claude-sonnet-5.5
+chk  "starts copilot with the model"  "--model claude-sonnet-5.5"
+chk  "records the builder model"      'would record builder identity: {"kind":"copilot","autonomy":"auto","model":"claude-sonnet-5.5","adopted":false}'
+
 echo "--- launch flags: claude ---"
 run_pair env HERDR_BUILDER_KIND=claude HERDR_BUILDER_AUTONOMY=auto HERDR_BUILDER_MODEL=opus
 chk  "starts claude"    "agent start builder --kind claude"

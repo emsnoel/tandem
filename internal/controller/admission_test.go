@@ -70,6 +70,7 @@ func (e *cenv) held() {
 }
 
 func TestAdmissionGatesTheLaunchAndAnAmendmentReopensIt(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startEnforced(50) // less than one launch reserves
 	if err := e.ticks(5); err != nil {
@@ -94,6 +95,7 @@ func TestAdmissionGatesTheLaunchAndAnAmendmentReopensIt(t *testing.T) {
 }
 
 func TestAdmissionStopFirstSendsNothing(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startEnforced(1000)
 	if err := e.st.StopCollaboration(ctx, state.ControlRequest{CollaborationID: enforcedCollab, Actor: "user", Reason: "hold"}); err != nil {
@@ -120,6 +122,7 @@ func TestAdmissionStopFirstSendsNothing(t *testing.T) {
 }
 
 func TestAdmissionReservationReturnsWhenTheSendFailsForGood(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.tr.sendErr = func(runner.Delivery) error { return runner.NotSent(errors.New("the pane is gone")) }
 	e.startEnforced(1000)
@@ -140,6 +143,7 @@ func TestAdmissionReservationReturnsWhenTheSendFailsForGood(t *testing.T) {
 }
 
 func TestAdmissionNotNeededWithoutEnforcement(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startInCollaboration()
 	e.tickUntilSent(1)

@@ -58,3 +58,40 @@ func TestAgyIgnoresOtherKindsMainScreens(t *testing.T) {
 		}
 	}
 }
+
+func TestAgyFreshScreenReadsRealScreens(t *testing.T) {
+	cases := []struct {
+		file string
+		want bool
+	}{
+		{"agy-main-fresh.txt", true},
+		{"agy-main-after-new.txt", true},
+		{"agy-main-after-turn.txt", false},
+		{"agy-working.txt", false},
+		{"agy-trust.txt", false},
+		{"agy-permission.txt", false},
+		{"agy-slash-menu.txt", false},
+		{"claude-main.txt", false},
+		{"codex-main.txt", false},
+		{"copilot-main.txt", false},
+	}
+	for _, c := range cases {
+		t.Run(c.file, func(t *testing.T) {
+			if got := FreshScreen("agy", agyScreen(t, c.file)); got != c.want {
+				t.Errorf("FreshScreen(agy, %s) = %v, want %v", c.file, got, c.want)
+			}
+		})
+	}
+	// An unsubmitted /new sitting in the input box is not a completed reset.
+	unsubmitted := strings.Replace(agyScreen(t, "agy-main-after-new.txt"), "\n>\n", "\n> /new\n", 1)
+	if FreshScreen("agy", unsubmitted) {
+		t.Errorf("unsubmitted /new in input box read as fresh")
+	}
+	// Only agy has a measured FreshScreen check.
+	if FreshScreen("copilot", agyScreen(t, "agy-main-after-new.txt")) {
+		t.Errorf("FreshScreen(copilot, ...) = true, want false")
+	}
+	if FreshScreen("agy", "") {
+		t.Errorf("FreshScreen(agy, empty) = true, want false")
+	}
+}

@@ -12,6 +12,7 @@ import (
 // on a submitted attempt. That record is tandem's own history, not task work,
 // so writing it must not stop the run as source-mutated (issue #91).
 func TestTheQuestionLogDoesNotMutateASubmittedAttempt(t *testing.T) {
+	t.Parallel()
 	for name, excluded := range map[string]bool{
 		"ignored through git's exclude file": true,
 		"not ignored at all":                 false,

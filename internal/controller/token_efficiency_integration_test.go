@@ -50,6 +50,7 @@ func (e *cenv) countWhere(query string, args ...any) int {
 // every stage. Each model launch is admitted once, and the builder and the
 // planner are both registered as counted sources.
 func TestTokenEfficiencyHandbackRunIsAcceptedOnceAcrossRestarts(t *testing.T) {
+	t.Parallel()
 	e := ownedEnv(t)
 	e.startEnforcedHandback(100000)
 	att := e.toReview("task-1", 1)
@@ -94,6 +95,7 @@ func TestTokenEfficiencyHandbackRunIsAcceptedOnceAcrossRestarts(t *testing.T) {
 // task is not accepted, and nothing is dispatched, however often the
 // controller restarts. Resuming applies it once.
 func TestTokenEfficiencyStopDominatesAReadyVerification(t *testing.T) {
+	t.Parallel()
 	e := ownedEnv(t)
 	e.startReviewHandback()
 	att := e.toReview("task-1", 1)
@@ -129,6 +131,7 @@ func TestTokenEfficiencyStopDominatesAReadyVerification(t *testing.T) {
 // The same verification result delivered by many writers at once is staged
 // once, through the real SQLite store.
 func TestTokenEfficiencyConcurrentDeliveriesOfOneResultStageOnce(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startReviewHandback()
 	att := e.toReview("task-1", 1)
@@ -184,6 +187,7 @@ func TestTokenEfficiencyConcurrentDeliveriesOfOneResultStageOnce(t *testing.T) {
 // A run that never opted in behaves as it did before: no verification turn,
 // one review prompt per task, protocol 2 in its pinned configuration.
 func TestTokenEfficiencyOldProtocolRunIsUnchanged(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	e.passTask(1, 0)

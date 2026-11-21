@@ -69,6 +69,7 @@ func TestSilentBuilderPausesTheRun(t *testing.T) {
 }
 
 func TestWorkingBuilderIsNotSilent(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startedBuilder(runner.ObsRunning)
 	e.watch(2 * SilenceWindow)
@@ -111,6 +112,7 @@ func TestNewConversationRestartsTheClock(t *testing.T) {
 }
 
 func TestQueuedHandbackBeatsSilence(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startedBuilder(runner.ObsCompleted)
 	e.watch(SilenceWindow - time.Minute)
@@ -182,6 +184,7 @@ func TestMissingClockRestarts(t *testing.T) {
 }
 
 func TestPendingPromptIsNotSilent(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	e.tick()
@@ -196,6 +199,7 @@ func TestPendingPromptIsNotSilent(t *testing.T) {
 }
 
 func TestUnknownPaneIsNotIdle(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startedBuilder(runner.ObsUnknown)
 	e.watch(2 * SilenceWindow)
@@ -242,6 +246,7 @@ func TestRecoverRestartsTheClock(t *testing.T) {
 }
 
 func TestRepairAttemptGetsTheSameRule(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	task := e.tasks()[0]
@@ -261,6 +266,7 @@ func TestRepairAttemptGetsTheSameRule(t *testing.T) {
 // A reviewer has its own stall check: a settled builder with a review open is
 // not silent.
 func TestSubmittedBuilderIsNotSilent(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	task := e.tasks()[0]

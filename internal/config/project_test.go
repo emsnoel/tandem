@@ -105,3 +105,46 @@ func TestResolveProjectStripsTrailingNewlines(t *testing.T) {
 		t.Errorf("got extra %q, plans %q, check %q", got.PromptExtra, got.PlansDir, got.CheckCommand)
 	}
 }
+
+func TestResolveProjectBuilderBlockKind(t *testing.T) {
+	cases := []struct {
+		name     string
+		manifest string
+		want     string
+	}{
+		{
+			name:     "builder block sets kind",
+			manifest: `{"builder":{"kind":"claude","model":"claude-sonnet-5-5"}}`,
+			want:     "claude",
+		},
+		{
+			name:     "builder.kind wins over legacy builder_kind",
+			manifest: `{"builder_kind":"codex","builder":{"kind":"claude"}}`,
+			want:     "claude",
+		},
+		{
+			name:     "empty builder.kind falls back to legacy builder_kind",
+			manifest: `{"builder_kind":"claude","builder":{"kind":""}}`,
+			want:     "claude",
+		},
+		{
+			name:     "non-object builder falls back to default",
+			manifest: `{"builder":"claude"}`,
+			want:     "codex",
+		},
+		{
+			name:     "builder.kind strips trailing newline",
+			manifest: `{"builder":{"kind":"copilot\n"}}`,
+			want:     "copilot",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := writeFiles(t, map[string]string{".tandem.json": tc.manifest})
+			got := ResolveProject(root, filepath.Join(root, ".tandem.json"))
+			if got.BuilderKind != tc.want {
+				t.Errorf("BuilderKind = %q, want %q", got.BuilderKind, tc.want)
+			}
+		})
+	}
+}

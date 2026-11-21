@@ -73,6 +73,7 @@ func allIn(states []string, want string) bool {
 }
 
 func TestBuilderJobsEndWhenTheirAttemptIsAcceptedOrReplaced(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	e.passTask(1, 1) // one repair: the first attempt is replaced, the second accepted
@@ -89,6 +90,7 @@ func TestBuilderJobsEndWhenTheirAttemptIsAcceptedOrReplaced(t *testing.T) {
 }
 
 func TestAStopThatSettlesCancelsTheBuilderJobItInterrupted(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	e.tick()
@@ -131,6 +133,7 @@ func (e *cenv) reopenBuilderJobs() {
 }
 
 func TestRecoverEndsTheBuilderJobsAnOlderTandemLeftOpen(t *testing.T) {
+	t.Parallel()
 	t.Run("finished", func(t *testing.T) {
 		e := newCEnv(t)
 		e.start()

@@ -2,6 +2,7 @@ package agent
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -237,4 +238,77 @@ func isRule(l string) bool {
 // ruleTitle is the text set into a rule, "" for a plain one.
 func ruleTitle(l string) string {
 	return strings.TrimSpace(strings.Trim(strings.TrimSpace(l), "─"))
+}
+
+// FreshScreen reports whether a pane's screen visibly shows an empty, freshly
+// started or freshly reset conversation waiting at its main prompt. Currently
+// measured for agy, whose /new clears the screen back to its welcome banner
+// and empty input box even when its process log has not flushed or /new ran on
+// an already-fresh prompt.
+func FreshScreen(kind, screen string) bool {
+	if screen == "" {
+		return false
+	}
+	lines := strings.Split(screen, "\n")
+	switch kind {
+	case "agy":
+		return agyFreshScreen(lines)
+	}
+	return false
+}
+
+// BusyInBackground reports whether a pane's screen shows a background task
+// (shell, agent, etc.) still running even though Herdr reports the pane as
+// settled. why describes what is running for a person.
+func BusyInBackground(kind, screen string) (why string, busy bool) {
+	if screen == "" {
+		return "", false
+	}
+	lines := strings.Split(screen, "\n")
+	switch kind {
+	case "claude":
+		return claudeBusyInBackground(lines)
+	}
+	return "", false
+}
+
+var (
+	// Claude Code's footer names running background work after a middle dot:
+	//   "· 1 shell still running", "· 2 shells still running (↓ to view)",
+	//   "· ← 1 agent · ↓ to manage", "· 2 local agents · ↓ to manage",
+	//   "· 1 background task (↓ to view)".
+	// Only non-zero counts match.
+	claudeBgRunning = regexp.MustCompile(`·\s+([1-9]\d*\s+(?:background\s+|local\s+)?(?:shells?|agents?|tasks?)\s+still running)`)
+	claudeBgCount   = regexp.MustCompile(`·\s+(?:←\s+)?([1-9]\d*\s+(?:background\s+|local\s+)?(?:shells?|agents?|tasks?))(?:\s+·|\s+\(|$)`)
+)
+
+// claudeBusyInBackground reads only Claude Code's footer (the lines below the
+// last horizontal rule, or the last two non-empty lines if no rule is shown),
+// so a transcript quoting the footer text above the input box never counts.
+func claudeBusyInBackground(lines []string) (string, bool) {
+	footer := claudeFooterLines(lines)
+	for _, l := range footer {
+		if m := claudeBgRunning.FindStringSubmatch(l); m != nil {
+			return m[1], true
+		}
+		if m := claudeBgCount.FindStringSubmatch(l); m != nil {
+			return m[1], true
+		}
+	}
+	return "", false
+}
+
+func claudeFooterLines(lines []string) []string {
+	for i := len(lines) - 1; i >= 0; i-- {
+		if isRule(lines[i]) {
+			var out []string
+			for j := i + 1; j < len(lines); j++ {
+				if strings.TrimSpace(lines[j]) != "" {
+					out = append(out, lines[j])
+				}
+			}
+			return out
+		}
+	}
+	return bottomLines(lines, 2)
 }

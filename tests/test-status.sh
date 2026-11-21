@@ -112,6 +112,13 @@ chk "it shows the bridge not running" "bridge   not running"
 nchk "it calls no jq" "jq was called"
 nchk "it does not claim a subdirectory pairing at the repo root" "paired from a subdirectory"
 
+# --- builder with an explicit model (#92) ---
+jq -n '{kind:"copilot", autonomy:"auto", model:"claude-sonnet-5.5", adopted:false}' > "$REPO/.tandem-relay/builder.json"
+SNAP_MODE=ok GATE_MODE=clean run
+chk "it shows the builder kind and autonomy" "[copilot/auto]"
+chk "it shows the builder model"             "model: claude-sonnet-5.5"
+write_builder "$REPO/.tandem-relay"
+
 # --- the reviewer ---
 # With no record, say so and what it means.
 chk "with no reviewer.json it says none is recorded" "reviewer none recorded"
@@ -138,6 +145,18 @@ chk "it names the review id"    "objections stand (id 20260918-000002-1-1). Fix 
 SNAP_MODE=ok GATE_MODE=absent run
 chk "it shows no review yet" "review   no review yet. Run tandem-review."
 nchk "with no id it prints no id" "(id"
+
+# --- paired, review in flight (requested, no verdict yet) ---------------------
+mkdir -p "$REPO/.tandem-relay/reviews"
+printf '%s\n' "$PLAN" > "$REPO/.tandem-relay/reviews/in-flight"
+SNAP_MODE=ok GATE_MODE=absent run
+chk "it distinguishes an in-flight review from absent" "review   in flight (verdict not recorded yet). Wait for the verdict, or inspect the reviewer pane."
+nchk "in-flight does not say no review yet" "no review yet"
+# An in-flight marker for a different plan still reports absent for this plan.
+printf '%s\n' "$REPO/docs/plans/other.md" > "$REPO/.tandem-relay/reviews/in-flight"
+SNAP_MODE=ok GATE_MODE=absent run
+chk "in-flight for another plan still shows no review yet" "review   no review yet. Run tandem-review."
+rm -rf "$REPO/.tandem-relay/reviews"
 
 # --- the reviewer gate reasons are explained, never printed raw ---------------
 SNAP_MODE=ok GATE_MODE=no_reviewer run

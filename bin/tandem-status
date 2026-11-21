@@ -109,14 +109,14 @@ if (( PAIRED )); then
     || die "the installed tandem is behind these commands (no 'tandem paths'); re-run install.sh."
 
   # An unreadable record gives empty fields, reported as no identity.
-  BJ_KIND=""; BJ_AUTONOMY=""; BJ_ADOPTED=""
+  BJ_KIND=""; BJ_AUTONOMY=""; BJ_ADOPTED=""; BJ_MODEL=""
   if tandem config builder --relay "$ID_MAILBOX" >"$FIELDS" 2>/dev/null; then
-    { read_field BJ_KIND; read_field BJ_AUTONOMY; read_field BJ_ADOPTED; } <"$FIELDS"
+    { read_field BJ_KIND; read_field BJ_AUTONOMY; read_field BJ_ADOPTED; read_field BJ_MODEL; } <"$FIELDS"
   fi
   if [[ -n "$BJ_KIND" ]]; then
     _adoptedNote=""
     [[ "$BJ_ADOPTED" == "true" ]] && _adoptedNote=" (adopted, so tandem cannot enforce its launch settings)"
-    info "builder  $BUILDER_NAME  pane $BUILDER_PANE  status: $BUILDER_STATUS  [$BJ_KIND/$BJ_AUTONOMY]$_adoptedNote"
+    info "builder  $BUILDER_NAME  pane $BUILDER_PANE  status: $BUILDER_STATUS  [$BJ_KIND/$BJ_AUTONOMY]${BJ_MODEL:+  model: $BJ_MODEL}$_adoptedNote"
   else
     info "builder  $BUILDER_NAME  pane $BUILDER_PANE  status: $BUILDER_STATUS  (no recorded identity)"
   fi
@@ -182,7 +182,12 @@ if [[ -n "$PLAN" ]]; then
     _reason=$(printf '%s\n' "$_gv" | sed -n '1p')
     _id=$(printf '%s\n' "$_gv" | sed -n '2,$p' | tail -n 1)
     case "$_reason" in
-      absent)     _msg="no review yet"; _fix="Run tandem-review." ;;
+      absent)
+        if [[ -n "$_rmb" && -f "$_rmb/reviews/in-flight" ]] && [[ "$(cat "$_rmb/reviews/in-flight" 2>/dev/null || true)" == "$PLAN_ABS" ]]; then
+          _msg="in flight (verdict not recorded yet)"; _fix="Wait for the verdict, or inspect the reviewer pane."
+        else
+          _msg="no review yet"; _fix="Run tandem-review."
+        fi ;;
       superseded) _msg="a newer review exists" ;;
       plan)       _msg="the plan changed since its review"; _fix="Run tandem-review again." ;;
       builder)    _msg="the builder changed since the review"; _fix="Run tandem-review again." ;;

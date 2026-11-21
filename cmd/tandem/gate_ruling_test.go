@@ -96,7 +96,17 @@ func TestConfigBuilder(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(relay, "builder.json"), []byte(`{"kind":"codex","autonomy":"auto","adopted":true}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if out := captureStdout(t, func() int { return cmdConfig([]string{"builder", "--relay", relay}) }); out != "codex\x00auto\x00true\x00" {
+	if out := captureStdout(t, func() int { return cmdConfig([]string{"builder", "--relay", relay}) }); out != "codex\x00auto\x00true\x00\x00" {
+		t.Errorf("got %q", out)
+	}
+}
+
+func TestConfigBuilderWithModel(t *testing.T) {
+	relay := t.TempDir()
+	if err := os.WriteFile(filepath.Join(relay, "builder.json"), []byte(`{"kind":"copilot","autonomy":"auto","model":"claude-sonnet-5.5","adopted":false}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if out := captureStdout(t, func() int { return cmdConfig([]string{"builder", "--relay", relay}) }); out != "copilot\x00auto\x00false\x00claude-sonnet-5.5\x00" {
 		t.Errorf("got %q", out)
 	}
 }
@@ -105,7 +115,7 @@ func TestConfigBuilder(t *testing.T) {
 // check fires, and adopted false.
 func TestConfigBuilderMissing(t *testing.T) {
 	out, rc := captureStdoutRC(t, func() int { return cmdConfig([]string{"builder", "--relay", t.TempDir()}) })
-	if rc != exitcode.OK || out != "\x00\x00false\x00" {
+	if rc != exitcode.OK || out != "\x00\x00false\x00\x00" {
 		t.Errorf("rc %d, got %q", rc, out)
 	}
 }
@@ -116,7 +126,7 @@ func TestConfigBuilderNotJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 	out, rc := captureStdoutRC(t, func() int { return cmdConfig([]string{"builder", "--relay", relay}) })
-	if rc != exitcode.OK || out != "\x00\x00false\x00" {
+	if rc != exitcode.OK || out != "\x00\x00false\x00\x00" {
 		t.Errorf("rc %d, got %q", rc, out)
 	}
 }

@@ -174,15 +174,22 @@ review_gate() {
     esac
 
     if (( NEEDS_REVIEW )); then
+      REVIEW_ARGS=("$PLAN_ABS")
+      if [[ -n "$RESUME_FROM" ]]; then
+        _accepted=$(tandem state resume-accepted --root "$ROOT" --plan "$PLAN_ABS" --from "$RESUME_FROM" 2>/dev/null || true)
+        [[ -n "$_accepted" ]] && REVIEW_ARGS+=(--accepted-tasks "$_accepted")
+      fi
       if (( DRY_RUN )); then
-        printf '\n  [dry-run] would run: tandem-review %s\n' "$PLAN_ABS" >&2
+        printf '\n  [dry-run] would run: tandem-review' >&2
+        printf ' %s' "${REVIEW_ARGS[@]}" >&2
+        printf '\n' >&2
         exit 24
       fi
       # Use tandem-review rather than a second copy of the review prompt.
       printf '\n  Requesting a review. The reviewer is being asked to READ this\n' >&2
       printf '  plan, not to build it.\n\n' >&2
       rc=0
-      tandem-review "$PLAN_ABS" >&2 || rc=$?
+      tandem-review "${REVIEW_ARGS[@]}" >&2 || rc=$?
       if (( rc != 0 )); then
         printf '\n  tandem-review failed (rc %s). Nothing was sent and no review\n' "$rc" >&2
         printf '  was requested. Fix that before handing off.\n' >&2

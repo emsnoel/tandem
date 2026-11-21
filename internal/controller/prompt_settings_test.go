@@ -23,6 +23,7 @@ func withSettings(r *StartRequest) {
 
 // The wording is the legacy prompt's, kept as it was.
 func TestTaskPromptCarriesTheProjectSettingsInTheOldWording(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	run, err := e.c.Start(ctx, e.startRequest(withSettings))
 	if err != nil {
@@ -50,6 +51,7 @@ func TestTaskPromptCarriesTheProjectSettingsInTheOldWording(t *testing.T) {
 }
 
 func TestARepairPromptCarriesTheSettingsToo(t *testing.T) {
+	t.Parallel()
 	cfg := runConfig{Root: "/r", PlanPath: "/r/p.md", Settings: &promptSettings{Conventions: "C.md", PromptExtra: testExtra, Ruling: testRuling}}
 	spec := workflow.TaskSpec{ID: "task-1", Brief: "Do one."}
 	req := packetRequest(cfg, "r", strings.Repeat("a", 64), strings.Repeat("b", 64), strings.Repeat("c", 32), 1, 1, spec, []memory.Entry(nil), "The reviewer asked for changes.")
@@ -62,6 +64,7 @@ func TestARepairPromptCarriesTheSettingsToo(t *testing.T) {
 }
 
 func TestAPromptWithoutSettingsIsUnchanged(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	prompt, _ := e.packet(e.current("task-1"))
@@ -81,6 +84,7 @@ func TestAPromptWithoutSettingsIsUnchanged(t *testing.T) {
 }
 
 func TestAConventionsFileTheBuilderLoadsIsNotAskedFor(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t) // a codex builder, which loads AGENTS.md itself
 	run, err := e.c.Start(ctx, e.startRequest(func(r *StartRequest) { r.ConventionsFile = "AGENTS.md" }))
 	if err != nil {
@@ -93,6 +97,7 @@ func TestAConventionsFileTheBuilderLoadsIsNotAskedFor(t *testing.T) {
 }
 
 func TestPromptExtraCountsTowardTheContextLimit(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	_, err := e.c.Start(ctx, e.startRequest(func(r *StartRequest) {
 		r.ContextLimit = taskcontext.DefaultMaxEstimatedTokens
@@ -104,6 +109,7 @@ func TestPromptExtraCountsTowardTheContextLimit(t *testing.T) {
 }
 
 func TestTheDryRunMeasuresTheSettingsToo(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	err := CheckTaskContext(e.startRequest(func(r *StartRequest) {
 		r.PromptExtra = strings.Repeat("x", taskcontext.DefaultMaxEstimatedTokens)

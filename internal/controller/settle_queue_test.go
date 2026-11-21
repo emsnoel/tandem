@@ -34,6 +34,7 @@ func queuedOnStopped(t *testing.T, kind string, taken bool) (*cenv, workflow.Eff
 // mailbox. state recover does, the nonce closes the delivery, and the run stays
 // stopped.
 func TestAQueuedMessageClosesTheDeliveryOnAStoppedRun(t *testing.T) {
+	t.Parallel()
 	for name, tc := range map[string]struct {
 		kind  string
 		taken bool
@@ -76,6 +77,7 @@ func TestAQueuedMessageClosesTheDeliveryOnAStoppedRun(t *testing.T) {
 // A message that does not carry the prompt's nonce proves nothing, so it must
 // not hold the way out shut.
 func TestAQueuedMessageWithTheWrongNonceDoesNotBlockAbandoning(t *testing.T) {
+	t.Parallel()
 	e, eff := queuedOnStopped(t, workflow.EventBuilderStarted, false)
 	path := filepath.Join(RunDir(e.relay, e.runID), "q")
 	files, err := filepath.Glob(filepath.Join(path, "*.json"))
@@ -128,6 +130,7 @@ func (e *cenv) sourceOf(eff workflow.Effect) state.Source {
 // With no session bound nothing can have been spent under this launch: the
 // reservation goes back, the source ends, and the collaboration can close.
 func TestAbandoningWithNoSessionReleasesTheReservationAndEndsTheSource(t *testing.T) {
+	t.Parallel()
 	e, eff := admittedOpenPrompt(t, true)
 	if err := e.abandonPrompt(eff.ID); err != nil {
 		t.Fatal(err)
@@ -152,6 +155,7 @@ func TestAbandoningWithNoSessionReleasesTheReservationAndEndsTheSource(t *testin
 
 // With a session bound its usage may be real, so nothing is given back.
 func TestAbandoningWithABoundSessionLeavesTheReservation(t *testing.T) {
+	t.Parallel()
 	e, eff := admittedOpenPrompt(t, false)
 	before := e.sourceOf(eff).Status
 	if err := e.abandonPrompt(eff.ID); err != nil {

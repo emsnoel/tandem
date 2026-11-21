@@ -33,3 +33,18 @@ func TestLoadBuilderReadsWhatWriteBuilderWrote(t *testing.T) {
 		t.Fatal("a missing record must be an error")
 	}
 }
+
+func TestWriteAndLoadBuilderWithModel(t *testing.T) {
+	relay := filepath.Join(t.TempDir(), "relay")
+	want := BuilderRecord{Kind: "copilot", Autonomy: "auto", Model: "claude-sonnet-5.5", Adopted: false}
+	if err := WriteBuilder(relay, want); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(relay, BuilderFile))
+	if err != nil || string(b) != `{"kind":"copilot","autonomy":"auto","model":"claude-sonnet-5.5","adopted":false}`+"\n" {
+		t.Fatalf("got %q, %v", b, err)
+	}
+	if got, err := LoadBuilder(relay); err != nil || got != want {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+}

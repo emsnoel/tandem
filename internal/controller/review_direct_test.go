@@ -57,6 +57,7 @@ func directEnv(t *testing.T, script string, launch ...string) *cenv {
 }
 
 func TestDirectReviewUnsupportedFallsBackToAPaneJob(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.start()
 	att := e.toReview("task-1", 1)
@@ -89,6 +90,7 @@ func TestDirectReviewUnsupportedFallsBackToAPaneJob(t *testing.T) {
 }
 
 func TestDirectReviewAcceptsAStructuredResult(t *testing.T) {
+	t.Parallel()
 	e := directEnv(t, reviewerScript(t, passing))
 	e.start()
 	att := e.toReview("task-1", 1)
@@ -123,6 +125,7 @@ func TestDirectReviewAcceptsAStructuredResult(t *testing.T) {
 }
 
 func TestDirectReviewMalformedResultFails(t *testing.T) {
+	t.Parallel()
 	for name, c := range map[string]struct{ body, want string }{
 		"exit 0 with prose":   {`cat >/dev/null; echo "looks good to me"`, "not a valid review result"},
 		"exit 0 with nothing": {`cat >/dev/null`, "not a valid review result"},
@@ -132,38 +135,43 @@ func TestDirectReviewMalformedResultFails(t *testing.T) {
 		"a pass with an open high finding": {`cat >/dev/null; in=""` + "\n" + passing, ""},
 		"nonzero exit":                     {`cat >/dev/null; echo "the model is unavailable" >&2; exit 3`, "exited 3"},
 	} {
-		body := c.body
-		if name == "a pass with an open high finding" {
-			body = `in=$(cat | tr '\n' ' ')
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			body := c.body
+			want := c.want
+			if name == "a pass with an open high finding" {
+				body = `in=$(cat | tr '\n' ' ')
 f() { printf '%s' "$in" | sed -n "s/.*\"$1\":\"\([0-9a-f]*\)\".*/\1/p"; }
 printf '{"schema_version":1,"job_id":"%s","attempt_id":"%s","patch_hash":"%s","tree_hash":"%s","status":"passed","findings":[{"severity":"high","path":"a.go","disposition":"open","message":"bad"}]}' "$(f job_id)" "$(f attempt_id)" "$(f patch_hash)" "$(f tree_hash)"`
-			c.want = "not a valid review result"
-		}
-		e := directEnv(t, reviewerScript(t, body))
-		e.start()
-		att := e.toReview("task-1", 1)
-		if got := e.reviewState(att); got != workflow.ReviewFailed {
-			t.Errorf("%s: review is %s", name, got)
-		}
-		if st, code := e.runState(); st != "paused" || code != "review_failed" {
-			t.Errorf("%s: run is %s/%s", name, st, code)
-		}
-		e.tick()
-		if e.tasks()[0].AcceptedAttemptID != "" {
-			t.Errorf("%s: a failed review led to acceptance", name)
-		}
-		// The failure is on record and says why.
-		h, found, _ := e.st.LatestReviewResult(ctx, att.ID)
-		raw, _ := e.art.ReadAll(ctx, h, 1<<20)
-		var res workflow.ReviewResult
-		json.Unmarshal(raw, &res)
-		if !found || res.Status != workflow.ReviewStatusFailed || len(res.Findings) != 1 || !strings.Contains(res.Findings[0].Message, c.want) {
-			t.Errorf("%s: recorded %s", name, raw)
-		}
+				want = "not a valid review result"
+			}
+			e := directEnv(t, reviewerScript(t, body))
+			e.start()
+			att := e.toReview("task-1", 1)
+			if got := e.reviewState(att); got != workflow.ReviewFailed {
+				t.Errorf("%s: review is %s", name, got)
+			}
+			if st, code := e.runState(); st != "paused" || code != "review_failed" {
+				t.Errorf("%s: run is %s/%s", name, st, code)
+			}
+			e.tick()
+			if e.tasks()[0].AcceptedAttemptID != "" {
+				t.Errorf("%s: a failed review led to acceptance", name)
+			}
+			// The failure is on record and says why.
+			h, found, _ := e.st.LatestReviewResult(ctx, att.ID)
+			raw, _ := e.art.ReadAll(ctx, h, 1<<20)
+			var res workflow.ReviewResult
+			json.Unmarshal(raw, &res)
+			if !found || res.Status != workflow.ReviewStatusFailed || len(res.Findings) != 1 || !strings.Contains(res.Findings[0].Message, want) {
+				t.Errorf("%s: recorded %s", name, raw)
+			}
+		})
 	}
 }
 
 func TestDirectReviewTimeoutFailsTheReview(t *testing.T) {
+	t.Parallel()
 	e := directEnv(t, reviewerScript(t, `cat >/dev/null; sleep 30`))
 	e.reviewTimeout = 400 * time.Millisecond
 	e.c = e.newController()
@@ -281,6 +289,7 @@ wait`))
 // A direct reviewer's usage is counted under the reviewer's provider, not the
 // builder's.
 func TestDirectReviewSourceIsRegisteredUnderTheReviewersProvider(t *testing.T) {
+	t.Parallel()
 	e := directEnv(t, reviewerScript(t, passing))
 	e.startInCollaboration()
 	att := e.toReview("task-1", 1)

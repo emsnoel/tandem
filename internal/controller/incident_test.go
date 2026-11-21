@@ -51,6 +51,7 @@ func (e *cenv) openIncidents() []state.Incident {
 // successor needs changes too, the allowance is spent: the run stops, the
 // planner is asked exactly once, and nothing replans.
 func TestRecoveryReviewChangesRepairsOnceThenEscalatesOnce(t *testing.T) {
+	t.Parallel()
 	e := ownedEnv(t)
 	e.startRecovery(true)
 	first := e.changesRequested(1, openFinding)
@@ -93,6 +94,7 @@ func TestRecoveryReviewChangesRepairsOnceThenEscalatesOnce(t *testing.T) {
 }
 
 func TestRecoveryCheckFailureRepairsOnce(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startRecovery(true)
 	e.chk.exit = 1
@@ -120,6 +122,7 @@ func TestRecoveryCheckFailureRepairsOnce(t *testing.T) {
 // and no attempt: a stuck builder, a review with nothing concrete to fix, and a
 // task bound to no work.
 func TestRecoveryIneligibleFailuresEscalateWithoutRepair(t *testing.T) {
+	t.Parallel()
 	t.Run("a stuck builder", func(t *testing.T) {
 		e := newCEnv(t)
 		e.startRecovery(true)
@@ -172,6 +175,7 @@ func TestRecoveryIneligibleFailuresEscalateWithoutRepair(t *testing.T) {
 // A duplicate failure event, a replayed message and a restart open no second
 // incident and send the planner nothing more.
 func TestIncidentDuplicateFailureEventsAndRestartsAskOnce(t *testing.T) {
+	t.Parallel()
 	e := ownedEnv(t)
 	e.startRecovery(true)
 	parent := e.stuckAttempt()
@@ -193,6 +197,7 @@ func TestIncidentDuplicateFailureEventsAndRestartsAskOnce(t *testing.T) {
 // Resuming does not raise a budget or reset a count, and recovery does not
 // replan: the run stays paused for the decision.
 func TestRecoveryResumeCannotRaiseBudgetsOrResetRepairCounts(t *testing.T) {
+	t.Parallel()
 	e := ownedEnv(t)
 	e.startRecovery(true)
 	e.changesRequested(1, openFinding)
@@ -221,6 +226,7 @@ func TestRecoveryResumeCannotRaiseBudgetsOrResetRepairCounts(t *testing.T) {
 // reviewed again on the new tree, the edit is counted as an intervention, and no
 // repair allowance is created or reset.
 func TestReconcileReRunsChecksAndReviewsOnTheNewTree(t *testing.T) {
+	t.Parallel()
 	e := ownedEnv(t)
 	e.startRecovery(true)
 	parent := e.stuckAttempt()
@@ -280,6 +286,7 @@ func TestReconcileReRunsChecksAndReviewsOnTheNewTree(t *testing.T) {
 }
 
 func TestReconcileRefusals(t *testing.T) {
+	t.Parallel()
 	t.Run("a run that is not paused", func(t *testing.T) {
 		e := newCEnv(t)
 		e.startRecovery(true)
@@ -319,6 +326,7 @@ func TestReconcileRefusals(t *testing.T) {
 // With recovery on, a task that needed its one repair still completes the run
 // with exactly one completion notice, after every task is accepted.
 func TestRecoveryCompletionNotifiesOnceAfterAllGates(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startRecovery(true)
 	e.passTask(1, 1)
@@ -338,6 +346,7 @@ func TestRecoveryCompletionNotifiesOnceAfterAllGates(t *testing.T) {
 // A collaboration stop holds an eligible repair. Nothing is spent, nothing is
 // escalated, and resuming the collaboration lets the same repair go ahead once.
 func TestRecoveryStopHoldsTheRepairWithoutSpendingOrEscalating(t *testing.T) {
+	t.Parallel()
 	e := newCEnv(t)
 	e.startRecovery(true)
 	e.tick()
@@ -374,6 +383,7 @@ func TestRecoveryStopHoldsTheRepairWithoutSpendingOrEscalating(t *testing.T) {
 // finished by the next pass of a restarted controller: one attempt, one
 // intervention, the check run once on the new tree.
 func TestReconcileCrashBeforeSubmissionConvergesAfterRestart(t *testing.T) {
+	t.Parallel()
 	e := ownedEnv(t)
 	e.startRecovery(true)
 	parent := e.stuckAttempt()

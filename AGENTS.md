@@ -35,8 +35,7 @@ suite can reach your real Herdr panes or overwrite your real skill links.
 
 ## Inside a Codex sandbox
 
-The shell suites that use the fake Herdr socket fail inside a Codex builder's
-sandbox with `fake socket did not start`, because the sandbox won't let the
-server open a Unix socket (#106). If that is the only failure, it isn't yours
-to fix. Say so in the handback and hand back as done, not stuck. tandem's check
-runs outside the sandbox.
+When `TANDEM_BUILD_CHECK=1` is set, `tests/lib/fake-socket.sh` tries short
+writable directories (including repo-local `.gocache`) and skips cleanly with
+a `skip` line if the sandbox blocks Unix socket binding altogether (#106).
+tandem's own check still runs those suites outside the sandbox.

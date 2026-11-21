@@ -149,6 +149,10 @@ if ! tandem gate record --relay "$MAILBOX" --id "$ID" --plan "$PLAN_ABS" --verdi
 fi
 
 info "review stored as $ID ($VERDICT)."
+# Clear the in-flight marker once this plan's verdict is recorded.
+if [[ -f "$MAILBOX/reviews/in-flight" ]] && [[ "$(cat "$MAILBOX/reviews/in-flight" 2>/dev/null || true)" == "$PLAN_ABS" ]]; then
+  rm -f "$MAILBOX/reviews/in-flight"
+fi
 # The review is over, so the reviewer's sidebar label goes back to plain. From a
 # sandbox the socket is unreachable, and the bridge clears it with the verdict.
 activity_sync "$ROLE" ""

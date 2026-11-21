@@ -8,6 +8,7 @@ import (
 )
 
 func TestIndependentVerificationIsMandatory(t *testing.T) {
+	t.Parallel()
 	if acceptanceSatisfied(true, true, false, true) {
 		t.Fatal("missing independent review accepted")
 	}
@@ -37,6 +38,7 @@ const goodPolicy = `{
 }`
 
 func TestAcceptancePolicyParsesBothMandatoryStages(t *testing.T) {
+	t.Parallel()
 	p, err := ParseAcceptancePolicy([]byte(goodPolicy))
 	if err != nil {
 		t.Fatal(err)
@@ -53,6 +55,7 @@ func TestAcceptancePolicyParsesBothMandatoryStages(t *testing.T) {
 // A policy can pin who reviews, but it cannot make acceptance easier: every
 // weakening is refused at start, before a run exists.
 func TestAcceptancePolicyRefusesEveryWeakening(t *testing.T) {
+	t.Parallel()
 	edit := func(old, new string) string {
 		if !strings.Contains(goodPolicy, old) {
 			t.Fatalf("fixture has no %q", old)

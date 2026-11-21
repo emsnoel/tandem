@@ -83,6 +83,7 @@ func (e *cenv) total(t *testing.T) workflow.Usage {
 }
 
 func TestUsageBeforeAnyModelJobIsZeroNotUnknown(t *testing.T) {
+	t.Parallel()
 	e, _ := usageEnv(t)
 	e.start()
 	// Nothing has been sent: no model has been asked, so nothing has been used.
@@ -93,6 +94,7 @@ func TestUsageBeforeAnyModelJobIsZeroNotUnknown(t *testing.T) {
 }
 
 func TestCollectUsagePersistsEachSourceOnce(t *testing.T) {
+	t.Parallel()
 	e, src := usageEnv(t)
 	e.start()
 	e.tick()
@@ -137,6 +139,7 @@ func TestCollectUsagePersistsEachSourceOnce(t *testing.T) {
 }
 
 func TestUsageMissingChildRemainsPartialThroughTheController(t *testing.T) {
+	t.Parallel()
 	e, src := usageEnv(t)
 	e.start()
 	e.tick()
@@ -170,6 +173,7 @@ func TestUsageMissingChildRemainsPartialThroughTheController(t *testing.T) {
 }
 
 func TestUsageTruncatedLogIsPartialUntilItIsComplete(t *testing.T) {
+	t.Parallel()
 	e, src := usageEnv(t)
 	e.start()
 	e.tick()
@@ -187,6 +191,7 @@ func TestUsageTruncatedLogIsPartialUntilItIsComplete(t *testing.T) {
 }
 
 func TestUsageNeverCountsAnAggregateAndItsChildren(t *testing.T) {
+	t.Parallel()
 	e, src := usageEnv(t)
 	e.start()
 	e.tick()
@@ -203,6 +208,7 @@ func TestUsageNeverCountsAnAggregateAndItsChildren(t *testing.T) {
 }
 
 func TestUsageUnsupportedAdapterIsUnavailableNotZero(t *testing.T) {
+	t.Parallel()
 	e, src := usageEnv(t)
 	src.unsupported["copilot"] = true
 	run, err := e.c.Start(ctx, e.startRequest(func(r *StartRequest) {
@@ -224,6 +230,7 @@ func TestUsageUnsupportedAdapterIsUnavailableNotZero(t *testing.T) {
 }
 
 func TestUsageIsAttributedToBuilderAndRepairSeparately(t *testing.T) {
+	t.Parallel()
 	e, src := usageEnv(t)
 	e.start()
 	finding := workflow.Finding{Severity: "high", Path: "work1.txt", Disposition: "open", Message: "wrong"}
@@ -253,6 +260,7 @@ func TestUsageIsAttributedToBuilderAndRepairSeparately(t *testing.T) {
 }
 
 func TestUsageExportCarriesSourceProviderModelAndConfigIdentity(t *testing.T) {
+	t.Parallel()
 	e, src := usageEnv(t)
 	e.start()
 	e.tick()
@@ -275,6 +283,7 @@ func TestUsageExportCarriesSourceProviderModelAndConfigIdentity(t *testing.T) {
 }
 
 func TestUsageSourceErrorsAreAGapNotAFailure(t *testing.T) {
+	t.Parallel()
 	e, _ := usageEnv(t)
 	e.usage = errSource{errors.New("the sessions directory is not readable")}
 	e.c = e.newController()
@@ -296,6 +305,7 @@ func (e errSource) Collect(context.Context, string, string, time.Time, time.Time
 // id Herdr reported late. The lines are counted once, for the job that claimed
 // them first, and the other job says so. The report is not refused.
 func TestUsageLogNamedByTwoJobsIsCountedOnce(t *testing.T) {
+	t.Parallel()
 	e, src := usageEnv(t)
 	e.start()
 	e.accept("task-1", 1)
@@ -327,6 +337,7 @@ func TestUsageLogNamedByTwoJobsIsCountedOnce(t *testing.T) {
 // or Claude Code conversations. Without Claude's, a Claude builder's usage was
 // unknown and a task budget refused its first review.
 func TestAgentUsageSourceReadsEachKindsLogs(t *testing.T) {
+	t.Parallel()
 	projects := t.TempDir()
 	session := "57312883-6ae0-44d2-8053-3429d17e95c0"
 	log := filepath.Join(projects, "-repo", session+".jsonl")
@@ -354,6 +365,7 @@ func TestAgentUsageSourceReadsEachKindsLogs(t *testing.T) {
 // A usage row's provider is the kind of the agent that ran its job: the
 // reviewer pane's kind for a reviewer row, never the builder's.
 func TestUsageProviderFollowsTheRowsRole(t *testing.T) {
+	t.Parallel()
 	cfg := runConfig{BuilderKind: "copilot", ReviewerKind: "codex"}
 	for _, c := range []struct {
 		row  state.UsageRow

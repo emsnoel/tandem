@@ -37,6 +37,7 @@ func startedRun(t *testing.T, gone goneObserver) (*cenv, string) {
 }
 
 func TestPauseIfAgentsGonePausesARunWhoseBuilderIsGone(t *testing.T) {
+	t.Parallel()
 	e, id := startedRun(t, goneObserver{gone: "builder-session"})
 	paused, err := e.c.PauseIfAgentsGone(ctx, id)
 	if err != nil || !paused {
@@ -49,6 +50,7 @@ func TestPauseIfAgentsGonePausesARunWhoseBuilderIsGone(t *testing.T) {
 }
 
 func TestPauseIfAgentsGoneLeavesALiveRunAlone(t *testing.T) {
+	t.Parallel()
 	e, id := startedRun(t, goneObserver{})
 	if paused, err := e.c.PauseIfAgentsGone(ctx, id); err != nil || paused {
 		t.Fatalf("paused=%v err=%v", paused, err)
@@ -60,6 +62,7 @@ func TestPauseIfAgentsGoneLeavesALiveRunAlone(t *testing.T) {
 }
 
 func TestPauseIfAgentsGoneDoesNotPauseOnAnotherError(t *testing.T) {
+	t.Parallel()
 	e, id := startedRun(t, goneObserver{err: errors.New("socket hiccup")})
 	paused, err := e.c.PauseIfAgentsGone(ctx, id)
 	if paused || err != nil {
@@ -71,6 +74,7 @@ func TestPauseIfAgentsGoneDoesNotPauseOnAnotherError(t *testing.T) {
 }
 
 func TestRecoverResumesARunOnceItsAgentIsBack(t *testing.T) {
+	t.Parallel()
 	e, id := startedRun(t, goneObserver{gone: "builder-session"})
 	if paused, err := e.c.PauseIfAgentsGone(ctx, id); err != nil || !paused {
 		t.Fatalf("paused=%v err=%v", paused, err)
@@ -85,6 +89,7 @@ func TestRecoverResumesARunOnceItsAgentIsBack(t *testing.T) {
 }
 
 func TestRecoverKeepsARunPausedWhileItsAgentIsStillGone(t *testing.T) {
+	t.Parallel()
 	e, id := startedRun(t, goneObserver{gone: "builder-session"})
 	if paused, err := e.c.PauseIfAgentsGone(ctx, id); err != nil || !paused {
 		t.Fatalf("paused=%v err=%v", paused, err)
@@ -98,6 +103,7 @@ func TestRecoverKeepsARunPausedWhileItsAgentIsStillGone(t *testing.T) {
 }
 
 func TestPauseIfAgentsGoneWritesNothingWithoutTheLease(t *testing.T) {
+	t.Parallel()
 	e, id := startedRun(t, goneObserver{gone: "builder-session"})
 	run, _ := e.st.GetRun(ctx, id)
 	e.c.setFence(run.CheckoutID, 0)
@@ -113,6 +119,7 @@ func TestPauseIfAgentsGoneWritesNothingWithoutTheLease(t *testing.T) {
 // adapter to type with. A tick stops it with a clear state instead of failing
 // the same way on every pass.
 func TestTickPausesARunWhoseKindIsGone(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct{ name, builder, reviewer string }{
 		{"builder", "opencode", "claude"},
 		{"reviewer", "codex", "opencode"},

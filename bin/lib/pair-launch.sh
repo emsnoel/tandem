@@ -63,15 +63,17 @@ prelaunch_gates() {
 # that was just split. Sets START_RC, START_CODE and START_MSG.
 #
 # `agent start` needs the pane's shell at its prompt, which takes a moment
-# after the split, so retry "not an available shell".
+# after the split, so retry "not an available shell" with backoff.
 START_RC=0; START_CODE=""; START_MSG=""
 start_in_pane() {
-  local name="$1" kind="$2" pane="$3" attempt err
+  local name="$1" kind="$2" pane="$3" attempt err delay
+  local max_attempts="${HERDR_PAIR_SHELL_RETRIES:-8}"
+  local wait_ms="${HERDR_PAIR_SHELL_WAIT_MS:-15000}"
   shift 3
-  tandem pane wait-shell "$pane" --timeout 10000 >/dev/null 2>&1 || true
+  tandem pane wait-shell "$pane" --timeout "$wait_ms" >/dev/null 2>&1 || true
 
   START_RC=1
-  for attempt in $(seq 1 2); do
+  for attempt in $(seq 1 "$max_attempts"); do
     err=""; START_CODE=""; START_MSG=""; START_RC=0
     err=$(tandem agent start "$name" --kind "$kind" --pane "$pane" \
          --timeout "$START_TIMEOUT_MS" -- "$@" 2>&1 >/dev/null) || START_RC=$?
@@ -81,8 +83,10 @@ start_in_pane() {
     fi
     case "$START_MSG" in
       *"not an available shell"*)
+        (( attempt < max_attempts )) || break
         (( attempt == 1 )) && info "pane not at its prompt yet; retrying..."
-        sleep 1 ;;
+        delay="${HERDR_PAIR_RETRY_DELAY_S:-$(( attempt < 4 ? attempt : 4 ))}"
+        sleep "$delay" ;;
       *) break ;;
     esac
   done

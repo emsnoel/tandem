@@ -7,6 +7,7 @@ import (
 )
 
 func TestResolveTaskRef(t *testing.T) {
+	t.Parallel()
 	m := RunManifest{Tasks: []ManifestTask{{Ordinal: 1, ID: "progress-repo"}, {Ordinal: 2, ID: "task-1"}, {Ordinal: 3, ID: "task-3"}}}
 	for ref, want := range map[string]string{
 		"1":             "progress-repo",
