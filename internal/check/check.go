@@ -20,6 +20,10 @@ import (
 // the same number timeout(1) uses.
 const TimeoutExit = 124
 
+// BuildCheckEnv is set to 1 in the environment of every check Run starts.
+// tandem-unpair runs the check itself, without it.
+const BuildCheckEnv = "TANDEM_BUILD_CHECK"
+
 const (
 	maxMatches = 30
 	tailLines  = 15
@@ -48,6 +52,9 @@ func Run(ctx context.Context, root, command string, extra []string, logPath stri
 	args := append([]string{"-c", command + ` "$@"`, "check"}, extra...)
 	cmd := exec.CommandContext(ctx, "bash", args...)
 	cmd.Dir = root
+	// BuildCheckEnv tells the check that tandem runs it, not a person, so a
+	// suite can skip what only a person can repair.
+	cmd.Env = append(os.Environ(), BuildCheckEnv+"=1")
 	cmd.Stdout = f
 	cmd.Stderr = f
 	// Kill the whole group on timeout: a check is usually a chain of

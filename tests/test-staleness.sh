@@ -19,7 +19,12 @@ if [ $? -ne 0 ] || [ -z "$WANT" ]; then
 fi
 ok "source hash is computable"
 
-if command -v tandem >/dev/null 2>&1; then
+if [ "${TANDEM_BUILD_CHECK:-}" = 1 ]; then
+  # tandem runs this check after each task (internal/check), and the builder
+  # cannot reinstall tandem. tandem-unpair runs the check without the
+  # variable, so the match still guards a sign-off.
+  ok "inside a tandem build check; skipping the installed-binary match"
+elif command -v tandem >/dev/null 2>&1; then
   GOT=$(tandem version --hash 2>/dev/null)
   if [ "$GOT" = "$WANT" ]; then
     ok "installed tandem matches the Go source"
