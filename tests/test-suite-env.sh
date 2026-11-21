@@ -45,17 +45,43 @@ printf 'printf "%%s" "${HERDR_DECISION-unset}"\n' >> "$SCRATCH/tests/header.sh"
 OUT=$(cd "$SCRATCH/tests" && HERDR_DECISION=1 bash -c '. ./header.sh' 2>&1)
 [ "$OUT" = unset ] && ok "run.sh's own line leaves HERDR_DECISION unset under an inherited 1" || nope "inherited HERDR_DECISION survived run.sh's scrub line: '$OUT'"
 
+# run.sh runs its suites through run_suites (tests/lib/run-suites.sh).
+grep -q 'lib/run-suites.sh' "$ROOT_DIR/tests/run.sh" && grep -q '^run_suites ' "$ROOT_DIR/tests/run.sh" \
+  && ok "run.sh runs its suites through run_suites" || nope "run.sh does not use tests/lib/run-suites.sh"
+
+# suites RUN_ARGS...: run run_suites over the suites in $SCRATCH/loop.
+mkdir -p "$SCRATCH/loop"
+suites() { bash -c '. "$1"; shift; FAILED=0; hdr() { printf "== %s ==\n" "$1"; }; run_suites "$@"; echo "failed=$FAILED"' \
+  _ "$ROOT_DIR/tests/lib/run-suites.sh" "$@" 2>&1; }
+
 # A suite that exits non-zero without a FAIL line is still named.
-mkdir -p "$SCRATCH/loop/tests"
-printf 'exit 3\n' > "$SCRATCH/loop/tests/test-silent.sh"
-{ printf 'FAILED=0; WITH_CLIS=0; hdr() { :; }\n'
-  sed -n '/^for t in tests\/test-\*\.sh/,/^done/p' "$ROOT_DIR/tests/run.sh"
-  printf 'echo "failed=$FAILED"\n'; } > "$SCRATCH/loop/loop.sh"
-OUT=$(cd "$SCRATCH/loop" && bash ./loop.sh 2>&1)
+printf 'exit 3\n' > "$SCRATCH/loop/test-silent.sh"
+OUT=$(suites 2 "$SCRATCH/loop/test-silent.sh")
 case "$OUT" in
   *"  FAIL test-silent (exit 3)"*"failed=1"*) ok "run.sh names a suite that exits non-zero without a FAIL line" ;;
-  *) nope "run.sh's loop on a silent failure printed: $OUT" ;;
+  *) nope "run_suites on a silent failure printed: $OUT" ;;
 esac
+
+# Suites run at once, yet each prints whole and in the order given. The first
+# suite is the slowest, so a serial run would take the sum of the sleeps.
+printf 'sleep 2; echo a1; echo a2\n' > "$SCRATCH/loop/test-a.sh"
+printf 'sleep 1; echo b1; exit 4\n'  > "$SCRATCH/loop/test-b.sh"
+printf 'echo c1; sleep 1; echo c2\n' > "$SCRATCH/loop/test-c.sh"
+S=$(date +%s)
+OUT=$(suites 3 "$SCRATCH/loop/test-a.sh" "$SCRATCH/loop/test-b.sh" "$SCRATCH/loop/test-c.sh")
+E=$(( $(date +%s) - S ))
+WANT=$(printf '== test-a ==\na1\na2\n== test-b ==\nb1\n  FAIL test-b (exit 4)\n== test-c ==\nc1\nc2\nfailed=1')
+[ "$OUT" = "$WANT" ] && ok "run_suites prints each suite whole, in order, and counts failures" \
+  || nope "run_suites printed: $OUT"
+[ "$E" -lt 4 ] && ok "run_suites runs suites at the same time (${E}s for 4s of sleeps)" \
+  || nope "run_suites took ${E}s for 4s of sleeps, so it ran them one at a time"
+
+# --jobs 1 runs them one at a time.
+S=$(date +%s)
+suites 1 "$SCRATCH/loop/test-a.sh" "$SCRATCH/loop/test-c.sh" >/dev/null
+E=$(( $(date +%s) - S ))
+[ "$E" -ge 3 ] && ok "run_suites with one job runs suites one at a time" \
+  || nope "run_suites with one job took ${E}s for 3s of sleeps"
 
 # The fake event socket reports a server that never starts, and gives up.
 OUT=$(TANDEM_FAKE_SOCK_BIN=/usr/bin/true bash -c '. "$1"; fake_socket_start "$2"; echo "rc=$?"' _ "$ROOT_DIR/tests/lib/fake-socket.sh" "$SCRATCH" 2>&1)
