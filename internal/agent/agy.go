@@ -46,6 +46,14 @@ func (a agyAdapter) Resolve(s Spec) (Launch, error) {
 		l.Args = append(l.Args, "--settings", `{"agentMode":""}`)
 	case Auto:
 		l.Args = append(l.Args, "--mode", "auto")
+		// Auto's review of a command can stop and ask. In a live pair it held
+		// a reviewer's tandem-verdict at "Run this command?", and nobody sits
+		// at an unattended pane. An allow rule skips that review, so the
+		// tandem commands the prompts name are pre-approved. A planner keeps
+		// the question: it is somebody's own pane.
+		if s.Role.Unattended() {
+			l.Args = append(l.Args, "--settings", agyTandemAllow)
+		}
 	case Full:
 		l.Args = append(l.Args, "--dangerously-skip-permissions")
 	}
@@ -79,6 +87,12 @@ func (a agyAdapter) Resolve(s Spec) (Launch, error) {
 	l.Sandboxed = a.Sandboxed(s)
 	return l, nil
 }
+
+// agyTandemAllow is an agy settings document that pre-approves the commands a
+// builder or reviewer prompt tells the agent to run. agy 1.5.14 stores
+// "always allow" choices in this shape, and command(X) matches every command
+// that starts with X.
+const agyTandemAllow = `{"permissions":{"allow":["command(tandem-ask)","command(tandem-handback)","command(tandem-verdict)"]}}`
 
 func agyModelSuffix(model string) string {
 	for _, suffix := range []string{"xhigh", "medium", "high", "low"} {

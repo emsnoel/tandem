@@ -15,7 +15,7 @@ func TestAgyResolveAutonomy(t *testing.T) {
 	}{
 		{Readonly, []string{"--mode", "plan"}, true},
 		{Ask, []string{"--settings", `{"agentMode":""}`}, false},
-		{Auto, []string{"--mode", "auto"}, true},
+		{Auto, []string{"--mode", "auto", "--settings", `{"permissions":{"allow":["command(tandem-ask)","command(tandem-handback)","command(tandem-verdict)"]}}`}, true},
 		{Full, []string{"--dangerously-skip-permissions"}, false},
 	} {
 		l, err := agyAdapter{}.Resolve(agySpec(c.a))
@@ -28,6 +28,35 @@ func TestAgyResolveAutonomy(t *testing.T) {
 	}
 }
 
+// Auto's own review of a command can stop and ask, and nobody answers an
+// unattended pane. It flagged tandem-verdict in a live pair, so an unattended
+// agy at auto pre-approves the tandem commands its prompts tell it to run.
+// A planner keeps agy's questions: a person sits at that pane.
+func TestAgyAutoPreApprovesTandemCommandsOnlyWhenUnattended(t *testing.T) {
+	for _, c := range []struct {
+		role Role
+		want []string
+	}{
+		{RoleBuilder, []string{"--mode", "auto", "--settings", agyTandemAllow}},
+		{RoleReviewer, []string{"--mode", "auto", "--settings", agyTandemAllow}},
+		{RolePlanner, []string{"--mode", "auto"}},
+	} {
+		l, err := agyAdapter{}.Resolve(Spec{Role: c.role, Autonomy: Auto})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(l.Args, c.want) {
+			t.Errorf("%s: args %q, want %q", c.role, l.Args, c.want)
+		}
+	}
+	for _, a := range []Autonomy{Readonly, Ask, Full} {
+		l, _ := agyAdapter{}.Resolve(Spec{Role: RoleBuilder, Autonomy: a})
+		if containsArg(l.Args, agyTandemAllow) {
+			t.Errorf("%s: pre-approves tandem commands, but only auto runs Auto's review", a)
+		}
+	}
+}
+
 func TestAgyResolveModelAndEffort(t *testing.T) {
 	s := agySpec(Auto)
 	s.Model, s.Effort = "gemini-4-neon-high", EffortMax
@@ -35,7 +64,7 @@ func TestAgyResolveModelAndEffort(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"--mode", "auto", "--model", "gemini-4-neon-high", "--effort", "max"}
+	want := []string{"--mode", "auto", "--settings", agyTandemAllow, "--model", "gemini-4-neon-high", "--effort", "max"}
 	if !reflect.DeepEqual(l.Args, want) {
 		t.Errorf("args %q, want %q", l.Args, want)
 	}

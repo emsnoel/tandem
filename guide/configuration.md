@@ -192,13 +192,18 @@ they are in.
 | -------- | --- |
 | `readonly` | `--mode plan` |
 | `ask` | `--settings '{"agentMode":""}'` |
-| `auto` | `--mode auto` |
+| `auto` | `--mode auto`, plus allow rules for tandem's commands for the builder and reviewer |
 | `full` | `--dangerously-skip-permissions` |
 
 - agy's own default is Auto, which runs commands in a sandbox without asking. So `ask`
   passes `agentMode` as an empty string, and `readonly` and `auto` are sandboxed.
 - Effort passes as `--effort` and beats a suffix on the model name. With `--model X-high`
   and effort `low`, agy gets `--effort low`, and tandem warns about the suffix.
+- In Auto, agy reviews each command that would leave its sandbox, and the review can stop
+  and ask. For the builder and reviewer, `auto` adds
+  `--settings '{"permissions":{"allow":["command(tandem-ask)","command(tandem-handback)","command(tandem-verdict)"]}}'`,
+  so the review never holds tandem's own commands. Other commands can still ask. Use `full`
+  for a pane that must never ask.
 - Isolation is ignored, because agy has no flag for it.
 - Usage numbers and log-read review replies are unsupported for agy for now. tandem reads
   neither from agy's conversation logs, so a configured token budget pauses the run.

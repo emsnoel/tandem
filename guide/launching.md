@@ -22,8 +22,11 @@ can't clear one, it refuses to launch.
 
 **Start an agy planner in default mode.** Run `agy --settings '{"agentMode":""}'`, or switch
 to it with shift+tab. agy starts in Auto, and tandem's commands can't reach Herdr from
-Auto's sandbox. **An agy builder in Auto may stop on a permission prompt that agy's own
-review didn't clear.** tandem's stall pause names that prompt.
+Auto's sandbox. **An agy builder or reviewer in Auto never stops on tandem's own commands.**
+tandem pre-approves `tandem-handback`, `tandem-verdict` and `tandem-ask` with agy allow
+rules, because Auto's review once held a reviewer's `tandem-verdict` at "Run this
+command?". The review can still ask about other commands, and tandem's stall pause names
+that prompt. Set the autonomy to `full` for a pane that must never ask.
 
 **A prompt that needs a person means different things for each role.** For the planner,
 tandem only notes it, because someone is sitting at that pane. For a builder or a reviewer,
