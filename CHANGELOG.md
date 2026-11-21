@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.16.0](https://github.com/emsnoel/tandem/compare/v0.15.0...v0.16.0) (2026-11-21)
+
+
+### Features
+
+* resume a stopped run at the task it stopped on ([bcd2155](https://github.com/emsnoel/tandem/commit/bcd215509b53ba626eb735e40e5d4b16e48f33f6)), closes [#84](https://github.com/emsnoel/tandem/issues/84)
+
+
+### Bug Fixes
+
+* answer codex's new-conversation picker when a reset opens it ([2403420](https://github.com/emsnoel/tandem/commit/2403420df452cec3f04dff6b8a813c8e9f5acfeb)), closes [#88](https://github.com/emsnoel/tandem/issues/88)
+* keep tandem's local folders out of git without editing .gitignore ([93ef69c](https://github.com/emsnoel/tandem/commit/93ef69cf9ca5cb4b376b83c562eabbbf0c355331)), closes [#91](https://github.com/emsnoel/tandem/issues/91)
+* let a codex sandbox run a gradle check when the user grants it ([adfb87c](https://github.com/emsnoel/tandem/commit/adfb87c86af8c1978ec372b61ffcd9b7e6c36f33)), closes [#85](https://github.com/emsnoel/tandem/issues/85)
+* let build accept --task take the plan's Task-ID ([1941c8a](https://github.com/emsnoel/tandem/commit/1941c8a8413cd9614de406ee6e6155c66c2e5550)), closes [#93](https://github.com/emsnoel/tandem/issues/93)
+* read a pane review reply from the reviewer's conversation log ([73f454f](https://github.com/emsnoel/tandem/commit/73f454f30a9576640707782af4d96a87d057b509)), closes [#86](https://github.com/emsnoel/tandem/issues/86)
+* remind a builder that goes idle without handing back ([a037430](https://github.com/emsnoel/tandem/commit/a037430aa4d618321ebc98019e826fbc7f1eddf8)), closes [#90](https://github.com/emsnoel/tandem/issues/90)
+
 ## [0.15.0](https://github.com/emsnoel/tandem/compare/v0.14.3...v0.15.0) (2026-11-17)
 
 
