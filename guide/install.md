@@ -131,8 +131,9 @@ You need these on every machine:
   (protocol 22) arrived in 0.9.3. F27 in `guide/design.md` pins the shapes.
 - `git`, `bash`, `curl`, `tar`, and `shasum` or `sha256sum`.
 - Herdr's integration for each agent you use. The planner is the agent you run `tandem-pair`
-  from, Claude Code or Copilot, so install `claude` or `copilot` for it. Add each builder and
-  reviewer kind you pick, such as `codex`. `herdr integration install` lists every kind Herdr
+  from, Claude Code, Copilot or agy, so install `claude`, `copilot` or `antigravity-cli` for it. Add each builder and
+  reviewer kind you pick, such as `codex`. For `agy`, run
+  `herdr integration install antigravity-cli`. `herdr integration install` lists every kind Herdr
   supports.
 
 You only need the agent CLIs for the kinds you use. tandem never needs every supported kind.

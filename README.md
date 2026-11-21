@@ -25,8 +25,9 @@ installer never overwrites an existing Herdr config.
 You also need Herdr 0.9.3 or later, and Herdr's integration for each agent you use:
 
 ```bash
-herdr integration install claude   # for the agent you plan from: claude or copilot
+herdr integration install claude   # for the agent you plan from: claude, copilot or agy
 herdr integration install codex    # repeat for each builder or reviewer kind you use
+herdr integration install antigravity-cli   # for agy, as a planner, builder or reviewer
 ```
 
 [guide/install.md](guide/install.md) covers installing a set version, building from source,
