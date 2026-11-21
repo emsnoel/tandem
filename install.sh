@@ -104,7 +104,8 @@ fi
 SHARE="${TANDEM_SHARE_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/tandem}"
 CONFIG="${HERDR_CONFIG_PATH:-$HOME/.config/herdr/config.toml}"
 # The planner CLIs whose personal skills folder gets tandem's skills, split at colons.
-IFS=: read -r -a SKILL_HOMES <<<"${TANDEM_SKILL_HOMES:-$HOME/.claude:$HOME/.copilot}"
+# agy reads personal skills from ~/.gemini/config/skills/<name>/SKILL.md.
+IFS=: read -r -a SKILL_HOMES <<<"${TANDEM_SKILL_HOMES:-$HOME/.claude:$HOME/.copilot:$HOME/.gemini/config}"
 
 if [ "$MODE" = uninstall ]; then uninstall; return; fi
 
