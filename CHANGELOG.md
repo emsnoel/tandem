@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.1](https://github.com/emsnoel/tandem/compare/v0.16.0...v0.16.1) (2026-11-21)
+
+
+### Bug Fixes
+
+* let a tandem build of tandem pass the staleness check ([9b2a10d](https://github.com/emsnoel/tandem/commit/9b2a10d8acf300c7d8079618cf302f4c73455397)), closes [#103](https://github.com/emsnoel/tandem/issues/103)
+
 ## [0.16.0](https://github.com/emsnoel/tandem/compare/v0.15.0...v0.16.0) (2026-11-21)
 
 
