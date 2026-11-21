@@ -49,6 +49,11 @@ approved on this machine, pairing refuses with exit 22 until you run
 `tandem-pair --approve-kind KIND`. To approve a Copilot builder and a Codex reviewer in one
 run, use `tandem-pair --approve-kind copilot --approve-kind codex`.
 
+When a build runs `check_command` after a task, it sets `TANDEM_BUILD_CHECK=1` in the
+check's environment. `tandem-unpair` runs the check without it. A suite can use it to skip
+what only a person can repair. tandem's own `tests/test-staleness.sh` skips its
+installed-binary comparison this way, because a builder cannot reinstall tandem.
+
 `check_paths` limits gate 8 of `tandem-unpair`, which checks whether the tree changed while
 the check ran. With `check_paths` set, the gate looks only at those paths. Unset, or not a
 JSON array, it looks at the whole tree. tandem doesn't guess a value, because unlike

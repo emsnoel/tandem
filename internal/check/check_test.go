@@ -37,6 +37,24 @@ func TestRunRecordsAPassAndItsOutput(t *testing.T) {
 	}
 }
 
+// A check that tandem runs says so, so a suite can skip what only a person can
+// fix, such as reinstalling tandem itself (tests/test-staleness.sh).
+func TestRunMarksTheCheckAsATandemBuildCheck(t *testing.T) {
+	t.Setenv("TANDEM_BUILD_CHECK", "")
+	_, log := run(t, `printf 'mark=%s\n' "$TANDEM_BUILD_CHECK"`, nil, 5*time.Second)
+	if !strings.Contains(log, "mark=1") {
+		t.Errorf("log = %q, want mark=1", log)
+	}
+}
+
+func TestRunKeepsTheCallersEnvironment(t *testing.T) {
+	t.Setenv("TANDEM_CHECK_PROBE", "kept")
+	_, log := run(t, `printf 'probe=%s\n' "$TANDEM_CHECK_PROBE"`, nil, 5*time.Second)
+	if !strings.Contains(log, "probe=kept") {
+		t.Errorf("log = %q, want probe=kept", log)
+	}
+}
+
 func TestRunRecordsTheCommandsOwnExitCode(t *testing.T) {
 	r, _ := run(t, "echo broken >&2; exit 3", nil, 5*time.Second)
 	if r.Exit != 3 {
