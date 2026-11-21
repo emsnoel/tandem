@@ -132,7 +132,9 @@ conversation is the one its reset named, or the one whose prompt holds the task'
 `~/.copilot/session-state`.
 
 **tandem resets an agy builder with `/new`.** agy 1.5.14 treats it as an alias of `/clear`,
-and it starts a new conversation in the same process.
+and it starts a new conversation in the same process. Herdr learns of it only on the next
+turn, so tandem confirms the reset from agy's own process log, which records
+`Created conversation <id>` at once. The pane's pid picks the log.
 
 tandem never sends a task into a conversation it could not reset. A Claude, Copilot or agy
 builder with no session id yet hasn't taken a turn since `tandem-pair`, so there is nothing to
