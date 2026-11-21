@@ -1,0 +1,26 @@
+
+      ▄▀▀▄        Antigravity CLI 1.5.14
+     ▀▀▀▀▀▀       user@example.com (Google AI Pro)
+    ▀▀▀▀▀▀▀▀      Gemini 4 Neon (Low)
+   ▄▀▀    ▀▀▄     /work/repo
+  ▄▀▀      ▀▀▄
+
+────────────────────────────────────────────────────────────
+> Run the command  herdr workspace list  and show me its output.
+
+● Ran (herdr workspace list) (ctrl+o to expand)
+
+Command
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+Requesting permission for:
+   herdr workspace list
+
+Run this command?
+> 1. Yes, run command
+  2. Yes, and always allow in this conversation for commands that start with 'herdr'
+  3. Yes, and always allow for commands that start with 'herdr' (Persist to settings.json)
+  4. No, cancel
+
+  ↑/↓ Navigate · tab Amend · ctrl+g edit/expand command
+esc to cancel                                                                                        Gemini 4 Neon · low
