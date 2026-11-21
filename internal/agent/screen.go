@@ -31,6 +31,9 @@ import (
 //     act there (x kills a task, enter opens one). Herdr reads the Sessions
 //     tab as working.
 //   - copilot, a GitHub tab (Issues, Pull requests, Gists).
+//   - agy, any dialog (folder trust, permission, slash-command menu): a line
+//     near the bottom starts "↑/↓ Navigate". Its "esc to cancel" footer also
+//     shows while agy works, so it is not a marker.
 //
 // A screen that matches nothing is not off: a wrong refusal holds a delivery
 // until a person looks.
@@ -43,6 +46,8 @@ func OffMainInput(kind, screen string) (why string, off bool) {
 		return codexOffMain(lines)
 	case "copilot":
 		return copilotOffMain(lines)
+	case "agy":
+		return agyOffMain(lines)
 	}
 	return "", false
 }
