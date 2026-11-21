@@ -55,3 +55,11 @@ func TestParseIntegrationStatus(t *testing.T) {
 		}
 	}
 }
+
+func TestIntegrationName(t *testing.T) {
+	for kind, want := range map[string]string{"agy": "antigravity-cli", "claude": "claude"} {
+		if got := IntegrationName(kind); got != want {
+			t.Errorf("IntegrationName(%q) = %q, want %q", kind, got, want)
+		}
+	}
+}
