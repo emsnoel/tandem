@@ -309,7 +309,7 @@ func argAfter(args []string, flag string) string {
 }
 
 func TestKindsRegistered(t *testing.T) {
-	want := []string{"claude", "codex", "copilot"}
+	want := []string{"agy", "claude", "codex", "copilot"}
 	if !reflect.DeepEqual(Kinds(), want) {
 		t.Fatalf("got %v, want %v", Kinds(), want)
 	}

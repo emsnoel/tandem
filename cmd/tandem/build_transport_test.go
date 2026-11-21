@@ -752,7 +752,7 @@ func assertOpenCodeRefused(t *testing.T, e *cliEnv, rc int, errOut string) {
 	if rc != exitcode.NarrowingRefused {
 		t.Errorf("exit %d, want the refusal code %d: %s", rc, exitcode.NarrowingRefused, errOut)
 	}
-	if !strings.Contains(errOut, "claude, codex, copilot") {
+	if !strings.Contains(errOut, "agy, claude, codex, copilot") {
 		t.Errorf("stderr does not name the supported kinds: %q", errOut)
 	}
 	for _, p := range []string{filepath.Join(paths.Relay(e.root), "active-run.json"), filepath.Join(e.home, "state.sqlite")} {

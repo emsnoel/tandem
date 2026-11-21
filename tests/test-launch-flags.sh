@@ -20,7 +20,7 @@ nchk "never drops the sandbox by default"   "--dangerously-bypass-approvals-and-
 echo "--- launch flags: opencode is refused ---"
 run_pair env -- --builder opencode
 [ "$RC" -eq 20 ] && ok "refuses with exit 20" || nope "refuses with exit 20 (got $RC)"
-chk  "names the supported kinds"    "supported kinds: claude, codex, copilot"
+chk  "names the supported kinds"    "supported kinds: agy, claude, codex, copilot"
 nchk "never renders a launch line"  "agent start builder"
 
 # Trust is in place so the copilot launch is asserted; the refusal is
