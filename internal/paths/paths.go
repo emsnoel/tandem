@@ -112,3 +112,18 @@ func CopilotHome() string {
 func CopilotTrustLedger(copilotHome string) string {
 	return filepath.Join(copilotHome, CopilotTrustLedgerName)
 }
+
+// AgyHome locates agy's home directory, ~/.gemini/antigravity-cli. It returns
+// "" when there is no home, and callers must report that.
+func AgyHome() string {
+	if h, err := os.UserHomeDir(); err == nil && h != "" {
+		return filepath.Join(h, ".gemini", "antigravity-cli")
+	}
+	return ""
+}
+
+// AgyTrustLedger resolves tandem's record of the folders it trusted on agy's
+// behalf.
+func AgyTrustLedger(agyHome string) string {
+	return filepath.Join(agyHome, CopilotTrustLedgerName)
+}
