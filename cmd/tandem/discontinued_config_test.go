@@ -10,7 +10,7 @@ import (
 	"github.com/emsnoel/tandem/internal/exitcode"
 )
 
-const staleSupported = "supported kinds: claude, codex, copilot"
+const staleSupported = "supported kinds: agy, claude, codex, copilot"
 
 // staleManifests are the ways a .tandem.json written before the upgrade names
 // OpenCode.
@@ -164,9 +164,9 @@ func TestCheckKindsAnswersForTheRecordedAgents(t *testing.T) {
 	}{
 		"nothing recorded":     {"", "", exitcode.OK, nil},
 		"both supported":       {"codex", "claude", exitcode.OK, nil},
-		"opencode builder":     {"opencode", "claude", exitcode.NarrowingRefused, []string{"builder", "opencode", "claude, codex, copilot"}},
-		"opencode reviewer":    {"codex", "opencode", exitcode.NarrowingRefused, []string{"reviewer", "opencode", "claude, codex, copilot"}},
-		"the builder is first": {"banana", "opencode", exitcode.NarrowingRefused, []string{"builder", "banana", "claude, codex, copilot"}},
+		"opencode builder":     {"opencode", "claude", exitcode.NarrowingRefused, []string{"builder", "opencode", "agy, claude, codex, copilot"}},
+		"opencode reviewer":    {"codex", "opencode", exitcode.NarrowingRefused, []string{"reviewer", "opencode", "agy, claude, codex, copilot"}},
+		"the builder is first": {"banana", "opencode", exitcode.NarrowingRefused, []string{"builder", "banana", "agy, claude, codex, copilot"}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			relay := t.TempDir()

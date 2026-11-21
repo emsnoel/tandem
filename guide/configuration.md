@@ -140,7 +140,7 @@ unanswered and nothing would be logged.
 
 ## Choosing an agent
 
-`kind` selects `codex`, `claude` or `copilot`. You set behaviour with one shared
+`kind` selects `codex`, `claude`, `copilot` or `agy`. You set behaviour with one shared
 autonomy setting, and tandem maps it onto each CLI's own flags:
 
 | autonomy | Codex | Claude Code | Copilot |

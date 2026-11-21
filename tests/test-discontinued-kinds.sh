@@ -99,7 +99,7 @@ has   "a supported unnamed pane is still adopted" "adopting the running codex ag
 printf '\n== tandem-pair will not approve a kind with no adapter ==\n'
 run_pair "" --approve-kind opencode --builder codex --reviewer claude
 exits "--approve-kind opencode: exits 20" 20
-has   "--approve-kind opencode: names the kind and the supported kinds" 'kind "opencode" is not supported, so it cannot be approved. Use one of the supported kinds: claude, codex, copilot'
+has   "--approve-kind opencode: names the kind and the supported kinds" 'kind "opencode" is not supported, so it cannot be approved. Use one of the supported kinds: agy, claude, codex, copilot'
 lack  "--approve-kind opencode: no second, vaguer line" "could not record"
 [ ! -e "$TMP/home/tandem.json" ] && ok "--approve-kind opencode: writes no user config" || nope "--approve-kind opencode wrote the user config"
 
@@ -120,7 +120,7 @@ refused_handoff() {
   exits "$1: exits 20" 20
   has   "$1: names the kind and the role" "records opencode as its $2"
   has   "$1: says it is discontinued" "discontinued opencode"
-  has   "$1: says to re-pair" "re-pair with a supported kind: tandem-pair --$2 KIND (one of claude, codex, copilot)"
+  has   "$1: says to re-pair" "re-pair with a supported kind: tandem-pair --$2 KIND (one of agy, claude, codex, copilot)"
   has   "$1: says nothing was sent" "Nothing was sent"
   lack  "$1: not the start's flag refusal" "--builder-kind"
   [ ! -e "$RELAY/build/build.json" ] && ok "$1: writes no build" || nope "$1: wrote build/build.json"

@@ -16,6 +16,8 @@ func TestResetCommandsAreMeasured(t *testing.T) {
 		"claude": "/clear",
 		// Confirmed from Copilot's process log, since Herdr's id never moves.
 		"copilot": "/new",
+		// /new is an alias of /clear in agy 1.5.14 and starts a new conversation in the same process.
+		"agy": "/new",
 	} {
 		a, err := Get(kind)
 		if err != nil {
@@ -162,6 +164,8 @@ func TestInstructionFilesAreMeasured(t *testing.T) {
 		"codex":   "AGENTS.md",
 		"claude":  "CLAUDE.md",
 		"copilot": "",
+		// agy instruction files are unmeasured.
+		"agy": "",
 	} {
 		a, err := Get(kind)
 		if err != nil {
