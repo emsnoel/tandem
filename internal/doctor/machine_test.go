@@ -199,6 +199,21 @@ func TestIntegrationStates(t *testing.T) {
 	}
 }
 
+func TestAgyIntegrationUsesHerdrName(t *testing.T) {
+	uses := Uses{"agy": {agent.RoleReviewer}}
+	p := healthy()
+	p.onPath["agy"] = "1.5.14"
+	p.integrations = map[string]herdr.Integration{"antigravity-cli": {Kind: "antigravity-cli", State: "current"}}
+	if r := find(t, Machine(p, uses, inPane), "integration:agy"); r.Status != OK {
+		t.Errorf("installed: got %+v", r)
+	}
+	p.integrations = map[string]herdr.Integration{}
+	r := find(t, Machine(p, uses, inPane), "integration:agy")
+	if r.Status != Fail || r.Fix != "herdr integration install antigravity-cli" {
+		t.Errorf("missing: got %+v", r)
+	}
+}
+
 func TestMissingCLIFails(t *testing.T) {
 	p := healthy()
 	delete(p.onPath, "codex")

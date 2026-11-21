@@ -106,8 +106,9 @@ func integrations(p Probe, uses Uses) []Result {
 	}
 	var rs []Result
 	for _, kind := range uses.kinds() {
-		r := Result{Name: "integration:" + kind, Fix: "herdr integration install " + kind}
-		in, ok := got[kind]
+		name := herdr.IntegrationName(kind)
+		r := Result{Name: "integration:" + kind, Fix: "herdr integration install " + name}
+		in, ok := got[name]
 		switch {
 		case !ok || in.State == "not installed":
 			r.Status, r.Detail = Fail, "herdr integration for "+kind+" not installed"

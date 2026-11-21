@@ -64,6 +64,8 @@ func (a *Agent) SessionID() string {
 //   - codex: the hook runs in Codex's shared app-server daemon, started by the
 //     first Codex TUI on the machine. Every Codex conversation is credited to
 //     the pane that started the daemon, and no other pane gets one.
+//   - agy: the hook reports conversationId on each PreInvocation, so the
+//     session is absent until the first turn and moves on the turn after /new.
 
 // Conversation returns the conversation the agent is in, when Herdr's report
 // names it: only for Claude Code. For every other kind it is "", and the
@@ -80,10 +82,10 @@ func (a *Agent) Conversation() string {
 func NamesConversation(kind string) bool { return kind == "claude" }
 
 // HasNoConversation reports whether the pane is known to have no conversation:
-// no session reported, for a kind where that means no turn yet (Claude and
-// Copilot). For Codex it is false.
+// no session reported, for a kind where that means no turn yet (Claude,
+// Copilot and agy). For Codex it is false.
 func (a *Agent) HasNoConversation() bool {
-	return a != nil && (a.Kind == "claude" || a.Kind == "copilot") && a.SessionID() == ""
+	return a != nil && (a.Kind == "claude" || a.Kind == "copilot" || a.Kind == "agy") && a.SessionID() == ""
 }
 
 // StatusString returns agent_status, or "" when it is missing.

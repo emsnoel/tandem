@@ -20,6 +20,15 @@ type Integration struct {
 	Detail string
 }
 
+// IntegrationName returns the name `herdr integration` uses for an agent kind.
+// It is the kind itself, except for agy.
+func IntegrationName(kind string) string {
+	if kind == "agy" {
+		return "antigravity-cli"
+	}
+	return kind
+}
+
 // ParseVersion reads the version number from `herdr --version` output.
 func ParseVersion(out string) (string, error) {
 	for _, f := range strings.Fields(out) {
