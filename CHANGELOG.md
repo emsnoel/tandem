@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.2](https://github.com/emsnoel/tandem/compare/v0.16.1...v0.16.2) (2026-11-21)
+
+
+### Performance Improvements
+
+* run the shell suites in parallel and add a targeted test mode ([ec3fc6b](https://github.com/emsnoel/tandem/commit/ec3fc6bc9f4e0f168e9c74ec2d925dd40dc7f727))
+
 ## [0.16.1](https://github.com/emsnoel/tandem/compare/v0.16.0...v0.16.1) (2026-11-21)
 
 
