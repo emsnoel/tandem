@@ -71,7 +71,24 @@ func DefaultCodexSessions() string {
 	return filepath.Join(home, ".codex", "sessions")
 }
 
+// usageReadable names the kinds whose logs Collect reads.
+var usageReadable = map[string]bool{"codex": true, "claude": true, "copilot": true}
+
+// UnmeasuredKind returns the first non-empty kind whose token usage tandem
+// cannot read, or "" when it can read them all.
+func UnmeasuredKind(kinds ...string) string {
+	for _, k := range kinds {
+		if k != "" && !usageReadable[k] {
+			return k
+		}
+	}
+	return ""
+}
+
 func (a AgentUsageSource) Collect(_ context.Context, kind, session string, from, to time.Time) ([]rollout.Stream, error) {
+	if !usageReadable[kind] {
+		return nil, fmt.Errorf("%w: usage is read from Codex, Claude and Copilot logs only; there is no source for %s", workflow.ErrUnsupported, kind)
+	}
 	switch kind {
 	case "codex":
 		return rollout.Collect(a.CodexSessions, session, from, to).Streams, nil

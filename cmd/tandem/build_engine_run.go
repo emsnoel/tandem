@@ -117,6 +117,10 @@ func cmdBuildStartDurable(args []string) int {
 	if rc := refuseUnknownKind("the reviewer pane's kind", req.ReviewerKind); rc != exitcode.OK {
 		return rc
 	}
+	// controller.Start drops the limits for such a run. Say so once, here.
+	if k := controller.UnmeasuredKind(req.BuilderKind, req.ReviewerKind); k != "" && (req.TaskInputLimit > 0 || req.RunInputLimit > 0) {
+		fmt.Fprintf(os.Stderr, "tandem build start: this run has no input budget: tandem can't read %s's token usage yet (issue #113), and a limit it can't measure would pause the run before every review\n", k)
+	}
 	// Every task's first prompt is measured before anything exists, so a task
 	// too large for the limit is refused here instead of pausing a new run.
 	if err := controller.CheckTaskContext(req); errors.Is(err, workflow.ErrContextTooLarge) {

@@ -38,6 +38,12 @@ func (c *Controller) Start(ctx context.Context, req StartRequest) (string, error
 	if err := ValidateReviewerPane(req); err != nil {
 		return "", err
 	}
+	// Usage tandem cannot read counts as unknown, and unknown usage against a
+	// limit pauses the run before every review. So a limit on a run with an
+	// unmeasured kind only blocks work, and the run starts without one (#113).
+	if UnmeasuredKind(req.BuilderKind, req.ReviewerKind) != "" {
+		req.TaskInputLimit, req.RunInputLimit = 0, 0
+	}
 	if req.Collaboration != "" {
 		if err := c.requireCollaboration(ctx, req.Collaboration); err != nil {
 			return "", err
