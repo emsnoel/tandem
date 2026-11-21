@@ -17,6 +17,13 @@ can't clear one, it refuses to launch.
 | copilot | The session-restore picker, which Herdr reports as idle | Passes `--session-id <fresh uuid>`, for the builder and reviewer only |
 | copilot | Approval dialogs for commands, paths and URLs | Passes `--allow-all-tools --allow-all-urls`, from `autonomy`, plus `--allow-all-paths` for the builder and reviewer only |
 | copilot | The `ask_user` tool, which asks a person the builder doesn't have | Passes `--no-ask-user`, for the builder and reviewer only |
+| agy | The "Do you trust the contents of this project?" folder-trust prompt | Adds the folder to `trustedWorkspaces` in agy's settings, but only when you chose the agy builder yourself. Otherwise tandem reports it, and pairing refuses with exit 23. Approve it once with `tandem-pair --approve-kind agy`. `tandem-unpair --clean-trust` removes the entry, but only if tandem added it |
+| agy | Permission prompts and dialogs | Reads the pane (see [Reading the pane](#reading-the-pane)). A footer line that starts `↑/↓ Navigate` marks a dialog. `esc to cancel` alone doesn't, because agy shows it while it works |
+
+**Start an agy planner in default mode.** Run `agy --settings '{"agentMode":""}'`, or switch
+to it with shift+tab. agy starts in Auto, and tandem's commands can't reach Herdr from
+Auto's sandbox. **An agy builder in Auto may stop on a permission prompt that agy's own
+review didn't clear.** tandem's stall pause names that prompt.
 
 **A prompt that needs a person means different things for each role.** For the planner,
 tandem only notes it, because someone is sitting at that pane. For a builder or a reviewer,
@@ -43,6 +50,8 @@ the pane shows a dialog that a person has to answer:
 - for Claude Code, any screen whose last line offers `Esc to cancel`, and for Copilot,
   any screen whose footer offers `esc to cancel`. Their trust prompts and Claude Code's
   Bypass Permissions warning end that way, and neither main input does;
+- for agy, any screen whose bottom lines offer `↑/↓ Navigate`. `esc to cancel` alone doesn't
+  count, because agy shows it while it works, and the marker only counts at the bottom;
 - anything Herdr itself reports as `blocked`.
 
 `tandem-pair` then stops with exit 23 and names every pane that needs you:

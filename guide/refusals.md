@@ -94,4 +94,4 @@ It takes `--kind`, `--model`, `--effort` and `--autonomy` as overrides, the same
 |---|---|---|
 | `tandem-handoff` exits 23 and names `.tandem-relay/build/build.json` | A build from the removed legacy engine is still in the relay. tandem doesn't read or change the file | Finish that build with `install.sh --version v0.6.0`, or remove the file and hand off again |
 | `build_engine` or `TANDEM_BUILD_ENGINE` is set to anything but `durable` | There is one engine now | Remove the setting. A value of `durable` is accepted and ignored |
-| A kind such as `opencode` in a config, flag or recorded pair (exit 20) | tandem no longer supports it | Pair again with `codex`, `claude` or `copilot`. An old run with that kind can still be stopped, recovered and archived |
+| A kind such as `opencode` in a config, flag or recorded pair (exit 20) | tandem no longer supports it | Pair again with `codex`, `claude`, `copilot` or `agy`. An old run with that kind can still be stopped, recovered and archived |

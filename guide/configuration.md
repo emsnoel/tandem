@@ -87,14 +87,14 @@ When a key is missing, tandem detects it like this:
 - **check_paths** has no detection. Without it, gate 8 checks the whole tree.
 
 **There is no `planner` block, on purpose.** The planner is the agent you run `tandem-pair`
-from, Claude Code or Copilot, and tandem never launches one. So there is nothing for a
+from, Claude Code, Copilot or agy, and tandem never launches one. So there is nothing for a
 repository to choose. A key that tandem reads and then ignores is worse than one it refuses,
 so it refuses. A `planner` block in `.tandem.json` gets a warning that points to
 `defaults.planner_kind` in your user config, which is where a setting about your own
 terminal belongs.
 
 `tandem-pair` takes the planner's kind from the pane: the one named with `--planner-pane`,
-else the pane you run it from, else the only Claude Code or Copilot agent running. When
+else the pane you run it from, else the only Claude Code, Copilot or agy agent running. When
 several could plan, `defaults.planner_kind` (or `HERDR_PLANNER_KIND`) picks the kind.
 
 Codex can't plan. Its sandbox blocks the Herdr socket that every tandem command uses, unless
@@ -185,6 +185,23 @@ say `pair ready`, `tandem-handoff` would say it delivered the plan, and the pick
 swallow the plan. A new session id skips the picker. tandem leaves a Copilot planner alone,
 because that pane is somebody's own, and a new session would throw away the conversation
 they are in.
+
+**agy maps autonomy onto its own flags.** The table is measured against agy 1.5.14.
+
+| autonomy | agy |
+| -------- | --- |
+| `readonly` | `--mode plan` |
+| `ask` | `--settings '{"agentMode":""}'` |
+| `auto` | `--mode auto` |
+| `full` | `--dangerously-skip-permissions` |
+
+- agy's own default is Auto, which runs commands in a sandbox without asking. So `ask`
+  passes `agentMode` as an empty string, and `readonly` and `auto` are sandboxed.
+- Effort passes as `--effort` and beats a suffix on the model name. With `--model X-high`
+  and effort `low`, agy gets `--effort low`, and tandem warns about the suffix.
+- Isolation is ignored, because agy has no flag for it.
+- Usage numbers and log-read review replies are unsupported for agy for now. tandem reads
+  neither from agy's conversation logs, so a configured token budget pauses the run.
 
 To override the builder for one pairing, use flags:
 

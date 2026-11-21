@@ -47,7 +47,7 @@ The planner gets a note that says what stopped, why and what to run next. See
 input tokens. 0 turns it off. The most expensive task of that 8-task build, replayed in a
 fresh conversation, came to 1.65M. So the default leaves room for a big task, and still stops
 a missed reset or a runaway task long before a usage window runs out. tandem measures it
-from the session logs of Codex, Claude and Copilot. When usage can't be read, a configured
+from the session logs of Codex, Claude and Copilot. agy usage can't be read yet. When usage can't be read, a configured
 budget pauses the run.
 
 The limit counts fresh input in full and a cache read as a tenth of a token, because a cache
@@ -131,7 +131,10 @@ same reason, tandem never takes a Copilot pane's conversation id from Herdr. A t
 conversation is the one its reset named, or the one whose prompt holds the task's nonce in
 `~/.copilot/session-state`.
 
-tandem never sends a task into a conversation it could not reset. A Claude or Copilot
+**tandem resets an agy builder with `/new`.** agy 1.5.14 treats it as an alias of `/clear`,
+and it starts a new conversation in the same process.
+
+tandem never sends a task into a conversation it could not reset. A Claude, Copilot or agy
 builder with no session id yet hasn't taken a turn since `tandem-pair`, so there is nothing to
 reset.
 
