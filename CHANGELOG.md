@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.17.0](https://github.com/emsnoel/tandem/compare/v0.16.2...v0.17.0) (2026-11-21)
+
+
+### Features
+
+* add a folder-trust gate for Antigravity CLI ([88e61af](https://github.com/emsnoel/tandem/commit/88e61af4122b45553308dcb369f25bdbc5d5a74a))
+* launch Antigravity CLI (agy) as an agent kind ([d509777](https://github.com/emsnoel/tandem/commit/d50977780ca3b274a080733f6449eb3046486917))
+* let agy be the planner and link tandem's skills into it ([3c92724](https://github.com/emsnoel/tandem/commit/3c9272484ffe495dc9b37587e3ebf38404782a70))
+* read agy's dialogs from its screen ([55909f5](https://github.com/emsnoel/tandem/commit/55909f5c5d43d18540222e20753ee40214b4d5fc))
+* wire agy into Herdr session handling, doctor and pause notes ([9a7cbef](https://github.com/emsnoel/tandem/commit/9a7cbefab71786812dd5a106d6cbdba81814e641))
+
+
+### Bug Fixes
+
+* confirm an agy reset from agy's own process log ([41d62da](https://github.com/emsnoel/tandem/commit/41d62da059f44244f21933c65f6ecc498e4df17b))
+* keep an unattended agy pane from asking before tandem's commands ([1dafb54](https://github.com/emsnoel/tandem/commit/1dafb543c7d83b1d7f1115874997540927cab91b))
+* start a run with an unmeasured agent kind without a budget ([130063e](https://github.com/emsnoel/tandem/commit/130063e2b2ce5a08bb35eb95ec827b206b695bae))
+
 ## [0.16.2](https://github.com/emsnoel/tandem/compare/v0.16.1...v0.16.2) (2026-11-21)
 
 
