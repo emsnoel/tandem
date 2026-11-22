@@ -1,5 +1,10 @@
 package agent
 
+import (
+	"fmt"
+	"strings"
+)
+
 func init() { Register(codexAdapter{}) }
 
 // codexAdapter maps onto codex-cli. Codex keeps approval and sandboxing on
@@ -44,16 +49,13 @@ func (c codexAdapter) Resolve(s Spec) (Launch, error) {
 	if w != nil {
 		l.Warnings = append(l.Warnings, *w)
 	}
-	workspace := []string{"--sandbox", "workspace-write"}
-	switch Autonomy(autonomy) {
-	case Readonly:
-		l.Args = append(l.Args, "--sandbox", "read-only", "--ask-for-approval", "on-request")
-	case Ask:
-		l.Args = append(append(l.Args, workspace...), "--ask-for-approval", "on-request")
-		l.Args, l.Granted = codexGrant(l.Args, s.Sandbox)
+	switch a := Autonomy(autonomy); a {
+	case Readonly, Ask:
+		l.Args, l.Granted = codexSandbox(a, s)
+		l.Args = append(l.Args, "--ask-for-approval", "on-request")
 	case Auto:
-		l.Args = append(append(l.Args, workspace...), "--ask-for-approval", "never")
-		l.Args, l.Granted = codexGrant(l.Args, s.Sandbox)
+		l.Args, l.Granted = codexSandbox(a, s)
+		l.Args = append(l.Args, "--ask-for-approval", "never")
 	case Full:
 		l.Args = append(l.Args, "--dangerously-bypass-approvals-and-sandbox")
 	}
@@ -89,23 +91,92 @@ func (c codexAdapter) Resolve(s Spec) (Launch, error) {
 	return l, nil
 }
 
-// codexGrant widens a workspace-write sandbox. --add-dir makes a directory
-// writable beside the checkout, and network_access opens sockets, loopback
-// included. On codex-cli 0.169.0 both together let `./gradlew help` run, and
-// either alone fails: on the ~/.gradle wrapper lock, or on the loopback socket
-// Gradle's FileLockContentionHandler binds. A read-only sandbox takes neither.
-func codexGrant(args []string, g SandboxGrant) ([]string, SandboxGrant) {
-	for _, d := range g.WritableDirs {
-		args = append(args, "--add-dir", d)
+// codexProfile names the permission profile tandem builds for a sandboxed
+// Codex. The launch's -c overrides define it whole, so ~/.codex/config.toml
+// needs no entry.
+const codexProfile = "tandem"
+
+// codexSandbox returns the -c overrides that start Codex in tandem's permission
+// profile, and the part of the user's grant they apply. Measured on codex-cli
+// 0.169.0 in a real agent (`codex sandbox` never starts the proxy):
+//
+//   - The profile extends Codex's own :workspace, or :read-only, so the
+//     checkout's rules, .git kept read-only included, stay Codex's.
+//   - unix_sockets lets commands connect to the Herdr socket, and bind and
+//     connect Unix sockets under the checkout, such as a test's fake server.
+//     Neither works unless network.enabled is true.
+//   - network.enabled alone opens the whole network. The network_proxy
+//     feature routes it through Codex's proxy, which allows no domain here, so
+//     a direct connection out gets EPERM. allow_local_binding keeps loopback
+//     open for a test server, TCP or UDP.
+//   - A user's grant adds filesystem entries. A network grant drops the proxy,
+//     which opens the internet too: Codex has no narrower setting. Gradle 9.2.0
+//     needs it: its Java listener is refused behind the proxy although loopback
+//     is open, and `./gradlew help --offline` passes with ~/.gradle and network.
+//
+// A read-only profile cannot create a socket file, so it lists only Herdr's,
+// and it ignores the grant, since its sandbox writes nothing.
+func codexSandbox(a Autonomy, s Spec) ([]string, SandboxGrant) {
+	p := "permissions." + codexProfile + "."
+	base, g := ":workspace", s.Sandbox
+	var sockets []string
+	if s.HerdrSocket != "" {
+		sockets = append(sockets, s.HerdrSocket)
 	}
-	if g.Network {
-		args = append(args, "-c", "sandbox_workspace_write.network_access=true")
+	if a == Readonly {
+		base, g = ":read-only", SandboxGrant{}
+	} else if s.Cwd != "" {
+		sockets = append(sockets, s.Cwd)
+	}
+	args := []string{
+		"-c", "default_permissions=" + tomlString(codexProfile),
+		"-c", p + "extends=" + tomlString(base),
+		"-c", p + "network.enabled=true",
+		"-c", p + "network.allow_local_binding=true",
+	}
+	if len(sockets) > 0 {
+		args = append(args, "-c", p+"network.unix_sockets="+tomlTable(sockets, "allow"))
+	}
+	if len(g.WritableDirs) > 0 {
+		args = append(args, "-c", p+"filesystem="+tomlTable(g.WritableDirs, "write"))
+	}
+	if !g.Network {
+		args = append(args, "-c", "features.network_proxy=true")
 	}
 	return args, g
 }
 
-// Sandboxed reports whether Codex's seatbelt will deny the Herdr socket.
-// Only danger-full-access, which autonomy=full selects, clears it.
+// tomlTable is an inline TOML table that maps each key to value.
+func tomlTable(keys []string, value string) string {
+	parts := make([]string, len(keys))
+	for i, k := range keys {
+		parts[i] = tomlString(k) + "=" + tomlString(value)
+	}
+	return "{" + strings.Join(parts, ",") + "}"
+}
+
+// tomlString is s as a TOML basic string. Go's %q is close but writes \x
+// escapes, which TOML rejects.
+func tomlString(s string) string {
+	var b strings.Builder
+	b.WriteByte('"')
+	for _, r := range s {
+		switch {
+		case r == '"' || r == '\\':
+			b.WriteByte('\\')
+			b.WriteRune(r)
+		case r < 0x20 || r == 0x7f:
+			fmt.Fprintf(&b, `\u%04X`, r)
+		default:
+			b.WriteRune(r)
+		}
+	}
+	b.WriteByte('"')
+	return b.String()
+}
+
+// Sandboxed reports whether Codex runs its commands in a seatbelt sandbox.
+// Only danger-full-access, which autonomy=full selects, has none.
 func (codexAdapter) Sandboxed(s Spec) bool { return s.Autonomy != Full }
 
 // ResetCommand: not /clear, which also wipes the pane's scrollback. The session

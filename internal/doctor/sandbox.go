@@ -23,10 +23,10 @@ type buildTool struct {
 	need func(home string, getenv func(string) string) agent.SandboxGrant
 }
 
-// buildTools lists only tools measured failing in codex-cli 0.169.0's
-// workspace-write sandbox. Gradle's wrapper locks a file under ~/.gradle, and
-// Gradle binds a loopback socket for its file lock contention handler, so
-// `./gradlew help --offline` fails on either without both grants.
+// buildTools lists only tools measured failing in tandem's Codex sandbox
+// profile on codex-cli 0.169.0. Gradle's wrapper locks a file under ~/.gradle,
+// and Gradle 9.2.0's listener is refused behind Codex's network proxy, so
+// `./gradlew help --offline` fails without both grants.
 var buildTools = []buildTool{{
 	name:    "gradle",
 	markers: []string{"gradlew", "settings.gradle", "settings.gradle.kts", "build.gradle", "build.gradle.kts"},

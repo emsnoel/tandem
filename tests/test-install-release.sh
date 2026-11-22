@@ -227,14 +227,16 @@ for args in "--version 1.0" "--bogus" "--from-source --version v1.0.0" "--uninst
 done
 
 # --- the default skill homes -------------------------------------------------
-# An empty TANDEM_SKILL_HOMES makes install.sh use its default. Only agy's home
-# exists, so only it gets links.
-DH="$TMP/default-home"; mkdir -p "$DH/.gemini/config"
+# An empty TANDEM_SKILL_HOMES makes install.sh use its default. Only agy's and
+# Codex's homes exist, so only they get links.
+DH="$TMP/default-home"; mkdir -p "$DH/.gemini/config" "$DH/.codex"
 OUT=$(inst TANDEM_SKILL_HOMES= HOME="$DH" TANDEM_SHARE_DIR="$TMP/share-default" -- "$TMP/dest-default"); RC=$?
 [ "$RC" -eq 0 ] && ok "installs with the default skill homes" || nope "default-home install failed (rc $RC): $OUT"
 for s in tandem-pair tandem-plan; do
   [ "$(readlink "$DH/.gemini/config/skills/$s")" = "$TMP/share-default/current/skills/$s" ] \
     && ok "links $s into agy's skills folder" || nope "$s links to '$(readlink "$DH/.gemini/config/skills/$s")'"
+  [ "$(readlink "$DH/.codex/skills/$s")" = "$TMP/share-default/current/skills/$s" ] \
+    && ok "links $s into Codex's skills folder" || nope "$s links to '$(readlink "$DH/.codex/skills/$s")'"
 done
 [ ! -e "$DH/.claude" ] && [ ! -e "$DH/.copilot" ] && ok "and makes no home for Claude or Copilot" \
   || nope "it created a home: $(ls -A "$DH" | tr '\n' ' ')"

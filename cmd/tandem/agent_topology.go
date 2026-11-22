@@ -26,10 +26,18 @@ func listAgents() ([]herdr.Agent, int) {
 	agents, err := herdr.List()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
+		// Codex marks the shells it sandboxes. A Codex started plainly has
+		// Herdr's socket denied; tandem codex starts one that can reach it.
+		if herdr.SocketUnreachable(err) && os.Getenv("CODEX_SANDBOX") != "" {
+			fmt.Fprintln(os.Stderr, codexSocketHint)
+		}
 		return nil, herdr.ExitCodeFor(err)
 	}
 	return agents, exitcode.OK
 }
+
+// codexSocketHint tells a person in a plainly started Codex how to plan from it.
+const codexSocketHint = "Codex's sandbox blocks Herdr's socket here. Quit Codex, then start it with tandem codex to plan from it."
 
 // cmdAgentPlanner answers bin/tandem-pair's "which pane is the planner".
 // It prints pane, cwd, tab, name and kind as NUL fields; the kind is empty for
@@ -91,8 +99,8 @@ func preferredPlannerKind(flagKind string) (string, int) {
 }
 
 func refuseNonPlanner(what, kind string) int {
-	fmt.Fprintf(os.Stderr, "%s, and %s can't plan. The planner must be one of %s. %s can still build and review.\n",
-		what, kind, strings.Join(agent.PlannerKinds, ", "), kind)
+	fmt.Fprintf(os.Stderr, "%s, and %s can't plan. The planner must be one of %s.\n",
+		what, kind, strings.Join(agent.PlannerKinds, ", "))
 	return exitcode.NotAPlanner
 }
 

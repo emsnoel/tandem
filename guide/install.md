@@ -13,8 +13,9 @@ This installs the latest release. You need `curl`, `tar` and `shasum` (or
    `TANDEM_SHARE_DIR` to put it somewhere else.
 4. It points `~/.local/share/tandem/current` at that version, and links the `tandem` binary
    and the thirteen commands from `~/.local/bin` into it.
-5. It links the `tandem-plan` and `tandem-pair` skills into `~/.claude/skills` and
-   `~/.copilot/skills`, for each of those CLIs that has a home folder. `tandem-plan` tells
+5. It links the `tandem-plan` and `tandem-pair` skills into `~/.claude/skills`,
+   `~/.copilot/skills`, `~/.gemini/config/skills` (agy) and `~/.codex/skills`, for each of
+   those CLIs that has a home folder. `tandem-plan` tells
    a planner how to write a plan that tandem can review and build. `tandem-pair` tells it
    the order of the pair commands, to end its turn instead of polling, and to leave a
    pane's dialog to you. A skill of either name that you wrote is kept.
@@ -131,7 +132,8 @@ You need these on every machine:
   (protocol 22) arrived in 0.9.3. F27 in `guide/design.md` pins the shapes.
 - `git`, `bash`, `curl`, `tar`, and `shasum` or `sha256sum`.
 - Herdr's integration for each agent you use. The planner is the agent you run `tandem-pair`
-  from, Claude Code, Copilot or agy, so install `claude`, `copilot` or `antigravity-cli` for it. Add each builder and
+  from, Claude Code, Codex, Copilot or agy, so install `claude`, `codex`, `copilot` or
+  `antigravity-cli` for it. Start a Codex planner with `tandem codex`. Add each builder and
   reviewer kind you pick, such as `codex`. For `agy`, run
   `herdr integration install antigravity-cli`. `herdr integration install` lists every kind Herdr
   supports.

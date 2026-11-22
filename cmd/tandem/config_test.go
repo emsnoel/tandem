@@ -5,6 +5,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/emsnoel/tandem/internal/config"
@@ -46,8 +48,13 @@ func TestLaunchSpecEmitsArgv(t *testing.T) {
 	if got.Kind != "codex" {
 		t.Errorf("got kind %q", got.Kind)
 	}
-	if len(got.Args) == 0 || got.Args[0] != "--sandbox" {
+	if len(got.Args) < 2 || got.Args[1] != `default_permissions="tandem"` {
 		t.Errorf("got args %v", got.Args)
+	}
+	// The builder's shell reaches Herdr through the socket the launch names.
+	sock := `permissions.tandem.network.unix_sockets={"` + filepath.Clean(os.Getenv("HERDR_SOCKET_PATH")) + `"="allow"`
+	if !slices.ContainsFunc(got.Args, func(a string) bool { return strings.HasPrefix(a, sock) }) {
+		t.Errorf("no Herdr socket %s in %v", sock, got.Args)
 	}
 }
 

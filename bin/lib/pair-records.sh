@@ -104,8 +104,8 @@ record_reviewer() {
 }
 
 # start_bridge: start the relay bridge.
-# Codex's sandbox denies the Herdr socket, so this unsandboxed watcher
-# delivers its questions.
+# A sandboxed agent that cannot reach the Herdr socket queues its questions in
+# the mailbox, and this unsandboxed watcher delivers them.
 start_bridge() {
   if (( ! DRY_RUN )); then
     MAILBOX=$(tandem paths relay --root "$MB_ROOT") \

@@ -63,7 +63,8 @@ func TestAgentPlannerExitCodes(t *testing.T) {
 	t.Setenv("HERDR_TANDEM_CONFIG", filepath.Join(t.TempDir(), "none.json"))
 	t.Setenv("HERDR_PANE_ID", "")
 	out, rc := captureStdoutRC(t, func() int { return cmdAgent([]string{"planner"}) })
-	if got := fields(out); rc != exitcode.ManyPlanners || len(got) != 6 || got[0] != "w1:p1" || got[1] != "" || got[4] != "bob" || got[5] != "/c" {
+	// The unnamed Codex can plan too, so it is the third candidate.
+	if got := fields(out); rc != exitcode.ManyPlanners || len(got) != 9 || got[0] != "w1:p1" || got[1] != "" || got[4] != "bob" || got[5] != "/c" || got[6] != "w1:p3" {
 		t.Fatalf("rc %d, fields %q", rc, got)
 	}
 	out, rc = captureStdoutRC(t, func() int { return cmdAgent([]string{"planner", "--kind", "copilot"}) })
@@ -86,20 +87,51 @@ func TestAgentPlannerAdoptsCopilot(t *testing.T) {
 	}
 }
 
-func TestCodexCannotPlan(t *testing.T) {
-	stubHerdr(t, copilotPlanner)
+// A Codex started plainly cannot reach Herdr, and tandem-pair from it says how
+// to start one that can. Outside Codex the same failure gets no Codex advice.
+func TestAgentPlannerFromAPlainCodexNamesTandemCodex(t *testing.T) {
+	dir := t.TempDir()
+	script := "#!/bin/sh\necho 'Error: Os { code: 1, kind: PermissionDenied, message: \"Operation not permitted\" }' >&2\nexit 1\n"
+	if err := os.WriteFile(filepath.Join(dir, "herdr"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("HERDR_TANDEM_CONFIG", filepath.Join(t.TempDir(), "none.json"))
+	for _, sandbox := range []string{"seatbelt", ""} {
+		t.Setenv("CODEX_SANDBOX", sandbox)
+		var rc int
+		errOut := captureStderr(t, func() { _, rc = captureStdoutRC(t, func() int { return cmdAgent([]string{"planner"}) }) })
+		if rc == exitcode.OK {
+			t.Fatalf("CODEX_SANDBOX=%q: rc 0", sandbox)
+		}
+		if got := strings.Contains(errOut, "tandem codex"); got != (sandbox != "") {
+			t.Errorf("CODEX_SANDBOX=%q: hint shown %v: %q", sandbox, got, errOut)
+		}
+	}
+}
+
+// opencodeBeside is a Copilot planner beside an agent Herdr detects that tandem
+// cannot run.
+const opencodeBeside = `{"result":{"agents":[
+ {"pane_id":"w1:p1","agent":"copilot","name":null,"agent_status":"idle","cwd":"/a","tab_id":"w1:t1"},
+ {"pane_id":"w1:p2","agent":"opencode","name":null,"agent_status":"idle","cwd":"/b","tab_id":"w1:t1"}]}}`
+
+// Every kind tandem runs can plan. An agent of any other kind cannot, however
+// it is chosen.
+func TestOtherAgentsCannotPlan(t *testing.T) {
+	stubHerdr(t, opencodeBeside)
 	cfg := filepath.Join(t.TempDir(), "tandem.json")
 	t.Setenv("HERDR_TANDEM_CONFIG", cfg)
 	t.Setenv("HERDR_PANE_ID", "")
 	cases := map[string]func() []string{
-		"a codex pane named": func() []string { return []string{"planner", "--pane", "w1:p2"} },
-		"run from a codex pane": func() []string {
+		"an opencode pane named": func() []string { return []string{"planner", "--pane", "w1:p2"} },
+		"run from an opencode pane": func() []string {
 			t.Setenv("HERDR_PANE_ID", "w1:p2")
 			return []string{"planner"}
 		},
-		"--kind codex": func() []string { return []string{"planner", "--kind", "codex"} },
-		"planner_kind codex": func() []string {
-			os.WriteFile(cfg, []byte(`{"defaults":{"planner_kind":"codex"}}`), 0o600)
+		"--kind opencode": func() []string { return []string{"planner", "--kind", "opencode"} },
+		"planner_kind opencode": func() []string {
+			os.WriteFile(cfg, []byte(`{"defaults":{"planner_kind":"opencode"}}`), 0o600)
 			return []string{"planner"}
 		},
 	}
@@ -107,7 +139,7 @@ func TestCodexCannotPlan(t *testing.T) {
 		a := args()
 		var rc int
 		errOut := captureStderr(t, func() { _, rc = captureStdoutRC(t, func() int { return cmdAgent(a) }) })
-		if rc != exitcode.NotAPlanner || !strings.Contains(errOut, "codex") || !strings.Contains(errOut, "can't plan") {
+		if rc != exitcode.NotAPlanner || !strings.Contains(errOut, "opencode") || !strings.Contains(errOut, "can't plan") {
 			t.Errorf("%s: rc %d %q", name, rc, errOut)
 		}
 	}

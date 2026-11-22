@@ -89,19 +89,27 @@ When a key is missing, tandem detects it like this:
 - **check_paths** has no detection. Without it, gate 8 checks the whole tree.
 
 **There is no `planner` block, on purpose.** The planner is the agent you run `tandem-pair`
-from, Claude Code, Copilot or agy, and tandem never launches one. So there is nothing for a
+from, Claude Code, Codex, Copilot or agy, in a pane you opened yourself. So there is nothing for a
 repository to choose. A key that tandem reads and then ignores is worse than one it refuses,
 so it refuses. A `planner` block in `.tandem.json` gets a warning that points to
 `defaults.planner_kind` in your user config, which is where a setting about your own
 terminal belongs.
 
 `tandem-pair` takes the planner's kind from the pane: the one named with `--planner-pane`,
-else the pane you run it from, else the only Claude Code, Copilot or agy agent running. When
-several could plan, `defaults.planner_kind` (or `HERDR_PLANNER_KIND`) picks the kind.
+else the pane you run it from, else the only Claude Code, Codex, Copilot or agy agent
+running. A pane tandem named as some pair's builder or reviewer is never picked that way.
+When several could plan, `defaults.planner_kind` (or `HERDR_PLANNER_KIND`) picks the kind.
+An agent of any other kind is refused with exit 34.
 
-Codex can't plan. Its sandbox blocks the Herdr socket that every tandem command uses, unless
-Codex runs with no sandbox at all. A Codex pane, or `planner_kind` set to `codex`, is refused
-with exit 34. Codex still builds and reviews.
+**Start a Codex planner with `tandem codex`.** Codex's own sandbox blocks the Herdr socket
+that every tandem command uses, so a Codex you start with plain `codex` can't run
+`tandem-pair`. Its error says so. `tandem codex` starts Codex in the same pane with the
+permission profile tandem gives a Codex builder (see [Sandboxes](launching.md#sandboxes)),
+and two more folders it may write: tandem's state home and the checkout's `.git`, where
+`tandem-pair` and your commits write. Anything else outside the checkout still asks you
+first, because a planner defaults to `autonomy: ask`. Set `HERDR_PLANNER_AUTONOMY` to change
+that. Arguments after `tandem codex` go to Codex, and `adapters.codex` in your user config
+sets the model, effort and path as it does for a builder.
 
 This repository keeps `builder_kind: "codex"` on purpose, so its own teardown keeps testing
 that older key. Don't change it to a `builder` block for consistency. Its `reviewer` block,

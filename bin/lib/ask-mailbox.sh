@@ -31,8 +31,9 @@ log_exchange() {
 # ---------------------------------------------------------------------------
 # Sandbox fallback.
 #
-# Codex's sandbox denies the Herdr socket but allows writes in the workspace.
-# When the socket is unreachable, the question goes through a mailbox and
+# A sandbox that denies the Herdr socket (agy's, or a Codex started without
+# tandem's profile) still allows writes in the workspace. When the socket is
+# unreachable, the question goes through a mailbox and
 # tandem-bridge delivers it from the unsandboxed side.
 # ---------------------------------------------------------------------------
 mailbox_dir() {
