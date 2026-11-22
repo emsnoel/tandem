@@ -14,7 +14,9 @@ run_pair env
 chk  "renders an agent start line"          "agent start builder --kind codex"
 chk  "uses the -- agent-args passthrough"   " -- "
 chk  "disables approval prompts"            "--ask-for-approval never"
-chk  "keeps the sandbox at workspace-write" "--sandbox workspace-write"
+chk  "keeps Codex's workspace sandbox"      'permissions.tandem.extends=":workspace"'
+chk  "lets the builder reach Herdr"         'permissions.tandem.network.unix_sockets={"'
+chk  "keeps the internet shut"              "features.network_proxy=true"
 nchk "never drops the sandbox by default"   "--dangerously-bypass-approvals-and-sandbox"
 
 echo "--- launch flags: opencode is refused ---"
@@ -93,11 +95,11 @@ nchk "no warning when a reviewer is flagged"  "review and build will refuse"
 case "$(reviewer_line)" in *"--model opus"*) ok "passes the reviewer's model" ;; *) nope "no reviewer model: $(reviewer_line)" ;; esac
 case "$(reviewer_line)" in *"--effort high"*) ok "passes the reviewer's effort" ;; *) nope "no reviewer effort: $(reviewer_line)" ;; esac
 case "$(reviewer_line)" in *"--setting-sources project,local"*"--strict-mcp-config"*) ok "a claude reviewer is lean too" ;; *) nope "the claude reviewer is not lean: $(reviewer_line)" ;; esac
-case "$(reviewer_line)" in *gpt-5.4*|*low*) nope "the builder's model or effort reached the reviewer: $(reviewer_line)" ;; *) ok "the builder's model and effort stay the builder's" ;; esac
+case "$(reviewer_line)" in *gpt-5.4*|*model_reasoning_effort=low*) nope "the builder's model or effort reached the reviewer: $(reviewer_line)" ;; *) ok "the builder's model and effort stay the builder's" ;; esac
 # With no model of its own, the reviewer must not inherit the builder's.
 run_pair env HERDR_BUILDER_MODEL=gpt-5.4 HERDR_BUILDER_EFFORT=low -- --reviewer codex
 chk  "starts a reviewer of the flagged kind"  "agent start reviewer --kind codex"
-case "$(reviewer_line)" in *gpt-5.4*|*low*) nope "the builder's model or effort reached a reviewer with none: $(reviewer_line)" ;; *) ok "a reviewer with no model of its own does not take the builder's" ;; esac
+case "$(reviewer_line)" in *gpt-5.4*|*model_reasoning_effort=low*) nope "the builder's model or effort reached a reviewer with none: $(reviewer_line)" ;; *) ok "a reviewer with no model of its own does not take the builder's" ;; esac
 chk  "a reviewer with no model records none, unmeasured" 'would record reviewer: {"kind":"codex","name":"reviewer","model":"","autonomy":"auto","model_measured":false}'
 run_pair env -- --reviewer-model opus
 chk  "a reviewer model needs a reviewer"      "need a reviewer"
@@ -113,12 +115,12 @@ printf '{"adapters":{"codex":{"sandbox":{"writable_dirs":["~/.gradle"],"network"
 run_pair env HERDR_TANDEM_CONFIG="$TMP/grant.json" -- --reviewer codex
 for role in builder reviewer; do
   line=$(printf '%s\n' "$OUT" | grep "agent start $role" || true)
-  case "$line" in *"--add-dir $TMP/home/.gradle"*) ok "the $role may write ~/.gradle" ;; *) nope "no ~/.gradle grant for the $role: $line" ;; esac
-  case "$line" in *"sandbox_workspace_write.network_access=true"*) ok "the $role may open sockets" ;; *) nope "no network grant for the $role: $line" ;; esac
+  case "$line" in *"permissions.tandem.filesystem={\"$TMP/home/.gradle\"=\"write\"}"*) ok "the $role may write ~/.gradle" ;; *) nope "no ~/.gradle grant for the $role: $line" ;; esac
+  case "$line" in *"features.network_proxy=true"*) nope "a network grant left the $role behind the proxy: $line" ;; *) ok "the $role may open the network" ;; esac
 done
 run_pair env -- --reviewer codex
-nchk "no grant unless the user gives one"     "--add-dir"
-nchk "and no network either"                  "network_access"
+nchk "no grant unless the user gives one"     "permissions.tandem.filesystem"
+chk  "and the internet stays shut"            "features.network_proxy=true"
 
 echo "--- a reviewer declared in the manifest ---"
 # A repository's own reviewer kind needs the operator's approval, like its builder's.

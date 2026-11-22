@@ -114,8 +114,8 @@ func ResolveRole(role agent.Role, repo *Repo, user *User, getenv func(string) st
 		userKind = user.Defaults.BuilderKind
 		// The unattended builder must not stall at approval prompts, but its
 		// sandbox is deliberately kept. Do not "fix" a sandbox denial by
-		// widening this default to full: the mailbox exists precisely because a
-		// builder that can reach the Herdr socket is a bad trade.
+		// widening this default to full: grant what the check needs instead
+		// (adapters.<kind>.sandbox, and codexSandbox's profile).
 		defKind, defAutonomy = "codex", "auto"
 	}
 

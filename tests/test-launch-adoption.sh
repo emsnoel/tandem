@@ -75,7 +75,7 @@ STUB
 chmod +x "$TMP/bin/herdr"
 
 run_pair env PATH="$JPATH"
-chk  "it keeps the ordinary sandbox"         "--sandbox workspace-write"
+chk  "it keeps the ordinary sandbox"         'permissions.tandem.extends=":workspace"'
 nchk "it adds no permissions profile"        "permissions.tandem-builder"
 nchk "it sets no builder environment"         "shell_environment_policy"
 nchk "the builder record has no network field"    '"network_allow"'

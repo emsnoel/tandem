@@ -125,6 +125,17 @@ func LookupIdentity(cwd, override string) (id Identity, bound bool, err error) {
 	return id, false, nil
 }
 
+// Home is the base directory for all checkouts' state: override when set,
+// else tandem/state under the user config directory. It creates nothing.
+func Home(override string) (string, error) { return stateHome(override, os.UserConfigDir) }
+
+// GitCommonDir is the resolved common .git directory of the checkout holding
+// cwd, the one every worktree of it shares.
+func GitCommonDir(cwd string) (string, error) {
+	_, common, err := gitIdentity(cwd)
+	return common, err
+}
+
 // stateHome is the base directory for all checkouts' state.
 func stateHome(override string, configDir func() (string, error)) (string, error) {
 	if override != "" {

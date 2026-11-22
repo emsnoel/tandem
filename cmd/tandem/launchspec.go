@@ -11,6 +11,7 @@ import (
 	"github.com/emsnoel/tandem/internal/agent"
 	"github.com/emsnoel/tandem/internal/config"
 	"github.com/emsnoel/tandem/internal/exitcode"
+	"github.com/emsnoel/tandem/internal/herdr"
 	"github.com/emsnoel/tandem/internal/paths"
 )
 
@@ -69,6 +70,15 @@ func cmdLaunchSpec(args []string) int {
 	}
 
 	spec := r.Spec(cwd)
+	// A sandboxed agent's commands reach Herdr only through the socket the
+	// launch names. Without one, its tandem commands fall back to the mailbox.
+	if a.Sandboxed(spec) {
+		if p, err := herdr.SocketPath(); err == nil {
+			spec.HerdrSocket = filepath.Clean(p)
+		} else {
+			fmt.Fprintf(os.Stderr, "tandem: Herdr's socket is unknown (%v); the %s's commands will reach Herdr through the mailbox\n", err, r.Role)
+		}
+	}
 	// Only unattended roles get a session id. If entropy cannot be read, the
 	// adapter emits no --session-id.
 	if r.Role.Unattended() {

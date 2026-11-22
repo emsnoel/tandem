@@ -302,7 +302,7 @@
   "boundaries": [
     {
       "kind": "security-group",
-      "label": "Seatbelt sandbox: no Herdr socket",
+      "label": "Seatbelt sandbox + Herdr socket",
       "wraps": [
         "builder"
       ]

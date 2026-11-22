@@ -125,7 +125,11 @@ type Spec struct {
 	// Isolation is empty for the default, IsolationLean.
 	Isolation Isolation
 	// Sandbox widens the sandbox of an agent that has one. See SandboxGrant.
-	Sandbox      SandboxGrant
+	Sandbox SandboxGrant
+	// HerdrSocket is the Herdr socket a sandboxed agent may connect to, so
+	// tandem's commands work from its shell. Empty grants no socket. The
+	// caller looks it up, so Resolve stays pure.
+	HerdrSocket  string
 	ExtraArgs    []string
 	AllowDegrade []string
 	AllowWiden   []string
@@ -152,8 +156,9 @@ type Adapter interface {
 	// has no persona that can be selected without user-defined configuration.
 	Persona(Role) string
 	Resolve(Spec) (Launch, error)
-	// Sandboxed predicts whether this configuration blocks the Herdr socket.
-	// It is informational and must not gate behaviour.
+	// Sandboxed predicts whether this configuration runs the agent's commands
+	// in a sandbox, which can deny what a project's check needs. It is
+	// informational and must not gate behaviour.
 	Sandboxed(Spec) bool
 	// ResetCommand is the text that, typed into this CLI's composer and
 	// submitted, starts a new conversation in the same process and pane. ""

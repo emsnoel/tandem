@@ -24,6 +24,8 @@ func run(args []string) int {
 		return cmdVersion(args[1:])
 	case "agent":
 		return cmdAgent(args[1:])
+	case "codex":
+		return cmdCodex(args[1:])
 	case "pane":
 		return cmdPane(args[1:])
 	case "tab":

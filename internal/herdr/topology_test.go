@@ -92,6 +92,25 @@ func TestPickPlannerMany(t *testing.T) {
 	}
 }
 
+// Once Codex can plan, another pair's Codex builder and reviewer are of a
+// planner kind. A pane tandem named as a builder or a reviewer works for some
+// pair, so it is never picked as a planner by elimination.
+func TestPickPlannerSkipsOtherPairsWorkers(t *testing.T) {
+	kinds := []string{"claude", "codex"}
+	agents := []Agent{
+		ag("w1:p1", "codex", "builder", "t1"), ag("w1:p2", "codex", "reviewer-ab12cd", "t1"),
+		ag("w1:p3", "codex", "-", "t2"), ag("w1:p4", "claude", "builders-notes", "t2"),
+	}
+	_, cands, err := PickPlanner(agents, "", "", kinds, "")
+	if !errors.Is(err, ErrManyPlanners) || len(cands) != 2 || cands[0].PaneID != "w1:p3" || cands[1].PaneID != "w1:p4" {
+		t.Fatalf("got %+v, %v", cands, err)
+	}
+	// The caller still wins, named or not: the caller refuses what cannot plan.
+	if got, _, err := PickPlanner(agents, "", "w1:p1", kinds, ""); err != nil || got.PaneID != "w1:p1" {
+		t.Fatalf("caller: got %+v, %v", got, err)
+	}
+}
+
 func TestAdoptableSingleUnnamed(t *testing.T) {
 	agents := []Agent{ag("w1:p1", "claude", "planner", "t1"), ag("w1:p2", "codex", "-", "t1")}
 	if a := Adoptable(agents, "w1:p1", "t1", ""); a == nil || a.PaneID != "w1:p2" || a.Kind != "codex" {

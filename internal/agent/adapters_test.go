@@ -20,9 +20,9 @@ func resolve(t *testing.T, s Spec) Launch {
 
 func TestCodexAutonomyMapping(t *testing.T) {
 	cases := map[Autonomy][]string{
-		Readonly: {"--sandbox", "read-only", "--ask-for-approval", "on-request"},
-		Ask:      {"--sandbox", "workspace-write", "--ask-for-approval", "on-request"},
-		Auto:     {"--sandbox", "workspace-write", "--ask-for-approval", "never"},
+		Readonly: profileArgs(":read-only", "-c", proxyOn, "--ask-for-approval", "on-request"),
+		Ask:      profileArgs(":workspace", "-c", proxyOn, "--ask-for-approval", "on-request"),
+		Auto:     profileArgs(":workspace", "-c", proxyOn, "--ask-for-approval", "never"),
 		Full:     {"--dangerously-bypass-approvals-and-sandbox"},
 	}
 	for autonomy, want := range cases {
@@ -38,13 +38,14 @@ func TestCodexModelEffortAndCwd(t *testing.T) {
 		Kind: "codex", Role: RoleBuilder, Autonomy: Auto,
 		Model: "gpt-5.4", Effort: EffortHigh, Cwd: "/repo",
 	})
-	want := []string{
-		"--sandbox", "workspace-write", "--ask-for-approval", "never",
+	want := append(profileArgs(":workspace",
+		"-c", `permissions.tandem.network.unix_sockets={"/repo"="allow"}`,
+		"-c", proxyOn, "--ask-for-approval", "never"),
 		"-c", "check_for_update_on_startup=false",
 		"--model", "gpt-5.4",
 		"-c", "model_reasoning_effort=high",
 		"--cd", "/repo",
-	}
+	)
 	if !reflect.DeepEqual(l.Args, want) {
 		t.Fatalf("got %v, want %v", l.Args, want)
 	}

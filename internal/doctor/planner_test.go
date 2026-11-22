@@ -10,8 +10,8 @@ import (
 
 func TestThePlannerKindIsTheCallingPanes(t *testing.T) {
 	p := healthy()
-	p.agents = []herdr.Agent{{PaneID: "w1:p1", Kind: "copilot"}, {PaneID: "w1:p2", Kind: "codex"}}
-	for pane, want := range map[string]string{"w1:p1": "copilot", "w1:p2": "", "w1:p9": "", "": ""} {
+	p.agents = []herdr.Agent{{PaneID: "w1:p1", Kind: "copilot"}, {PaneID: "w1:p2", Kind: "codex"}, {PaneID: "w1:p3", Kind: "opencode"}}
+	for pane, want := range map[string]string{"w1:p1": "copilot", "w1:p2": "codex", "w1:p3": "", "w1:p9": "", "": ""} {
 		if got := CallingPlannerKind(p, env(map[string]string{"HERDR_PANE_ID": pane})); got != want {
 			t.Errorf("from pane %q: got %q, want %q", pane, got, want)
 		}

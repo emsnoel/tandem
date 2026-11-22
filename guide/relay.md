@@ -1,19 +1,21 @@
 # How the relay works
 
-**Only a sandboxed builder uses the mailbox.** A `claude` or `copilot` builder
-reaches the Herdr socket directly, so `tandem-ask` talks to the socket and never touches the
-mailbox described here. The bridge still starts. It sleeps on file and Herdr events, waking
+**Only a builder that can't reach Herdr uses the mailbox.** A `claude` or `copilot` builder
+reaches the Herdr socket directly, and so does a Codex builder, whose sandbox profile names
+the socket (see [Sandboxes](launching.md#sandboxes)). Then `tandem-ask` talks to the socket
+and never touches the mailbox described here. The bridge still starts. It sleeps on file and Herdr events, waking
 at least every 30 seconds (see [Commands](commands.md)), so it costs little. Guessing that it
 isn't needed would risk a silent hang if the guess were wrong. A durable run needs the
 bridge whatever the builder kind, because the bridge ticks the run.
 
-Codex is the default builder. It runs under a seatbelt sandbox that blocks
-`~/.config/herdr/herdr.sock`, so every Herdr command that talks to the server fails for it,
-and tandem needs all of those commands. Codex can write inside its workspace, so tandem
-passes messages through files there:
+The mailbox is for a sandbox that blocks `~/.config/herdr/herdr.sock`: an agy builder in
+`readonly` or `auto` mode, or a Codex builder started before tandem gave Codex the socket, or
+one whose launch could not find the socket's path. Every Herdr command that talks to the
+server fails there, and tandem needs all of those commands. The agent can still write inside
+its workspace, so tandem passes messages through files there:
 
 ```
-Codex          <repo>/.tandem-relay/              Claude
+builder        <repo>/.tandem-relay/              Claude
 tandem-ask ──►  q/<id>.json  ──►  tandem-bridge ──prompt──►  planner
      │                                                        │
      └──── poll ◄──  a/<id>.md  ◄──── writes the answer file ──┘

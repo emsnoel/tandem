@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # tandem-bridge: carry messages from a sandboxed agent to the unsandboxed side.
 #
-# Codex's sandbox denies the Herdr socket but allows writes in the workspace.
-# This watcher picks up queued files and runs the `herdr agent prompt` the
+# A sandbox that denies the Herdr socket (agy's, or a Codex started without
+# tandem's profile) still allows writes in the workspace. This watcher picks up queued files and runs the `herdr agent prompt` the
 # agent cannot. Message kinds:
 #   question   expects an answer file back
 #   handback   no reply; the sender has finished

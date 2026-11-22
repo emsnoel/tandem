@@ -67,7 +67,11 @@ chk "a Copilot planner is labelled with its kind" 'pane rename w1:p1 planner (co
 
 PLANNER_KIND_STUB=codex
 pair 3
-chk "a Codex planner is refused" "codex can't plan"
+chk "a Codex planner is labelled with its kind" 'pane rename w1:p1 planner (codex)'
+
+PLANNER_KIND_STUB=opencode
+pair 3
+chk "an agent tandem cannot run is refused as the planner" "opencode can't plan"
 lack "and nothing is renamed" 'pane rename'
 unset PLANNER_KIND_STUB
 

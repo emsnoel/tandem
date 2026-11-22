@@ -116,7 +116,7 @@ trap 'rm -f "$FIELDS" "${PRE_ERR:-}"' EXIT
 
 # --- resolve the planner pane ---
 # Order: explicit flag, the calling pane, the only agent that can plan
-# (Claude Code or Copilot). From a popup, $HERDR_PANE_ID is the popup's pane,
+# (Claude Code, Codex, Copilot or agy). From a popup, $HERDR_PANE_ID is the popup's pane,
 # not the planner's. defaults.planner_kind breaks a tie.
 rc=0
 _err=$(tandem agent planner ${PLANNER_PANE:+--pane "$PLANNER_PANE"} 2>&1 >"$FIELDS") || rc=$?
@@ -127,7 +127,7 @@ case "$rc" in
       IFS= read -r -d '' PLANNER_TAB; IFS= read -r -d '' PLANNER_CURRENT_NAME
       IFS= read -r -d '' PLANNER_KIND; } < "$FIELDS" || true ;;
   31)
-    die "no running Claude Code or Copilot agent found to plan from. Start one in a pane first." ;;
+    die "no running Claude Code, Codex, Copilot or agy agent found to plan from. Start one in a pane first (Codex with tandem codex)." ;;
   34)
     die "$_err" ;;
   32)

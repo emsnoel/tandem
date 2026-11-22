@@ -66,7 +66,7 @@ func TestLaunchSpecFieldsKindThenArgs(t *testing.T) {
 		return cmdLaunchSpec([]string{"--fields", "--role", "builder", "--root", dir, "--cwd", dir})
 	})
 	got := fields(out)
-	if got[0] != "codex" || got[1] != "--sandbox" || got[len(got)-1] != "a\nb" {
+	if got[0] != "codex" || got[2] != `default_permissions="tandem"` || got[len(got)-1] != "a\nb" {
 		t.Fatalf("got %q", got)
 	}
 }

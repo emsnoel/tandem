@@ -36,7 +36,7 @@ func PickPlanner(agents []Agent, flagPane, callerPane string, kinds []string, pr
 		}
 	}
 	for _, a := range agents {
-		if !slices.Contains(kinds, a.Kind) {
+		if !slices.Contains(kinds, a.Kind) || isPairWorker(a) {
 			continue
 		}
 		if prefer == "" || a.Kind == prefer {
@@ -50,6 +50,21 @@ func PickPlanner(agents []Agent, flagPane, callerPane string, kinds []string, pr
 		return ofKind[0], nil, nil
 	}
 	return Agent{}, ofKind, ErrManyPlanners
+}
+
+// isPairWorker reports whether tandem named a as some pair's builder or
+// reviewer: "builder", "reviewer", or either followed by "-" and a suffix
+// (internal/pairname). Such a pane is never a planner by elimination.
+func isPairWorker(a Agent) bool {
+	if a.Name == nil {
+		return false
+	}
+	for _, role := range []string{"builder", "reviewer"} {
+		if *a.Name == role || strings.HasPrefix(*a.Name, role+"-") {
+			return true
+		}
+	}
+	return false
 }
 
 // Unnamed returns the unnamed agents beside the planner: not in excludePane, and
