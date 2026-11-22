@@ -38,7 +38,7 @@ did before they ran."
        - do not run the full check command ($CHECK_COMMAND): tandem already
          ran it against this tree (exit $BC_EXIT, $BC_STATUS; see baseline
          check below). You may still run a targeted test to probe a specific
-         claim in the plan."
+         claim in the plan, in ONE blocking call (do not poll it)."
       indented=$(printf '%s\n' "$bc_summary" | sed 's/^/  /')
       BASELINE_CHECK="
 
@@ -49,12 +49,14 @@ $indented"
       CHECKLINE="
        - do not run the full check command ($CHECK_COMMAND): tandem runs it
          before sending this review and includes its exit code and summary
-         below. You may still run a targeted test to probe a specific claim."
+         below. You may still run a targeted test to probe a specific claim,
+         in ONE blocking call (do not poll it)."
     else
       CHECKLINE="
        - do not run the full check command ($CHECK_COMMAND): tandem could not
          record a baseline check before this review. You may still run a
-         targeted test to probe a specific claim."
+         targeted test to probe a specific claim, in ONE blocking call (do
+         not poll it)."
     fi
   fi
 }
