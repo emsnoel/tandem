@@ -1,0 +1,32 @@
+✻ Waiting for 1 background agent to finish
+
+⏺ Agent "Run sleep command" finished · 2m 6s
+
+❯ Again: use the Agent tool with run_in_background true to start one general-purpose agent that runs 'sleep 60' and
+  replies 'done'. Do not wait for it; end your turn with 'launched'.
+
+⏺ Agent(Run sleep command)
+  ⎿  Backgrounded agent (↓ to manage · ctrl+o to expand)
+
+⏺ launched
+
+✻ Waiting for 1 background agent to finish
+
+› Message from @general-purpose (ctrl+o to expand)
+
+⏺ The second agent replied "done". Its report says sleep 60 may not have finished when it handed back. The harness blocked
+  the foreground call, so the agent started it in the background and didn't wait for the result.
+
+⏺ Agent "Run sleep command" is waiting on its own background work · 10s
+
+⏺ The second agent is still waiting on its own background sleep 60. It will send another notification when that finishes.
+
+✻ Sautéed for 4m 7s · done 21:35 · 1 shell, 1 monitor still running
+
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on · 1 shell, 1 monitor · ← 1 agent · ↓ to manage
+
+  ⏺ main
+  ◯ general-purpose  waiting on 1 shell, 1 monitor · Run sleep command · since 21:35

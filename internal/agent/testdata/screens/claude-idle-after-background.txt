@@ -1,0 +1,32 @@
+
+
+❯ Use the Agent tool with run_in_background set to true to start one general-purpose agent whose only job is to run the
+  shell command 'sleep 120' and then reply 'done'. Do not wait for it. As soon as it is launched, end your turn with the
+  single word 'launched'.
+
+⏺ Agent(Run sleep command)
+  ⎿  Backgrounded agent (↓ to manage · ctrl+o to expand)
+
+⏺ launched
+
+✻ Waiting for 1 background agent to finish
+
+⏺ Agent "Run sleep command" is waiting on its own background work · 10s
+
+⏺ The background agent hasn't reported yet. It's waiting on its own sleep 120 and will send another notification when it
+  finishes.
+
+✻ Cooked for 15s · done 21:29
+
+› Message from @general-purpose (ctrl+o to expand)
+
+⏺ The background agent finished and reported "done". It ran sleep 120 as asked.
+
+✻ Waiting for 1 background agent to finish
+
+⏺ Agent "Run sleep command" finished · 2m 6s
+
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← 1 agent

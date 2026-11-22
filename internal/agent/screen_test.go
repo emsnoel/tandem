@@ -18,6 +18,8 @@ func TestOffMainInputReadsRealScreens(t *testing.T) {
 	}{
 		{"claude-main.txt", "claude", false, ""},
 		{"claude-main-background.txt", "claude", false, ""},
+		{"claude-idle-agents-hint.txt", "claude", false, ""},
+		{"claude-idle-after-background.txt", "claude", false, ""},
 		// A planner pane that was misread: a subagent's screen, its input addressed to
 		// that subagent, and Herdr reporting idle.
 		{"claude-subagent-idle.txt", "claude", true, "Write chaptered apprentice story"},
@@ -189,6 +191,12 @@ func TestBusyInBackgroundReadsClaudeFooter(t *testing.T) {
 	}{
 		{"claude background shell", "claude-background-shell.txt", "claude", true, "1 shell still running"},
 		{"claude background agent", "claude-main-background.txt", "claude", true, "1 agent"},
+		// Claude Code 2.1.330, measured live: a background agent adds a shell and
+		// monitor count and "↓ to manage". The bare "← 1 agent" is the agents
+		// view's key hint, shown on a fresh pane and after the work ends (#123).
+		{"claude background agent running", "claude-background-agent-running.txt", "claude", true, "1 shell"},
+		{"claude fresh idle agents hint", "claude-idle-agents-hint.txt", "claude", false, ""},
+		{"claude idle after its background agent ended", "claude-idle-after-background.txt", "claude", false, ""},
 		{"codex main", "codex-main.txt", "codex", false, ""},
 		{"copilot main", "copilot-main.txt", "copilot", false, ""},
 		{"agy main", "agy-main-after-turn.txt", "agy", false, ""},
