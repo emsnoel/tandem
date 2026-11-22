@@ -32,6 +32,8 @@ type resetDeps struct {
 	// after since. measured is false for a kind with no such record.
 	fresh func(kind string, a *herdr.Agent, since time.Time) (session string, measured bool)
 	now   func() time.Time
+	// sleep waits between screen reads while a dismissed notice clears.
+	sleep func(time.Duration)
 }
 
 var liveResetDeps = resetDeps{
@@ -48,10 +50,7 @@ var liveResetDeps = resetDeps{
 		_, err := herdr.Raw(resetSubmitArgs(name, text)...)
 		return err
 	},
-	press: func(name, key string) error {
-		_, err := herdr.Raw("agent", "send-keys", name, key)
-		return err
-	},
+	press:  livePress,
 	screen: liveScreen,
 	fresh: func(kind string, a *herdr.Agent, since time.Time) (string, bool) {
 		switch kind {
@@ -62,7 +61,8 @@ var liveResetDeps = resetDeps{
 		}
 		return "", false
 	},
-	now: time.Now,
+	now:   time.Now,
+	sleep: time.Sleep,
 }
 
 // resetSubmitArgs types the command and presses Enter. It omits --wait because
@@ -91,16 +91,17 @@ func resetKind(root, name string) string {
 }
 
 // runReset resets name's conversation and returns its token, and the new
-// conversation's id when the reset proved one.
-func runReset(d resetDeps, name, root string, timeout time.Duration, dry bool) (tok, session string, err error) {
+// conversation's id when the reset proved one. why says what the pane showed
+// when the reset went unconfirmed, and is "" otherwise.
+func runReset(d resetDeps, name, root string, timeout time.Duration, dry bool) (tok, session, why string, err error) {
 	kind := resetKind(root, name)
 	if kind == "" {
-		return "skip:no-identity", "", nil
+		return "skip:no-identity", "", "", nil
 	}
 	cmd := d.command(kind)
 	w, err := d.watch(name)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	defer w.Close()
 	a := w.Snapshot(name)
@@ -109,29 +110,35 @@ func runReset(d resetDeps, name, root string, timeout time.Duration, dry bool) (
 	// one that Herdr credits to another pane.
 	before := a.Conversation()
 	if tok := agent.ResetDecision(cmd, a.StatusString(), a.HasNoConversation(), before, strings.TrimSpace(string(last))); tok != "go" {
-		return tok, "", nil
+		return tok, "", "", nil
+	}
+	// A notice drawn in place of the input, such as agy's feedback survey,
+	// would take the command and drop it.
+	if !dry {
+		clearNotice(d.screen, d.press, d.sleep, kind, name)
 	}
 	// A pane showing a subagent or a picker would take the command elsewhere.
 	if _, off := offMain(d.screen, kind, name); off {
-		return "skip:off-main", "", nil
+		return "skip:off-main", "", "", nil
 	}
 	// A pane whose turn ended with a background task still running is not idle.
 	if _, busy := busyInBackground(d.screen, kind, name); busy {
-		return "skip:not-idle", "", nil
+		return "skip:not-idle", "", "", nil
 	}
 	if dry {
-		return "would-reset", "", nil
+		return "would-reset", "", "", nil
 	}
 	since := d.now()
 	if err := d.submit(name, cmd); err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	// A reset is proven by change, not time: a moved conversation id ("reset")
 	// or a status event since the command ("sent"). A kind with its own record
 	// (Copilot's or agy's process log) is judged by that alone. A dialog the command
 	// opened holds the new conversation until it is answered, while Herdr may
 	// report idle or a status change, so the screen is read before any of
-	// that counts. Only the kind's own reset dialog is answered, once.
+	// that counts. Only the kind's own reset dialog is answered, once. A notice
+	// drawn over the fresh screen is dismissed, since it hides the proof.
 	moved, answered, measured := false, false, false
 	lastStatus := a.StatusString()
 	deadline := d.now().Add(timeout)
@@ -152,12 +159,15 @@ func runReset(d resetDeps, name, root string, timeout time.Duration, dry bool) (
 			if key := resetDialogKey(d.screen, kind, name); key != "" {
 				answered = true
 				if err := d.press(name, key); err != nil {
-					return "", "", err
+					return "", "", "", err
 				}
 				// Whatever moved before the answer was not the new conversation.
 				moved = false
 				continue
 			}
+		}
+		if clearNotice(d.screen, d.press, d.sleep, kind, name) {
+			continue
 		}
 		b, gerr := d.get(name)
 		if gerr != nil {
@@ -172,26 +182,26 @@ func runReset(d resetDeps, name, root string, timeout time.Duration, dry bool) (
 		var s string
 		if s, measured = d.fresh(kind, b, since); measured {
 			if s != "" && settled {
-				return "reset", s, nil
+				return "reset", s, "", nil
 			}
 			// agy's process log may not flush before the reset timeout, and
 			// /new on an already-fresh prompt (e.g. --resume) creates no new
 			// conversation. A visibly fresh screen confirms the reset.
 			if settled && freshScreen(d.screen, kind, name) {
-				return "sent", "", nil
+				return "sent", "", "", nil
 			}
 			continue
 		}
 		if settled {
 			if s := b.Conversation(); s != "" && s != before {
-				return "reset", s, nil
+				return "reset", s, "", nil
 			}
 			if moved {
-				return "sent", "", nil
+				return "sent", "", "", nil
 			}
 		}
 	}
-	return "unconfirmed", "", nil
+	return "unconfirmed", "", unconfirmedWhy(d, kind, name, since), nil
 }
 
 // resetDialogKey reads name's screen once and returns the key that answers
@@ -251,10 +261,13 @@ func cmdAgentReset(args []string) int {
 		fmt.Fprintln(os.Stderr, use)
 		return exitcode.Usage
 	}
-	tok, _, err := runReset(liveResetDeps, name, *root, time.Duration(*timeoutMS)*time.Millisecond, *dry)
+	tok, _, why, err := runReset(liveResetDeps, name, *root, time.Duration(*timeoutMS)*time.Millisecond, *dry)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		return herdr.ExitCodeFor(err)
+	}
+	if why != "" {
+		fmt.Fprintf(os.Stderr, "tandem agent reset: %s: %s\n", tok, why)
 	}
 	fmt.Println(tok)
 	return exitcode.OK

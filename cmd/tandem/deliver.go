@@ -207,7 +207,7 @@ func deliverPrompt(d herdrDeps, r deliverReq, p deliverPolicy) deliverResult {
 
 	res := deliverResult{before: a.Conversation()}
 	if p.reset {
-		tok, session, err := d.reset(name, r.root)
+		tok, session, why, err := d.reset(name, r.root)
 		if err != nil {
 			return notTyped(fmt.Errorf("resetting %s: %w", name, err))
 		}
@@ -218,6 +218,9 @@ func deliverPrompt(d herdrDeps, r deliverReq, p deliverPolicy) deliverResult {
 		case "skip:unsupported", "skip:no-identity", "skip:holds-build":
 			return declined("reset_unverified", "a fresh conversation for %s cannot be verified (%s), so the task was not sent. Start a new builder pane", name, tok)
 		default: // unconfirmed, skip:not-idle, skip:off-main, or anything unknown
+			if why != "" {
+				tok += ": " + why
+			}
 			return declined("reset_failed", "the conversation of %s could not be reset (%s), so the task was not sent", name, tok)
 		}
 		// The reset produced events the confirm must not read.

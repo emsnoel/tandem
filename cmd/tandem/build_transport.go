@@ -75,6 +75,9 @@ type herdrDeps struct {
 	// screen is what the pane shows now, to tell its main conversation's
 	// input from a screen typed text would miss (confirm_view.go).
 	screen func(name string) (string, error)
+	// press sends one key, to dismiss a notice drawn over the input
+	// (clearNotice, confirm_view.go).
+	press func(name, key string) error
 	// shellForeground reports whether a pane's foreground process is its shell,
 	// and readPane reads a pane by id, for an agent Herdr no longer lists.
 	shellForeground func(pane string) (bool, error)
@@ -89,9 +92,9 @@ type herdrDeps struct {
 	// failWithin is how long a started turn must keep running; 0 is the
 	// default (confirm_start.go).
 	failWithin time.Duration
-	// reset resets a pane's conversation: its token, and the new
-	// conversation's id when the reset proved one.
-	reset      func(name, root string) (tok, session string, err error)
+	// reset resets a pane's conversation: its token, the new conversation's
+	// id when the reset proved one, and what the pane showed when it did not.
+	reset      func(name, root string) (tok, session, why string, err error)
 	readPrompt func(ctx context.Context, hash string) (string, error)
 	sleep      func(time.Duration)
 	now        func() time.Time
@@ -123,6 +126,7 @@ func liveHerdrDeps(spec transportSpec) herdrDeps {
 			return string(b), err
 		},
 		screen:     liveScreen,
+		press:      livePress,
 		failWithin: failWithinFromEnv(),
 		tokens:     conversationTokens(controller.DefaultAgentUsageSource()),
 		find: func(kind, marker string, since time.Time) string {
@@ -144,7 +148,7 @@ func liveHerdrDeps(spec transportSpec) herdrDeps {
 			b, err := herdr.Raw("pane", "read", pane, "--lines", strconv.Itoa(paneLines))
 			return string(b), err
 		},
-		reset: func(name, root string) (string, string, error) {
+		reset: func(name, root string) (string, string, string, error) {
 			return runReset(liveResetDeps, name, root, resetWait, false)
 		},
 		readPrompt: func(ctx context.Context, hash string) (string, error) {

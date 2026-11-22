@@ -1,0 +1,36 @@
+    - needs something a later task introduces;
+    - contradicts another step;
+    - cannot run as written;
+    - needs authority you do not have;
+    - has a test or example that would not give the result the plan claims.
+  Name the step and what you found in the report. Stopping then is the correct outcome, not a failure. Do not improvise.
+
+  When you finish, write a report (under 20 lines: whether the task is complete, anything you changed that the brief did not ask for, anything you could
+  not verify) and hand it back. Write the report to a file with your file-write tool, never through cat or a heredoc. Then run this in the foreground,
+  never in the background, and wait for it to return:
+
+      tandem-handback --root '/tmp/greet' --task 2 --run
+  0a72e3f813ae13311e6cae5c9e9b6601 --attempt 3251db3485881d2c01bceeee0e56fb1c --job 95fc41a7a6cd0c92d77cac1789dfde92 --effect
+  7b5e5e3d0bb9923be4ec739ebf2c448c --nonce 6c6029c417481591cd91d82a49f486d6 --report <file>
+
+  Add --stuck if you could not finish. That call returns immediately. Then stop.
+
+○ Thought for 26.1s (The tests passed, confirming the modifications to the scripts. The expected outputs were generated, and no unexpected file chan...)
+● Ran (tandem-handback --root '/tmp/greet' --task 2 --run...)
+● Explored 2 files (greet.sh, test.sh)
+… 2 more actions (1 edit, 1 command) …
+● Edited 1 file (report.md)
+● Ran (tandem-handback --root '/tmp/greet' --task 2 --run ...) (ctrl+o to expand)
+
+  Task 2 (Say goodbye) has been updated and handed back via tandem-handback.
+
+  • Updated greet.sh:3-4 so --bye only triggers the goodbye branch when a non-empty second argument is provided ([[ "${1:-}" == "--bye" && -n "${2:-}"
+  ]]), preserving ./greet.sh --bye → hello --bye.
+  • Confirmed test.sh passes and prints ok.
+  • Submitted handback with /tmp/agy-scratch/report.md.
+
+ How's the CLI experience so far? Help us improve:
+ [1] Good  [2] Fine  [3] Bad  [0] Skip
+
+? for shortcuts                                                                                                             auto · Gemini 4 Neon · medium
+

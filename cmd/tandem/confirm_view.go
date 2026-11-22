@@ -5,7 +5,8 @@ package main
 // Herdr's status is the pane's, not the conversation's. A planner showing a
 // subagent's screen reads idle, and text typed there reaches the subagent.
 // Nothing is typed into such a screen: the sender waits as for a dialog, then
-// refuses.
+// refuses. A notice the CLI draws on its own, such as agy's feedback survey,
+// is dismissed first (clearNotice), since it would never go away by itself.
 
 import (
 	"fmt"
@@ -23,6 +24,17 @@ const (
 	viewPoll    = 500 * time.Millisecond
 	viewPollMax = 4 * time.Second
 )
+
+// noticePolls bounds how many viewPoll reads clearNotice waits for a dismissed
+// notice to leave the screen. A count, not a deadline, so a test clock that
+// never moves cannot hold it.
+const noticePolls = 6
+
+// livePress sends one key to the agent name through Herdr.
+func livePress(name, key string) error {
+	_, err := herdr.Raw("agent", "send-keys", name, key)
+	return err
+}
 
 // liveScreen is the pane's screen as Herdr renders it.
 func liveScreen(name string) (string, error) {
@@ -69,14 +81,44 @@ func freshScreen(screen func(string) (string, error), kind, name string) bool {
 	return agent.FreshScreen(kind, text)
 }
 
+// clearNotice reads name's screen once as kind's and, when it shows a notice
+// with a key that dismisses it (agent.NoticeKey), presses that key once and
+// waits for the notice to leave. It reports whether it pressed. A screen that
+// cannot be read, or a key that cannot be sent, presses nothing more: the
+// off-main check that follows still refuses to type into the notice.
+func clearNotice(screen func(string) (string, error), press func(name, key string) error, sleep func(time.Duration), kind, name string) bool {
+	if screen == nil || press == nil {
+		return false
+	}
+	text, err := screen(name)
+	if err != nil {
+		return false
+	}
+	key := agent.NoticeKey(kind, text)
+	if key == "" || press(name, key) != nil {
+		return false
+	}
+	for range noticePolls {
+		if sleep != nil {
+			sleep(viewPoll)
+		}
+		if text, err := screen(name); err == nil && agent.NoticeKey(kind, text) == "" {
+			break
+		}
+	}
+	return true
+}
+
 // awaitMainInput waits up to within for name's pane to show its main
-// conversation's input. why is what it still shows at the deadline, "" once it
-// shows the input; waited says the screen was off at first, so whatever was
-// read of the pane before is stale.
+// conversation's input, after dismissing a notice drawn over it. why is what
+// it still shows at the deadline, "" once it shows the input; waited says the
+// screen was off at first, or a notice was dismissed, so whatever was read of
+// the pane before is stale.
 func awaitMainInput(d herdrDeps, kind, name string, within time.Duration) (why string, waited bool) {
+	dismissed := clearNotice(d.screen, d.press, d.sleep, kind, name)
 	why, off := offMain(d.screen, kind, name)
 	if !off {
-		return "", false
+		return "", dismissed
 	}
 	for deadline, poll := d.now().Add(within), viewPoll; d.now().Before(deadline); poll = min(2*poll, viewPollMax) {
 		d.sleep(min(poll, deadline.Sub(d.now())))

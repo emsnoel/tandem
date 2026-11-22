@@ -43,6 +43,8 @@ checked each of these screens live on 2026-10-17:
 
 Before typing, `tandem agent prompt`, a durable run's send and `tandem agent reset` read the
 pane's screen (`internal/agent/screen.go`). They type nothing into one of these screens.
+One notice is dismissed rather than refused: agy's feedback survey, which tandem skips with
+`0` (see "agy can put a feedback survey where its input was" in [builds](builds.md)).
 The refusal is `agent_input_elsewhere` (exit 10), and its message names what the pane shows.
 What happens next depends on the sender:
 
