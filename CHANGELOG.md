@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.18.0](https://github.com/emsnoel/tandem/compare/v0.17.0...v0.18.0) (2026-11-22)
+
+
+### Features
+
+* let Codex plan, build and review through a sandbox profile ([8f700a3](https://github.com/emsnoel/tandem/commit/8f700a3d90cc2cc0524729b101614d94b6c3223e))
+
+
+### Bug Fixes
+
+* resolve open agy, review, pair, status and test issues ([c62b02c](https://github.com/emsnoel/tandem/commit/c62b02c9c46d2bcef46a464f5526453af777d6f1))
+* skip agy's feedback survey before typing into its pane ([de29d86](https://github.com/emsnoel/tandem/commit/de29d864bcf4bd44ed000998c58f75767bb565b6)), closes [#118](https://github.com/emsnoel/tandem/issues/118)
+* stop reading Claude's idle agents hint as background work ([711ed6d](https://github.com/emsnoel/tandem/commit/711ed6d8046257cee84cd26b12a5395fd5d9f024)), closes [#123](https://github.com/emsnoel/tandem/issues/123)
+* tell a plan reviewer to run a targeted test once, not poll it ([bffdbef](https://github.com/emsnoel/tandem/commit/bffdbeff7b915dc91e0f1aa34bf549f205408f60))
+
 ## [0.17.0](https://github.com/emsnoel/tandem/compare/v0.16.2...v0.17.0) (2026-11-21)
 
 
