@@ -114,7 +114,7 @@ func TestResetSkipsAPaneOffItsMainScreen(t *testing.T) {
 	f := &fakeHerdr{states: []*herdr.Agent{mkAgentAt("idle", "s1", 5)}}
 	d := f.registryDeps()
 	d.screen = func(string) (string, error) { return claudeSubagentScreen, nil }
-	tok, _, err := runReset(d, "builder", root, 15*time.Second, false)
+	tok, _, _, err := runReset(d, "builder", root, 15*time.Second, false)
 	if err != nil || tok != "skip:off-main" {
 		t.Fatalf("got %q, %v; want skip:off-main", tok, err)
 	}

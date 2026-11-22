@@ -18,7 +18,7 @@ func TestResetUsesTheReviewersRecordedKind(t *testing.T) {
 		states:    []*herdr.Agent{mkAgentAt("idle", "s1", 5)},
 		afterKeys: []*herdr.Agent{mkAgentAt("working", "s1", 6), mkAgentAt("idle", "s1", 7)},
 	}
-	tok, _, err := runReset(f.registryDeps(), "reviewer", root, 15*time.Second, false)
+	tok, _, _, err := runReset(f.registryDeps(), "reviewer", root, 15*time.Second, false)
 	if err != nil || tok != "sent" {
 		t.Fatalf("got %q, %v; want sent", tok, err)
 	}
@@ -37,7 +37,7 @@ func TestResetUsesTheReviewersRecordedKind(t *testing.T) {
 func TestResetUsesTheBuilderKindForOtherNames(t *testing.T) {
 	root := withReviewer(t, rootWith(t, `{"kind":"claude","autonomy":"auto"}`, ""), `{"kind":"codex","name":"reviewer"}`)
 	f := &fakeHerdr{states: []*herdr.Agent{kindAgent("claude", "idle", "s1", 0), kindAgent("claude", "idle", "s2", 0)}}
-	tok, _, err := runReset(f.registryDeps(), "builder", root, 15*time.Second, false)
+	tok, _, _, err := runReset(f.registryDeps(), "builder", root, 15*time.Second, false)
 	if err != nil || tok != "reset" {
 		t.Fatalf("got %q, %v; want reset", tok, err)
 	}
@@ -52,7 +52,7 @@ func TestResetUsesTheBuilderKindForOtherNames(t *testing.T) {
 // Without reviewer.json every name is reset by the builder's kind.
 func TestResetWithoutAReviewerUsesTheBuilderKind(t *testing.T) {
 	f := &fakeHerdr{states: []*herdr.Agent{mkAgent("idle", "s1"), mkAgent("idle", "s2")}}
-	if _, _, err := runReset(f.registryDeps(), "reviewer", rootWith(t, codexBuilder, ""), 15*time.Second, false); err != nil {
+	if _, _, _, err := runReset(f.registryDeps(), "reviewer", rootWith(t, codexBuilder, ""), 15*time.Second, false); err != nil {
 		t.Fatal(err)
 	}
 	if len(f.kinds) != 1 || f.kinds[0] != "codex" {
@@ -71,7 +71,7 @@ func TestResetRefusesAnUnreadableReviewerRecord(t *testing.T) {
 	} {
 		root := withReviewer(t, rootWith(t, codexBuilder, ""), c.rec)
 		f := &fakeHerdr{states: []*herdr.Agent{mkAgent("idle", "s1")}}
-		tok, _, err := runReset(f.registryDeps(), c.name, root, time.Second, false)
+		tok, _, _, err := runReset(f.registryDeps(), c.name, root, time.Second, false)
 		if err != nil || tok != "skip:no-identity" {
 			t.Errorf("%s: got %q, %v; want skip:no-identity", c.label, tok, err)
 		}
@@ -85,7 +85,7 @@ func TestResetRefusesAnUnreadableReviewerRecord(t *testing.T) {
 func TestResetSkipsAReviewerOfAnUnknownKind(t *testing.T) {
 	root := withReviewer(t, rootWith(t, codexBuilder, ""), `{"kind":"nonesuch","name":"reviewer"}`)
 	f := &fakeHerdr{states: []*herdr.Agent{mkAgent("idle", "s1")}}
-	tok, _, _ := runReset(f.registryDeps(), "reviewer", root, time.Second, false)
+	tok, _, _, _ := runReset(f.registryDeps(), "reviewer", root, time.Second, false)
 	if tok != "skip:unsupported" || len(f.submitted) != 0 {
 		t.Fatalf("got %q, submitted %v; want skip:unsupported and nothing sent", tok, f.submitted)
 	}
@@ -123,7 +123,7 @@ func TestSessionWithoutNotAnswersAtOnce(t *testing.T) {
 // its counter does not move. The process log confirms the reset.
 func TestCopilotResetIsConfirmedByItsOwnRecord(t *testing.T) {
 	f := &fakeHerdr{states: []*herdr.Agent{mkAgentAt("idle", "launch-id", 5)}, fresh: []string{"", "", "c2"}}
-	tok, session, err := runReset(f.registryDeps(), "builder", rootWith(t, copilotBuilder, ""), 15*time.Second, false)
+	tok, session, _, err := runReset(f.registryDeps(), "builder", rootWith(t, copilotBuilder, ""), 15*time.Second, false)
 	if err != nil || tok != "reset" || session != "c2" {
 		t.Fatalf("got %q, %q, %v; want reset into c2", tok, session, err)
 	}
@@ -137,7 +137,7 @@ func TestCopilotResetIsConfirmedByItsOwnRecord(t *testing.T) {
 // counter that moved while the record shows nothing is not a reset.
 func TestCopilotResetIgnoresHerdrsCounter(t *testing.T) {
 	f := &fakeHerdr{states: []*herdr.Agent{mkAgentAt("done", "launch-id", 5), mkAgentAt("idle", "launch-id", 6)}, fresh: []string{""}}
-	tok, session, _ := runReset(f.registryDeps(), "builder", rootWith(t, copilotBuilder, ""), 5*time.Second, false)
+	tok, session, _, _ := runReset(f.registryDeps(), "builder", rootWith(t, copilotBuilder, ""), 5*time.Second, false)
 	if tok != "unconfirmed" || session != "" {
 		t.Fatalf("got %q, %q; want unconfirmed: nothing in Copilot's record showed a new conversation", tok, session)
 	}
@@ -147,7 +147,7 @@ func TestCopilotResetIgnoresHerdrsCounter(t *testing.T) {
 // can name its conversation without waiting for it.
 func TestResetReportsTheConversationHerdrMovedTo(t *testing.T) {
 	f := &fakeHerdr{states: []*herdr.Agent{kindAgent("claude", "idle", "s1", 0), kindAgent("claude", "idle", "s2", 0)}}
-	_, session, _ := runReset(f.deps("/clear"), "builder", rootWith(t, claudeBuilder, ""), 15*time.Second, false)
+	_, session, _, _ := runReset(f.deps("/clear"), "builder", rootWith(t, claudeBuilder, ""), 15*time.Second, false)
 	if session != "s2" {
 		t.Errorf("session %q, want s2", session)
 	}
@@ -156,7 +156,7 @@ func TestResetReportsTheConversationHerdrMovedTo(t *testing.T) {
 // A new Copilot pane has had no turn, so there is nothing to reset.
 func TestANewCopilotPaneNeedsNoReset(t *testing.T) {
 	f := &fakeHerdr{states: []*herdr.Agent{kindAgent("copilot", "idle", "", 0)}}
-	tok, _, _ := runReset(f.registryDeps(), "builder", rootWith(t, copilotBuilder, ""), time.Second, false)
+	tok, _, _, _ := runReset(f.registryDeps(), "builder", rootWith(t, copilotBuilder, ""), time.Second, false)
 	if tok != "skip:no-session" || len(f.submitted) != 0 {
 		t.Errorf("got %q, submitted %v; want skip:no-session and nothing typed", tok, f.submitted)
 	}
@@ -181,7 +181,7 @@ func TestACodexPaneWithNoSessionIsReset(t *testing.T) {
 		states:    []*herdr.Agent{kindAgent("codex", "idle", "", 18)},
 		afterKeys: []*herdr.Agent{kindAgent("codex", "working", "", 37), kindAgent("codex", "idle", "", 38)},
 	}
-	tok, session, err := runReset(f.registryDeps(), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
+	tok, session, _, err := runReset(f.registryDeps(), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
 	if err != nil || tok != "sent" || session != "" {
 		t.Fatalf("got %q, %q, %v; want sent, naming no conversation", tok, session, err)
 	}
@@ -198,7 +198,7 @@ func TestACodexResetIsNotProvenByAHerdrIDChange(t *testing.T) {
 		states:    []*herdr.Agent{kindAgent("codex", "idle", "s1", 5), kindAgent("codex", "idle", "another-panes", 5)},
 		afterKeys: []*herdr.Agent{kindAgent("codex", "working", "another-panes", 6), kindAgent("codex", "idle", "another-panes", 7)},
 	}
-	tok, session, _ := runReset(f.registryDeps(), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
+	tok, session, _, _ := runReset(f.registryDeps(), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
 	if tok != "sent" || session != "" {
 		t.Fatalf("got %q, %q; want sent, after the picker, naming no conversation", tok, session)
 	}
@@ -212,7 +212,7 @@ func TestResetCountsAStatusEventAsSent(t *testing.T) {
 	f := &fakeHerdr{states: []*herdr.Agent{
 		kindAgent("codex", "idle", "s1", 5), kindAgent("codex", "working", "s1", 5), kindAgent("codex", "idle", "s1", 5),
 	}}
-	tok, _, err := runReset(f.deps("/new"), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
+	tok, _, _, err := runReset(f.deps("/new"), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
 	if err != nil || tok != "sent" {
 		t.Fatalf("tok %q err %v, want sent", tok, err)
 	}
@@ -230,7 +230,7 @@ func TestResetAnswersThePickerEvenAfterAStatusEvent(t *testing.T) {
 		states:    []*herdr.Agent{kindAgent("codex", "idle", "s1", 5), kindAgent("codex", "working", "s1", 6), kindAgent("codex", "idle", "s1", 7)},
 		afterKeys: []*herdr.Agent{kindAgent("codex", "working", "s1", 8), kindAgent("codex", "idle", "s1", 9)},
 	}
-	tok, _, err := runReset(f.registryDeps(), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
+	tok, _, _, err := runReset(f.registryDeps(), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
 	if err != nil || tok != "sent" {
 		t.Fatalf("got %q, %v; want sent", tok, err)
 	}
@@ -249,7 +249,7 @@ func TestResetLeavesThePickerOnItsSecondRow(t *testing.T) {
 		screen: checkoutPicker(t, "-moved"),
 		states: []*herdr.Agent{kindAgent("codex", "idle", "s1", 5)},
 	}
-	if _, _, err := runReset(f.registryDeps(), "builder", rootWith(t, codexBuilder, ""), 5*time.Second, false); err != nil {
+	if _, _, _, err := runReset(f.registryDeps(), "builder", rootWith(t, codexBuilder, ""), 5*time.Second, false); err != nil {
 		t.Fatal(err)
 	}
 	if len(f.keys) != 0 {
@@ -285,7 +285,7 @@ func TestAgyResetConfirmedByLogOrFreshScreen(t *testing.T) {
 			states: []*herdr.Agent{kindAgent("agy", "idle", "s1", 5)},
 			fresh:  []string{"", "c2"},
 		}
-		tok, session, err := runReset(f.registryDeps(), "builder", rootWith(t, agyBuilder, ""), 15*time.Second, false)
+		tok, session, _, err := runReset(f.registryDeps(), "builder", rootWith(t, agyBuilder, ""), 15*time.Second, false)
 		if err != nil || tok != "reset" || session != "c2" {
 			t.Fatalf("got %q, %q, %v; want reset into c2", tok, session, err)
 		}
@@ -297,7 +297,7 @@ func TestAgyResetConfirmedByLogOrFreshScreen(t *testing.T) {
 				states: []*herdr.Agent{kindAgent("agy", "idle", "s1", 5)},
 				fresh:  []string{""},
 			}
-			tok, session, err := runReset(f.registryDeps(), "builder", rootWith(t, agyBuilder, ""), 15*time.Second, false)
+			tok, session, _, err := runReset(f.registryDeps(), "builder", rootWith(t, agyBuilder, ""), 15*time.Second, false)
 			if err != nil || tok != "sent" || session != "" {
 				t.Fatalf("got %q, %q, %v; want sent", tok, session, err)
 			}
@@ -313,7 +313,7 @@ func TestAgyResetConfirmedByLogOrFreshScreen(t *testing.T) {
 				states: []*herdr.Agent{kindAgent("agy", "idle", "s1", 5)},
 				fresh:  []string{""},
 			}
-			tok, _, err := runReset(f.registryDeps(), "builder", rootWith(t, agyBuilder, ""), 5*time.Second, false)
+			tok, _, _, err := runReset(f.registryDeps(), "builder", rootWith(t, agyBuilder, ""), 5*time.Second, false)
 			if err != nil || tok != "unconfirmed" {
 				t.Fatalf("got %q, %v; want unconfirmed", tok, err)
 			}
@@ -328,7 +328,7 @@ func TestResetSkipsClaudePaneWithBackgroundTask(t *testing.T) {
 	f := &fakeHerdr{states: []*herdr.Agent{kindAgent("claude", "idle", "s1", 5)}}
 	d := f.registryDeps()
 	d.screen = func(string) (string, error) { return screenFixture(t, "claude-background-shell.txt"), nil }
-	tok, _, err := runReset(d, "builder", rootWith(t, claudeBuilder, ""), 5*time.Second, false)
+	tok, _, _, err := runReset(d, "builder", rootWith(t, claudeBuilder, ""), 5*time.Second, false)
 	if err != nil || tok != "skip:not-idle" {
 		t.Fatalf("got %q, %v; want skip:not-idle", tok, err)
 	}

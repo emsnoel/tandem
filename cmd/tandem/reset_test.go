@@ -153,7 +153,7 @@ func withReviewer(t *testing.T, root, reviewerJSON string) string {
 // Claude's shape: the id moves as soon as the reset lands.
 func TestResetSucceedsWhenTheSessionChanges(t *testing.T) {
 	f := &fakeHerdr{states: []*herdr.Agent{kindAgent("claude", "idle", "s1", 0), kindAgent("claude", "idle", "s2", 0)}}
-	tok, _, err := runReset(f.deps("/clear"), "builder", rootWith(t, claudeBuilder, ""), 15*time.Second, false)
+	tok, _, _, err := runReset(f.deps("/clear"), "builder", rootWith(t, claudeBuilder, ""), 15*time.Second, false)
 	if err != nil || tok != "reset" {
 		t.Fatalf("got %q, %v; want reset", tok, err)
 	}
@@ -167,7 +167,7 @@ func TestResetWaitsForIdleAfterTheSessionChanges(t *testing.T) {
 	f := &fakeHerdr{states: []*herdr.Agent{
 		kindAgent("claude", "idle", "s1", 0), kindAgent("claude", "working", "s2", 0), kindAgent("claude", "working", "s2", 0), kindAgent("claude", "idle", "s2", 0),
 	}}
-	tok, _, _ := runReset(f.deps("/clear"), "builder", rootWith(t, claudeBuilder, ""), 15*time.Second, false)
+	tok, _, _, _ := runReset(f.deps("/clear"), "builder", rootWith(t, claudeBuilder, ""), 15*time.Second, false)
 	if tok != "reset" || f.gets != 4 {
 		t.Fatalf("got %q after %d gets; want reset after 4", tok, f.gets)
 	}
@@ -181,7 +181,7 @@ func TestResetSentWhenTheSessionMovesOnlyOnTheNextTurn(t *testing.T) {
 		mkAgentAt("idle", "s1", 1), mkAgentAt("working", "s1", 2), mkAgentAt("idle", "s1", 3),
 	}}
 	start := f.clock
-	tok, _, _ := runReset(f.deps("/new"), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
+	tok, _, _, _ := runReset(f.deps("/new"), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
 	if tok != "sent" {
 		t.Fatalf("got %q, want sent", tok)
 	}
@@ -202,7 +202,7 @@ func TestResetAnswersTheNewConversationPicker(t *testing.T) {
 		states:    []*herdr.Agent{mkAgentAt("idle", "s1", 5)},
 		afterKeys: []*herdr.Agent{mkAgentAt("working", "s1", 6), mkAgentAt("idle", "s1", 7)},
 	}
-	tok, _, _ := runReset(f.deps("/new"), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
+	tok, _, _, _ := runReset(f.deps("/new"), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
 	if tok != "sent" {
 		t.Fatalf("got %q, want sent", tok)
 	}
@@ -218,7 +218,7 @@ func TestResetAnswersTheNewConversationPicker(t *testing.T) {
 // the pane is showing, it is not a new conversation, and no key goes into it.
 func TestResetUnconfirmedWhenNothingEverMoves(t *testing.T) {
 	f := &fakeHerdr{states: []*herdr.Agent{mkAgentAt("idle", "s1", 5)}}
-	tok, _, _ := runReset(f.deps("/new"), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
+	tok, _, _, _ := runReset(f.deps("/new"), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
 	if tok != "unconfirmed" {
 		t.Fatalf("got %q, want unconfirmed", tok)
 	}
@@ -230,7 +230,7 @@ func TestResetUnconfirmedWhenNothingEverMoves(t *testing.T) {
 // Codex's picker is answered for a Codex pane only.
 func TestResetPressesNothingIntoAnotherKindsPane(t *testing.T) {
 	f := &fakeHerdr{screen: checkoutPicker(t, ""), states: []*herdr.Agent{kindAgent("claude", "idle", "s1", 5)}}
-	tok, _, _ := runReset(f.deps("/clear"), "builder", rootWith(t, claudeBuilder, ""), 15*time.Second, false)
+	tok, _, _, _ := runReset(f.deps("/clear"), "builder", rootWith(t, claudeBuilder, ""), 15*time.Second, false)
 	if tok != "unconfirmed" || len(f.keys) != 0 {
 		t.Fatalf("got %q, pressed %v; want unconfirmed and no key", tok, f.keys)
 	}
@@ -241,7 +241,7 @@ func TestResetFromAFinishedUnseenBuilder(t *testing.T) {
 	f := &fakeHerdr{states: []*herdr.Agent{
 		mkAgentAt("done", "s1", 5), mkAgentAt("working", "s1", 6), mkAgentAt("done", "s1", 7),
 	}}
-	tok, _, _ := runReset(f.deps("/new"), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
+	tok, _, _, _ := runReset(f.deps("/new"), "builder", rootWith(t, codexBuilder, ""), 15*time.Second, false)
 	if tok != "sent" {
 		t.Fatalf("got %q, want sent", tok)
 	}
@@ -254,7 +254,7 @@ func TestResetFromAFinishedUnseenBuilder(t *testing.T) {
 // moving, so it is not the picker, and no key is pressed.
 func TestResetUnconfirmedWhenTheBuilderNeverSettles(t *testing.T) {
 	f := &fakeHerdr{states: []*herdr.Agent{mkAgentAt("idle", "s1", 1), mkAgentAt("working", "s1", 2)}}
-	tok, _, _ := runReset(f.deps("/new"), "builder", rootWith(t, codexBuilder, ""), 5*time.Second, false)
+	tok, _, _, _ := runReset(f.deps("/new"), "builder", rootWith(t, codexBuilder, ""), 5*time.Second, false)
 	if tok != "unconfirmed" {
 		t.Fatalf("got %q, want unconfirmed", tok)
 	}
@@ -276,7 +276,7 @@ func TestResetSkips(t *testing.T) {
 		{"already holds a build", claudeBuilder, "s1", "/clear", kindAgent("claude", "idle", "s1", 0), "skip:holds-build"},
 	} {
 		f := &fakeHerdr{states: []*herdr.Agent{c.agent}}
-		tok, _, err := runReset(f.deps(c.cmd), "builder", rootWith(t, c.builder, c.last), time.Second, false)
+		tok, _, _, err := runReset(f.deps(c.cmd), "builder", rootWith(t, c.builder, c.last), time.Second, false)
 		if err != nil || tok != c.want {
 			t.Errorf("%s: got %q, %v; want %q", c.name, tok, err, c.want)
 		}
@@ -288,7 +288,7 @@ func TestResetSkips(t *testing.T) {
 
 func TestResetDryRunSendsNothing(t *testing.T) {
 	f := &fakeHerdr{states: []*herdr.Agent{mkAgent("idle", "s1")}}
-	tok, _, _ := runReset(f.deps("/new"), "builder", rootWith(t, codexBuilder, ""), time.Second, true)
+	tok, _, _, _ := runReset(f.deps("/new"), "builder", rootWith(t, codexBuilder, ""), time.Second, true)
 	if tok != "would-reset" || len(f.submitted) != 0 {
 		t.Fatalf("got %q, submitted %v; want would-reset and nothing sent", tok, f.submitted)
 	}

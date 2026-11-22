@@ -303,6 +303,7 @@ func cmdAgent(args []string) int {
 		}
 		// Herdr types into whatever screen the pane shows (confirm_view.go).
 		if a, err := herdr.Get(name); err == nil {
+			clearNotice(liveScreen, livePress, time.Sleep, a.Kind, name)
 			if why, off := offMain(liveScreen, a.Kind, name); off {
 				return refuseOffMain(os.Stderr, name, why)
 			}

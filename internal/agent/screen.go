@@ -91,6 +91,18 @@ func codexOffMain(lines []string) (string, bool) {
 	return fmt.Sprintf("a dialog that has the keys (%q)", keys), true
 }
 
+// NoticeKey is the key that dismisses a notice a CLI draws in place of its
+// input on its own, and whose answer changes no work, or "" when the screen
+// shows none. Text typed at such a notice is lost, so tandem presses this key
+// first. A notice is also off the main input (OffMainInput), so nothing is
+// typed while it stays.
+func NoticeKey(kind, screen string) string {
+	if kind == "agy" && agySurvey(strings.Split(screen, "\n")) {
+		return agySurveySkip
+	}
+	return ""
+}
+
 // ResetDialogKey is the Herdr key that answers the dialog a reset command
 // opened, when screen shows exactly that dialog with its safe choice
 // highlighted. It is "" for every other screen, so no other dialog is ever

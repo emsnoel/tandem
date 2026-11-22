@@ -136,6 +136,19 @@ and it starts a new conversation in the same process. Herdr learns of it only on
 turn, so tandem confirms the reset from agy's own process log, which records
 `Created conversation <id>` at once. The pane's pid picks the log.
 
+**agy can put a feedback survey where its input was.** After some turns, agy 1.5.14 replaces
+its input box with "How's the CLI experience so far?" and the options `[1] Good [2] Fine
+[3] Bad [0] Skip`. Herdr still reports the pane `idle`, but whatever is typed answers the
+survey and is lost. A `/new` typed there started no conversation, so the reset ran out
+`unconfirmed` and paused the run (#118). So before tandem types anything into an agy pane,
+whether a reset, a task, a review or a message to the planner, it reads the screen and
+presses `0` (Skip) when the survey shows. It does the same when the survey is drawn over the
+fresh screen after `/new`. While the survey stays, tandem types nothing into it.
+
+An `unconfirmed` reset says what the pane showed at the end: Herdr's status, whether the
+kind's own log has the new conversation, whether the screen looks fresh, and the screen's
+last lines. The run's pause and `tandem agent reset`'s stderr both carry it.
+
 tandem never sends a task into a conversation it could not reset. A Claude, Copilot or agy
 builder with no session id yet hasn't taken a turn since `tandem-pair`, so there is nothing to
 reset.

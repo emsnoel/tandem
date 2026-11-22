@@ -33,6 +33,8 @@ type fakePane struct {
 	// resetSession is the conversation the reset proved from the CLI's own
 	// record, as Copilot's process log names it.
 	resetSession string
+	// resetWhy is what the reset says the pane showed when it is unconfirmed.
+	resetWhy string
 	// logged is the conversation whose log holds the prompt's nonce, as
 	// Codex's own logs show it when Herdr names none.
 	logged string
@@ -59,6 +61,10 @@ type fakePane struct {
 	screens   []string
 	screenErr error
 	shown     int
+	// keys records every key pressed. afterKey, when set, is what the screen
+	// shows from the first key on, as screens is before it.
+	keys     []string
+	afterKey []string
 
 	// tokenLog is each conversation's token total as its log shows it, and
 	// promptTokens what a prompt's turn adds: 0 is a turn that made no model
@@ -171,9 +177,9 @@ func (p *fakePane) deps() herdrDeps {
 			}
 			return nil
 		},
-		reset: func(name, root string) (string, string, error) {
+		reset: func(name, root string) (string, string, string, error) {
 			p.resets++
-			return p.resetTok, p.resetSession, p.resetErr
+			return p.resetTok, p.resetSession, p.resetWhy, p.resetErr
 		},
 		read: func(name string) (string, error) {
 			return p.paneText, nil
@@ -185,6 +191,13 @@ func (p *fakePane) deps() herdrDeps {
 			s := p.screens[min(p.shown, len(p.screens)-1)]
 			p.shown++
 			return s, nil
+		},
+		press: func(name, key string) error {
+			p.keys = append(p.keys, key)
+			if p.afterKey != nil {
+				p.screens, p.shown, p.afterKey = p.afterKey, 0, nil
+			}
+			return nil
 		},
 		shellForeground: func(pane string) (bool, error) {
 			return p.shellAfter > 0 && p.reads >= p.shellAfter, nil
