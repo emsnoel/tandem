@@ -287,11 +287,16 @@ func BusyInBackground(kind, screen string) (why string, busy bool) {
 var (
 	// Claude Code's footer names running background work after a middle dot:
 	//   "· 1 shell still running", "· 2 shells still running (↓ to view)",
-	//   "· ← 1 agent · ↓ to manage", "· 2 local agents · ↓ to manage",
-	//   "· 1 background task (↓ to view)".
+	//   "· 2 local agents · ↓ to manage", "· 1 background task (↓ to view)",
+	//   "· 1 shell, 1 monitor · ← 1 agent · ↓ to manage" (2.1.330).
 	// Only non-zero counts match.
 	claudeBgRunning = regexp.MustCompile(`·\s+([1-9]\d*\s+(?:background\s+|local\s+)?(?:shells?|agents?|tasks?)\s+still running)`)
-	claudeBgCount   = regexp.MustCompile(`·\s+(?:←\s+)?([1-9]\d*\s+(?:background\s+|local\s+)?(?:shells?|agents?|tasks?))(?:\s+·|\s+\(|$)`)
+	claudeBgCount   = regexp.MustCompile(`·\s+([1-9]\d*\s+(?:background\s+|local\s+)?(?:shells?|agents?|tasks?|monitors?))(?:,|\s+·|\s+\(|$)`)
+	// "← 1 agent" alone is the key hint for Claude Code's agents view: 2.1.330
+	// shows it on a fresh pane that was never prompted, and again once a
+	// background agent has ended (#123). Only "↓ to manage" after it marks
+	// an agent still at work.
+	claudeBgManaged = regexp.MustCompile(`·\s+←\s+([1-9]\d*\s+agents?)\s+·\s+↓ to manage`)
 )
 
 // claudeBusyInBackground reads only Claude Code's footer (the lines below the
@@ -304,6 +309,9 @@ func claudeBusyInBackground(lines []string) (string, bool) {
 			return m[1], true
 		}
 		if m := claudeBgCount.FindStringSubmatch(l); m != nil {
+			return m[1], true
+		}
+		if m := claudeBgManaged.FindStringSubmatch(l); m != nil {
 			return m[1], true
 		}
 	}
