@@ -60,7 +60,6 @@ new_case() {
 }
 # once_only: another pass does not repeat the note.
 once_only() { local before; before=$(sent_to planner); pass 2; [ "$(sent_to planner)" = "$before" ] && ok "$1: and never again" || nope "$1: the note was repeated"; }
-field() { printf '%s' "$1" | grep -o -- "--$2 [0-9a-f]*" | head -1 | cut -d' ' -f2; }
 # bridge_up: one bridge that stays up in the background, as a real pair has.
 bridge_up() {
   env PATH="$TMP/bin:$ROOT_DIR/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$R" HERDR_ENV=1 TANDEM_STATE_HOME="$TMP/state-$C" \
@@ -73,7 +72,7 @@ builder_turn() {
   local n pl att job eff nonce
   pass 4
   n=$(grep -n "^builder$TAB" "$FAKE/prompts" | tail -1 | cut -d: -f1)
-  pl=$(cat "$FAKE/prompt.$n.txt"); att=$(field "$pl" attempt); job=$(field "$pl" job); eff=$(field "$pl" effect); nonce=$(field "$pl" nonce)
+  pl=$(cat "$FAKE/prompt.$n.txt"); att=$(builder_prompt_field "$pl" attempt); job=$(builder_prompt_field "$pl" job); eff=$(builder_prompt_field "$pl" effect); nonce=$(builder_prompt_field "$pl" nonce)
   [ -n "$att" ] && [ -n "$nonce" ] || { nope "$C: no identity in the task prompt"; return 1; }
   td build event new --root "$R" --kind builder_started --task 1 --attempt "$att" --job "$job" --effect "$eff" --nonce "$nonce" >/dev/null 2>&1
   printf 'work of %s\n' "$att" > "$R/file1.txt"; printf 'done\n' > "$TMP/report.md"
@@ -87,6 +86,6 @@ start_turn() {
   local pl
   pass
   pl=$(cat "$FAKE/prompt.1.txt")
-  IDENT=(--task 1 --attempt "$(field "$pl" attempt)" --job "$(field "$pl" job)" --effect "$(field "$pl" effect)" --nonce "$(field "$pl" nonce)")
+  IDENT=(--task 1 --attempt "$(builder_prompt_field "$pl" attempt)" --job "$(builder_prompt_field "$pl" job)" --effect "$(builder_prompt_field "$pl" effect)" --nonce "$(builder_prompt_field "$pl" nonce)")
   td build event new --root "$R" --kind builder_started "${IDENT[@]}" >/dev/null 2>&1
 }

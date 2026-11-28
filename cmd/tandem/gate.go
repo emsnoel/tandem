@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"github.com/emsnoel/tandem/internal/gate"
 	"github.com/emsnoel/tandem/internal/mailbox"
 	"github.com/emsnoel/tandem/internal/vcs"
+	"github.com/emsnoel/tandem/internal/workflow"
 )
 
 // snapshotFile is the pre-check state carried from --phase pre to --phase
@@ -24,13 +26,18 @@ type snapshotFile struct {
 	Status       string           `json:"status"`
 }
 
+const gateUsage = "usage: tandem gate <teardown|review|validate-plan|scope|latest-plan|ruling|rule|record|baseline-check> ..."
+
 func cmdGate(args []string) int {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: tandem gate <teardown|review|scope|latest-plan|ruling|rule|record|baseline-check> ...")
+		fmt.Fprintln(os.Stderr, gateUsage)
 		return exitcode.Usage
 	}
 	if args[0] == "review" {
 		return cmdGateReview(args[1:])
+	}
+	if args[0] == "validate-plan" {
+		return cmdGateValidatePlan(args[1:])
 	}
 	if args[0] == "scope" {
 		return cmdGateScope(args[1:])
@@ -51,7 +58,7 @@ func cmdGate(args []string) int {
 		return cmdGateBaselineCheck(args[1:])
 	}
 	if args[0] != "teardown" {
-		fmt.Fprintln(os.Stderr, "usage: tandem gate <teardown|review|scope|latest-plan|ruling|rule|record|baseline-check> ...")
+		fmt.Fprintln(os.Stderr, gateUsage)
 		return exitcode.Usage
 	}
 
@@ -162,6 +169,50 @@ func cmdGate(args []string) int {
 		emit(v)
 		return v.Code
 	}
+}
+
+// cmdGateValidatePlan checks the selected plan without starting or opening a
+// run. Supply the exact handoff settings to measure the first task prompts.
+func cmdGateValidatePlan(args []string) int {
+	fs := flag.NewFlagSet("gate validate-plan", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	var req controller.StartRequest
+	fs.StringVar(&req.PlanPath, "plan", "", "path of the selected plan")
+	fs.StringVar(&req.Root, "root", "", "repository root for sizing")
+	fs.StringVar(&req.BuilderKind, "builder-kind", "", "builder kind for sizing")
+	fs.IntVar(&req.ContextLimit, "context-limit", -1, "resolved byte limit (0 uses the build default)")
+	fs.StringVar(&req.ConventionsFile, "conventions-file", "", "conventions file relative to the root")
+	fs.StringVar(&req.CheckCommand, "check", "", "the project's check command")
+	fs.StringVar(&req.PromptExtra, "prompt-extra", "", "extra task prompt instructions")
+	fs.StringVar(&req.Ruling, "ruling", "", "the planner's ruling")
+	fs.StringVar(&req.RulingObjection, "ruling-objection", "", "the excerpt of the overruled review")
+	if err := fs.Parse(args); err != nil {
+		return exitcode.Usage
+	}
+	// An explicit kind, root and limit opt into sizing. The other fields
+	// may be empty, as they can be at build start.
+	structuralOnly := fs.NFlag() == 1
+	if fs.NArg() != 0 || req.PlanPath == "" || (!structuralOnly && (req.Root == "" || req.BuilderKind == "" || req.ContextLimit < 0)) {
+		fmt.Fprintln(os.Stderr, "usage: tandem gate validate-plan --plan FILE [--root DIR --builder-kind KIND --context-limit N [prompt settings]]")
+		return exitcode.Usage
+	}
+	var err error
+	if structuralOnly {
+		err = controller.CheckPlan(req.PlanPath)
+	} else {
+		if rc := refuseUnknownKind("--builder-kind", req.BuilderKind); rc != exitcode.OK {
+			return rc
+		}
+		err = controller.CheckTaskContext(req)
+	}
+	if err == nil {
+		return exitcode.OK
+	}
+	fmt.Fprintln(os.Stderr, "tandem gate validate-plan:", err)
+	if errors.Is(err, workflow.ErrContextTooLarge) {
+		return exitcode.ManualGate
+	}
+	return exitcode.Internal
 }
 
 // durableTeardownEvidence reads the evidence of the run in the relay,

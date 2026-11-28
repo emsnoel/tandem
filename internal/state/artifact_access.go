@@ -11,9 +11,9 @@ import (
 
 // AttemptArtifacts returns every artifact an attempt may be shown, with the
 // reason: what the attempt owns (its packet, snapshots, evidence), what its
-// jobs and their reviews produced, and its own task's brief, constraints and
-// spec. It is the state half of retrieval authorization; the controller adds
-// the memory a packet's manifest named.
+// jobs, reviews and check certificates produced, and its own task's brief,
+// constraints and spec. It is the state half of retrieval authorization; the
+// controller adds the memory a packet's manifest named.
 //
 // Nothing else is included, not another attempt's or task's artifacts and not
 // the plan, so a hash is no more than a name: knowing one grants nothing. The
@@ -62,6 +62,10 @@ func (s *Store) AttemptArtifacts(ctx context.Context, attemptID string) (map[str
 	if err := add(`SELECT 'task brief', brief_hash FROM tasks WHERE run_id=? AND id=?
 		UNION ALL SELECT 'task constraints', constraints_hash FROM tasks WHERE run_id=? AND id=?
 		UNION ALL SELECT 'task spec', spec_hash FROM tasks WHERE run_id=? AND id=?`, runID, taskID, runID, taskID, runID, taskID); err != nil {
+		return nil, err
+	}
+	if err := add(`SELECT 'check '||r.role, r.hash FROM artifact_refs r JOIN check_certificates c ON c.id=r.owner_id
+		WHERE r.owner_kind='check_certificate' AND c.attempt_id=? ORDER BY c.id, r.role`, attemptID); err != nil {
 		return nil, err
 	}
 	return out, nil

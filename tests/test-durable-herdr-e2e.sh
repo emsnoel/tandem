@@ -85,7 +85,6 @@ printf '\n== two tasks to the end: ack, submit, check, review record, accept, fi
 R3="$TMP/repo3"; cp -R "$REPO" "$R3"; find "$R3/.tandem-relay" -mindepth 1 ! -name builder.json -delete 2>/dev/null; rm -f "$FAKE/resets"; : > "$FAKE/prompts"; fake_set_state idle
 td3() { env PATH="$TMP/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$R3" TANDEM_BUILD_ENGINE=durable TANDEM_STATE_HOME="$TMP/state3" tandem "$@"; }
 tickn() { for _ in 1 2 3 4; do td3 build tick --root "$R3" >/dev/null 2>"$TMP/err"; done; }
-field() { printf '%s' "$1" | grep -o -- "--$2 [0-9a-f]*" | head -1 | cut -d' ' -f2; }
 jfield() { printf '%s' "$1" | grep -o "\"$2\":\"[0-9a-f]*\"" | head -1 | cut -d'"' -f4; }
 td3 build start --plan "$R3/plan.md" --root "$R3" --builder builder --planner planner --builder-kind codex --reviewer reviewer --reviewer-kind claude --check true >/dev/null 2>&1
 RUN3=$(td3 build status --root "$R3" --json | jq -r .run_id)
@@ -93,8 +92,8 @@ RUN3=$(td3 build status --root "$R3" --json | jq -r .run_id)
 one_task() { # one_task N: the builder and the reviewer take their turns
   local n="$1" pl att job eff nonce rv rj ra rp rt
   tickn
-  pl=$(sed -n "$(( (n-1)*2 + 1 ))p" "$FAKE/prompts" | cut -f2-)
-  att=$(field "$pl" attempt); job=$(field "$pl" job); eff=$(field "$pl" effect); nonce=$(field "$pl" nonce)
+  pl=$(cat "$FAKE/prompt.$(( (n-1)*2 + 1 )).txt")
+  att=$(builder_prompt_field "$pl" attempt); job=$(builder_prompt_field "$pl" job); eff=$(builder_prompt_field "$pl" effect); nonce=$(builder_prompt_field "$pl" nonce)
   [ -n "$att" ] && [ -n "$nonce" ] || { nope "task $n: no identity in the prompt"; return 1; }
   td3 build event new --root "$R3" --kind builder_started --task "$n" --attempt "$att" --job "$job" --effect "$eff" --nonce "$nonce" >/dev/null 2>&1
   printf 'work for task %s\n' "$n" > "$R3/file$n.txt"

@@ -156,6 +156,10 @@ func writeReceipt(dir string, rec workflow.Receipt) error {
 }
 
 func atomicWrite(dir, name string, body []byte) error {
+	return atomicWriteMode(dir, name, body, 0644)
+}
+
+func atomicWriteMode(dir, name string, body []byte, mode os.FileMode) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
@@ -167,14 +171,13 @@ func atomicWrite(dir, name string, body []byte) error {
 	if _, err := tmp.Write(body); err != nil {
 		return cleanup(err)
 	}
+	if err := tmp.Chmod(mode); err != nil {
+		return cleanup(err)
+	}
 	if err := tmp.Sync(); err != nil {
 		return cleanup(err)
 	}
 	if err := tmp.Close(); err != nil {
-		os.Remove(tmp.Name())
-		return err
-	}
-	if err := os.Chmod(tmp.Name(), 0o644); err != nil {
 		os.Remove(tmp.Name())
 		return err
 	}

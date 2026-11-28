@@ -18,7 +18,16 @@ hasno() { case "$2" in *"$3"*) nope "$1 (present: $3)" ;; *) ok "$1" ;; esac; }
 command -v jq >/dev/null || { echo "need jq" >&2; exit 2; }
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/bin"
-(cd "$ROOT_DIR" && go build -o "$TMP/bin/tandem" ./cmd/tandem) || { echo "could not build tandem"; exit 1; }
+(cd "$ROOT_DIR" && go build -o "$TMP/bin/tandem-real" ./cmd/tandem) || { echo "could not build tandem"; exit 1; }
+# Trace even dry-run requests to the baseline and reset helpers.
+cat > "$TMP/bin/tandem" <<'STUB'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "gate baseline-check"|"agent reset"|"agent prompt") printf '%s\n' "$1 $2" >> "$FAKE/review-ops" ;;
+esac
+exec "${0%/*}/tandem-real" "$@"
+STUB
+chmod +x "$TMP/bin/tandem"
 # A jq that fails: tandem-review asks tandem, so any jq call is a bug.
 printf '#!/bin/sh\necho "jq was called: $*" >&2\nexit 99\n' > "$TMP/bin/jq"
 chmod +x "$TMP/bin/jq"
@@ -38,13 +47,54 @@ REVIEWER_REC='{"kind":"codex","name":"reviewer"}'
 
 # review [args...]: run tandem-review against a fresh fake pane; sets OUT, RC.
 review() {
-  rm -f "$FAKE/prompts" "$FAKE/resets" "$FAKE"/prompt.*.txt
+  rm -f "$FAKE/prompts" "$FAKE/resets" "$FAKE/review-ops" "$FAKE"/prompt.*.txt
   fake_set_state idle
   OUT=$(cd "$REPO" && env -u HERDR_DECISION PATH="$TMP/bin:$ROOT_DIR/bin:/usr/bin:/bin" \
         HERDR_ENV=1 FAKE="$FAKE" REPO="$REPO" tandem-review "$PLAN" "$@" 2>&1); RC=$?
 }
 sent_to()  { cut -f1 "$FAKE/prompts" 2>/dev/null | tr '\n' ' '; }
 resets()   { cat "$FAKE/resets" 2>/dev/null | tr '\t\n' ': '; }
+# Compare with 711ed6d after normalizing the checkout prefix and delivery ID.
+check_prompt() {
+  local mode="$1" expected="$2" measured
+  measured=$(sed -e "s|$REPO|/repo|g" \
+      -e 's/^(tandem delivery [[:xdigit:]-]*)$/(tandem delivery 00000000-0000-0000-0000-000000000000)/' \
+      "$FAKE/prompt.1.txt" | cksum)
+  [ "$measured" = "$expected" ] && ok "$mode prompt matches 711ed6d (cksum, bytes: $measured)" \
+    || nope "$mode prompt checksum and byte count: expected $expected, got $measured"
+}
+
+# Run these same cases on each revision to measure the preflight and skill.
+# Keep the fixture ahead of the candidate-only assertions so it can be copied
+# unchanged to a baseline checkout.
+if [ -n "${TANDEM_WORKFLOW_EVAL_ARM:-}" ]; then
+  ARM="$TANDEM_WORKFLOW_EVAL_ARM"
+  case "$ARM" in candidate|711ed6d) ;; *) exit 2 ;; esac
+  printf '%s\n' "$REVIEWER_REC" > "$MB/reviewer.json"
+  for SCENARIO in clean invalid-plan; do
+    if [ "$SCENARIO" = invalid-plan ]; then
+      printf '# plan\n### Task 1: one\nTask-ID: one\nTask-ID: two\nstep\n' > "$PLAN"
+    fi
+    review
+    count=0; bytes=0; state=rejected
+    if [ -s "$FAKE/prompts" ]; then
+      count=$(wc -l < "$FAKE/prompts" | tr -d ' ')
+      bytes=$(wc -c < "$FAKE/prompt.1.txt" | tr -d ' ')
+      [ "$count" = 1 ] && [ "$(sent_to)" = "reviewer " ] && [ "$bytes" -gt 0 ] || exit 1
+      state=review-dispatched
+    fi
+    if [ "$SCENARIO/$ARM" = invalid-plan/candidate ]; then
+      [ "$RC" = 1 ] && [ "$count" = 0 ] && [ ! -s "$FAKE/review-ops" ] && [ ! -s "$FAKE/resets" ] || exit 1
+      case "$OUT" in *"Task-ID is given twice"*) ;; *) printf '%s\n' "$OUT"; exit 1 ;; esac
+    else
+      [ "$RC" = 0 ] && [ "$count" = 1 ] || { printf '%s\n' "$OUT"; exit 1; }
+    fi
+    printf 'WORKFLOW_PLAN %s %s %s reviewer_dispatches=%s rendered_bytes=%s exit=%s\n' \
+      "$ARM" "$SCENARIO" "$state" "$count" "$bytes" "$RC"
+  done
+  printf 'WORKFLOW_SKILL %s bytes=%s\n' "$ARM" "$(wc -c < "$ROOT_DIR/skills/tandem-plan/SKILL.md" | tr -d ' ')"
+  exit 0
+fi
 
 printf '== a reviewer is recorded ==\n'
 printf '%s\n' "$REVIEWER_REC" > "$MB/reviewer.json"; rm -f "$FAKE/absent"
@@ -60,6 +110,7 @@ review
 has "delivery is confirmed against the reviewer" "$OUT" "review requested (reviewer now working)"
 has "the reviewer's sidebar label names the plan" "$(cat "$FAKE/metadata" 2>/dev/null)" \
   "pane report-metadata w1:reviewer --source tandem --token activity=reviewing p"
+check_prompt full '590154416 3057'
 
 printf '\n== the prompt does not assume its reader builds ==\n'
 P=$(cat "$FAKE/prompt.1.txt" 2>/dev/null)
@@ -75,6 +126,70 @@ has "with the builder's kind and autonomy from builder.json" "$P" "(claude, auto
 has "says the reviewer's own sandbox proves nothing about the builder" "$P" "proves nothing about the builder"
 has "and asks for 'could not verify', not an objection" "$P" 'report it as "could not verify", not as an objection'
 hasno "no longer asks about authority the reader does not have" "$P" "authority you do not have"
+
+printf '\n== a small change uses the diff prompt ==\n'
+ID=20260910-000001-1-1
+REVIEWS="$MB/reviews"
+cp "$PLAN" "$REVIEWS/$ID.plan.md"
+printf 'review body\n' > "$REVIEWS/$ID.md"
+printf '{"plan":"%s","verdict":"clean","kind":"claude","autonomy":"auto","reviewed_by":"reviewer","reviewer_kind":"codex"}\n' \
+  "$PLAN" > "$REVIEWS/$ID.json"
+printf '\nOne more step.\n' >> "$PLAN"
+review
+[ "$RC" -eq 0 ] && ok "a diff review succeeds" || nope "a diff review succeeds (rc $RC: $OUT)"
+has "reports a diff review" "$OUT" "review: the changes since review $ID"
+[ "$(sent_to)" = "reviewer " ] && ok "one diff prompt reaches the reviewer" || nope "prompted: $(sent_to)"
+check_prompt diff '3567749102 3724'
+
+printf '\n== invalid plans stop before review operations ==\n'
+COUNTER="$TMP/check-runs"
+printf '{"plans_dir":"docs/plans","check_command":"printf x >> %s","context_limit":1}\n' "$COUNTER" > "$REPO/.tandem.json"
+rejects_plan() {
+  local diag="$1" count
+  shift
+  review "$@"
+  [ "$RC" -eq 1 ] && ok "$diag ($*): rejected" || nope "$diag ($*): rc $RC"
+  count=$(printf '%s\n' "$OUT" | grep -Fc "$diag")
+  [ "$count" = 1 ] && ok "the task and diagnostic appear once" || nope "expected one diagnostic: $OUT"
+  if [ ! -e "$COUNTER" ] && [ ! -s "$FAKE/review-ops" ] && [ ! -s "$FAKE/resets" ] && [ ! -s "$FAKE/prompts" ]; then
+    ok "no baseline, reset or delivery"
+  else
+    nope "unexpected review operations: $(cat "$FAKE/review-ops" 2>/dev/null)"
+  fi
+  rm -f "$COUNTER"
+}
+# The duplicate is a small edit to the reviewed snapshot and would take the
+# diff path. Check the resumed path too.
+printf '# plan\n### Task 1: one\nTask-ID: one\nTask-ID: two\nstep\n' > "$PLAN"
+SCOPE=$("$TMP/bin/tandem-real" gate scope --plan "$PLAN" --root "$REPO")
+[ "$SCOPE" = "$(printf 'diff\n%s' "$ID")" ] && ok "the duplicate fixture qualifies for a diff review" \
+  || nope "the duplicate fixture scope: $SCOPE"
+rejects_plan "task 1: Task-ID is given twice"
+rejects_plan "task 1: Task-ID is given twice" --dry-run
+rejects_plan "task 1: Task-ID is given twice" --accepted-tasks one
+rejects_plan "task 1: Task-ID is given twice" --accepted-tasks one --dry-run
+cp "$REVIEWS/$ID.plan.md" "$TMP/valid-plan"
+rm -f "$REVIEWS/$ID.json" "$REVIEWS/$ID.md" "$REVIEWS/$ID.plan.md" "$REVIEWS/$ID.next.diff"
+printf '# plan\n### Task 1: one\nTasks-ID: one\nstep\n' > "$PLAN"
+rejects_plan 'task 1: "Tasks-ID" looks like a metadata field'
+rejects_plan 'task 1: "Tasks-ID" looks like a metadata field' --dry-run
+cp "$TMP/valid-plan" "$PLAN"
+
+printf '\n== sizing requires resolved handoff settings ==\n'
+review --dry-run
+[ "$RC" -eq 0 ] && ok "review leaves the future handoff limit unresolved" || nope "review rc $RC: $OUT"
+sized_gate() {
+  OUT=$(TANDEM_STATE_HOME="$TMP/gate-state" "$TMP/bin/tandem" gate validate-plan \
+        --plan "$PLAN" --root "$REPO" --builder-kind claude --context-limit "$1" 2>&1); RC=$?
+}
+sized_gate 1
+[ "$RC" -eq 23 ] && ok "a known 1-byte handoff limit refuses" || nope "sizing rc $RC: $OUT"
+has "the size refusal names the task" "$OUT" "task-1 needs"
+sized_gate 24000
+[ "$RC" -eq 0 ] && [ -z "$OUT" ] && ok "a plan within the known limit passes silently" || nope "sizing rc $RC: $OUT"
+[ ! -e "$TMP/gate-state" ] && [ ! -e "$MB/active-run.json" ] \
+  && ok "sizing created no run state" || nope "sizing created run state"
+printf '{"plans_dir":"docs/plans","check_command":"true"}\n' > "$REPO/.tandem.json"
 
 printf '\n== Codex asks where the new conversation should run (issue 88) ==\n'
 # Codex 0.169 answers /new with a checkout picker that Herdr reports as idle.

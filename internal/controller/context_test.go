@@ -61,8 +61,13 @@ func TestBuilderPromptIsThePersistedPacketWithItsManifest(t *testing.T) {
 	att := e.current("task-1")
 	prompt, m := e.packet(att)
 	eff := e.builderEffect(att)
+	root, err := filepath.EvalSymlinks(e.relay)
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := shellQuote(filepath.Join(RunDir(root, e.runID), "builder", eff.Nonce))
 	for _, want := range []string{"Implement task 1 of 2 (task-1)", "**Goal:** greet.", "Do the first thing.", "Your task:",
-		"tandem-handback --root '", "/repo' --task 1 --run " + e.runID + " --attempt " + att.ID, "--nonce " + eff.Nonce + " --started", "--report <file>"} {
+		command + " --started", command + " --report <file>"} {
 		if !strings.Contains(prompt, want) {
 			t.Errorf("the prompt is missing %q:\n%s", want, prompt)
 		}
@@ -493,6 +498,10 @@ func TestRestartBetweenPacketAndDeliveryDeliversOnce(t *testing.T) {
 		t.Fatalf("before the restart: %d attempts, %d sends", len(as), len(e.tr.sends))
 	}
 	packet := as[0].PacketHash
+	handback := filepath.Join(RunDir(e.relay, run), "builder", attemptIdentity(e.root, run, as[0].ID, 1).Nonce)
+	if _, err := os.Stat(handback); !os.IsNotExist(err) {
+		t.Fatalf("helper exists before delivery: %v", err)
+	}
 
 	// A new process, after the old writer's lease has expired.
 	e.clk.advance(11 * time.Minute)
@@ -502,6 +511,9 @@ func TestRestartBetweenPacketAndDeliveryDeliversOnce(t *testing.T) {
 	}
 	e.tick()
 	e.tick()
+	if info, err := os.Stat(handback); err != nil || info.Mode().Perm() != 0700 {
+		t.Fatalf("handback missing or has wrong permissions: %v, %v", info, err)
+	}
 	as, _ = e.st.TaskAttempts(ctx, run, "task-1")
 	if len(as) != 1 || as[0].PacketHash != packet {
 		t.Errorf("the restart made %d attempts, or a different packet", len(as))

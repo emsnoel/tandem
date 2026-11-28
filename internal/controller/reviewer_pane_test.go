@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -131,6 +132,142 @@ func TestReviewerPaneTakesTheReviewPrompt(t *testing.T) {
 	}
 }
 
+func TestManualReviewerGetsPersistedRequirements(t *testing.T) {
+	t.Parallel()
+	e := newCEnv(t)
+	e.plan = filepath.Join(t.TempDir(), "plan.md")
+	const constraints = "Keep the CLI."
+	const first = "### Task 1: Sort\n\nSort ascending."
+	const second = "### Task 2: Sort\n\nSort descending."
+	if err := os.WriteFile(e.plan, []byte(constraints+"\n\n"+first+"\n\n"+second+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	e.startWith(e.reviewerStart())
+	check := func(a workflow.Attempt, want, other string) {
+		t.Helper()
+		p := e.reviewPromptOf(a)
+		if d := e.deliveryOf(p.ID); d.SessionID != reviewerPane || d.PromptHash != p.PayloadHash {
+			t.Fatalf("review delivery = %+v, want persisted prompt in reviewer pane", d)
+		}
+		text := e.promptText(effectReviewPrompt, a)
+		if !strings.Contains(text, want) || !strings.Contains(text, constraints) || strings.Contains(text, other) || strings.Contains(text, "Edited plan") {
+			t.Errorf("attempt %s should review %q under %q:\n%s", a.ID, want, constraints, text)
+		}
+		data := e.manualReviewData(a)
+		baseline := reviewPrompt(data)
+		if len(text) > len(baseline) {
+			t.Errorf("review grew from %d to %d bytes", len(baseline), len(text))
+		}
+		const reply = "Reply with ONE JSON object"
+		_, gotEvidence, gotReply := strings.Cut(text, reply)
+		_, oldEvidence, _ := strings.Cut(baseline, reply)
+		if !gotReply || gotEvidence != oldEvidence {
+			t.Error("review changed the result instructions or patch evidence")
+		}
+		t.Logf("task %d, attempt %d, empty patch %t: %d → %d bytes, one delivery, zero reviewer reads",
+			data.Task, a.Ordinal, data.Patch == "", len(baseline), len(text))
+	}
+	finish := func(a workflow.Attempt, status string, findings ...workflow.Finding) {
+		t.Helper()
+		obs := runner.Observation{State: runner.ObsCompleted, ExternalID: reviewerConv}
+		e.tr.set(e.reviewPromptOf(a).ID, obs)
+		e.tr.setAgent(reviewerPane, obs)
+		if _, err := e.c.RecordReview(ctx, e.runID, e.resultFor(a, status, findings...)); err != nil {
+			t.Fatal(err)
+		}
+		e.tick()
+	}
+	a := e.toReview("task-1", 1)
+	check(a, first, second)
+	if err := os.WriteFile(e.plan, []byte("Edited plan\n\n### Task 1: Other\n\n### Task 2: Other\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	finish(a, workflow.ReviewStatusChangesRequested, workflow.Finding{Severity: "high", Path: "work1.txt", Disposition: "open", Message: "Fixture requests a repair"})
+	repair := e.toReviewUnchanged("task-1")
+	if repair.ParentAttemptID != a.ID {
+		t.Fatalf("attempt %s should repair %s", repair.ID, a.ID)
+	}
+	check(repair, first, second)
+	finish(repair, workflow.ReviewStatusPassed)
+	b := e.toReview("task-2", 2)
+	check(b, second, first)
+	if n := e.delivered()[effectReviewPrompt]; n != 3 {
+		t.Fatalf("review deliveries = %d, want one per attempt", n)
+	}
+}
+
+func (e *cenv) manualReviewData(a workflow.Attempt) reviewPromptData {
+	e.t.Helper()
+	result := e.resultFor(a, workflow.ReviewStatusPassed)
+	current, err := e.st.GetAttempt(ctx, a.ID)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	patch, err := e.c.patchText(ctx, current)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	task, err := e.c.taskOf(ctx, e.runRow(), current)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	return reviewPromptData{Task: task.Ordinal, Slug: task.ID, Job: result.JobID, Attempt: a.ID,
+		PatchHash: result.PatchHash, Tree: result.TreeHash, Patch: patch, WarmPane: true}
+}
+
+func TestManualReviewerLongRequirementBudget(t *testing.T) {
+	t.Parallel()
+	e := newCEnv(t)
+	e.plan = filepath.Join(t.TempDir(), "plan.md")
+	const constraints = "Keep the CLI."
+	brief := "### Task 1: Sort\n\n" + strings.Repeat("Sort ascending and preserve the order of equal values.\n", 20) + "Handle the empty input."
+	if err := os.WriteFile(e.plan, []byte(constraints+"\n\n"+brief+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	e.startWith(e.reviewerStart())
+	if err := os.WriteFile(e.plan, []byte("Changed constraints.\n\n### Task 1: Changed brief\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	a := e.toReview("task-1", 1)
+	data := e.manualReviewData(a)
+	baseline := reviewPrompt(data)
+	if got := e.promptText(effectReviewPrompt, a); got != baseline {
+		t.Fatal("the default long review prompt grew or changed")
+	}
+	if n := e.delivered()[effectReviewPrompt]; n != 1 {
+		t.Fatalf("review deliveries = %d, want one", n)
+	}
+	spec, err := e.c.reviewTaskSpec(ctx, e.tasks()[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(RunDir(e.relay, e.runID), "review", a.ID, "requirements.txt")
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("default review should skip publishing the over-budget reference: %v", err)
+	}
+	candidate := proposeManualReview(data, spec, path, len(baseline))
+	if candidate.readCommand == "" || !strings.Contains(candidate.prompt, candidate.readCommand) || !strings.Contains(candidate.readCommand, a.ID) {
+		t.Fatalf("long requirement proposal lacks an attempt-bound read command:\n%s", candidate.prompt)
+	}
+	// Exercise the exact command the pane would get, against its checkout
+	// relay. The command works even if the reviewer has changed directories.
+	if err := publishReviewRequirement(path, candidate.readOutput); err != nil {
+		t.Fatal(err)
+	}
+	read := exec.Command("sh", "-c", candidate.readCommand)
+	read.Dir = t.TempDir()
+	out, err := read.CombinedOutput()
+	want := "Brief:\n" + brief + "\n\nConstraints:\n" + constraints + "\n"
+	if err != nil || string(out) != want {
+		t.Fatalf("read requirements: %v\n%s\nwant:\n%s", err, out, want)
+	}
+	if cost := len(candidate.prompt) + len(candidate.readCommand) + len(out); cost != candidate.bytes() || cost <= len(baseline) {
+		t.Fatalf("long candidate costs %d bytes including retrieval, budget %d", cost, len(baseline))
+	}
+	t.Logf("long: baseline/default %d bytes, one delivery, no read. Candidate %d prompt bytes + %d call bytes + %d output bytes = %d bytes minimum, one delivery and one extra model continuation",
+		len(baseline), len(candidate.prompt), len(candidate.readCommand), len(out), candidate.bytes())
+}
+
 // Every other prompt keeps its agent: a task goes to the builder, a notice to
 // the planner.
 func TestReviewerPaneChangesNoOtherTarget(t *testing.T) {
@@ -194,8 +331,8 @@ func TestStartRefusesAReviewerThatIsTheBuilderOrThePlanner(t *testing.T) {
 	}
 }
 
-// The configuration of a run records its reviewer pane after the fields every
-// run has.
+// The configuration of a run records its reviewer pane and pins the builder
+// handback relay.
 func TestRunConfigRecordsTheReviewerPane(t *testing.T) {
 	t.Parallel()
 	e := newCEnv(t)
@@ -214,7 +351,7 @@ func TestRunConfigRecordsTheReviewerPane(t *testing.T) {
 	}
 	want := `{"version":1,"root":"` + cfg.Root + `","plan_path":"` + e.plan + `","builder_kind":"codex","builder_session":"builder-session",` +
 		`"planner_kind":"planner","planner_session":"planner-session","check_command":"true","task_input_limit":0,"run_input_limit":0,` +
-		`"reviewer_kind":"claude","reviewer_session":"reviewer-session"}` + "\n"
+		`"reviewer_kind":"claude","reviewer_session":"reviewer-session","builder_handback_relay":".tandem-relay"}` + "\n"
 	if string(raw) != want {
 		t.Fatalf("the configuration of a run changed:\n got %s\nwant %s", raw, want)
 	}
@@ -366,7 +503,7 @@ func TestReviewerPacketSaysToJudgeItAlone(t *testing.T) {
 			e.startWith(e.reviewerStart())
 		}
 		a := e.toReview("task-1", 1)
-		if got := e.promptText(effectReviewPrompt, a); !strings.Contains(got, judgeAlone) {
+		if got := e.promptText(effectReviewPrompt, a); !strings.Contains(got, judgeAlone) && (protocol == 3 || !strings.Contains(got, judgeManualTask)) {
 			t.Errorf("protocol %d: the reviewer pane's packet does not say to judge it alone:\n%s", protocol, got)
 		}
 	}

@@ -11,10 +11,8 @@ import (
 	"github.com/emsnoel/tandem/internal/workflow"
 )
 
-// Exercise the exact command reviewers receive, including the installed shell
-// helper and real event CLI. Only the external Herdr process is replaced.
-func TestGeneratedReviewHandbackEndToEnd(t *testing.T) {
-	t.Parallel()
+func handbackTestBin(t *testing.T) string {
+	t.Helper()
 	repo, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)
@@ -33,7 +31,14 @@ func TestGeneratedReviewHandbackEndToEnd(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(bin, "herdr"), []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
 		t.Fatal(err)
 	}
+	return bin
+}
 
+// Exercise the exact command reviewers receive, including the installed shell
+// helper and real event CLI. Only the external Herdr process is replaced.
+func TestGeneratedReviewHandbackEndToEnd(t *testing.T) {
+	t.Parallel()
+	bin := handbackTestBin(t)
 	for _, started := range []bool{false, true} {
 		name := "verdict only"
 		if started {

@@ -69,6 +69,50 @@ func TestJobLifecycleAndCertificate(t *testing.T) {
 	}
 }
 
+func TestAttemptArtifactsScopesCheckLogsToTheirAttempt(t *testing.T) {
+	s, first := checkFixture(t)
+	other := seedProjectRunTaskAttempt(t, s, 2)
+	recordLog := func(sd *seed, n int, log string) string {
+		job := sd.newJob(t, n, "check")
+		if err := s.InsertJob(ctx, job); err != nil {
+			t.Fatal(err)
+		}
+		cert := sd.certificate(t, job, func(c *CheckCertificate) {
+			c.ID = hexID(8000 + n)
+			c.LogHash = sd.artifact(t, log)
+		})
+		if err := s.RecordCheckCertificate(ctx, cert); err != nil {
+			t.Fatal(err)
+		}
+		return cert.LogHash
+	}
+	oldLog := recordLog(first, 1, "first attempt log")
+	otherLog := recordLog(other, 2, "other run log")
+	first.setAttempt(t, `is_current=0`)
+	repair := *first
+	repair.AttemptID = hexID(801)
+	if err := s.CreateAttempt(ctx, AttemptSpec{ID: repair.AttemptID, RunID: repair.RunID, TaskID: repair.TaskID,
+		Ordinal: 2, ParentID: first.AttemptID, StartSnapshotHash: repair.StartHash, PacketHash: repair.PacketHash}); err != nil {
+		t.Fatal(err)
+	}
+	ownLog := recordLog(&repair, 3, "repair attempt log")
+	allowed, err := s.AttemptArtifacts(ctx, repair.AttemptID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := allowed[ownLog]; got != "check log" {
+		t.Errorf("own check log role = %q, want check log", got)
+	}
+	for _, hash := range []string{oldLog, otherLog} {
+		if role, ok := allowed[hash]; ok {
+			t.Errorf("another attempt's log %s was granted as %q", hash, role)
+		}
+	}
+	if allowed, err := s.AttemptArtifacts(ctx, first.AttemptID); !errors.Is(err, workflow.ErrStaleAttempt) || allowed != nil {
+		t.Errorf("superseded attempt got grants %v and error %v", allowed, err)
+	}
+}
+
 func TestCertificateIsRefusedForTheWrongJob(t *testing.T) {
 	s, sd := checkFixture(t)
 	other := seedProjectRunTaskAttempt(t, s, 2)

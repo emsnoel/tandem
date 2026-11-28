@@ -41,7 +41,6 @@ mkrepo() { # mkrepo DIR KIND
 reset_fake() { rm -f "$FAKE"/prompts "$FAKE"/prompt.*.txt "$FAKE"/resets "$FAKE"/kind "$FAKE"/session.*; fake_set_state idle 10; printf 'sess-1\n' > "$FAKE/session"; }
 nprompts() { [ -f "$FAKE/prompts" ] && wc -l < "$FAKE/prompts" | tr -d ' ' || echo 0; }
 nresets() { [ -f "$FAKE/resets" ] && wc -l < "$FAKE/resets" | tr -d ' ' || echo 0; }
-field() { printf '%s' "$1" | grep -o -- "--$2 [0-9a-f]*" | head -1 | cut -d' ' -f2; }
 jfield() { printf '%s' "$1" | grep -o "\"$2\":\"[0-9a-f]*\"" | head -1 | cut -d'"' -f4; }
 
 # ---------------------------------------------------------------------------
@@ -63,7 +62,7 @@ for K in $KINDS; do
   tickn() { for _ in 1 2 3 4; do td build tick --root "$R" >/dev/null 2>&1; done; }
   tickn
   PL=$(sed -n 1p "$FAKE/prompt.1.txt" 2>/dev/null | head -c 0; cat "$FAKE/prompt.1.txt" 2>/dev/null)
-  ATT=$(field "$PL" attempt); JOB=$(field "$PL" job); EFF=$(field "$PL" effect); NONCE=$(field "$PL" nonce)
+  ATT=$(builder_prompt_field "$PL" attempt); JOB=$(builder_prompt_field "$PL" job); EFF=$(builder_prompt_field "$PL" effect); NONCE=$(builder_prompt_field "$PL" nonce)
   [ "$(nresets)" -eq 1 ] && ok "$K: fresh task (one reset before the prompt)" && cell "$K" durable "fresh task" "reset, then prompt" || { nope "$K: resets $(nresets)"; cell "$K" durable "fresh task" FAIL; }
   [ -n "$ATT" ] && [ -n "$NONCE" ] || { nope "$K: the prompt carries no identity"; continue; }
   BAD=$(printf '%s' "$NONCE" | rev)
@@ -97,7 +96,7 @@ for K in $KINDS; do
   # Repair: a new attempt, and the old attempt's events are rejected.
   N0=$(nprompts); tickn
   RP2=$(grep -l 'Implement task 1' "$FAKE"/prompt.*.txt | tail -1)
-  ATT2=$(field "$(cat "$RP2")" attempt)
+  ATT2=$(builder_prompt_field "$(cat "$RP2")" attempt)
   if [ "$(nprompts)" -gt "$N0" ] && [ -n "$ATT2" ] && [ "$ATT2" != "$ATT" ]; then ok "$K: repair starts a new attempt"; cell "$K" durable repair "new attempt"
   else nope "$K: no repair attempt"; cell "$K" durable repair FAIL; fi
   # The queue takes the old attempt's message; ingestion quarantines it.

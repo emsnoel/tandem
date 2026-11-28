@@ -575,7 +575,7 @@ func TestReviewMailboxStartOptionsAreValidated(t *testing.T) {
 }
 
 // startReviewHandback starts the env's run opted in to direct review handback.
-func (e *cenv) startReviewHandback() {
+func (e *cenv) startReviewHandback(mut ...func(*StartRequest)) {
 	e.t.Helper()
 	policy, err := e.c.put(ctx, `{"review":"handback"}`)
 	if err != nil {
@@ -585,13 +585,9 @@ func (e *cenv) startReviewHandback() {
 		e.t.Fatal(err)
 	}
 	e.registerPlanner(testCollab)
-	id, err := e.c.Start(ctx, e.startRequest(func(r *StartRequest) {
-		r.Collaboration, r.ReviewProtocol, r.ReviewDelivery, r.AcceptancePolicyPath = testCollab, 3, "mailbox", e.policyPath()
-	}))
-	if err != nil {
-		e.t.Fatalf("Start: %v", err)
-	}
-	e.runID = id
+	req := e.startRequest(mut...)
+	req.Collaboration, req.ReviewProtocol, req.ReviewDelivery, req.AcceptancePolicyPath = testCollab, 3, "mailbox", e.policyPath()
+	e.startWith(req)
 }
 
 // registerPlanner registers the collaboration's planner session, which the

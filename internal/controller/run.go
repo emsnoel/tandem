@@ -151,6 +151,9 @@ type runConfig struct {
 	// Settings is what the task prompts carry from the project and the
 	// handoff, omitted when there is none so the hash is what it was before.
 	Settings *promptSettings `json:"settings,omitempty"`
+	// BuilderHandbackRelay pins the helper path across rendering and delivery.
+	// Older runs kept their long-form handback in the prompt.
+	BuilderHandbackRelay string `json:"builder_handback_relay,omitempty"`
 	// ResumedFrom is the run this one resumed, omitted for a run that started
 	// at the beginning so its hash is what it was before.
 	ResumedFrom string `json:"resumed_from,omitempty"`

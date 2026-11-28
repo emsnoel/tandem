@@ -6,15 +6,16 @@ description: Write an implementation plan that tandem can review and build. Use 
 # Writing a plan for tandem
 
 tandem splits the plan into tasks and sends each one to the builder in a fresh
-conversation. It runs the project's check after every task. A reviewer reads the
-whole plan first, and a review round costs far more than writing the plan right.
+conversation. A reviewer reads the whole plan before the build starts.
 
 ## Where the plan goes
 
 - Write one Markdown file in the plans folder. `tandem-project` prints the folder
   as `plans_dir`.
-- Keep nothing else in that folder. With no argument, `tandem-handoff` takes the
-  newest `.md` there, so a note or a README can become the next handoff.
+- With no path, `tandem-review` and `tandem-handoff` pick the most recently
+  reviewed plan whose file still exists. Otherwise they pick the most recently
+  modified `.md` directly in the configured plans folder. Keep notes and READMEs
+  elsewhere so they cannot be picked by this fallback.
 
 ## The opening
 
@@ -70,6 +71,6 @@ Outputs: receipt-schema
 
 ## Then
 
-Run `tandem-review FILE` and end your turn. tandem brings the verdict back to you.
-When the review is clean, run `tandem-handoff FILE` and end your turn again.
-tandem wakes you when the builder hands back or asks a question, so do not poll.
+Run `tandem-review FILE`. After a clean verdict, run `tandem-handoff FILE`.
+End your turn after each dispatch. tandem delivers verdicts, builder questions
+and handbacks to you.

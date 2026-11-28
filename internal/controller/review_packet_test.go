@@ -1,6 +1,9 @@
 package controller
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -209,6 +212,109 @@ func TestReviewPacketMarksARealTruncation(t *testing.T) {
 	if !strings.Contains(text, "[patch truncated") || !strings.Contains(text, "tandem artifact read "+cur.PatchHash+" --attempt "+att.ID) {
 		t.Fatalf("a large patch was cut without saying how to read the rest:\n%.600s", text)
 	}
+}
+
+func TestReviewPacketTruncatedCheckLogCanBeRead(t *testing.T) {
+	t.Parallel()
+	e := newCEnv(t)
+	const omitted = "the first line of the full log\n"
+	log := omitted + strings.Repeat("check output\n", maxPacketLogBytes/len("check output\n")+1)
+	e.c.d.CheckExecutor = func(ctx context.Context, req CheckRequest) (CheckResult, error) {
+		res, err := e.chk.run(ctx, req)
+		if err != nil {
+			return res, err
+		}
+		res.LogHash, err = e.art.Put(ctx, strings.NewReader(log))
+		return res, err
+	}
+	e.startReviewHandback()
+	att := e.toReview("task-1", 1)
+	packet := e.promptText("review_prompt", att)
+	read := regexp.MustCompile(`(?m)^\[log truncated:[^\n]*tandem artifact read ([0-9a-f]{64}) --attempt ([0-9a-f]{32})\]$`).FindStringSubmatch(packet)
+	if read == nil || read[2] != att.ID || strings.Contains(packet, omitted) {
+		t.Fatal("the packet did not omit the first line and give an attempt-scoped read command")
+	}
+	got, err := ReadArtifact(ctx, e.st, e.art, e.runID, read[2], ArtifactRequest{Hash: read[1]})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Role != "check log" || got.Text != log || got.NextOffset != nil {
+		t.Errorf("the command returned role %q and %d bytes, want the full %d-byte check log", got.Role, len(got.Text), len(log))
+	}
+}
+
+func TestReviewPacketPreservesUnsuccessfulAndMissingCheckEvidence(t *testing.T) {
+	t.Parallel()
+	const command = "./tests/run.sh"
+	log := "\n== shell syntax ==\n" + strings.Repeat("  ok   routine\n", 400) + "\nall checks passed\n"
+	for _, tt := range []struct {
+		name     string
+		exit     int
+		complete bool
+	}{
+		{name: "nonzero exit", exit: 1, complete: true},
+		{name: "incomplete"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			e := newCEnv(t)
+			e.startReviewHandback(func(r *StartRequest) { r.CheckCommand = command })
+			e.tick()
+			att := e.current("task-1")
+			if _, err := e.c.checkEvidence(ctx, runConfig{CheckCommand: command}, att); !errors.Is(err, workflow.ErrIncompleteEvidence) {
+				t.Fatalf("declared check without a certificate: %v", err)
+			}
+			if check, err := e.c.checkEvidence(ctx, runConfig{}, att); err != nil || check.Ran {
+				t.Fatalf("no declared check: %+v, %v", check, err)
+			}
+			// Failed and incomplete certificates cannot schedule a review. Persist
+			// one and exercise the evidence reader and renderer directly.
+			hash, err := e.c.put(ctx, log)
+			if err != nil {
+				t.Fatal(err)
+			}
+			inputs, err := e.c.put(ctx, "check inputs")
+			if err != nil {
+				t.Fatal(err)
+			}
+			job := workflow.Job{ID: hex32(10), AttemptID: att.ID, Kind: "check", InputHash: inputs, ConfigHash: inputs, RunnerKind: "local"}
+			if err := e.st.InsertJob(ctx, job); err != nil {
+				t.Fatal(err)
+			}
+			cert := state.CheckCertificate{ID: hex32(11), AttemptID: att.ID, JobID: job.ID, LogHash: hash,
+				BeforeInputsHash: inputs, AfterInputsHash: inputs, CommandHash: inputs, EnvironmentHash: inputs, ExitCode: tt.exit, Complete: tt.complete}
+			if err := e.st.RecordCheckCertificate(ctx, cert); err != nil {
+				t.Fatal(err)
+			}
+			p := fixturePacket(stageReview)
+			p.AttemptID = att.ID
+			p.Check, err = e.c.checkEvidence(ctx, runConfig{CheckCommand: command}, att)
+			if err != nil {
+				t.Fatal(err)
+			}
+			packet := renderReviewPacket(p, 3)
+			want := fmt.Sprintf("\n== Checks\ncommand: %s\nexit code: %d\ncomplete: %t\ncertificate: %s\n%s\n== Evidence under review\n",
+				command, tt.exit, tt.complete, cert.ID, baselinePacketLog(log, hash, att.ID))
+			if !strings.Contains(packet, want) {
+				t.Fatal("the packet changed the baseline check evidence")
+			}
+			got, err := ReadArtifact(ctx, e.st, e.art, e.runID, att.ID, ArtifactRequest{Hash: hash})
+			if err != nil || got.Role != "check log" || got.Text != log || got.NextOffset != nil {
+				t.Fatalf("read returned %d of %d log bytes, err=%v", len(got.Text), len(log), err)
+			}
+			t.Logf("full packet bytes: baseline and candidate %d", len(packet))
+		})
+	}
+}
+
+// baselinePacketLog renders the check log as at 711ed6d.
+func baselinePacketLog(log, hash, attempt string) string {
+	const limit = 4 << 10
+	if len(log) <= limit {
+		return "log:\n" + log + "\n"
+	}
+	return fmt.Sprintf("log:\n%s\n[log truncated: only its last %d bytes are shown. The whole log is artifact %s: tandem artifact read %s --attempt %s]\n",
+		log[len(log)-limit:], limit, hash, hash, attempt)
 }
 
 // A run that did not opt in keeps the original prompt, byte for byte.

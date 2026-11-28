@@ -18,3 +18,13 @@ write_builder() {
   mkdir -p "$dir"
   jq -cn --arg k "$kind" --arg a "$autonomy" '{kind:$k, autonomy:$a, adopted:false}' > "$dir/builder.json"
 }
+
+# Read the binding named by the fake builder's prompt, even after a repair.
+# These fixture paths contain no single quotes. The controller test exercises
+# shell execution with spaces and quotes in the path.
+builder_prompt_field() {
+  local helper
+  helper=$(printf '%s\n' "$1" | sed -n "s/^    '\([^']*\/builder\/[0-9a-f]*\)' --started$/\1/p" | head -1)
+  [ -n "$helper" ] || return 1
+  grep -o -- "--$2 [0-9a-f][0-9a-f]*" "$helper" | head -1 | cut -d' ' -f2
+}

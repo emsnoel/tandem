@@ -38,7 +38,6 @@ CODEX="$TMP/codex"
 td() { env PATH="$TMP/bin:/usr/bin:/bin" FAKE="$FAKE" REPO="$REPO" CODEX_HOME="$CODEX" TANDEM_BUILD_ENGINE=durable TANDEM_STATE_HOME="$TMP/state" \
   ${ACK_MS:+TANDEM_ACK_WINDOW_MS=$ACK_MS} tandem "$@"; }
 tickn() { for _ in 1 2 3 4; do td build tick --root "$REPO" >/dev/null 2>"$TMP/err"; done; }
-field() { printf '%s' "$1" | grep -o -- "--$2 [0-9a-f]*" | head -1 | cut -d' ' -f2; }
 jfield() { printf '%s' "$1" | grep -o "\"$2\":\"[0-9a-f]*\"" | head -1 | cut -d'"' -f4; }
 review_of() { td build status --root "$REPO" --json | jq -r ".tasks[$1].attempts[-1].review"; }
 
@@ -49,10 +48,11 @@ td build start --plan "$REPO/plan.md" --root "$REPO" --builder builder --planner
 # prompt for it is typed into the reviewer pane, to wait ACK_MS for a reply.
 # Prints the review prompt.
 hand_back() {
-  local n="$1" ack="${2:-}" pl att job eff nonce
+  local n="$1" ack="${2:-}" line pl att job eff nonce
   tickn
-  pl=$(cut -f1,2- "$FAKE/prompts" | grep '^builder' | grep -v '/new' | sed -n "${n}p" | cut -f2-)
-  att=$(field "$pl" attempt); job=$(field "$pl" job); eff=$(field "$pl" effect); nonce=$(field "$pl" nonce)
+  line=$(grep -n '^builder' "$FAKE/prompts" | grep -v '/new' | sed -n "${n}p" | cut -d: -f1)
+  pl=$(cat "$FAKE/prompt.$line.txt")
+  att=$(builder_prompt_field "$pl" attempt); job=$(builder_prompt_field "$pl" job); eff=$(builder_prompt_field "$pl" effect); nonce=$(builder_prompt_field "$pl" nonce)
   td build event new --root "$REPO" --kind builder_started --task "$n" --attempt "$att" --job "$job" --effect "$eff" --nonce "$nonce" >/dev/null 2>&1
   printf 'work for task %s\n' "$n" > "$REPO/file$n.txt"
   printf 'done: task %s\n' "$n" > "$TMP/report$n.md"

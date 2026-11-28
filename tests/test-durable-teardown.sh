@@ -97,10 +97,10 @@ finish_tasks() {
   for n in $(seq 1 "$1"); do
     fake_set_state idle; td tandem build tick --root "$R" >/dev/null 2>&1
     line=$(grep -n 'Implement task' "$FAKE/prompts" | tail -1 | cut -d: -f1); p=$(cat "$FAKE/prompt.$line.txt")
-    att=$(printf '%s' "$p" | grep -o -- '--attempt [0-9a-f]*' | head -1 | cut -d' ' -f2)
-    job=$(printf '%s' "$p" | grep -o -- '--job [0-9a-f]*' | head -1 | cut -d' ' -f2)
-    eff=$(printf '%s' "$p" | grep -o -- '--effect [0-9a-f]*' | head -1 | cut -d' ' -f2)
-    nonce=$(printf '%s' "$p" | grep -o -- '--nonce [0-9a-f]*' | head -1 | cut -d' ' -f2)
+    att=$(builder_prompt_field "$p" attempt)
+    job=$(builder_prompt_field "$p" job)
+    eff=$(builder_prompt_field "$p" effect)
+    nonce=$(builder_prompt_field "$p" nonce)
     td tandem build event new --root "$R" --kind builder_started --task "$n" --attempt "$att" --job "$job" --effect "$eff" --nonce "$nonce" >/dev/null 2>&1
     printf 'task %s\n' "$n" > "$R/work$n.txt"; printf 'done\n' > "$TMP/report.md"
     td tandem build event new --root "$R" --kind builder_submitted --task "$n" --attempt "$att" --job "$job" --effect "$eff" --nonce "$nonce" --payload "$TMP/report.md" >/dev/null 2>&1

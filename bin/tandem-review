@@ -138,6 +138,11 @@ else
 fi
 PLAN_ABS=$(cd "$(dirname "$PLAN")" && printf '%s/%s' "$(pwd)" "$(basename "$PLAN")")
 
+# The future handoff can choose a context limit or add a ruling. Build start
+# measures that exact packet. Here the selected file only needs to import.
+tandem gate validate-plan --plan "$PLAN_ABS" >/dev/null \
+  || die "plan validation failed. NOTHING WAS SENT."
+
 MAILBOX=$(tandem paths relay --root "$ROOT") \
   || die "the installed tandem is behind these commands (no 'tandem paths'); re-run install.sh."
 

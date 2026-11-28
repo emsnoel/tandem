@@ -71,10 +71,10 @@ P=""; ATT=""; JOB=""; EFF=""; NONCE=""
 last_prompt() {
   local line
   line=$(grep -n 'Implement task' "$FAKE/prompts" | tail -1 | cut -d: -f1); P=$(cat "$FAKE/prompt.$line.txt")
-  ATT=$(printf '%s' "$P" | grep -o -- '--attempt [0-9a-f]*' | head -1 | cut -d' ' -f2)
-  JOB=$(printf '%s' "$P" | grep -o -- '--job [0-9a-f]*' | head -1 | cut -d' ' -f2)
-  EFF=$(printf '%s' "$P" | grep -o -- '--effect [0-9a-f]*' | head -1 | cut -d' ' -f2)
-  NONCE=$(printf '%s' "$P" | grep -o -- '--nonce [0-9a-f]*' | head -1 | cut -d' ' -f2)
+  ATT=$(builder_prompt_field "$P" attempt)
+  JOB=$(builder_prompt_field "$P" job)
+  EFF=$(builder_prompt_field "$P" effect)
+  NONCE=$(builder_prompt_field "$P" nonce)
 }
 # builder_event N KIND [PAYLOAD]: the builder's acknowledgement or handback for task N.
 builder_event() {

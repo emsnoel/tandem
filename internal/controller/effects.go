@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/emsnoel/tandem/internal/runner"
@@ -138,8 +139,7 @@ func (c *Controller) expandReview(ctx context.Context, run state.Run, cfg runCon
 
 // reviewPromptText is the review the reviewer is asked for, for one job. A run
 // with direct handback gets the full packet, naming the identity its reply
-// must carry; any other run keeps the original prompt, byte for byte. parentID
-// is the review dispatch the prompt derives from.
+// must carry. For a pane, parentID is the dispatch the prompt derives from.
 func (c *Controller) reviewPromptText(ctx context.Context, run state.Run, cfg runConfig, task state.TaskRow, att workflow.Attempt, jobID, parentID string) (string, error) {
 	if cfg.ReviewProtocol >= 3 {
 		pkt, err := c.buildReviewPacket(ctx, run, cfg, task, att, jobID, stageReview)
@@ -159,27 +159,49 @@ func (c *Controller) reviewPromptText(ctx context.Context, run state.Run, cfg ru
 	if err != nil {
 		return "", err
 	}
-	var paths []string
-	if strings.TrimSpace(text) == "" {
-		if paths, err = c.taskPaths(ctx, task); err != nil {
+	p := reviewPromptData{Task: task.Ordinal, Slug: task.ID, Job: jobID, Attempt: att.ID,
+		PatchHash: att.PatchHash, Tree: att.EndSnapshotHash, Patch: text, WarmPane: true}
+	emptyPatch := strings.TrimSpace(text) == ""
+	var spec workflow.TaskSpec
+	if parentID != "" || emptyPatch {
+		if spec, err = c.reviewTaskSpec(ctx, task); err != nil {
 			return "", err
 		}
 	}
-	return reviewPrompt(reviewPromptData{Task: task.Ordinal, Slug: task.ID, Job: jobID, Attempt: att.ID,
-		PatchHash: att.PatchHash, Tree: att.EndSnapshotHash, Patch: text, TaskPaths: paths, WarmPane: true}), nil
+	if emptyPatch {
+		p.TaskPaths = specPaths(spec)
+	}
+	baseline := reviewPrompt(p)
+	if parentID == "" {
+		return baseline, nil
+	}
+	briefPath := filepath.Join(RunDir(cfg.relay(), run.ID), "review", att.ID, "requirements.txt")
+	candidate := proposeManualReview(p, spec, briefPath, len(baseline))
+	if candidate.bytes() > len(baseline) {
+		return baseline, nil
+	}
+	if candidate.readCommand != "" {
+		if err := publishReviewRequirement(briefPath, candidate.readOutput); err != nil {
+			return "", err
+		}
+	}
+	return candidate.prompt, nil
 }
 
-// taskPaths is every file a task's spec names.
-func (c *Controller) taskPaths(ctx context.Context, task state.TaskRow) ([]string, error) {
+func (c *Controller) reviewTaskSpec(ctx context.Context, task state.TaskRow) (workflow.TaskSpec, error) {
+	var spec workflow.TaskSpec
 	raw, err := c.d.Artifacts.ReadAll(ctx, task.SpecHash, 4<<20)
 	if err != nil {
-		return nil, err
+		return spec, err
 	}
-	var spec workflow.TaskSpec
 	if err := json.Unmarshal(raw, &spec); err != nil {
-		return nil, fmt.Errorf("%w: the spec of task %s is unreadable: %v", workflow.ErrCorruptArtifact, task.ID, err)
+		return spec, fmt.Errorf("%w: the spec of task %s is unreadable: %v", workflow.ErrCorruptArtifact, task.ID, err)
 	}
-	return specPaths(spec), nil
+	return spec, nil
+}
+
+func publishReviewRequirement(path, requirement string) error {
+	return atomicWriteMode(filepath.Dir(path), filepath.Base(path), []byte(requirement), 0400)
 }
 
 func (c *Controller) taskOf(ctx context.Context, run state.Run, att workflow.Attempt) (state.TaskRow, error) {
@@ -251,8 +273,17 @@ func (c *Controller) advanceRun(ctx context.Context, run state.Run, eff workflow
 func (c *Controller) deliver(ctx context.Context, run state.Run, cfg runConfig, kinds []string) error {
 	d := &runner.Deliverer{Store: c.d.State, Transport: c.d.Transport, Artifacts: c.d.Artifacts, Owner: c.owner, RunID: run.ID,
 		AgentKind: cfg.BuilderKind, Kinds: kinds, Target: cfg.agentFor}
-	if cfg.Collaboration != "" {
-		d.BeforeSend = c.registerLaunch(run, cfg)
+	register := c.registerLaunch(run, cfg)
+	d.BeforeSend = func(ctx context.Context, eff workflow.Effect, delivery runner.Delivery) error {
+		if eff.Kind == workflow.EffectBuilderDispatch && cfg.BuilderHandbackRelay != "" {
+			if err := c.prepareBuilderHandback(ctx, run, cfg, eff); err != nil {
+				return fmt.Errorf("prepare builder handback: %w", err)
+			}
+		}
+		if cfg.Collaboration != "" {
+			return register(ctx, eff, delivery)
+		}
+		return nil
 	}
 	out, err := d.Tick(ctx)
 	if out.EffectID == "" {

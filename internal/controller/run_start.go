@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/emsnoel/tandem/internal/paths"
@@ -120,12 +121,13 @@ func (c *Controller) Start(ctx context.Context, req StartRequest) (string, error
 	if err != nil {
 		return "", err
 	}
+	relay := paths.Relay(root)
 	cfgHash, err := c.putJSON(ctx, runConfig{Version: 1, Root: root, PlanPath: req.PlanPath, BuilderKind: req.BuilderKind,
 		BuilderSession: req.BuilderSession, PlannerKind: "planner", PlannerSession: req.PlannerSession, CheckCommand: req.CheckCommand,
 		TaskInputLimit: req.TaskInputLimit, RunInputLimit: req.RunInputLimit, ContextLimit: req.ContextLimit,
 		Collaboration: req.Collaboration, ReviewProtocol: req.ReviewProtocol, ReviewDelivery: req.ReviewDelivery,
 		AcceptancePolicy: policyHash, RecoveryPolicy: recoveryHash, ReviewerKind: req.ReviewerKind, ReviewerSession: req.ReviewerSession,
-		Settings: settingsFor(req), ResumedFrom: resume.From})
+		Settings: settingsFor(req), ResumedFrom: resume.From, BuilderHandbackRelay: filepath.Base(relay)})
 	if err != nil {
 		return "", err
 	}
@@ -157,7 +159,7 @@ func (c *Controller) Start(ctx context.Context, req StartRequest) (string, error
 	for _, t := range tasks {
 		manifest.Tasks = append(manifest.Tasks, ManifestTask{Ordinal: t.Ordinal, ID: t.ID})
 	}
-	if _, err := InitRunDir(paths.Relay(root), ActiveRun{RunID: runID, ProjectID: run.ProjectID}, manifest); err != nil {
+	if _, err := InitRunDir(relay, ActiveRun{RunID: runID, ProjectID: run.ProjectID}, manifest); err != nil {
 		return runID, err
 	}
 	if recoveryHash != "" {

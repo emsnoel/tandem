@@ -126,7 +126,7 @@ func (c *Controller) attemptTask(ctx context.Context, run state.Run, att workflo
 }
 
 // reminderText asks the builder for the handback it has not sent, with the
-// command the task prompt gave it.
+// public handback command bound to the same attempt.
 func reminderText(p promptData) string {
 	return fmt.Sprintf("Tandem has no handback from you for task %d, and your pane has been idle. "+
 		"If you finished, or could not finish, hand back now. %s\n\n    tandem-handback %s --report <file>\n\n"+

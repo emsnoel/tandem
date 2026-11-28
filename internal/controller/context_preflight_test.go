@@ -3,6 +3,7 @@ package controller
 import (
 	"errors"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -65,6 +66,9 @@ func TestCheckTaskContextMeasuresWhatTheRunWillSend(t *testing.T) {
 	}
 	if err := e.preflight(need); err != nil {
 		t.Fatalf("the reported need must fit: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(e.relay, "durable")); !os.IsNotExist(err) {
+		t.Fatalf("preflight created durable run data: %v", err)
 	}
 	// A real run with exactly that limit sends task 1 without pausing, so the
 	// check measured the same prompt the run builds.

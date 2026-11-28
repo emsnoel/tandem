@@ -104,11 +104,19 @@ func (e *cliEnv) stuckHandback() string {
 	if err != nil {
 		e.t.Fatal(err)
 	}
+	match := regexp.MustCompile(`(?m)^    '([^'\n]+/builder/[0-9a-f]+)' --started$`).FindSubmatch(prompt)
+	if match == nil {
+		e.t.Fatal("no builder handback helper in the task prompt")
+	}
+	binding, err := os.ReadFile(string(match[1]))
+	if err != nil {
+		e.t.Fatal(err)
+	}
 	ident := []string{"--task", "1"}
 	for _, f := range []string{"attempt", "job", "effect", "nonce"} {
-		m := regexp.MustCompile(`--` + f + ` ([0-9a-f]+)`).FindSubmatch(prompt)
+		m := regexp.MustCompile(`--` + f + ` ([0-9a-f]+)`).FindSubmatch(binding)
 		if m == nil {
-			e.t.Fatalf("no --%s in the task prompt", f)
+			e.t.Fatalf("no --%s in the builder handback helper", f)
 		}
 		ident = append(ident, "--"+f, string(m[1]))
 	}

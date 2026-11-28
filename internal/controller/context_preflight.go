@@ -4,13 +4,33 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/emsnoel/tandem/internal/paths"
 	"github.com/emsnoel/tandem/internal/plan"
 	"github.com/emsnoel/tandem/internal/state"
 	"github.com/emsnoel/tandem/internal/taskcontext"
 	"github.com/emsnoel/tandem/internal/workflow"
 )
+
+// CheckPlan validates a plan when the settings for a future run are unknown.
+func CheckPlan(path string) error {
+	_, err := readPlanForPreflight(path)
+	return err
+}
+
+func readPlanForPreflight(path string) (plan.Imported, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return plan.Imported{}, err
+	}
+	imp := plan.Import(string(raw))
+	if err := imp.Err(); err != nil {
+		return plan.Imported{}, fmt.Errorf("%s: %w", path, err)
+	}
+	return imp, nil
+}
 
 // CheckTaskContext measures every task's first prompt against the context
 // limit before a run exists, so a task whose mandatory content does not fit is
@@ -24,16 +44,12 @@ func CheckTaskContext(req StartRequest) error {
 	if err != nil {
 		return err
 	}
-	raw, err := os.ReadFile(req.PlanPath)
+	imp, err := readPlanForPreflight(req.PlanPath)
 	if err != nil {
 		return err
 	}
-	imp := plan.Import(string(raw))
-	if err := imp.Err(); err != nil {
-		return fmt.Errorf("%s: %w", req.PlanPath, err)
-	}
 	cfg := runConfig{Root: root, PlanPath: req.PlanPath, CheckCommand: req.CheckCommand, ContextLimit: req.ContextLimit,
-		Settings: settingsFor(req)}
+		Settings: settingsFor(req), BuilderHandbackRelay: filepath.Base(paths.Relay(root))}
 	zeroID, zeroHash := strings.Repeat("0", 32), strings.Repeat("0", 64)
 	var over []string
 	need, limit := 0, 0
